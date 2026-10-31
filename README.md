@@ -1,4 +1,16 @@
-# AirPlay Receiver for Android
+# Buzin Cast
+
+Receptor gratuito, sem anúncios e sem limite de tempo para Fire TV com Fire OS.
+
+**Protótipo em desenvolvimento; recursos e compatibilidade ainda precisam de testes no aparelho.**
+
+Consulte [BUZIN_CAST.md](BUZIN_CAST.md) para escopo, estado real das funções, compilação, instalação e publicação. Consulte [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) para os créditos.
+
+O conteúdo a seguir é o README original da base utilizada, preservado para referência. Links, badges e anúncios de versões abaixo pertencem ao projeto original, não são versões do Buzin Cast.
+
+---
+
+# AirPlay Receiver for Android — documentação original
 
 [![Stars](https://img.shields.io/github/stars/jqssun/android-airplay-server)](https://github.com/jqssun/android-airplay-server)
 [![GitHub](https://img.shields.io/github/downloads/jqssun/android-airplay-server/total?label=GitHub&logo=GitHub)](https://github.com/jqssun/android-airplay-server/releases)

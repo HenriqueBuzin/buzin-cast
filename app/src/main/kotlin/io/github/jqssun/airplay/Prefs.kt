@@ -72,12 +72,13 @@ object Prefs {
 
     fun forced(v: String) = when (v) { ON -> true; OFF -> false; else -> null }
 
-    val SERVER_NAME = str("server_name", "Android AirPlay", restart = true)
+    val SERVER_NAME = str("server_name", "Buzin Cast", restart = true)
     val SERVER_PORT = int("server_port", 7000, 1..65535, restart = true)
     val AUTO_START = bool("auto_start", true)
-    val BOOT_AUTO_START = bool("boot_auto_start", true)
+    val DLNA_ENABLED = bool("dlna_enabled", false, restart = true)
+    val BOOT_AUTO_START = bool("boot_auto_start", false)
     val RUN_IN_BACKGROUND = bool("run_in_background", true)
-    val H265 = tri("h265", restart = true)
+    val H265 = str("h265", OFF, restart = true) { it in setOf(AUTO, ON, OFF) }
     val ENFORCE_SDR = bool("enforce_sdr", true, restart = true)
     val KEY_ALLOW_FRAME_DROP = bool(MediaFormat.KEY_ALLOW_FRAME_DROP, true, restart = true)
     val KEY_PRIORITY = bool(MediaFormat.KEY_PRIORITY, true, restart = true)
@@ -97,8 +98,8 @@ object Prefs {
     val AAC_ENABLED = bool("aac_enabled", true, restart = true)
     // on: sender volume drives receiver volume; off: volume = receiver volume x sender volume
     val SYNC_CLIENT_VOLUME = bool("sync_client_volume", true)
-    val RESOLUTION = str("resolution", AUTO, restart = true) { it in setOf(AUTO, PORTRAIT, LANDSCAPE) || SIZE.matches(it) }
-    val MAX_FPS = int("max_fps", 60, 1..Int.MAX_VALUE, restart = true)
+    val RESOLUTION = str("resolution", "1920x1080", restart = true) { it in setOf(AUTO, PORTRAIT, LANDSCAPE) || SIZE.matches(it) }
+    val MAX_FPS = int("max_fps", 30, 1..Int.MAX_VALUE, restart = true)
     val OVERSCANNED = bool("overscanned", false, restart = true)
     val REQUIRE_PIN = bool("require_pin", false, restart = true)
     val ALLOW_NEW_CONN = bool("allow_new_conn", true, restart = true)

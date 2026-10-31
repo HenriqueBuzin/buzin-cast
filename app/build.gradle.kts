@@ -6,16 +6,18 @@ plugins {
 }
 
 import java.util.Properties
+import java.security.MessageDigest
 
 val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
 }
 
-val allAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+val allAbis = providers.gradleProperty("buzinAbis").orNull?.split(",")
+    ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 
 android {
     namespace = "io.github.jqssun.airplay"
-    compileSdk = 37
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     if (localProps.containsKey("storeFile")) {
@@ -30,11 +32,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.jqssun.airplay"
-        minSdk = 23
-        targetSdk = 37
-        versionCode = 36
-        versionName = "0.0.36"
+        applicationId = "com.buzincast.tv"
+        minSdk = 25
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1.0"
 
         externalNativeBuild {
             cmake {
@@ -100,10 +102,35 @@ tasks.register("applyUxplayPatches") {
             return out
         }
         val patches = file("src/main/cpp/patches/UxPlay").listFiles { f -> f.extension == "patch" }!!.sorted()
-        val touched = patches.flatMap { git("apply", "--numstat", it.path).trim().lines() }
+        fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
+            .digest(bytes).joinToString("") { "%02x".format(it) }
+        val patchHash = digest(patches.flatMap { it.readBytes().toList() }.toByteArray())
+        val marker = file("src/main/cpp/third_party/UxPlay/.buzin-patches.properties")
+        val touched = patches.flatMap { git("apply", "--numstat", it.absolutePath).trim().lines() }
             .map { it.substringAfterLast("\t") }.distinct()
-        git("checkout", "--", *touched.toTypedArray())
-        patches.forEach { git("apply", "--unidiff-zero", it.path) }
+        if (marker.exists()) {
+            val recorded = Properties().apply { marker.inputStream().use(::load) }
+            check(recorded.getProperty("patchSet") == patchHash) { "UxPlay patch set changed; use a fresh submodule checkout." }
+            check(touched.all { name -> recorded.getProperty(name) == digest(file("src/main/cpp/third_party/UxPlay/$name").readBytes()) }) {
+                "Patched UxPlay files were edited. Review the local changes before rebuilding."
+            }
+            return@doLast
+        }
+        patches.forEach { patch ->
+            // Also supports source distributions without Git metadata. Never reset local edits.
+            val applied = ProcessBuilder("git", "-C", "$projectDir/src/main/cpp/third_party/UxPlay",
+                "apply", "--reverse", "--check", "--unidiff-zero", patch.absolutePath)
+                .redirectErrorStream(true).start().let { proc ->
+                    proc.inputStream.bufferedReader().readText()
+                    proc.waitFor() == 0
+                }
+            if (!applied) git("apply", "--unidiff-zero", patch.absolutePath)
+        }
+        val recorded = Properties().apply {
+            setProperty("patchSet", patchHash)
+            touched.forEach { name -> setProperty(name, digest(file("src/main/cpp/third_party/UxPlay/$name").readBytes())) }
+        }
+        marker.outputStream().use { recorded.store(it, "Buzin Cast applied UxPlay patches") }
     }
 }
 
@@ -112,6 +139,7 @@ tasks.configureEach {
 }
 
 dependencies {
+    implementation(project(":dlna-domain"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime)

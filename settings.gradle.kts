@@ -15,5 +15,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AirPlayServer"
+rootProject.name = "BuzinCast"
 include(":app")
+include(":dlna-domain")
