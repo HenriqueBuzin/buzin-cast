@@ -118,6 +118,8 @@ object SoapResponses {
         "http-get:*:video/x-matroska:*",
         "http-get:*:audio/mpeg:*",
         "http-get:*:audio/mp4:*",
+        "http-get:*:image/jpeg:*",
+        "http-get:*:image/png:*",
     ).joinToString(",")
 
     fun getProtocolInfo(): String = envelope(

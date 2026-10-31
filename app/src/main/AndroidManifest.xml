@@ -46,6 +46,7 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".media.PhotoActivity" android:exported="false" android:screenOrientation="landscape" android:launchMode="singleTask" />
         <service
             android:name=".service.AirPlayService"
             android:foregroundServiceType="connectedDevice|mediaPlayback"

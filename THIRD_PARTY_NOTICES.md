@@ -2,6 +2,8 @@
 
 Este projeto deriva de **AirPlay Receiver for Android**, de jqssun e contribuidores, sob GNU GPL v3. O código original e seu histórico foram preservados. Alterações Buzin Cast: identidade, tela de conexão, tradução inicial, configurações padrão para Fire TV e ajustes de compilação.
 
+Na versão 0.2.0, o código Buzin Cast também acrescenta muxer Matroska, transporte de retransmissão autenticado, captura PCM no caminho nativo, visualizador DLNA de fotos e controles de gravação/retransmissão. Os padrões sintéticos de vídeo e áudio dos testes foram gerados com FFmpeg; não são mídia de terceiros.
+
 - android-airplay-server: https://github.com/jqssun/android-airplay-server — GNU GPL v3; `LICENSE` na raiz.
 - LeanCast: https://github.com/addozhang/leancast — Apache 2.0, commit `cf535945a119202b56d8481c707f78aee33e13b5`. Importados o módulo de domínio DLNA, seus testes e os adaptadores `ControlServer`, `SubscriptionRegistry`, `SsdpAgent` e `Net`. Licença integral em `licenses/LeanCast-Apache-2.0.txt`. Alterações Buzin Cast: integração com o player existente, sincronização de sessão, limite de concorrência HTTP e restrição do endereço de callback GENA ao dispositivo solicitante.
 - UxPlay: https://github.com/FDH2/UxPlay — GNU GPL v3 e avisos específicos dos componentes internos; consultar `app/src/main/cpp/third_party/UxPlay`.

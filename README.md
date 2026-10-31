@@ -6,6 +6,8 @@ Repositório do Buzin Cast: https://github.com/HenriqueBuzin/buzin-cast
 
 **Protótipo em desenvolvimento; recursos e compatibilidade ainda precisam de testes no aparelho.**
 
+Versão 0.2.0: gravação manual do espelhamento AirPlay em MKV com áudio, retransmissão criptografada entre dois Buzin Cast, visualizador/apresentação de fotos DLNA e atalho para o Miracast nativo quando disponível. Google Cast/Chromecast continua pendente. Esses recursos são experimentais; não equivalem à compatibilidade completa do AirScreen.
+
 Consulte [BUZIN_CAST.md](BUZIN_CAST.md) para escopo, estado real das funções, compilação, instalação e publicação. Consulte [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) para os créditos.
 
 O conteúdo a seguir é o README original da base utilizada, preservado para referência. Links, badges e anúncios de versões abaixo pertencem ao projeto original, não são versões do Buzin Cast.

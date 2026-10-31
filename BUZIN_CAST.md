@@ -4,7 +4,20 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
-Protótipo em desenvolvimento. A presença de código de uma função não significa que ela foi validada no Fire TV. Modelo inicial informado pelo mantenedor: Fire TV Stick 4K de primeira geração, Fire OS 6.7.1.1. Testes em dispositivo real ainda pendentes.
+### Novidades 0.2.0
+
+- Aba **Ferramentas**, navegável com o controle remoto.
+- Gravação manual do **espelhamento AirPlay** em MKV, sem reencodar: vídeo H.264/H.265 e áudio PCM estéreo. Prepare antes de conectar, ou reconecte para receber SPS/PPS e um quadro-chave. Não grava outros aplicativos, reprodução de URL/HLS/DLNA nem conteúdo protegido. Exibe REC em tela e uma notificação durante a gravação. Para ao desconectar ou faltar espaço, sem temporizador comercial.
+- Biblioteca local com reprodução, exportação para apps compatíveis instalados e exclusão com confirmação. Diretório: armazenamento de arquivos externos privados do app, `recordings/`; removido ao desinstalar. PCM sem compressão consome cerca de 10,6 MB/min, além do vídeo.
+- Retransmissão **Buzin Cast → Buzin Cast** por rede local: vídeo AirPlay já comprimido e áudio PCM. Ative Receber na segunda TV e digite IP, porta e código no emissor. Pareia com código aleatório de 12 caracteres e usa AES-GCM com chave derivada por PBKDF2, sequência autenticada e filas limitadas. O código de pareamento expira em cinco minutos. Esse protocolo próprio não é Google Cast, AirPlay emissor ou retransmissão para AirScreen.
+- Visualizador de fotos **JPEG e PNG via DLNA**, com giro, ajuste/preenchimento, navegação pelas últimas 20 fotos recebidas na sessão e apresentação automática a cada 5 segundos. Imagens com limite de 16 MB e decodificação reduzida para até 3840 × 2160. Ative DLNA e mantenha o app aberto quando o sistema impedir abertura em segundo plano.
+- Atalho para **Miracast nativo** nos Fire TV com o componente `com.amazon.cast.sink.DisplayMirroringSinkActivity`. Se não existir, mostra a limitação. Não implementa um novo motor Miracast, e a gravação/retransmissão não se aplica ao receptor do sistema.
+- Google Cast/Chromecast continua **não implementado**. O Cast Connect oficial depende de Google Play Services e não fornece um receptor universal pronto para Fire OS. Não há anúncio `_googlecast` fictício.
+- O perfil de até 3840 × 2160 já pode ser selecionado em Configurações. O limite é ajustado às capacidades do decodificador. A resolução efetiva depende do emissor, codec, aparelho e rede; 4K não foi confirmado em todos os modelos.
+
+Os arquivos de teste de vídeo em `dlna-domain/src/test/resources/mirror/` são padrões sintéticos de 64 × 48 pixels gerados com FFmpeg. O receptor `DebugMediaReceiver` existe somente no APK de debug e exige `android.permission.DUMP`, permitindo injetar esses padrões via ADB nos testes. Não entra na compilação release.
+
+Protótipo em desenvolvimento. A presença de código de uma função não significa que ela foi validada em todos os modelos. Dispositivo inicial: Fire TV Stick 4K de primeira geração (AFTMM), Fire OS 6.7.1.1. O mantenedor confirmou o funcionamento do AirPlay na versão 0.1.0. A versão 0.2.0 acrescenta os recursos experimentais descritos acima.
 
 A base utiliza [android-airplay-server](https://github.com/jqssun/android-airplay-server), commit `a46cca0`, e seus submódulos fixados, incluindo [UxPlay](https://github.com/FDH2/UxPlay). Os nomes internos do código foram preservados para manter a integração JNI e a rastreabilidade. O identificador de instalação do Buzin Cast é `com.buzincast.tv`.
 
@@ -20,15 +33,15 @@ A base utiliza [android-airplay-server](https://github.com/jqssun/android-airpla
 - Sem anúncios, rastreadores publicitários, SDK de cobrança ou temporizador comercial.
 - Receptor DLNA experimental para áudio e vídeo, baseado no LeanCast, com descoberta SSDP, descrição UPnP, controles SOAP e eventos GENA. Ative em Configurações. Desativado por padrão até validação em aparelho; não usa o PIN AirPlay e exige reiniciar o receptor após trocar de rede.
 
-## Escopo solicitado e ainda em desenvolvimento
+## O que ainda falta validar ou implementar
 
-1. Validar a integração DLNA de áudio e vídeo em aparelhos reais e acrescentar apresentação de fotos.
+1. Validar DLNA de áudio, vídeo e fotos com aplicativos emissores reais, além dos testes sintéticos.
 2. Compatibilidade Google Cast: investigar um motor receptor adequado a Fire OS. O SDK Cast Connect para Android TV não é um receptor universal que se possa simplesmente adicionar ao Fire TV.
-3. Miracast: investigar integração com a função nativa nos modelos compatíveis; não prometer recepção universal por aplicativo.
-4. Gravação voluntária da transmissão, com indicação visível e gestão dos arquivos locais.
-5. Retransmissão para outro receptor, com protocolo e interoperabilidade definidos.
-6. Reprodução de fotos com controles de apresentação.
-7. Perfis de qualidade até 4K nos aparelhos, codecs, redes e fontes que suportarem.
+3. Miracast: o atalho nativo está implementado. Ainda falta verificar uma sessão com emissor Miracast real. Durante o teste de abertura no Fire TV, a depuração ADB perdeu a conexão; não foi confirmado o retorno à rede nem o espelhamento Miracast.
+4. Validar gravação com sessões AirPlay longas, codecs/fontes diferentes e sincronização audiovisual; o muxer e o caminho de áudio nativo passaram nos testes sintéticos.
+5. Validar retransmissão entre duas TVs físicas, áudio audível e latência. O teste emulador → Fire TV estabeleceu pareamento criptografado e iniciou decodificadores de vídeo/áudio. O protetor de tela ocultou a imagem; foram acrescentados abertura automática do app e manutenção de tela ligada, cuja validação final no aparelho ficou pendente após a queda do ADB.
+6. Validar a apresentação de fotos com vários aplicativos DLNA e controles remotos diferentes.
+7. Confirmar qualidade até 4K nos aparelhos, codecs, redes e fontes que suportarem; o seletor e os limites do decodificador já existem.
 8. Controle de acesso por protocolo e ajustes de compatibilidade.
 9. Testes de reconexão, sincronização audiovisual, sessões longas e uso em segundo plano.
 10. Preparação e submissão de uma versão gratuita à Amazon Appstore.
@@ -39,13 +52,16 @@ Fire OS 6+ (API 25+) é o alvo de instalação atual. O APK inclui ARM de 32 e 6
 
 ### Verificação desta versão
 
-- APK de debug 0.1.0 compilado com sucesso, com ARM de 32 e 64 bits e x86_64.
-- 119 testes do módulo de protocolo DLNA passaram, sem falhas ou testes ignorados.
-- Android Lint: 0 erros, 53 avisos e 1 sugestão; os avisos ainda devem ser revisados antes da publicação.
+- APK de debug 0.2.0 compilado com sucesso, com ARM de 32 e 64 bits e x86_64.
+- 126 testes de protocolo, autenticação e gravação passaram, sem falhas ou testes ignorados.
+- Android Lint: 0 erros, 71 avisos e 1 sugestão; os avisos ainda devem ser revisados antes da publicação.
 - Assinatura APK v2 verificada; versão de teste, não destinada à publicação na loja.
 - Instalação e abertura verificadas em emulador Android 16; receptor AirPlay iniciou sem falha de carregamento nativo.
 - DLNA no emulador: descrição UPnP e SOAP responderam HTTP 200; um WAV local de teste chegou ao estado PLAYING, informou duração e progresso, e respondeu a Pause e Stop.
-- Espelhamento AirPlay com iPhone/Mac, recepção SSDP entre aparelhos físicos, saída audiovisual real e desempenho no Fire TV ainda não foram validados. O teste do emulador não substitui esses testes.
+- Arquivos MKV com H.264/HEVC e PCM estéreo gerados pelo muxer foram inspecionados com ffprobe e decodificados pelo FFmpeg sem erros.
+- Gravação sintética executada no emulador e no Fire TV AFTMM; os arquivos salvos foram recuperados e decodificados sem erros. Um teste adicional no emulador alimentou AAC no motor nativo C++, verificando a entrega do PCM pela nova ponte JNI à gravação.
+- Foto enviada por SOAP/DLNA ao emulador abriu no visualizador, com imagem e controles verificados visualmente. O modo de apresentação mantém um histórico de até 20 URLs durante a sessão; não salva cópias permanentes das fotos.
+- AirPlay 0.1.0 foi confirmado pelo usuário no Fire TV. A regressão com um emissor Apple real na versão 0.2.0, a recepção SSDP entre aparelhos físicos e a sincronização audiovisual em sessões longas continuam pendentes.
 
 O código nativo usa OpenSSL e FFmpeg com ferramentas Unix. Use Linux, WSL ou macOS com Java 17+ (21 recomendado), Git, C/C++, make, Perl e Android SDK/NDK. No Windows, o caminho de compilação previsto é WSL, não o Gradle nativo do Windows.
 

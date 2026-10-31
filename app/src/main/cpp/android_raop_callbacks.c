@@ -50,6 +50,7 @@ void android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject ca
 
     jclass cls = (*env)->GetObjectClass(env, callback_obj);
     ctx->on_video_data = (*env)->GetMethodID(env, cls, "onVideoData", "([BJZ)V");
+    ctx->on_audio_pcm = (*env)->GetMethodID(env, cls, "onAudioPcm", "([BJII)V");
     ctx->on_audio_format = (*env)->GetMethodID(env, cls, "onAudioFormat", "(IIZ)V");
     ctx->on_video_size = (*env)->GetMethodID(env, cls, "onVideoSize", "(FFFF)V");
     ctx->on_client_volume = (*env)->GetMethodID(env, cls, "onClientVolume", "(F)V");
@@ -101,6 +102,25 @@ void android_callbacks_update_playback_info(android_callback_ctx_t *ctx, double 
 }
 
 /* --- RAOP callback implementations --- */
+
+void android_capture_pcm(void *user, const int16_t *pcm, size_t samples, int64_t pts_ns,
+                         int sample_rate, int channels) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)user;
+    if (!ctx || !ctx->callback_obj || samples == 0 || samples > 65536) return;
+    JNIEnv *env = NULL;
+    int attached = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED;
+    if (attached && (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL) != JNI_OK) return;
+    if (!env) return;
+    jbyteArray array = (*env)->NewByteArray(env, (jsize)(samples * sizeof(int16_t)));
+    if (array) {
+        (*env)->SetByteArrayRegion(env, array, 0, (jsize)(samples * sizeof(int16_t)), (const jbyte *)pcm);
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_pcm, array, (jlong)pts_ns,
+                              (jint)sample_rate, (jint)channels);
+        (*env)->DeleteLocalRef(env, array);
+    }
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionDescribe(env); (*env)->ExceptionClear(env); }
+    if (attached) (*ctx->jvm)->DetachCurrentThread(ctx->jvm);
+}
 
 static void _audio_process(void *cls, raop_ntp_t *ntp, audio_decode_struct *data) {
     android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;

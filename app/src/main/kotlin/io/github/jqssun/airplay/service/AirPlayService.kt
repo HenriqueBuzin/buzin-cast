@@ -33,6 +33,8 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.media.app.NotificationCompat as MediaNotificationCompat
 import io.github.jqssun.airplay.MainActivity
+import io.github.jqssun.airplay.media.*
+import io.buzincast.media.MirrorPacket
 import io.github.jqssun.airplay.Prefs
 import io.github.jqssun.airplay.R
 import io.github.jqssun.airplay.changes
@@ -85,6 +87,41 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     private var nsdManager: NsdServiceManager? = null
     private var usbAdvertiser: UsbMdnsAdvertiser? = null
     private var dlnaReceiver: DlnaReceiver? = null
+    val capture by lazy { MirrorCapture(this, ::updateCaptureTap) }
+    val relayPlayback by lazy { RelayPlayback(videoRenderer) { w, h ->
+        _videoAspect.value = w.toFloat() / h; _videoResolution.value = "${w}x${h}"; _mirroringActive.value = true
+    } }
+    val relay by lazy { MirrorRelay(::updateCaptureTap,
+        incoming = { packet -> relayPlayback.accept(packet) },
+        ended = { _mainHandler.post {
+            val noAirplay = _connectionCount.value == 0
+            relayPlayback.stop(stopVideo = noAirplay)
+            if (noAirplay) _mirroringActive.value = false
+        } },
+        canReceive = { !_videoPlaybackActive.value && (!_audioOnly.value || _connectionCount.value == 0) }
+    ) }
+    @Volatile private var captureWidth = 0
+    @Volatile private var captureHeight = 0
+    @Volatile private var capturedSessionHadVideo = false
+    private var relayPresented = false
+
+    private fun updateCaptureTap() {
+        _mainHandler.post {
+            if (nativeHandle != 0L) NativeBridge.nativeSetCaptureEnabled(nativeHandle, capture.active() || relay.state.value.sending)
+            if (relay.state.value.receiving && !relayPresented) {
+                relayPresented = true
+                if (shouldLaunchOnConnect()) launchMainActivity()
+            } else if (!relay.state.value.receiving) relayPresented = false
+            _updateMediaNotification()
+        }
+    }
+    private fun publishMirror(packet: MirrorPacket) { capture.offer(packet); relay.offer(packet) }
+    private fun finishCapturedMirror() {
+        if (!capturedSessionHadVideo) return
+        capturedSessionHadVideo = false
+        capture.stop()
+        relay.offer(MirrorPacket.End)
+    }
     private var wakeLock: PowerManager.WakeLock? = null
     private var foregroundStarted = false
     private var lastOrientation = Configuration.ORIENTATION_UNDEFINED
@@ -282,6 +319,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
                     ACTION_PLAY_PAUSE -> togglePlayPause()
                     ACTION_NEXT -> dacpController?.nextItem()
                     ACTION_PREV -> dacpController?.prevItem()
+                    ACTION_STOP_CAPTURE -> capture.stop()
                 }
             }
         }
@@ -289,6 +327,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
             addAction(ACTION_PLAY_PAUSE)
             addAction(ACTION_NEXT)
             addAction(ACTION_PREV)
+            addAction(ACTION_STOP_CAPTURE)
         }
         ContextCompat.registerReceiver(this, mediaReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
@@ -542,6 +581,10 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     private fun _shutdown() {
+        capturedSessionHadVideo = false
+        capture.stop()
+        relay.stop()
+        relayPlayback.stop()
         dlnaReceiver?.close()
         dlnaReceiver = null
         audioRenderer.detachEngine()
@@ -656,7 +699,15 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     // RaopCallbackHandler (called from native threads)
 
     override fun onVideoData(data: ByteArray, ntpTimeNs: Long, isH265: Boolean) {
+        if (captureWidth > 0 && captureHeight > 0 && (capture.active() || relay.state.value.sending)) {
+            capturedSessionHadVideo = true
+            publishMirror(MirrorPacket.Video(data, ntpTimeNs, captureWidth, captureHeight, isH265))
+        }
         videoRenderer.feedFrame(data, ntpTimeNs, isH265)
+    }
+
+    override fun onAudioPcm(data: ByteArray, ntpTimeNs: Long, sampleRate: Int, channels: Int) {
+        if (capture.active() || relay.state.value.sending) publishMirror(MirrorPacket.Audio(data, ntpTimeNs, sampleRate, channels))
     }
 
     override fun onVideoSessionPoll() {
@@ -664,6 +715,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     override fun onVideoPlay(location: String, startPositionSeconds: Float) {
+        if (relay.state.value.receiving || relay.state.value.listening) relay.stop()
         _videoLocation.value = location
         _videoPlaySeq.value++
         _videoPollSuppressed = false
@@ -679,8 +731,17 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     fun playDlnaVideo(location: String) {
+        PhotoActivity.closePhoto()
         onVideoPlay(location, 0f)
         if (shouldLaunchOnConnect()) launchMainActivity()
+    }
+
+    fun showDlnaPhoto(location: String) {
+        stopVideoPlayback()
+        _mainHandler.post {
+            runCatching { startActivity(Intent(this, PhotoActivity::class.java).putExtra("url", location).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { log("Abra o app para receber a foto: ${it.message}") }
+        }
     }
 
     override fun onVideoScrub(positionSeconds: Float) {
@@ -694,6 +755,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     override fun onVideoStop() = _endVideoPlayback("AirPlay Video stopped")
 
     override fun onAudioFormat(ct: Int, spf: Int, usingScreen: Boolean) {
+        if (relay.state.value.receiving || relay.state.value.listening) relay.stop()
         clearPin()
         audioRenderer.start()
         audioRenderer.setFormat(ct, spf)
@@ -706,8 +768,10 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     override fun onVideoSize(srcW: Float, srcH: Float, w: Float, h: Float) {
+        if (relay.state.value.receiving || relay.state.value.listening) relay.stop()
         clearPin()
         if (w > 0 && h > 0) {
+            captureWidth = w.toInt(); captureHeight = h.toInt()
             _videoAspect.value = w / h
             _videoResolution.value = "${w.toInt()}x${h.toInt()}"
             videoRenderer.setResolution(w.toInt(), h.toInt())
@@ -820,6 +884,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     override fun onConnectionDestroy() {
         _connectionCount.value = (_connectionCount.value - 1).coerceAtLeast(0)
         if (_connectionCount.value == 0) {
+            finishCapturedMirror()
             // clients may drop without POST /stop; must run before the poll-state reset
             _endVideoPlayback("AirPlay Video stopped (disconnect)")
             // last client gone: release audio output devices to save power
@@ -903,6 +968,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
     override fun onMirrorRunning(running: Boolean) {
         if (running) videoRenderer.startSession() else {
+            finishCapturedMirror()
             videoRenderer.stopSession()
             _mirroringActive.value = false
         }
@@ -1133,7 +1199,11 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
             .setContentIntent(pi)
             .setOngoing(true)
 
-        if (isAudio) {
+        if (capture.state.value.armed) {
+            builder.setContentTitle("Buzin Cast • Gravação")
+                .setContentText(capture.state.value.message)
+                .addAction(android.R.drawable.ic_media_pause, "Parar gravação", _mediaAction(ACTION_STOP_CAPTURE))
+        } else if (isAudio) {
             builder.setContentTitle(info.title).setContentText(info.artist).setSubText(info.album)
             info.coverArt?.let { builder.setLargeIcon(it) }
             mediaSession?.sessionToken?.let { token ->
@@ -1203,6 +1273,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         const val ACTION_PLAY_PAUSE = "io.github.jqssun.airplay.PLAY_PAUSE"
         const val ACTION_NEXT = "io.github.jqssun.airplay.NEXT"
         const val ACTION_PREV = "io.github.jqssun.airplay.PREV"
+        const val ACTION_STOP_CAPTURE = "com.buzincast.tv.STOP_CAPTURE"
         const val ACTION_START_SERVER = "io.github.jqssun.airplay.START_SERVER"
         // shared with dpad/double-tap seeks
         const val VIDEO_SEEK_STEP_MS = 10_000L

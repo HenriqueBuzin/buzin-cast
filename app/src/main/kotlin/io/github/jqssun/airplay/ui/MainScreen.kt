@@ -84,6 +84,7 @@ import kotlinx.coroutines.delay
 private enum class Tab(val labelRes: Int, val icon: ImageVector) {
     OVERVIEW(R.string.tab_overview, Icons.Default.Cast),
     LOGS(R.string.tab_logs, Icons.AutoMirrored.Filled.Article),
+    TOOLS(R.string.tab_tools, Icons.Default.Build),
     SETTINGS(R.string.tab_settings, Icons.Default.Settings)
 }
 
@@ -587,6 +588,7 @@ private fun TabContent(
             onFullscreen = onFullscreen, onPip = onPip, onLocalNetwork = onLocalNetwork, showAudioMode = showAudioMode
         )
         Tab.LOGS -> LogsScreen(viewModel)
+        Tab.TOOLS -> ToolsScreen(viewModel)
         Tab.SETTINGS -> SettingsScreen(viewModel)
     }
 }
@@ -784,6 +786,7 @@ private fun FullscreenVideo(
     val videoResolution by viewModel.videoResolution.collectAsState()
     val debugEnabled by viewModel.pref(Prefs.DEBUG_ENABLED).collectAsState()
     val debugInfo by viewModel.debugInfo.collectAsState()
+    val captureStatus by viewModel.captureState.collectAsState()
 
     var controlsVisible by remember { mutableStateOf(true) }
     var tapTick by remember { mutableStateOf(0) }
@@ -801,11 +804,21 @@ private fun FullscreenVideo(
         contentAlignment = Alignment.Center
     ) {
         video()
+        if (captureStatus.armed) {
+            Text(if (captureStatus.recording) "● REC" else "● Aguardando gravação", color = Color.Red,
+                modifier = Modifier.align(Alignment.TopStart).padding(16.dp))
+        }
         androidx.compose.animation.AnimatedVisibility(
             visible = controlsVisible,
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Row(modifier = Modifier.padding(8.dp)) {
+                val capture by viewModel.captureState.collectAsState()
+                if (capture.armed) {
+                    TextButton(onClick = viewModel::toggleRecording, modifier = Modifier.dpadFocus()) {
+                        Text("■ Parar gravação", color = Color.Red)
+                    }
+                }
                 IconButton(onClick = onPip, modifier = Modifier.dpadFocus()) {
                     Icon(
                         painterResource(R.drawable.ic_pip), contentDescription = stringResource(R.string.cd_pip),
