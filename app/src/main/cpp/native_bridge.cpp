@@ -112,9 +112,33 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     ctx->log->bind(env, callback);
 
     ctx->cb_ctx.audio_engine = audio_engine_create(ctx->log, 44100, 2);
+    audio_engine_set_pcm_callback(ctx->cb_ctx.audio_engine, android_capture_pcm, &ctx->cb_ctx);
 
     return (jlong)(intptr_t)ctx;
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetCaptureEnabled(
+        JNIEnv *env, jobject thiz, jlong handle, jboolean enabled) {
+    server_ctx_t *ctx = (server_ctx_t *)(intptr_t)handle;
+    if (ctx) audio_engine_set_capture_enabled(ctx->cb_ctx.audio_engine, enabled == JNI_TRUE);
+}
+
+#ifndef NDEBUG
+/* Synthetic AAC diagnostic input. JNI entry exists only in debug native builds. */
+extern "C" JNIEXPORT void JNICALL
+Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(
+        JNIEnv *env, jobject thiz, jlong handle, jbyteArray data, jlong ptsNs) {
+    server_ctx_t *ctx = (server_ctx_t *)(intptr_t)handle;
+    if (!ctx || !data) return;
+    const jsize length = env->GetArrayLength(data);
+    if (length <= 0 || length > 8192) return;
+    jbyte *bytes = env->GetByteArrayElements(data, nullptr);
+    if (!bytes) return;
+    audio_engine_decode(ctx->cb_ctx.audio_engine, reinterpret_cast<const uint8_t *>(bytes), length, 4, ptsNs);
+    env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+}
+#endif
 
 extern "C"
 JNIEXPORT jint JNICALL

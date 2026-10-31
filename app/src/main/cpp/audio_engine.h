@@ -15,6 +15,13 @@ typedef struct AudioEngine AudioEngine;
 /* native -> UI log channel, opaque here (C++ type) */
 typedef struct LogSink LogSink;
 
+/* Optional Buzin Cast recording/relay tap. Runs on the decoder producer thread,
+ * never the real-time output callback. The consumer must enqueue without blocking. */
+typedef void (*audio_pcm_callback)(void *user, const int16_t *pcm, size_t samples,
+                                   int64_t pts_ns, int sample_rate, int channels);
+void audio_engine_set_pcm_callback(AudioEngine *engine, audio_pcm_callback callback, void *user);
+void audio_engine_set_capture_enabled(AudioEngine *engine, bool enabled);
+
 /* report device's native output sample rate + frames-per-burst (from AudioManager) to
  * oboe. its OpenSL ES backend (pre-AAudio devices) can't discover these itself and
  * needs them to size low-latency buffers; unused by AAudio backend. global, call before

@@ -32,6 +32,8 @@ class DlnaReceiver(
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     @Volatile private var ownsPlayback = false
+    @Volatile private var ownsPhoto = false
+    private var photoStartedAt = 0L
     private var server: ControlServer? = null
     private var ssdp: SsdpAgent? = null
     private var lock: WifiManager.MulticastLock? = null
@@ -50,7 +52,14 @@ class DlnaReceiver(
             main.post {
                 if (!closed && service.connectionCount.value == 0) {
                     ownsPlayback = true
-                    service.playDlnaVideo(uri)
+                    val imageMetadata = session.currentMetaData.orEmpty().let { it.contains("image/jpeg", true) || it.contains("image/png", true) }
+                    if (imageMetadata || URI(uri).path.orEmpty().lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") || it.endsWith(".png") }) {
+                        ownsPlayback = false
+                        ownsPhoto = true
+                        photoStartedAt = System.currentTimeMillis()
+                        service.showDlnaPhoto(uri)
+                        session.onPlayerPrepared()
+                    } else service.playDlnaVideo(uri)
                 } else session.onPlayerError()
             }
         }
@@ -59,6 +68,7 @@ class DlnaReceiver(
         override fun seekTo(ms: Long) { main.post { if (ownsPlayback && !closed) service.onVideoScrub(ms / 1000f) } }
         override fun stop() {
             main.post {
+                if (ownsPhoto) { ownsPhoto = false; io.github.jqssun.airplay.media.PhotoActivity.closePhoto() }
                 if (ownsPlayback) {
                     ownsPlayback = false
                     service.stopVideoPlayback()
@@ -83,6 +93,9 @@ class DlnaReceiver(
     private val tick = object : Runnable {
         override fun run() {
             if (closed) return
+            if (ownsPhoto && System.currentTimeMillis() - photoStartedAt > 1500 && !io.github.jqssun.airplay.media.PhotoActivity.isVisible()) {
+                ownsPhoto = false; session.stop()
+            }
             if (ownsPlayback) {
                 if (service.connectionCount.value > 0) {
                     // The native AirPlay callbacks now own the shared player.
@@ -146,6 +159,7 @@ class DlnaReceiver(
     @Synchronized
     fun close() {
         closed = true
+        if (ownsPhoto) { ownsPhoto = false; main.post { io.github.jqssun.airplay.media.PhotoActivity.closePhoto() } }
         main.removeCallbacks(tick)
         ssdp?.stop()
         ssdp = null

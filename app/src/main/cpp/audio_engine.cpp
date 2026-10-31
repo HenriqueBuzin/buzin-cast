@@ -48,6 +48,9 @@ struct CodecFormat {
 };
 
 struct AudioEngine {
+    std::atomic<bool> captureEnabled{false};
+    audio_pcm_callback pcmCallback = nullptr;
+    void *pcmUser = nullptr;
     AudioEngine(std::shared_ptr<LogSink> log, int sampleRate, int channels)
         : mLog(std::move(log)), mSampleRate(sampleRate), mChannels(channels) {
         mQueued[ctIndex(CT_ALAC)].store(CodecFormat{352}, std::memory_order_relaxed);
@@ -172,6 +175,10 @@ private:
         mDecLatency.setEnableLogging(cfg.benchmarkLog);
         mTimeline = std::make_shared<TimelineBuffer>(mSampleRate, mChannels,
                                                      cfg.staticCushionMs, cfg.percentilePct);
+        mTimeline->capturePcm = [this](const int16_t *pcm, size_t samples, int64_t ptsNs) {
+            if (captureEnabled.load(std::memory_order_relaxed) && pcmCallback)
+                pcmCallback(pcmUser, pcm, samples, ptsNs, mSampleRate, mChannels);
+        };
         mOutput = AudioOutput::create(mSampleRate, mChannels, cfg.oboeBufferFrames,
                                       cfg.lowLatency, mTimeline, mLog);
         mOutput->setClientGain(mClientGain);  // carry current level across rebuild
@@ -220,6 +227,14 @@ private:
 AudioEngine *audio_engine_create(std::shared_ptr<LogSink> log, int sampleRate, int channels) {
     if (!log) return nullptr;
     return new AudioEngine(std::move(log), sampleRate, channels);
+}
+
+void audio_engine_set_pcm_callback(AudioEngine *engine, audio_pcm_callback callback, void *user) {
+    if (engine) { engine->pcmCallback = callback; engine->pcmUser = user; }
+}
+
+void audio_engine_set_capture_enabled(AudioEngine *engine, bool enabled) {
+    if (engine) engine->captureEnabled.store(enabled, std::memory_order_relaxed);
 }
 
 

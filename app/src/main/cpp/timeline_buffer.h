@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <functional>
 #include <string>
 
 #include "audio_time.h"
@@ -205,6 +206,7 @@ private:
  */
 class TimelineBuffer {
 public:
+    std::function<void(const int16_t *, size_t, int64_t)> capturePcm;
     // cushion policy lives in mTracker; timeline reads mTracker.target() live
     TimelineBuffer(int sampleRate, int channels, int staticCushionMs, int percentilePct)
         : mSampleRate(sampleRate),
@@ -220,6 +222,7 @@ public:
     // producer: push samples
     void write(const int16_t *pcm, size_t samples, int64_t ptsNs) {
         if (samples == 0) return;
+        if (capturePcm && ptsNs > 0) capturePcm(pcm, samples, ptsNs);
         // pts 0 = sender clock not NTP synced yet
         if (ptsNs == 0) {
             mRing.write(pcm, samples);

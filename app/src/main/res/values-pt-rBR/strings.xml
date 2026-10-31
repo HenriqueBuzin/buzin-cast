@@ -13,7 +13,7 @@
     <string name="buzin_about">Sobre o Buzin Cast</string>
     <string name="setting_dlna">Receptor DLNA (experimental)</string>
     <string name="setting_dlna_desc">Receber vídeos e áudio da rede local. O PIN do AirPlay não protege o DLNA. Reinicie o receptor após mudar de rede.</string>
-    <string name="buzin_credits">Buzin Cast 0.1.0\nReceptor gratuito, sem limite de tempo por sessão.\n\nBaseado no android-airplay-server de jqssun e no UxPlay, com componentes de terceiros. Distribuído sob GNU GPL v3; o código-fonte e as licenças acompanham esta versão.\n\ngithub.com/jqssun/android-airplay-server\ngithub.com/FDH2/UxPlay\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
+    <string name="buzin_credits">Buzin Cast 0.2.0\nReceptor gratuito, sem limite de tempo por sessão.\n\nBaseado no android-airplay-server de jqssun e no UxPlay, com componentes de terceiros. Distribuído sob GNU GPL v3; o código-fonte e as licenças acompanham esta versão.\n\ngithub.com/jqssun/android-airplay-server\ngithub.com/FDH2/UxPlay\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
     <string name="notification_channel">Receptor Buzin Cast</string>
     <string name="notification_title">Buzin Cast em execução</string>
     <string name="notification_text">Aguardando conexões AirPlay</string>
@@ -23,6 +23,7 @@
     <string name="tab_overview">Conectar</string>
     <string name="tab_logs">Diagnóstico</string>
     <string name="tab_settings">Configurações</string>
+    <string name="tab_tools">Ferramentas</string>
     <string name="server_stopped">Receptor parado</string>
     <string name="waiting_for_connection">Aguardando conexão…</string>
     <string name="waiting_for_playback">Inicie a reprodução no dispositivo de origem…</string>

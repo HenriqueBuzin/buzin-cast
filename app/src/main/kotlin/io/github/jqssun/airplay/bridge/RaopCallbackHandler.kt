@@ -2,6 +2,7 @@ package io.github.jqssun.airplay.bridge
 
 interface RaopCallbackHandler {
     fun onVideoData(data: ByteArray, ntpTimeNs: Long, isH265: Boolean)
+    fun onAudioPcm(data: ByteArray, ntpTimeNs: Long, sampleRate: Int, channels: Int)
     fun onAudioFormat(ct: Int, spf: Int, usingScreen: Boolean)
     fun onVideoSize(srcW: Float, srcH: Float, w: Float, h: Float)
     // airplay volume in dB: -30..0, -144 = mute

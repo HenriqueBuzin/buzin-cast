@@ -15,6 +15,7 @@ typedef struct {
     jobject callback_obj;
     raop_t *raop;
     jmethodID on_video_data;
+    jmethodID on_audio_pcm;
     jmethodID on_audio_format;
     jmethodID on_video_size;
     jmethodID on_client_volume;
@@ -56,6 +57,8 @@ void android_callbacks_destroy(android_callback_ctx_t *ctx, JNIEnv *env);
 void android_callbacks_fill(raop_callbacks_t *cbs, android_callback_ctx_t *ctx);
 void android_callbacks_update_playback_info(android_callback_ctx_t *ctx, double position,
                                              double duration, float rate, int ready);
+void android_capture_pcm(void *user, const int16_t *pcm, size_t samples, int64_t pts_ns,
+                         int sample_rate, int channels);
 
 #ifdef __cplusplus
 }

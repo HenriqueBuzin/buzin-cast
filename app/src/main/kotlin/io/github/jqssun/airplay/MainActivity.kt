@@ -88,8 +88,8 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(viewModel.pref(Prefs.KEEP_SCREEN_ON), viewModel.connectionCount, viewModel.videoPlaybackActive) { keep, conns, video ->
-                    keep && (conns > 0 || video)
+                combine(viewModel.pref(Prefs.KEEP_SCREEN_ON), viewModel.connectionCount, viewModel.videoPlaybackActive, viewModel.mirroringActive) { keep, conns, video, mirror ->
+                    keep && (conns > 0 || video || mirror)
                 }.collect { on ->
                     if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -190,7 +190,7 @@ class MainActivity : ComponentActivity() {
     private fun _shouldAutoPip(): Boolean =
         packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
             viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
-            (viewModel.connectionCount.value > 0 || viewModel.videoPlaybackActive.value)
+            (viewModel.connectionCount.value > 0 || viewModel.videoPlaybackActive.value || viewModel.mirroringActive.value)
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
@@ -207,7 +207,7 @@ class MainActivity : ComponentActivity() {
         // never stop mid-session
         if (!viewModel.pref(Prefs.RUN_IN_BACKGROUND).value && !isChangingConfigurations &&
             viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
-            viewModel.connectionCount.value == 0 && !viewModel.videoPlaybackActive.value) {
+            viewModel.connectionCount.value == 0 && !viewModel.videoPlaybackActive.value && !viewModel.mirroringActive.value) {
             viewModel.stopServer()
         }
     }
