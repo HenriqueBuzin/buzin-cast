@@ -213,7 +213,9 @@ fun MainScreen(
         }
         // orientation follows the video aspect; manual rotate holds until the next video
         LaunchedEffect(videoPlaybackAspect) {
-            activity?.requestedOrientation = if (videoPlaybackAspect < 1f) {
+            activity?.requestedOrientation = if (context.isTvDevice()) {
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            } else if (videoPlaybackAspect < 1f) {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             } else {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -634,7 +636,9 @@ private fun OverviewContent(
                 if (state == ServerState.RUNNING && (mirroringActive || idlePreview)) {
                     video()
                 }
-                if (state != ServerState.RUNNING || connections == 0) {
+                if (!grant && state != ServerState.ERROR && connections == 0) {
+                    BuzinWelcome(serverName, state == ServerState.RUNNING)
+                } else if (state != ServerState.RUNNING || connections == 0) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             imageVector = if (connections > 0) Icons.Default.CastConnected else Icons.Default.Cast,

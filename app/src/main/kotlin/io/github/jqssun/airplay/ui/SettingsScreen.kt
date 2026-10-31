@@ -37,6 +37,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(viewModel: MainViewModel) {
+    val dlnaEnabled by viewModel.pref(Prefs.DLNA_ENABLED).collectAsState()
     val serverName by viewModel.pref(Prefs.SERVER_NAME).collectAsState()
     val h265 by viewModel.pref(Prefs.H265).collectAsState()
     val enforceSdr by viewModel.pref(Prefs.ENFORCE_SDR).collectAsState()
@@ -117,6 +118,13 @@ fun SettingsScreen(viewModel: MainViewModel) {
         )
 
         SectionHeader(stringResource(R.string.section_connection))
+
+        SettingSwitch(
+            title = stringResource(R.string.setting_dlna),
+            description = stringResource(R.string.setting_dlna_desc),
+            checked = dlnaEnabled,
+            onCheckedChange = { viewModel.set(Prefs.DLNA_ENABLED, it) }
+        )
 
         SettingSegmented(
             title = stringResource(R.string.setting_discovery),

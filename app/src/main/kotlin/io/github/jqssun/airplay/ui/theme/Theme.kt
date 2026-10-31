@@ -1,28 +1,18 @@
 package io.github.jqssun.airplay.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 
 @Composable
-fun AirPlayTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val ctx = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        }
-        darkTheme -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-
-    MaterialTheme(colorScheme = colorScheme, content = content)
+fun AirPlayTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = Color(0xFF7CF4CD), onPrimary = Color(0xFF07392E),
+        primaryContainer = Color(0xFF164F43), onPrimaryContainer = Color(0xFFADFFE3),
+        secondary = Color(0xFFA9BCFF), background = Color(0xFF080E1A),
+        surface = Color(0xFF101A2A), surfaceVariant = Color(0xFF172638),
+        onBackground = Color(0xFFF1F5FD), onSurface = Color(0xFFF1F5FD),
+        onSurfaceVariant = Color(0xFFB8C8DC)
+    ), content = content)
 }

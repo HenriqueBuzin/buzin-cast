@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.ui.MainScreen
+import io.github.jqssun.airplay.ui.isTvDevice
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.LocalNetworkAccess
 import io.github.jqssun.airplay.viewmodel.MainViewModel
@@ -63,13 +64,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (isTvDevice()) requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         enableEdgeToEdge()
 
         val missing = buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !_granted(Manifest.permission.POST_NOTIFICATIONS)) {
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
-            if (!hasLocalNetwork()) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            if (!hasLocalNetwork()) add(LOCAL_NETWORK_PERMISSION)
         }
         if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray())
 
@@ -86,8 +88,8 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(viewModel.pref(Prefs.KEEP_SCREEN_ON), viewModel.connectionCount) { keep, conns ->
-                    keep && conns > 0
+                combine(viewModel.pref(Prefs.KEEP_SCREEN_ON), viewModel.connectionCount, viewModel.videoPlaybackActive) { keep, conns, video ->
+                    keep && (conns > 0 || video)
                 }.collect { on ->
                     if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -139,8 +141,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun _syncLocalNetwork(requested: Boolean = false) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.CINNAMON_BUN) return
-        val p = Manifest.permission.ACCESS_LOCAL_NETWORK
+        if (Build.VERSION.SDK_INT < LOCAL_NETWORK_API) return
+        val p = LOCAL_NETWORK_PERMISSION
         val prev = viewModel.localNetwork.value
         val now = when {
             hasLocalNetwork() -> LocalNetworkAccess.GRANTED
@@ -153,11 +155,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun _requestLocalNetwork() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.CINNAMON_BUN) return
+        if (Build.VERSION.SDK_INT < LOCAL_NETWORK_API) return
         if (viewModel.localNetwork.value == LocalNetworkAccess.SETTINGS) {
             startActivity(appSettingsIntent())
         } else {
-            permissions.launch(arrayOf(Manifest.permission.ACCESS_LOCAL_NETWORK))
+            permissions.launch(arrayOf(LOCAL_NETWORK_PERMISSION))
         }
     }
 
@@ -169,9 +171,11 @@ class MainActivity : ComponentActivity() {
 
     fun enterPip() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
         enterPictureInPictureMode(_pipParams())
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.O)
     private fun _pipParams(): PictureInPictureParams {
         val aspect = if (viewModel.videoPlaybackActive.value) viewModel.videoPlaybackAspect.value
             else viewModel.videoAspect.value
@@ -184,8 +188,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun _shouldAutoPip(): Boolean =
-        viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
-            viewModel.connectionCount.value > 0
+        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+            viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
+            (viewModel.connectionCount.value > 0 || viewModel.videoPlaybackActive.value)
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
@@ -202,7 +207,7 @@ class MainActivity : ComponentActivity() {
         // never stop mid-session
         if (!viewModel.pref(Prefs.RUN_IN_BACKGROUND).value && !isChangingConfigurations &&
             viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
-            viewModel.connectionCount.value == 0) {
+            viewModel.connectionCount.value == 0 && !viewModel.videoPlaybackActive.value) {
             viewModel.stopServer()
         }
     }

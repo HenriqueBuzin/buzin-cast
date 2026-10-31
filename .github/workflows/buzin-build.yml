@@ -1,0 +1,35 @@
+name: Buzin Cast - verificar APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compilar e executar lint
+        run: bash ./gradlew :dlna-domain:test assembleDebug lintDebug --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: buzin-cast-debug
+          path: app/build/outputs/apk/debug/*.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: buzin-cast-checks
+          path: app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore

@@ -26,9 +26,9 @@
         android:name=".AirPlayApp"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:banner="@drawable/banner"
+        android:icon="@drawable/buzin_icon"
+        android:roundIcon="@drawable/buzin_icon"
+        android:banner="@drawable/buzin_banner"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.AirPlayServer">

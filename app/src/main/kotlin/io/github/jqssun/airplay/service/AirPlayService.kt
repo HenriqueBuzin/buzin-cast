@@ -49,6 +49,8 @@ import io.github.jqssun.airplay.bridge.LogListener
 import io.github.jqssun.airplay.bridge.NativeBridge
 import io.github.jqssun.airplay.bridge.RaopCallbackHandler
 import io.github.jqssun.airplay.discovery.MdnsService
+import io.github.jqssun.airplay.discovery.DlnaReceiver
+import kotlinx.coroutines.Dispatchers
 import io.github.jqssun.airplay.discovery.NsdServiceManager
 import io.github.jqssun.airplay.discovery.UsbMdnsAdvertiser
 import io.github.jqssun.airplay.download.VideoDownloader
@@ -76,11 +78,13 @@ data class VideoPlaybackInfo(
     val buffering: Boolean = false,
 )
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
     private var nativeHandle = 0L
     private var nsdManager: NsdServiceManager? = null
     private var usbAdvertiser: UsbMdnsAdvertiser? = null
+    private var dlnaReceiver: DlnaReceiver? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var foregroundStarted = false
     private var lastOrientation = Configuration.ORIENTATION_UNDEFINED
@@ -348,6 +352,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         if (intent?.action == ACTION_START_SERVER) {
             promoteToForeground()
             _startServer(ensureServiceStarted = false)
@@ -465,6 +470,11 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         }
         promoteToForeground()
         log("Server started on port $port")
+        if (prefs[Prefs.DLNA_ENABLED] && !prefs[Prefs.USB_ONLY]) {
+            val receiver = DlnaReceiver(this, effectiveName, ::log)
+            dlnaReceiver = receiver
+            lifecycleScope.launch(Dispatchers.IO) { receiver.start() }
+        }
     }
 
     private fun _orientationFollowsDevice(): Boolean =
@@ -532,6 +542,8 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     private fun _shutdown() {
+        dlnaReceiver?.close()
+        dlnaReceiver = null
         audioRenderer.detachEngine()
         if (nativeHandle != 0L) {
             NativeBridge.nativeStop(nativeHandle)
@@ -664,6 +676,11 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         // claim media-button routing for keys that arrive as media-session events
         mediaSession?.isActive = true
         log("AirPlay Video play: $location @ ${startPositionSeconds}s")
+    }
+
+    fun playDlnaVideo(location: String) {
+        onVideoPlay(location, 0f)
+        if (shouldLaunchOnConnect()) launchMainActivity()
     }
 
     override fun onVideoScrub(positionSeconds: Float) {

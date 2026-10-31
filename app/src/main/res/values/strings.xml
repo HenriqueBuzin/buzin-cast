@@ -1,10 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AirPlay Server</string>
+    <string name="app_name">Buzin Cast</string>
+    <string name="buzin_tagline">Your screen. A bigger stage.</string>
+    <string name="buzin_free">Free • No ads • No time limit</string>
+    <string name="buzin_ready">Ready to connect</string>
+    <string name="buzin_stopped">Start the receiver to connect</string>
+    <string name="buzin_choose">Choose %1$s on your Apple device</string>
+    <string name="buzin_step_wifi">Connect your iPhone, iPad or Mac to the same local network as this TV.</string>
+    <string name="buzin_step_mirror">Open Control Center and choose Screen Mirroring.</string>
+    <string name="buzin_step_choose">Select the receiver name shown on the left.</string>
+    <string name="buzin_help">AirPlay mirroring and audio • Protected DRM content may not play.</string>
+    <string name="buzin_about">About Buzin Cast</string>
+    <string name="setting_dlna">DLNA receiver (experimental)</string>
+    <string name="setting_dlna_desc">Receive video and audio from your local network. AirPlay PIN does not protect DLNA. Restart after connecting to a different network.</string>
+    <string name="buzin_credits">Buzin Cast 0.1.0\nFree receiver with no session time limit.\n\nBased on android-airplay-server by jqssun and UxPlay, with third-party components. Distributed under GNU GPL v3; source and license notices accompany this version.\n\ngithub.com/jqssun/android-airplay-server\ngithub.com/FDH2/UxPlay\n\nIndependent project, not affiliated with Apple or Amazon.</string>
 
     <!-- Notification -->
     <string name="notification_channel">AirPlay Service</string>
-    <string name="notification_title">AirPlay Server Running</string>
+    <string name="notification_title">Buzin Cast is running</string>
     <string name="notification_text">Accepting AirPlay connections</string>
     <string name="notification_pin_title">AirPlay PIN Required</string>
     <string name="notification_pin_text">PIN: %1$s</string>

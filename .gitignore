@@ -10,3 +10,8 @@
 .cxx/
 
 *.jks
+*.keystore
+*.apk
+*.aab
+**/.buzin-patches.properties
+**/build/
