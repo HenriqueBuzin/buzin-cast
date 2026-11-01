@@ -43,6 +43,7 @@ fun BuzinLogoReveal(progress: () -> Float, modifier: Modifier = Modifier) {
         lineTo(0f, 25f); quadraticTo(0f, 0f, 25f, 0f); close()
     } }
     val lengths = remember { contours.map { path -> PathMeasure().apply { setPath(path, false) }.length } }
+    val totalLength = remember(lengths) { lengths.sum() }
     val measure = remember { PathMeasure() }
     val segment = remember { Path() }
     Canvas(modifier) {
@@ -56,7 +57,7 @@ fun BuzinLogoReveal(progress: () -> Float, modifier: Modifier = Modifier) {
                 drawPath(glyph, Color(0xFF092A24), alpha = fill)
             }
             if (trace > 0f && fill < 1f) {
-                var remaining = lengths.sum() * trace
+                var remaining = totalLength * trace
                 contours.forEachIndexed { index, path ->
                     val length = lengths[index]
                     val end = remaining.coerceIn(0f, length)

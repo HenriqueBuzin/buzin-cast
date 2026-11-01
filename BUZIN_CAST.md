@@ -4,6 +4,14 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Fluidez 0.4.3
+
+A tela principal é composta depois que o traço, o preenchimento e o nome terminam. Sua montagem ocorre sob a marca já completa, antes do fade final; o relógio da abertura aguarda dois quadros nessa preparação. Isso retira o trabalho da tela inicial do trecho em que o B está sendo desenhado. A animação mantém 2,4 segundos de movimento, além do tempo de preparação da tela principal. Voltar, toque ou qualquer tecla continuam pulando a abertura.
+
+Na investigação, a prévia 0.4.2 estava gravada em aproximadamente 10 fps. Uma medição independente, sem captura, também registrou um quadro de cerca de 154 ms no aparelho. O log mostrou compilação JIT da tela inicial nesse período; essa coincidência motivou a separação das etapas. Não é prova de que toda pausa observada venha da mesma causa.
+
+Após instalar 0.4.3 no AFTMM/API 25, a repetição sem captura amostrou 118 quadros: mediana de 5,94 ms e percentil 95 de 7,47 ms. Apenas o primeiro quadro passou de 50 ms (107,58 ms); os demais ficaram abaixo de 33 ms. São medições pontuais, não uma garantia para toda abertura. A inicialização a frio ainda pode ter quadros lentos antes do trecho estável. A tecla Direita pulou a abertura e o retorno à tela principal foi conferido. A nova prévia foi capturada em 640 × 360 para reduzir o custo de gravação, sem interpolação de movimento. Compilação, lint, 144 testes existentes e assinatura v2 passaram.
+
 ### Abertura 0.4.2
 
 O símbolo B é desenhado por um traço de luz seguindo os contornos da marca; depois o fundo menta preenche o símbolo e o nome Buzin Cast é revelado da esquerda para a direita. As ondas surgem após a formação da letra. A abertura dura 2,4 segundos, continua pulável e mantém o tamanho da marca fixo. A geometria final reproduz `buzin_mark.xml`, sem novas imagens rasterizadas.
