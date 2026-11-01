@@ -35,9 +35,5 @@ fun BuzinSignal(modifier: Modifier = Modifier, active: Boolean = true) {
                 drawCircle(mint.copy(alpha = 0.24f), 2.dp.toPx(), point)
             }
         }
-        if (active) {
-            val wave = (progress * 3f) % 1f
-            drawCircle(mint.copy(alpha = (1f - wave) * 0.08f), unit * (0.04f + wave * 0.18f), center, style = Stroke(1.dp.toPx()))
-        }
     }
 }

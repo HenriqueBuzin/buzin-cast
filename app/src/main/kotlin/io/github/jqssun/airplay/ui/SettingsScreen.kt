@@ -572,6 +572,16 @@ private fun SettingResolution(
                 if (editing || !isPreset) {
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (isTv()) {
+                            TvEditField(stringResource(R.string.setting_resolution_width), width,
+                                { width = it }, Modifier.weight(1f), keyboardType = KeyboardType.Number,
+                                normalize = { it.filter(Char::isDigit).take(5) },
+                                validate = { (it.toIntOrNull() ?: 0) > 0 })
+                            TvEditField(stringResource(R.string.setting_resolution_height), height,
+                                { height = it }, Modifier.weight(1f), keyboardType = KeyboardType.Number,
+                                normalize = { it.filter(Char::isDigit).take(5) },
+                                validate = { (it.toIntOrNull() ?: 0) > 0 })
+                        } else {
                         OutlinedTextField(
                             value = width,
                             onValueChange = { width = it.filter { c -> c.isDigit() }.take(5) },
@@ -602,6 +612,13 @@ private fun SettingResolution(
                             },
                             modifier = Modifier.weight(1f)
                         )
+                        }
+                    }
+                    if (isTv()) {
+                        TextButton(onClick = {
+                            onValueChange("${width}x${height}"); editing = false
+                        }, enabled = (width.toIntOrNull() ?: 0) > 0 && (height.toIntOrNull() ?: 0) > 0,
+                            modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tv_edit_save)) }
                     }
                 }
             }
@@ -623,6 +640,15 @@ private fun SettingTextField(
     description: String? = null,
     range: IntRange? = null
 ) {
+    if (isTv()) {
+        TvEditField(label, value, onCommit,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            description = description,
+            keyboardType = if (range == null) KeyboardType.Text else KeyboardType.Number,
+            normalize = { if (range == null) it else it.filter(Char::isDigit).take(6) },
+            validate = { range == null || it.toIntOrNull()?.let { number -> number in range } == true })
+        return
+    }
     var text by remember(value) { mutableStateOf(value) }
     val valid = range == null || text.toIntOrNull()?.let { it in range } == true
     fun save() {
@@ -678,6 +704,10 @@ private fun SettingChipField(
                 }
                 if (editing || !isPreset) {
                     Spacer(Modifier.height(8.dp))
+                    if (isTv()) {
+                        TvEditField(placeholder, text, { onValueChange(it); editing = false },
+                            Modifier.fillMaxWidth(), keyboardType = keyboardType, validate = { it.isNotBlank() })
+                    } else {
                     OutlinedTextField(
                         value = text,
                         onValueChange = { text = it },
@@ -695,6 +725,7 @@ private fun SettingChipField(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    }
                 }
             }
         }

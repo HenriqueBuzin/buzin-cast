@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -143,6 +144,7 @@ private fun RelayConnectDialog(
     val portFocus = remember { FocusRequester() }
     val codeFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val tv = isTv()
     val valid = address.isNotBlank() && (port.toIntOrNull() ?: 0) in 1..65535 &&
         io.buzincast.media.SecureMirrorChannel.normalizeCode(code).length == 12
     fun dismiss() { keyboard?.hide(); onDismiss() }
@@ -153,6 +155,22 @@ private fun RelayConnectDialog(
         text = {
             Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Informe os dados exibidos em Receber na outra TV.", style = MaterialTheme.typography.bodyMedium)
+                if (tv) {
+                    Text("↑↓ para navegar · OK para escrever", style = MaterialTheme.typography.bodySmall)
+                    TvFormTextField("IP da outra TV", address, { address = it.take(64) },
+                        Modifier.fillMaxWidth().focusRequester(addressFocus).focusProperties { down = portFocus },
+                        onNext = { portFocus.requestFocus() })
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TvFormTextField("Porta", port, { port = it.filter(Char::isDigit).take(5) },
+                        Modifier.weight(0.34f).focusRequester(portFocus).focusProperties { up = addressFocus; down = codeFocus; right = codeFocus },
+                        keyboardType = KeyboardType.Number,
+                        onNext = { codeFocus.requestFocus() })
+                    TvFormTextField("Código de conexão", code, { code = it.take(14) },
+                        Modifier.weight(0.66f).focusRequester(codeFocus).focusProperties { up = portFocus; left = portFocus },
+                        imeAction = ImeAction.Done,
+                        onDone = { connect() })
+                    }
+                } else {
                 OutlinedTextField(value = address, onValueChange = { address = it.take(64) }, label = { Text("IP da outra TV") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().focusRequester(addressFocus),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
@@ -165,10 +183,11 @@ private fun RelayConnectDialog(
                     modifier = Modifier.fillMaxWidth().focusRequester(codeFocus),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { connect() }))
+                }
             }
         },
         confirmButton = { TextButton(onClick = ::connect, enabled = valid, modifier = Modifier.dpadFocus()) { Text("Conectar") } },
         dismissButton = { TextButton(onClick = ::dismiss, modifier = Modifier.dpadFocus()) { Text("Cancelar") } },
     )
-    LaunchedEffect(Unit) { addressFocus.requestFocusUntilLanded(); keyboard?.show() }
+    LaunchedEffect(Unit) { addressFocus.requestFocusUntilLanded(); if (!tv) keyboard?.show() }
 }
