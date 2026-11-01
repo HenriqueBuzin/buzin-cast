@@ -26,6 +26,23 @@ public static class BuzinBrand {
   static void Text(Graphics g,string text,string family,float size,FontStyle style,Color color,float x,float y) {
     using(var f=new Font(family,size,style,GraphicsUnit.Pixel)) using(var b=new SolidBrush(color)) g.DrawString(text,f,b,x,y,StringFormat.GenericTypographic);
   }
+  public static void GenerateFireIcon(string path) {
+    using(var bmp=new Bitmap(512,512)) using(var g=Graphics.FromImage(bmp)) {
+      g.SmoothingMode=SmoothingMode.AntiAlias;
+      g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+      // Fire OS 6 adds gray side panels and its own lower shadow to sideloaded icons.
+      // Match the flat panel color; let the launcher apply the same shadow everywhere.
+      g.Clear(C("#5A5A5A"));
+      using(var p=Round(144,70,224,224,58))
+      using(var b=new LinearGradientBrush(new Rectangle(144,70,224,224),C("#93FFDA"),C("#3BD8A6"),48)) g.FillPath(b,p);
+      Mark(g,157,80,198,C("#092A24"));
+      using(var f=new Font("Segoe UI",47,FontStyle.Bold,GraphicsUnit.Pixel))
+      using(var b=new SolidBrush(C("#FFFFFF")))
+      using(var format=new StringFormat { Alignment=StringAlignment.Center })
+        g.DrawString("Buzin Cast",f,b,256,320,format);
+      bmp.Save(path,ImageFormat.Png);
+    }
+  }
   public static void Generate(string folder) {
     Directory.CreateDirectory(folder);
     foreach(bool banner in new[]{false,true}) {
@@ -56,3 +73,4 @@ public static class BuzinBrand {
 }
 '@
 [BuzinBrand]::Generate((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi'))
+[BuzinBrand]::GenerateFireIcon((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi\buzin_fire_icon.png'))
