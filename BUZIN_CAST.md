@@ -4,6 +4,12 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Ícone integrado ao launcher 0.5.4
+
+A arte de TV passa a ser quadrada, sem esticar o banner horizontal dentro do ícone. Usa a marca e o nome Buzin Cast com fundo cinza #5A5A5A, igual ao fundo lateral observado no launcher Fire OS 6 dos aparelhos de teste. Isso integra visualmente o ícone às faixas adicionadas pelo sistema; não remove os painéis internos do launcher. O banner horizontal continua separado para launchers que o utilizam. O redimensionamento repete os pixels da borda para evitar transparência e filetes claros introduzidos pela interpolação. Outros temas/versões podem usar cores diferentes. Preferências de imagem e transmissão não mudam.
+
+Validado nos dois Fire Sticks API 25: mesma arte na lista, com fundo contínuo nos limites laterais do quadrado (RGB 90/90/90 na captura). Foi necessário reiniciar após a atualização e limpar o cache da Appstore, preservando seus dados, para substituir as miniaturas antigas. Compilação, 144 testes existentes, lint sem erros e assinatura v2 passaram. A entrada TvLauncher delega para MainActivity e mantém uma única opção de abertura.
+
 ### Perfis e ferramentas de transmissão 0.5.0
 
 Ícones de launcher receberam variantes por densidade e arte horizontal para TV. No Fire OS 6, o ícone passou a aparecer após reiniciar, mas a lista ainda manteve a imagem quadrada com faixas laterais durante a última conferência. A remoção dessas faixas permanece pendente de validação; incluir o banner no APK não garante que o launcher Amazon substitua sua miniatura em cache. A versão 0.5.0 foi instalada nos dois Fire Sticks de teste.
