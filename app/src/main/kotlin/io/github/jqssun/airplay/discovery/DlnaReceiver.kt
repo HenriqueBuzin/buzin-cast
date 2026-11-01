@@ -63,15 +63,15 @@ class DlnaReceiver(
                 } else session.onPlayerError()
             }
         }
-        override fun play() { main.post { if (ownsPlayback && !closed) service.airPlayVideoPlayer.setPlaying(true) } }
-        override fun pause() { main.post { if (ownsPlayback && !closed) service.airPlayVideoPlayer.setPlaying(false) } }
-        override fun seekTo(ms: Long) { main.post { if (ownsPlayback && !closed) service.onVideoScrub(ms / 1000f) } }
+        override fun play() { main.post { if (ownsPlayback && !closed && service.networkPlaybackOwner == "dlna") service.airPlayVideoPlayer.setPlaying(true) } }
+        override fun pause() { main.post { if (ownsPlayback && !closed && service.networkPlaybackOwner == "dlna") service.airPlayVideoPlayer.setPlaying(false) } }
+        override fun seekTo(ms: Long) { main.post { if (ownsPlayback && !closed && service.networkPlaybackOwner == "dlna") service.onVideoScrub(ms / 1000f) } }
         override fun stop() {
             main.post {
                 if (ownsPhoto) { ownsPhoto = false; io.github.jqssun.airplay.media.PhotoActivity.closePhoto() }
                 if (ownsPlayback) {
                     ownsPlayback = false
-                    service.stopVideoPlayback()
+                    if (service.networkPlaybackOwner == "dlna") service.stopVideoPlayback()
                 }
             }
         }
@@ -97,7 +97,7 @@ class DlnaReceiver(
                 ownsPhoto = false; session.stop()
             }
             if (ownsPlayback) {
-                if (service.connectionCount.value > 0) {
+                if (service.connectionCount.value > 0 || service.networkPlaybackOwner != "dlna") {
                     // The native AirPlay callbacks now own the shared player.
                     ownsPlayback = false
                     session.onPlayerError()

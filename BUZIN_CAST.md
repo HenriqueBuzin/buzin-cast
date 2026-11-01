@@ -4,6 +4,15 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Novidades 0.4.0
+
+- Abertura animada na TV: a marca surge com ondas de conexão e desaparece para a tela inicial em 1,5 segundo. Pode pular pelo controle/toque; não repete na troca de abas nem bloqueia o início do receptor. Animações seguem a escala de duração do sistema.
+- Identidade em movimento: órbitas discretas na tela inicial, entrada das páginas e foco com escala/contorno animados. Sem efeitos sobre a reprodução em tela cheia.
+- FCast v2 experimental em Configurações → Conexão, desativado por padrão: recepção de áudio/vídeo por URL HTTP(S), incluindo MIME e cabeçalhos, posição inicial, pausa/retomada, busca, parada, volume e velocidade. Descoberta local e estados de reprodução. Um controlador; rede local confiável; não usa PIN/TLS. Manifestos em linha, fotos, playlists e versões 3/4 ainda não são suportados. Não é Google Cast.
+- Cast V2 experimental, separado do FCast: TLS, descoberta e receptor padrão de mídia por URL, controles e estados. Sem a identidade certificada que os apps oficiais Google exigem; não equivale a Chromecast completo. Não oferece espelhamento Chrome nem apps de streaming específicos. Desativado por padrão; opção mostra a limitação. Detalhes e referências em [docs/FEATURES.md](docs/FEATURES.md).
+- O player compartilhado identifica qual protocolo possui a reprodução para evitar que controles DLNA de uma sessão anterior interrompam uma transmissão de outro protocolo.
+- Comparativo funcional e próximas etapas com referências AirScreen, AriannaCast, iMirror, AirReceiver, AirPin e FCast em [docs/FEATURES.md](docs/FEATURES.md). Ter todas as funções dessas referências continua sendo objetivo, não estado atual.
+
 ### Correção 0.3.1
 
 Em Ferramentas → Outra TV, os campos IP, porta e código foram reunidos em um único formulário, aberto pelo botão **Conectar a outra TV**. A página principal não contém mais campos de texto, portanto navegar com as setas não ativa o teclado. O botão Voltar/Cancelar fecha o formulário e devolve o foco ao botão de conexão. No Fire TV AFTMM foi verificado: navegação até as seções inferiores sem editor/teclado aberto, abertura do formulário apenas após OK, e retorno à navegação após Voltar.
@@ -25,7 +34,7 @@ Em Ferramentas → Outra TV, os campos IP, porta e código foram reunidos em um 
 - Retransmissão **Buzin Cast → Buzin Cast** por rede local: vídeo AirPlay já comprimido e áudio PCM. Ative Receber na segunda TV e digite IP, porta e código no emissor. Pareia com código aleatório de 12 caracteres e usa AES-GCM com chave derivada por PBKDF2, sequência autenticada e filas limitadas. O código de pareamento expira em cinco minutos. Esse protocolo próprio não é Google Cast, AirPlay emissor ou retransmissão para AirScreen.
 - Visualizador de fotos **JPEG e PNG via DLNA**, com giro, ajuste/preenchimento, navegação pelas últimas 20 fotos recebidas na sessão e apresentação automática a cada 5 segundos. Imagens com limite de 16 MB e decodificação reduzida para até 3840 × 2160. Ative DLNA e mantenha o app aberto quando o sistema impedir abertura em segundo plano.
 - Atalho para **Miracast nativo** nos Fire TV com o componente `com.amazon.cast.sink.DisplayMirroringSinkActivity`. Se não existir, mostra a limitação. Não implementa um novo motor Miracast, e a gravação/retransmissão não se aplica ao receptor do sistema.
-- Google Cast/Chromecast continua **não implementado**. O Cast Connect oficial depende de Google Play Services e não fornece um receptor universal pronto para Fire OS. Não há anúncio `_googlecast` fictício.
+- Na versão 0.2.0, Google Cast/Chromecast ainda não estava implementado. A versão 0.4.0 acrescenta o receptor Cast V2 experimental descrito acima; a compatibilidade certificada continua pendente. O Cast Connect oficial depende de Google Play Services e não fornece um receptor universal pronto para Fire OS.
 - O perfil de até 3840 × 2160 já pode ser selecionado em Configurações. O limite é ajustado às capacidades do decodificador. A resolução efetiva depende do emissor, codec, aparelho e rede; 4K não foi confirmado em todos os modelos.
 
 Os arquivos de teste de vídeo em `dlna-domain/src/test/resources/mirror/` são padrões sintéticos de 64 × 48 pixels gerados com FFmpeg. O receptor `DebugMediaReceiver` existe somente no APK de debug e exige `android.permission.DUMP`, permitindo injetar esses padrões via ADB nos testes. Não entra na compilação release.
@@ -49,7 +58,7 @@ A base utiliza [android-airplay-server](https://github.com/jqssun/android-airpla
 ## O que ainda falta validar ou implementar
 
 1. Validar DLNA de áudio, vídeo e fotos com aplicativos emissores reais, além dos testes sintéticos.
-2. Compatibilidade Google Cast: investigar um motor receptor adequado a Fire OS. O SDK Cast Connect para Android TV não é um receptor universal que se possa simplesmente adicionar ao Fire TV.
+2. Compatibilidade Google Cast certificada e apps específicos: o Cast V2 experimental já recebe mídia por URL de emissores sem exigência da identidade Google. Ainda faltam autenticação certificada, espelhamento Chrome e compatibilidade dos aplicativos; o SDK Cast Connect não fornece um receptor universal para Fire TV.
 3. Miracast: o atalho nativo está implementado. Ainda falta verificar uma sessão com emissor Miracast real. Durante o teste de abertura no Fire TV, a depuração ADB perdeu a conexão; não foi confirmado o retorno à rede nem o espelhamento Miracast.
 4. Validar gravação com sessões AirPlay longas, codecs/fontes diferentes e sincronização audiovisual; o muxer e o caminho de áudio nativo passaram nos testes sintéticos.
 5. Validar retransmissão entre duas TVs físicas, áudio audível e latência. O teste emulador → Fire TV estabeleceu pareamento criptografado e iniciou decodificadores de vídeo/áudio. O protetor de tela ocultou a imagem; foram acrescentados abertura automática do app e manutenção de tela ligada, cuja validação final no aparelho ficou pendente após a queda do ADB.
@@ -65,8 +74,12 @@ Fire OS 6+ (API 25+) é o alvo de instalação atual. O APK inclui ARM de 32 e 6
 
 ### Verificação desta versão
 
-- APK de debug 0.3.0 compilado com ARM de 32 e 64 bits e x86_64.
-- 129 testes de protocolo, autenticação, gravação e ajuste de proporção/bordas passaram, sem falhas ou testes ignorados.
+- APK de debug 0.4.0 compilado com ARM de 32 e 64 bits e x86_64.
+- 144 testes de protocolo, autenticação, gravação, ajuste de proporção/bordas e enquadramento FCast/Cast V2 passaram, sem falhas ou testes ignorados.
+- FCast no Fire TV AFTMM: versão e ping/pong, rejeição de URL local/velocidade inválida, vídeo sintético por HTTP, pausa, busca, retomada, volume e velocidade preservando pausa passaram.
+- Cast V2 no Fire TV AFTMM com PyChromecast 13.1.0 como emissor independente: conexão TLS, estado/lançamento do receptor padrão, vídeo sintético por HTTP, pausa, busca, volume, mudo, retomada e parada/encerramento passaram. Isso não valida emissores oficiais Google ou descoberta automática em emissores reais. Script reproduzível: `tools/test_cast_v2.py`.
+- O teste Cast V2 foi repetido após reconectar sem reiniciar o receptor: todos os controles e o estado IDLE após Stop passaram. O desafio DeviceAuth recebeu erro explícito, sem resposta de identidade Google. O ajuste TLS foi verificado no Fire OS API 25 com chave privada no AndroidKeyStore.
+- Navegação no Fire TV: Configurações permanece em uma linha; Ferramentas tem zero EditTexts na página e o foco chega ao botão Conectar a outra TV sem abrir o teclado, inclusive com a escala animada de foco.
 - Android Lint executado sem erros; os avisos ainda devem ser revisados antes da publicação.
 - Assinatura APK v2 verificada; versão de teste, não destinada à publicação na loja.
 - Instalação e abertura verificadas em emulador Android 16; receptor AirPlay iniciou sem falha de carregamento nativo.

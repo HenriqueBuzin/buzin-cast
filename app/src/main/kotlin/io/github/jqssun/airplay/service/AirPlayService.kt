@@ -87,6 +87,10 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     private var nsdManager: NsdServiceManager? = null
     private var usbAdvertiser: UsbMdnsAdvertiser? = null
     private var dlnaReceiver: DlnaReceiver? = null
+    private var fcastReceiver: io.github.jqssun.airplay.discovery.FCastReceiver? = null
+    private var castV2Receiver: io.github.jqssun.airplay.discovery.CastV2Receiver? = null
+    var networkPlaybackOwner: String? = null
+        private set
     val capture by lazy { MirrorCapture(this, ::updateCaptureTap) }
     val relayPlayback by lazy { RelayPlayback(videoRenderer) { w, h ->
         _videoAspect.value = w.toFloat() / h; _videoResolution.value = "${w}x${h}"; _mirroringActive.value = true
@@ -354,6 +358,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         }
         airPlayVideoPlayer.onTitle = { _videoTitle.value = it ?: "" }
         airPlayVideoPlayer.onEnded = { _endVideoPlayback("AirPlay Video stopped (player)") }
+        airPlayVideoPlayer.onError = { if (networkPlaybackOwner == "fcast") fcastReceiver?.playbackError(it) }
         airPlayVideoPlayer.onPlaybackInfo = { snapshot ->
             if (nativeHandle != 0L) {
                 NativeBridge.nativeUpdatePlaybackInfo(nativeHandle, snapshot.position, snapshot.duration, snapshot.rate, snapshot.ready)
@@ -517,6 +522,16 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
             dlnaReceiver = receiver
             lifecycleScope.launch(Dispatchers.IO) { receiver.start() }
         }
+        if (prefs[Prefs.FCAST_ENABLED] && !prefs[Prefs.USB_ONLY]) {
+            val receiver = io.github.jqssun.airplay.discovery.FCastReceiver(this, effectiveName, ::log)
+            fcastReceiver = receiver
+            lifecycleScope.launch(Dispatchers.IO) { receiver.start() }
+        }
+        if (prefs[Prefs.CASTV2_ENABLED] && !prefs[Prefs.USB_ONLY]) {
+            val receiver = io.github.jqssun.airplay.discovery.CastV2Receiver(this, effectiveName, ::log)
+            castV2Receiver = receiver
+            lifecycleScope.launch(Dispatchers.IO) { receiver.start() }
+        }
     }
 
     private fun _orientationFollowsDevice(): Boolean =
@@ -590,6 +605,11 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         relayPlayback.stop()
         dlnaReceiver?.close()
         dlnaReceiver = null
+        fcastReceiver?.close()
+        fcastReceiver = null
+        castV2Receiver?.close()
+        castV2Receiver = null
+        networkPlaybackOwner = null
         audioRenderer.detachEngine()
         if (nativeHandle != 0L) {
             NativeBridge.nativeStop(nativeHandle)
@@ -718,6 +738,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     override fun onVideoPlay(location: String, startPositionSeconds: Float) {
+        networkPlaybackOwner = null
         if (relay.state.value.receiving || relay.state.value.listening) relay.stop()
         _videoLocation.value = location
         _videoPlaySeq.value++
@@ -734,8 +755,26 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     fun playDlnaVideo(location: String) {
+        playNetworkVideo(location, "dlna")
+    }
+
+    fun playNetworkVideo(location: String, owner: String, time: Float = 0f, mime: String? = null, headers: Map<String, String> = emptyMap()) {
         PhotoActivity.closePhoto()
-        onVideoPlay(location, 0f)
+        // Prepare the common playback UI, then configure the network media source.
+        networkPlaybackOwner = null
+        if (relay.state.value.receiving || relay.state.value.listening) relay.stop()
+        _videoLocation.value = location
+        _videoPlaySeq.value++
+        _videoPollSuppressed = false
+        _videoPlaybackInfo.value = VideoPlaybackInfo(positionMs = (time * 1000).toLong())
+        _videoPlaybackAspect.value = 16f / 9f
+        _videoPlaybackSize.value = null
+        _videoTitle.value = ""
+        _videoPlaybackActive.value = true
+        airPlayVideoPlayer.setClientGain(1f)
+        airPlayVideoPlayer.play(location, time, mime, headers)
+        networkPlaybackOwner = owner
+        mediaSession?.isActive = true
         if (shouldLaunchOnConnect()) launchMainActivity()
     }
 

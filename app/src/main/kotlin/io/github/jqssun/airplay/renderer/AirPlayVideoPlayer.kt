@@ -13,6 +13,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 
 // rate is 0 while buffering; speed is the configured rate regardless of pause state
 // native reads the effective rate, overlay reads playWhenReady + speed + skipSilence
@@ -40,6 +43,7 @@ class AirPlayVideoPlayer(private val context: Context) {
     var onVideoSize: ((width: Int, height: Int, aspect: Float) -> Unit)? = null
     var onTitle: ((String?) -> Unit)? = null
     var onEnded: (() -> Unit)? = null
+    var onError: ((String) -> Unit)? = null
 
     private val _reportTick = object : Runnable {
         override fun run() {
@@ -51,6 +55,7 @@ class AirPlayVideoPlayer(private val context: Context) {
     private val _listener = object : Player.Listener {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             Log.w(TAG, "playback error", error)
+            onError?.invoke(error.errorCodeName)
             onEnded?.invoke()
         }
         override fun onPlaybackStateChanged(state: Int) {
@@ -70,16 +75,18 @@ class AirPlayVideoPlayer(private val context: Context) {
         }
     }
 
-    fun play(location: String, startPositionSeconds: Float) = mainHandler.post {
+    fun play(location: String, startPositionSeconds: Float, mime: String? = null, headers: Map<String, String> = emptyMap()) = mainHandler.post {
         // recycling must not report the stopped sentinel: senders poll right after /play
         _stopInternal(reportStopped = false)
-        val p = ExoPlayer.Builder(context).build().also {
+        val http = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+        val sources = DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http))
+        val p = ExoPlayer.Builder(context).setMediaSourceFactory(sources).build().also {
             it.addListener(_listener)
             pendingSurface?.let { s -> it.setVideoSurface(s) }
             it.volume = clientGain
         }
         player = p
-        p.setMediaItem(MediaItem.fromUri(location), (startPositionSeconds * 1000).toLong())
+        p.setMediaItem(MediaItem.Builder().setUri(location).setMimeType(mime).build(), (startPositionSeconds * 1000).toLong())
         p.playWhenReady = true
         p.prepare()
         onPlaybackInfo?.invoke(PlaybackSnapshot(startPositionSeconds, 0f, 0f, false, true))

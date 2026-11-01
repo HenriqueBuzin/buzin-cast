@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -567,7 +568,12 @@ fun MainScreen(
                     }
                 }
               }
-              Box(Modifier.weight(1f)) {
+              val tabEntrance = remember(tab) { androidx.compose.animation.core.Animatable(0f) }
+              LaunchedEffect(tab) { tabEntrance.animateTo(1f, androidx.compose.animation.core.tween(260)) }
+              Box(Modifier.weight(1f).graphicsLayer {
+                  alpha = tabEntrance.value
+                  translationX = (1f - tabEntrance.value) * 10.dp.toPx()
+              }) {
                 TabContent(
                     tab, viewModel, video,
                     onFullscreen = { fullscreen = true }, onPip = onPip, onLocalNetwork = onLocalNetwork,

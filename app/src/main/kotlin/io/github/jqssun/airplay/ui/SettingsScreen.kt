@@ -38,6 +38,8 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsScreen(viewModel: MainViewModel) {
     val dlnaEnabled by viewModel.pref(Prefs.DLNA_ENABLED).collectAsState()
+    val fcastEnabled by viewModel.pref(Prefs.FCAST_ENABLED).collectAsState()
+    val castV2Enabled by viewModel.pref(Prefs.CASTV2_ENABLED).collectAsState()
     val serverName by viewModel.pref(Prefs.SERVER_NAME).collectAsState()
     val h265 by viewModel.pref(Prefs.H265).collectAsState()
     val enforceSdr by viewModel.pref(Prefs.ENFORCE_SDR).collectAsState()
@@ -119,6 +121,20 @@ fun SettingsScreen(viewModel: MainViewModel) {
         )
 
         SectionHeader(stringResource(R.string.section_connection))
+
+        SettingSwitch(
+            title = stringResource(R.string.setting_castv2),
+            description = stringResource(R.string.setting_castv2_desc),
+            checked = castV2Enabled,
+            onCheckedChange = { viewModel.set(Prefs.CASTV2_ENABLED, it) }
+        )
+
+        SettingSwitch(
+            title = stringResource(R.string.setting_fcast),
+            description = stringResource(R.string.setting_fcast_desc),
+            checked = fcastEnabled,
+            onCheckedChange = { viewModel.set(Prefs.FCAST_ENABLED, it) }
+        )
 
         SettingSwitch(
             title = stringResource(R.string.setting_dlna),

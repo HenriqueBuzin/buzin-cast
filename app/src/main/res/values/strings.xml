@@ -222,4 +222,8 @@
     <string name="debug_audio_glitch">Glitch: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
     <string name="debug_audio_decode">Decode: %1$s</string>
     <string name="debug_clients">Senders: %1$d</string>
+    <string name="setting_fcast">FCast · experimental</string>
+    <string name="setting_fcast_desc">Receive media from compatible senders on your local network. No PIN. Restart after changing networks.</string>
+    <string name="setting_castv2">Cast V2 · experimental</string>
+    <string name="setting_castv2_desc">URL media from compatible senders. Apps requiring Google device certification are not supported. No PIN.</string>
 </resources>
