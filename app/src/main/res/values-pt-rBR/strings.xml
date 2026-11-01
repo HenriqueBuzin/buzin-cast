@@ -29,8 +29,8 @@
     <string name="tab_logs">Diagnóstico</string>
     <string name="tab_settings">Configurações</string>
     <string name="tab_tools">Ferramentas</string>
-    <string name="setting_tv_margin">Ajustar bordas da TV</string>
-    <string name="setting_tv_margin_desc" formatted="false">Exibe a imagem espelhada inteira, com margem em cada borda. Use 3% ou 5% se a TV cortar as pontas. O ajuste é imediato; não precisa reconectar.</string>
+    <string name="setting_tv_margin">Encaixe da imagem</string>
+    <string name="setting_tv_margin_desc" formatted="false">Automático encaixa a imagem inteira e preserva a proporção. As porcentagens adicionam margem para TVs que cortam as bordas. Aplicado na hora.</string>
     <string name="server_stopped">Receptor parado</string>
     <string name="waiting_for_connection">Aguardando conexão…</string>
     <string name="waiting_for_playback">Inicie a reprodução no dispositivo de origem…</string>
@@ -73,8 +73,9 @@
     <string name="setting_boot_auto_start_desc">Executar o receptor após iniciar o dispositivo</string>
     <string name="setting_run_in_background">Executar em segundo plano</string>
     <string name="setting_run_in_background_desc">Manter o receptor ativo ao sair do app</string>
-    <string name="setting_require_pin">Exigir PIN (experimental)</string>
-    <string name="setting_require_pin_desc">Solicitar um PIN de 4 dígitos em cada conexão</string>
+    <string name="section_airplay_security">Segurança do AirPlay</string>
+    <string name="setting_require_pin">Solicitar código (experimental)</string>
+    <string name="setting_require_pin_desc">Mostra um código de 4 dígitos na TV para parear dispositivos AirPlay compatíveis. Não se aplica aos outros tipos de transmissão.</string>
     <string name="setting_allow_new_conn">Permitir nova conexão</string>
     <string name="setting_allow_new_conn_desc">Encerrar a conexão atual quando outro dispositivo conectar</string>
     <string name="setting_idle_preview">Prévia em espera</string>

@@ -4,6 +4,24 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Limpeza do código 0.4.6
+
+O receptor limpa o código e o aviso de pareamento ao parar ou reiniciar, inclusive quando a opção Solicitar código é desligada. Isso evita manter um PIN antigo visível após desativar a proteção. O padrão continua desligado.
+
+Validado no emulador API 36: solicitação RTSP de PIN respondeu 200, código de quatro dígitos apareceu e desligar a opção removeu o diálogo após reinício do receptor. O pareamento criptográfico completo com um emissor Apple ainda não foi validado. O vídeo sintético do diagnóstico foi injetado sem erro; 144 testes existentes, compilação, lint sem erros e assinatura v2 passaram. A versão 0.4.6 foi preparada e testada no emulador, sem instalar ou reiniciar a TV .100 durante o teste visual do usuário.
+
+### Encaixe e código de conexão 0.4.5
+
+Configurações → Imagem → Encaixe da imagem identifica o ajuste padrão como **Automático**, em vez de 0%. Ele utiliza o ajuste de proporção que já existia, encaixando o quadro inteiro na superfície disponível sem margem artificial; adapta-se à resolução da superfície e do vídeo. Não é um novo detector de bordas físicas ou de overscan do painel. Fontes com proporção diferente da TV continuam podendo ter barras para preservar a imagem inteira. As margens opcionais de 2%, 3%, 5% e 8% foram mantidas para TVs que cortam as bordas.
+
+No teste da TV 192.168.0.100, o modo automático preencheu a tela, mas o usuário confirmou corte nas bordas físicas. A margem de 3% foi restaurada provisoriamente para manter o quadro inteiro. O Fire OS informa saída 1920 × 1080 com `overscan_enabled=0` e `overscan_values=0.0 0.0 0.0 0.0`; essa informação não detecta recortes feitos posteriormente pelo painel da TV. A marca atual é Samsung; o modelo e a configuração de imagem ainda precisam ser conferidos. O usuário também observou o corte em uma LG.
+
+O controle de PIN existente foi organizado em **Configurações → Segurança do AirPlay → Solicitar código (experimental)**. É opcional e permanece desligado por padrão; não controla DLNA/FCast/Cast V2. O PIN é aleatório por execução do receptor, e o comportamento de novo pareamento depende do emissor. Se a geração criptográfica falhar, o receptor agora falha ao iniciar, em vez de substituir o código por 1234.
+
+Espelhar/estender são escolhas do macOS, não modos que o receptor possa impor ao computador. A documentação Apple descreve a escolha antes de compartilhar e a possibilidade de salvar um padrão que pula essa etapa. Ainda é necessário validar a apresentação dessa janela e a extensão de tela com o Mac do usuário; não foram adicionados botões fictícios na TV. Consulte [Conexão pelo Mac](docs/MAC_CONNECTION.md).
+
+O usuário localizou o ajuste do macOS 27.2 e confirmou que o menu para escolher estender/espelhar apareceu. Isso valida a apresentação do seletor nesse Mac, não uma sessão estendida completa. A versão 0.4.5 foi instalada na TV .100. No teste técnico, `POST /pair-pin-start RTSP/1.0` respondeu 200 e mostrou um código de quatro dígitos na TV; autenticação completa pelo Mac permanece para validação posterior. O PIN foi devolvido ao estado desligado, e a margem provisória permanece 3%. O usuário ficou responsável pela conferência visual da imagem, enquanto os testes técnicos seguem isolados da TV.
+
 ### Encerramento da abertura 0.4.4
 
 Os círculos desaparecem gradualmente até 80% da sequência, antes da preparação da tela principal em 82%. Na 0.4.3, essa preparação pausava o relógio com os círculos ainda visíveis, que depois retomavam o movimento. Agora a preparação acontece com apenas a marca e o nome completos em tela; os círculos não reaparecem durante o fade final.
