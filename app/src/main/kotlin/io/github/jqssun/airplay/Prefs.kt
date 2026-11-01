@@ -105,7 +105,7 @@ object Prefs {
     val RESOLUTION = str("resolution", "1920x1080", restart = true) { it in setOf(AUTO, PORTRAIT, LANDSCAPE) || SIZE.matches(it) }
     val MAX_FPS = int("max_fps", 30, 1..Int.MAX_VALUE, restart = true)
     val OVERSCANNED = bool("overscanned", false, restart = true)
-    val TV_MARGIN = int("tv_margin", 0, 0..10)
+    val TV_MARGIN = int("tv_margin", 2, 0..10)
     val REQUIRE_PIN = bool("require_pin", false, restart = true)
     val ALLOW_NEW_CONN = bool("allow_new_conn", true, restart = true)
     val AUDIO_LATENCY_MS = int("audio_latency_ms", -1, -1..1000, restart = true)

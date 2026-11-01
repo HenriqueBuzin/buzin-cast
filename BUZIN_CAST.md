@@ -4,6 +4,10 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Margem padrão 0.4.7
+
+A margem de imagem passa a ser **2% por borda como padrão em todas as novas instalações**, após o usuário confirmar o encaixe na Samsung. O ajuste continua disponível em Configurações → Imagem → Encaixe da imagem. Preferências já salvas em cada aparelho são preservadas; a TV .100 já está em 2%. Automático permanece disponível como encaixe sem margem extra. A validação visual na LG ainda será feita pelo usuário.
+
 ### Limpeza do código 0.4.6
 
 O receptor limpa o código e o aviso de pareamento ao parar ou reiniciar, inclusive quando a opção Solicitar código é desligada. Isso evita manter um PIN antigo visível após desativar a proteção. O padrão continua desligado.
