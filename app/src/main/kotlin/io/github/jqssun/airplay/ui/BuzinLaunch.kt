@@ -69,10 +69,14 @@ fun BuzinLaunch(enabled: Boolean, content: @Composable () -> Unit) {
                 Canvas(Modifier.fillMaxSize()) {
                     val center = Offset(size.width / 2, size.height / 2 - 24.dp.toPx())
                     val radius = minOf(size.width, size.height) * 0.6f
+                    // Finish every ripple before the clock pauses at 0.82 for home
+                    // composition. No moving circle should freeze or resume there.
+                    val rippleAlpha = 1f - FastOutSlowInEasing.transform(
+                        ((reveal.value - 0.68f) / 0.12f).coerceIn(0f, 1f))
                     repeat(3) { i ->
                         val wave = ((reveal.value - 0.5f - i * 0.08f) / 0.45f).coerceIn(0f, 1f)
-                        if (wave > 0f && wave < 1f) {
-                            drawCircle(Color(0xFF70E3C5).copy(alpha = (1f - wave) * 0.34f),
+                        if (wave > 0f && wave < 1f && rippleAlpha > 0f) {
+                            drawCircle(Color(0xFF70E3C5).copy(alpha = (1f - wave) * 0.34f * rippleAlpha),
                                 52.dp.toPx() + wave * radius, center, style = Stroke(1.5.dp.toPx()))
                         }
                     }
