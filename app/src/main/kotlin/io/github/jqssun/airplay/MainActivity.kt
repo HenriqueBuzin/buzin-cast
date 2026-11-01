@@ -18,6 +18,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -112,6 +114,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AirPlayTheme {
+              val connections by viewModel.connectionCount.collectAsState()
+              val videoActive by viewModel.videoPlaybackActive.collectAsState()
+              val mirrorActive by viewModel.mirroringActive.collectAsState()
+              io.github.jqssun.airplay.ui.BuzinLaunch(enabled = isTvDevice() && !isInPip.value &&
+                  connections == 0 && !videoActive && !mirrorActive) {
                 MainScreen(
                     viewModel = viewModel,
                     isInPip = isInPip.value,
@@ -120,6 +127,7 @@ class MainActivity : ComponentActivity() {
                     onPip = { enterPip() },
                     onLocalNetwork = ::_requestLocalNetwork
                 )
+              }
             }
         }
     }

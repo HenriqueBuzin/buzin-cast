@@ -190,4 +190,8 @@
     <string name="debug_audio_glitch">Falhas: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
     <string name="debug_audio_decode">Decodificação: %1$s</string>
     <string name="debug_clients">Dispositivos de origem: %1$d</string>
+    <string name="setting_fcast">FCast · experimental</string>
+    <string name="setting_fcast_desc">Receba mídia de emissores compatíveis na rede local. Sem PIN. Reinicie ao trocar de rede.</string>
+    <string name="setting_castv2">Cast V2 · experimental</string>
+    <string name="setting_castv2_desc">Mídia por URL de emissores compatíveis. Apps que exigem certificação Google não são suportados. Sem PIN.</string>
 </resources>

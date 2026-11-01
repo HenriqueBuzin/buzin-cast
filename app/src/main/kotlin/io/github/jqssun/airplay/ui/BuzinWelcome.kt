@@ -25,6 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.jqssun.airplay.R
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.graphicsLayer
 
 @Composable
 fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? = null) {
@@ -33,6 +37,8 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
     val mint = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val toggleFocus = remember { FocusRequester() }
+    val entrance = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { entrance.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) }
     LaunchedEffect(running, onToggle != null) { if (tv && onToggle != null) toggleFocus.requestFocusUntilLanded() }
     val identity: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -76,7 +82,12 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
             Text("AirPlay  •  DLNA", color = mint, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
     }
-    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0D1D26), Color(0xFF080F19))))
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0D1D26), Color(0xFF080F19))))) {
+    BuzinSignal(Modifier.matchParentSize(), active = running)
+    Column(Modifier.fillMaxSize().graphicsLayer {
+        alpha = entrance.value
+        translationY = (1f - entrance.value) * 16.dp.toPx()
+    }
         .verticalScroll(rememberScrollState()).padding(if (tv) 28.dp else 22.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -94,6 +105,7 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
                 Box(Modifier.weight(1f)) { instructions() }
             }
         } else { identity(); instructions() }
+    }
     }
     if (about) {
         AlertDialog(onDismissRequest = { about = false }, title = { Text(stringResource(R.string.buzin_about)) },
