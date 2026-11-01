@@ -36,12 +36,16 @@ fun BuzinLaunch(enabled: Boolean, content: @Composable () -> Unit) {
     LaunchedEffect(enabled) {
         if (!enabled) completed = true
         if (!completed) {
+            // Let the first layout/draw settle before starting the animation clock.
+            // Cold service startup on older Fire TVs can otherwise skip its first frames.
+            withFrameNanos { }
+            withFrameNanos { }
             reveal.animateTo(1f, tween(1500, easing = androidx.compose.animation.core.LinearEasing))
             completed = true
         }
     }
     BackHandler(enabled = !completed) { completed = true }
-    Box(Modifier.fillMaxSize().onPreviewKeyEvent {
+    Box(Modifier.fillMaxSize().background(Color(0xFF080F19)).onPreviewKeyEvent {
         if (!completed && it.type == KeyEventType.KeyDown) { completed = true; true } else false
     }) {
         content()
@@ -63,14 +67,11 @@ fun BuzinLaunch(enabled: Boolean, content: @Composable () -> Unit) {
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp),
                     modifier = Modifier.graphicsLayer {
-                        val entrance = FastOutSlowInEasing.transform((reveal.value / 0.4f).coerceIn(0f, 1f))
+                        val entrance = FastOutSlowInEasing.transform((reveal.value / 0.5f).coerceIn(0f, 1f))
                         alpha = entrance
-                        scaleX = 0.78f + entrance * 0.22f
-                        scaleY = scaleX
-                        translationY = (1f - entrance) * 18.dp.toPx()
                     }) {
-                    Image(painterResource(R.drawable.buzin_mark), null, Modifier.size(96.dp))
-                    Text("Buzin Cast", color = Color(0xFFF1F5F1), fontSize = 31.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                    Image(painterResource(R.drawable.buzin_mark), null, Modifier.size(84.dp))
+                    Text("Buzin Cast", color = Color(0xFFF1F5F1), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
                 }
             }
         }
