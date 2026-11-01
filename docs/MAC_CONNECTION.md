@@ -23,4 +23,6 @@ O Buzin recebe o vídeo enviado. Ele não possui uma API para forçar a janela d
 
 **Configurações → Imagem → Encaixe da imagem → Automático** usa a área informada pelo Fire OS, sem a margem extra. Mantém a proporção e a imagem inteira, podendo deixar barras quando a proporção da fonte é diferente da televisão.
 
+A partir da versão 0.4.7, novas instalações começam com margem de **2%** por borda. A opção Automático (sem margem extra) e as demais margens continuam selecionáveis. Atualizações preservam o ajuste já salvo em cada aparelho.
+
 Isso não detecta o recorte físico do painel. Com corte externo confirmado, verifique o formato de imagem da televisão. [Samsung: tamanho da imagem](https://www.samsung.com/ae/support/tv-audio-video/adjust-the-picture-size-on-your-samsung-tv/) e [LG: imagem ampliada ou cortada](https://www.lg.com/us/support/help-library/how-to-fix-a-zoomedin-picture-or-cutoff-text-on-your-lg-tv-CT10000018-20155399003922) têm orientações; o caminho correto depende do modelo.
