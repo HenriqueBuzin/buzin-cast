@@ -4,6 +4,12 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Abertura 0.4.2
+
+O símbolo B é desenhado por um traço de luz seguindo os contornos da marca; depois o fundo menta preenche o símbolo e o nome Buzin Cast é revelado da esquerda para a direita. As ondas surgem após a formação da letra. A abertura dura 2,4 segundos, continua pulável e mantém o tamanho da marca fixo. A geometria final reproduz `buzin_mark.xml`, sem novas imagens rasterizadas.
+
+Versão 0.4.2 instalada no AFTMM/API 25. A gravação da abertura a frio confirmou o traço progressivo, preenchimento e revelação do nome, com retorno à tela inicial. Compilação/lint sem erros, 144 testes existentes passando e assinatura v2 verificada.
+
 ### Correção 0.4.1
 
 A abertura na TV mantém logo e nome em tamanho fixo, com fade gradual e ondas de conexão. O zoom de 22% e o deslocamento da marca foram retirados; o logo passou de 96 dp para 84 dp. O relógio da animação começa após dois quadros de composição, para reduzir saltos durante a inicialização a frio. O tema de TV usa a mesma cor de fundo e não acrescenta uma transição de janela sobre a animação do app.
