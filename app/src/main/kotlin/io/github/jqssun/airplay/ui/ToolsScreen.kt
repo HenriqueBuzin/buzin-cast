@@ -5,10 +5,17 @@ import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 
@@ -23,6 +30,15 @@ fun ToolsScreen(viewModel: MainViewModel) {
     var code by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var delete by remember { mutableStateOf<String?>(null) }
+    var connectDialog by remember { mutableStateOf(false) }
+    var restoreConnectFocus by remember { mutableStateOf(false) }
+    val connectFocus = remember { FocusRequester() }
+    LaunchedEffect(connectDialog) {
+        if (!connectDialog && restoreConnectFocus) {
+            connectFocus.requestFocusUntilLanded()
+            restoreConnectFocus = false
+        }
+    }
     val busy by viewModel.connectionCount.collectAsState()
     val video by viewModel.videoPlaybackActive.collectAsState()
     LaunchedEffect(capture.armed) { viewModel.refreshRecordings() }
@@ -41,18 +57,13 @@ fun ToolsScreen(viewModel: MainViewModel) {
         Text("IP desta TV: ${viewModel.localAddress()}")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = viewModel::listenRelay, enabled = busy == 0 && !video && !capture.armed && !relay.sending, modifier = Modifier.dpadFocus()) { Text("Receber nesta TV") }
+            OutlinedButton(onClick = { connectDialog = true },
+                enabled = !relay.receiving && !relay.sending && !relay.listening,
+                modifier = Modifier.focusRequester(connectFocus).dpadFocus()) { Text("Conectar a outra TV") }
             if (relay.listening || relay.sending || relay.receiving) OutlinedButton(onClick = viewModel::stopRelay, modifier = Modifier.dpadFocus()) { Text("Encerrar retransmissão") }
         }
         if (relay.listening) Text("Porta: ${relay.port}  •  Código: ${relay.code.chunked(4).joinToString("-")}", style = MaterialTheme.typography.titleLarge)
         if (relay.message.isNotBlank()) Text(relay.message)
-        OutlinedTextField(value = address, onValueChange = { address = it.take(64) }, label = { Text("IP da TV de destino") }, singleLine = true)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, label = { Text("Porta") }, singleLine = true, modifier = Modifier.weight(1f))
-            OutlinedTextField(value = code, onValueChange = { code = it.take(14) }, label = { Text("Código da TV de destino") }, singleLine = true, modifier = Modifier.weight(2f))
-        }
-        Button(onClick = { viewModel.connectRelay(address, port.toIntOrNull() ?: 0, code) },
-            enabled = address.isNotBlank() && (port.toIntOrNull() ?: 0) in 1..65535 && io.buzincast.media.SecureMirrorChannel.normalizeCode(code).length == 12 && !relay.receiving && !relay.sending && !relay.listening,
-            modifier = Modifier.dpadFocus()) { Text("Conectar e retransmitir") }
         HorizontalDivider()
         Text("Fotos via DLNA", style = MaterialTheme.typography.titleLarge)
         Text("Ative DLNA nas Configurações para receber fotos e criar uma apresentação.")
@@ -77,7 +88,58 @@ fun ToolsScreen(viewModel: MainViewModel) {
             }
         }
     }
+    if (connectDialog) {
+        RelayConnectDialog(address, port, code,
+            onDismiss = { connectDialog = false; restoreConnectFocus = true },
+            onConnect = { host, receiverPort, pairingCode ->
+                address = host; port = receiverPort; code = pairingCode
+                connectDialog = false; restoreConnectFocus = true
+                viewModel.connectRelay(host, receiverPort.toInt(), pairingCode)
+            })
+    }
     delete?.let { name -> AlertDialog(onDismissRequest = { delete = null }, title = { Text("Excluir gravação?") }, text = { Text(name) },
         confirmButton = { TextButton(onClick = { viewModel.deleteRecording(name); delete = null }) { Text("Excluir") } },
         dismissButton = { TextButton(onClick = { delete = null }) { Text("Cancelar") } }) }
+}
+
+@Composable
+private fun RelayConnectDialog(
+    initialAddress: String, initialPort: String, initialCode: String,
+    onDismiss: () -> Unit, onConnect: (String, String, String) -> Unit,
+) {
+    var address by remember { mutableStateOf(initialAddress) }
+    var port by remember { mutableStateOf(initialPort) }
+    var code by remember { mutableStateOf(initialCode) }
+    val addressFocus = remember { FocusRequester() }
+    val portFocus = remember { FocusRequester() }
+    val codeFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val valid = address.isNotBlank() && (port.toIntOrNull() ?: 0) in 1..65535 &&
+        io.buzincast.media.SecureMirrorChannel.normalizeCode(code).length == 12
+    fun dismiss() { keyboard?.hide(); onDismiss() }
+    fun connect() { if (valid) { keyboard?.hide(); onConnect(address.trim(), port, code) } }
+    AlertDialog(
+        onDismissRequest = ::dismiss,
+        title = { Text("Conectar a outra TV") },
+        text = {
+            Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Informe os dados exibidos em Receber na outra TV.", style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(value = address, onValueChange = { address = it.take(64) }, label = { Text("IP da outra TV") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(addressFocus),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { portFocus.requestFocus() }))
+                OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, label = { Text("Porta") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(portFocus),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { codeFocus.requestFocus() }))
+                OutlinedTextField(value = code, onValueChange = { code = it.take(14) }, label = { Text("Código de conexão") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(codeFocus),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { connect() }))
+            }
+        },
+        confirmButton = { TextButton(onClick = ::connect, enabled = valid, modifier = Modifier.dpadFocus()) { Text("Conectar") } },
+        dismissButton = { TextButton(onClick = ::dismiss, modifier = Modifier.dpadFocus()) { Text("Cancelar") } },
+    )
+    LaunchedEffect(Unit) { addressFocus.requestFocusUntilLanded(); keyboard?.show() }
 }

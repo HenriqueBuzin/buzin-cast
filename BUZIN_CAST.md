@@ -4,6 +4,10 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Correção 0.3.1
+
+Em Ferramentas → Outra TV, os campos IP, porta e código foram reunidos em um único formulário, aberto pelo botão **Conectar a outra TV**. A página principal não contém mais campos de texto, portanto navegar com as setas não ativa o teclado. O botão Voltar/Cancelar fecha o formulário e devolve o foco ao botão de conexão. No Fire TV AFTMM foi verificado: navegação até as seções inferiores sem editor/teclado aberto, abertura do formulário apenas após OK, e retorno à navegação após Voltar.
+
 ### Novidades 0.3.0
 
 - Nova identidade com símbolo B, ícone de app e banner 16:9. Os PNGs podem ser gerados novamente com `powershell.exe -NoProfile -File tools/GenerateBrandAssets.ps1` no Windows. A marca usada na interface também possui uma versão vetorial Android em `buzin_mark.xml`.
