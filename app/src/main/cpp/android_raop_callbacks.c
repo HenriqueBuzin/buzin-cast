@@ -49,6 +49,7 @@ void android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject ca
     ctx->playback_ready = 0;
 
     jclass cls = (*env)->GetObjectClass(env, callback_obj);
+    ctx->on_connection_request = (*env)->GetMethodID(env, cls, "onConnectionRequest", "(Ljava/lang/String;)Z");
     ctx->on_video_data = (*env)->GetMethodID(env, cls, "onVideoData", "([BJZ)V");
     ctx->on_audio_pcm = (*env)->GetMethodID(env, cls, "onAudioPcm", "([BJII)V");
     ctx->on_audio_format = (*env)->GetMethodID(env, cls, "onAudioFormat", "(IIZ)V");
@@ -144,6 +145,18 @@ static void _video_process(void *cls, raop_ntp_t *ntp, video_decode_struct *data
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_data,
                            arr, (jlong)data->ntp_time_local, (jboolean)data->is_h265);
     (*env)->DeleteLocalRef(env, arr);
+}
+
+static int _conn_admit(void *cls, const char *peer) {
+    android_callback_ctx_t *ctx = (android_callback_ctx_t *)cls;
+    JNIEnv *env = _get_env(ctx);
+    if (!env) return 0;
+    jstring address = (*env)->NewStringUTF(env, peer);
+    if (!address) return 0;
+    jboolean allowed = (*env)->CallBooleanMethod(env, ctx->callback_obj, ctx->on_connection_request, address);
+    (*env)->DeleteLocalRef(env, address);
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return 0; }
+    return allowed == JNI_TRUE;
 }
 
 static void _conn_init(void *cls) {
@@ -433,6 +446,7 @@ void android_callbacks_fill(raop_callbacks_t *cbs, android_callback_ctx_t *ctx) 
     cbs->video_report_size = _video_report_size;
     cbs->mirror_video_running = _mirror_video_running;
     cbs->display_pin = _display_pin;
+    cbs->conn_admit = _conn_admit;
     cbs->video_set_codec = _video_set_codec;
     cbs->on_video_play = _video_play;
     cbs->on_video_wait_ready = _video_wait_ready;

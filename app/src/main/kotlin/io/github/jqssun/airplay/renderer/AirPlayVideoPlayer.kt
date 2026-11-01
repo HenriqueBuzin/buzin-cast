@@ -38,6 +38,11 @@ class AirPlayVideoPlayer(private val context: Context) {
     private var player: ExoPlayer? = null
     private var pendingSurface: Surface? = null
     private var clientGain = 1f
+    val subtitleText = kotlinx.coroutines.flow.MutableStateFlow("")
+    private var recoveryAttempt = 0
+    private val retry = Runnable { player?.prepare() }
+    var recoveryEnabled: () -> Boolean = { true }
+    var onRecovery: ((String) -> Unit)? = null
 
     var onPlaybackInfo: ((PlaybackSnapshot) -> Unit)? = null
     var onVideoSize: ((width: Int, height: Int, aspect: Float) -> Unit)? = null
@@ -53,12 +58,22 @@ class AirPlayVideoPlayer(private val context: Context) {
     }
 
     private val _listener = object : Player.Listener {
+        override fun onCues(cueGroup: androidx.media3.common.text.CueGroup) {
+            subtitleText.value = cueGroup.cues.mapNotNull { it.text?.toString() }.joinToString("\n").take(4000)
+        }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             Log.w(TAG, "playback error", error)
+            if (recoveryEnabled() && error.errorCode in setOf(2000,2001,2002) && recoveryAttempt < 3) {
+                recoveryAttempt++
+                onRecovery?.invoke("Conexão interrompida. Tentando retomar vídeo ($recoveryAttempt/3)…")
+                mainHandler.postDelayed(retry, recoveryAttempt * 1500L)
+                return
+            }
             onError?.invoke(error.errorCodeName)
             onEnded?.invoke()
         }
         override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_READY) onRecovery?.invoke("")
             if (state == Player.STATE_ENDED) onEnded?.invoke()
         }
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
@@ -95,6 +110,18 @@ class AirPlayVideoPlayer(private val context: Context) {
 
     fun scrub(positionSeconds: Float) = mainHandler.post {
         player?.seekTo((positionSeconds * 1000).toLong())
+    }
+
+    fun setSubtitle(uri: android.net.Uri?, mime: String = "text/vtt") = mainHandler.post {
+        val p = player ?: return@post
+        val item = p.currentMediaItem ?: return@post
+        val subtitles = if (uri == null) emptyList() else listOf(
+            MediaItem.SubtitleConfiguration.Builder(uri).setMimeType(mime)
+                .setLanguage("und").setLabel("Legenda externa").setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build())
+        val time = p.currentPosition
+        val playing = p.playWhenReady
+        p.setMediaItem(item.buildUpon().setSubtitleConfigurations(subtitles).build(),time)
+        p.prepare(); p.playWhenReady = playing
     }
 
     // coalesces the seek spam from drag-seeking
@@ -158,6 +185,9 @@ class AirPlayVideoPlayer(private val context: Context) {
     fun stop() = mainHandler.post { _stopInternal(reportStopped = true) }
 
     private fun _stopInternal(reportStopped: Boolean) {
+        subtitleText.value = ""
+        mainHandler.removeCallbacks(retry)
+        recoveryAttempt = 0
         mainHandler.removeCallbacks(_reportTick)
         player?.let {
             it.removeListener(_listener)

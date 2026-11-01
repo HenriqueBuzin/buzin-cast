@@ -35,6 +35,7 @@ class ControlServer(
     private val events: SubscriptionRegistry,
     private val eventBody: (String) -> String,
     private val serverToken: String,
+    private val authorize: (String) -> Boolean = { true },
 ) {
 
     @Volatile private var socket: ServerSocket? = null
@@ -105,6 +106,10 @@ class ControlServer(
             val method = requestLine[0].uppercase(Locale.US)
             val path = requestLine[1].substringBefore('?').trimEnd('/')
             val headers = headersOf(lines)
+            if (method !in setOf("GET", "HEAD") && !authorize(client.inetAddress.hostAddress.orEmpty())) {
+                client.getOutputStream().write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                return
+            }
             val bodyLength = headers["content-length"]?.toIntOrNull() ?: 0
             if (bodyLength !in 0..MAX_BODY || headers.containsKey("transfer-encoding")) {
                 respond(client, Status.BAD_REQUEST, TEXT, "unsupported request body".toByteArray())

@@ -4,6 +4,19 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Perfis e ferramentas de transmissão 0.5.0
+
+Ícones de launcher receberam variantes por densidade e arte horizontal para TV. No Fire OS 6, o ícone passou a aparecer após reiniciar, mas a lista ainda manteve a imagem quadrada com faixas laterais durante a última conferência. A remoção dessas faixas permanece pendente de validação; incluir o banner no APK não garante que o launcher Amazon substitua sua miniatura em cache. A versão 0.5.0 foi instalada nos dois Fire Sticks de teste.
+
+- **Cinema, Apresentação e Jogos:** um toque aplica resolução/FPS, decodificação e buffer de áudio juntos. Cinema usa 1080p/30 e buffer automático; Apresentação, 1080p/60; Jogos, 720p/60, baixa latência e buffer de 25 ms. A mudança reinicia o receptor; não elimina a latência do protocolo ou da rede.
+- **Calibração guiada:** Ferramentas → Calibrar imagem, ou Configurações → Imagem. Mostra os quatro cantos; esquerda/direita ajustam a margem entre 0 e 10%, OK salva e Voltar cancela. O ajuste fica salvo neste Fire TV, com padrão de 2%; não detecta automaticamente o recorte físico da televisão.
+- **Aprovar conexões:** opção desligada por padrão, independente do PIN AirPlay, também desligado. Identifica protocolo/IP e permite aceitar ou recusar pelo controle, antes de processar a conexão AirPlay, FCast/Cast V2 ou comandos DLNA. A autorização dura 5 minutos por protocolo/IP; sem resposta em 25 segundos, recusa. Não é identificação criptográfica do emissor. A retransmissão Buzin continua usando seu código próprio.
+- **Recuperação de rede:** ligada por padrão, reanuncia os receptores após uma mudança da rede local. O player tenta novamente até três vezes após erros de conexão/timeout; streams por URL podem retomar quando a origem volta. Uma mudança de interface reinicia o receptor e encerra a sessão atual; espelhamento AirPlay depende de reconexão pelo emissor.
+- **Legendas externas:** botão CC em vídeos por URL, com importação local SRT/VTT UTF-8 de até 2 MB, renderização sobre o vídeo e opção de remover. Exige seletor de arquivos instalado, que pode não vir no Fire TV. Não adiciona legendas ao espelhamento nem baixa arquivos de sites.
+- **Diagnóstico:** Ferramentas → Diagnóstico de conexão mostra IP, estado do receptor, VPN e configurações locais, com orientação sobre rede de convidados, isolamento e descoberta. ↑/↓ percorrem o texto. Sem conexão do emissor, não afirma ter detectado que ele está em outra rede.
+
+Validação técnica: compilação ARM32/ARM64/x86_64, 144 testes de domínio, lint sem erros e assinatura v2. No emulador API 36, o AirPlay nativo recusou com 403 e liberou com 200; os três perfis persistiram os valores esperados; OK salvou a calibração e Voltar preservou o valor anterior. SRT e VTT apareceram sobre vídeo sintético. Uma origem HTTP inicialmente indisponível voltou a reproduzir após ficar disponível, e uma troca de rede reanunciou o receptor. Não equivale a validar reconexão de espelhamento Apple ou sessões longas de todas as funções em hardware.
+
 ### Margem padrão 0.4.7
 
 A margem de imagem passa a ser **2% por borda como padrão em todas as novas instalações**, após o usuário confirmar o encaixe na Samsung. O ajuste continua disponível em Configurações → Imagem → Encaixe da imagem. Preferências já salvas em cada aparelho são preservadas; a TV .100 já está em 2%. Automático permanece disponível como encaixe sem margem extra. A validação visual na LG ainda será feita pelo usuário.

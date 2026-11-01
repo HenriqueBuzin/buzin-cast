@@ -18,6 +18,19 @@ class DebugMediaReceiver : BroadcastReceiver() {
                 Thread({
                     try {
                         when (intent.getStringExtra("command")) {
+                            "calibrate" -> app.startActivity(Intent(app, io.github.jqssun.airplay.media.CalibrationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            "approvalsetting" -> Prefs.APPROVE_CONNECTIONS.write(app.getSharedPreferences(Prefs.NAME,0),intent.getBooleanExtra("enabled",false))
+                            "approve", "deny" -> service.approval.request.value?.let { service.approval.answer(it.id,intent.getStringExtra("command") == "approve") }
+                            "profile" -> io.github.jqssun.airplay.media.ExperienceProfiles.apply(app.getSharedPreferences(Prefs.NAME,0),intent.getStringExtra("name")!!)
+                            "playurl" -> android.os.Handler(android.os.Looper.getMainLooper()).post { service.playNetworkVideo(intent.getStringExtra("url")!!,"debug") }
+                            "subtitlefixture" -> {
+                                val kind = intent.getStringExtra("kind") ?: "vtt"
+                                val file = java.io.File(app.cacheDir,"test-caption.$kind")
+                                file.writeText(if (kind == "srt") "1\n00:00:00,000 --> 00:00:30,000\nLegenda SRT Buzin\n" else "WEBVTT\n\n00:00.000 --> 00:30.000\nLegenda VTT Buzin\n")
+                                val uri = androidx.core.content.FileProvider.getUriForFile(app,"${app.packageName}.fileprovider",file)
+                                val (local,mime) = io.github.jqssun.airplay.media.ExternalSubtitles.import(app,uri)
+                                service.airPlayVideoPlayer.setSubtitle(local,mime)
+                            }
                             "record" -> service.capture.start()
                             "stop" -> { service.capture.stop(); service.relay.stop() }
                             "listen" -> service.relay.listen()
@@ -66,6 +79,12 @@ class DebugMediaReceiver : BroadcastReceiver() {
                         val relay = service.relay.state.value
                         pending.resultCode = -1
                         pending.resultData = JSONObject().put("recording", service.capture.state.value.recording)
+                            .put("approvalPeer",service.approval.request.value?.peer).put("approvalProtocol",service.approval.request.value?.protocol)
+                            .put("caption",service.airPlayVideoPlayer.subtitleText.value)
+                            .put("networkMessage",service.networkMessage.value)
+                            .put("playing",service.videoPlaybackInfo.value.playing).put("positionMs",service.videoPlaybackInfo.value.positionMs)
+                            .put("activeVideo",service.videoPlaybackActive.value)
+                            .put("margin",Prefs.TV_MARGIN.read(app.getSharedPreferences(Prefs.NAME,0)))
                             .put("captureMessage", service.capture.state.value.message)
                             .put("relayPort", relay.port).put("relayCode", relay.code)
                             .put("sending", relay.sending).put("receiving", relay.receiving).put("relayMessage", relay.message).toString()

@@ -10,6 +10,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
@@ -25,6 +27,8 @@ fun ToolsScreen(viewModel: MainViewModel) {
     val relay by viewModel.relayState.collectAsState()
     val recordings by viewModel.recordings.collectAsState()
     val context = LocalContext.current
+    var diagnostic by remember { mutableStateOf<String?>(null) }
+    val receiverState by viewModel.serverState.collectAsState()
     var address by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
@@ -44,6 +48,10 @@ fun ToolsScreen(viewModel: MainViewModel) {
     LaunchedEffect(capture.armed) { viewModel.refreshRecordings() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Ferramentas", style = MaterialTheme.typography.headlineSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = { context.startActivity(Intent(context,io.github.jqssun.airplay.media.CalibrationActivity::class.java)) }, modifier = Modifier.dpadFocus()) { Text("Calibrar imagem") }
+            OutlinedButton(onClick = { diagnostic = io.github.jqssun.airplay.media.NetworkDiagnostics.report(context,receiverState == io.github.jqssun.airplay.service.AirPlayService.ServerState.RUNNING) }, modifier = Modifier.dpadFocus()) { Text("Diagnóstico de conexão") }
+        }
         HorizontalDivider()
         Text("Gravar AirPlay", style = MaterialTheme.typography.titleLarge)
         Text("Salve o espelhamento com áudio. Prepare a gravação antes de conectar.")
@@ -87,6 +95,27 @@ fun ToolsScreen(viewModel: MainViewModel) {
                 TextButton(onClick = { delete = recording.name }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Excluir") }
             }
         }
+    }
+    diagnostic?.let { report ->
+        val scroll = rememberScrollState()
+        val scope = rememberCoroutineScope()
+        AlertDialog(onDismissRequest = { diagnostic = null }, title = { Text("Diagnóstico de conexão · ↑↓") },
+            modifier = Modifier.onPreviewKeyEvent { event ->
+                val key = event.nativeKeyEvent
+                val direction = when (key.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> 1
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> -1
+                    else -> 0
+                }
+                if (direction == 0) false else {
+                    if (key.action == android.view.KeyEvent.ACTION_DOWN) scope.launch {
+                        scroll.animateScrollTo((scroll.value + direction * 160).coerceIn(0,scroll.maxValue))
+                    }
+                    true
+                }
+            },
+            text = { Text(report,Modifier.verticalScroll(scroll)) },
+            confirmButton = { TextButton(onClick = { diagnostic = null },modifier = Modifier.dpadFocus()) { Text("Fechar") } })
     }
     if (connectDialog) {
         RelayConnectDialog(address, port, code,

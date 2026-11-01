@@ -144,6 +144,7 @@ class DlnaReceiver(
                 },
                 router = SoapRouter(session), events = events,
                 eventBody = ::body, serverToken = token,
+                authorize = { peer -> service.authorizeConnection("DLNA", peer) },
             )
             server = control
             control.start()

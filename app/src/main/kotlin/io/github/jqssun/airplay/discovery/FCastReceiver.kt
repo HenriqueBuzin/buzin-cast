@@ -84,6 +84,7 @@ class FCastReceiver(private val service: AirPlayService, private val name: Strin
     private fun session(socket: Socket) {
         try {
             socket.tcpNoDelay = true
+            if (!service.authorizeConnection("FCast", socket.inetAddress.hostAddress.orEmpty())) return
             send(socket, FCastFrame(11, "{\"version\":2}"))
             var window = System.currentTimeMillis(); var count = 0
             while (!closed && !socket.isClosed) {

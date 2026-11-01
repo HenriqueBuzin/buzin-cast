@@ -13,6 +13,9 @@ Inventário das funções divulgadas nas fontes abaixo, consultadas em 31/10/202
 
 ## Disponível no código
 
+- Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.
+- Recuperação: reanúncio após mudança de rede e até três tentativas do player em falhas de conexão/timeout; AirPlay pode exigir reconexão no emissor.
+- Legendas locais SRT/VTT UTF-8 de até 2 MB em vídeos por URL, via seletor de arquivos e botão CC.
 - AirPlay: tela e áudio, vídeos URL/HLS, metadados/capa, DACP, nome, PIN experimental, resolução/FPS, hardware e execução em segundo plano.
 - DLNA experimental: vídeo, áudio e fotos JPEG/PNG, controle de reprodução/volume, SSDP/UPnP. Ativação separada nas configurações.
 - Gravação MKV de espelhamento AirPlay, biblioteca, reprodução, compartilhamento e exclusão.
@@ -30,7 +33,7 @@ Inventário das funções divulgadas nas fontes abaixo, consultadas em 31/10/202
 2. Emissor Android de tela e áudio por MediaProjection, com consentimento do sistema. Captura de áudio interno depende da versão Android e da permissão do app de origem.
 3. Descoberta automática das outras TVs Buzin Cast no fluxo de retransmissão.
 4. FCast: validar emissores reais e acrescentar fotos, manifestos em linha, playlists e versões atuais com transporte seguro. O modo v2 atual não oferece esses recursos.
-5. Controle de acesso separado para DLNA/FCast e aprovação de novas conexões.
+5. Validar aprovação de conexões com emissores físicos DLNA/FCast/Cast V2 e autenticação completa de PIN Apple. O controle opcional por protocolo/IP já está implementado.
 6. Compatibilidade Google Cast certificada: o experimento Cast V2 não resolve a identidade exigida por apps Google. [Vibecast](https://github.com/emilsvennesson/vibecast#certificates) e [openchromecast](https://github.com/yukarikaname/openchromecast) documentam a mesma dependência. O SDK [Cast Connect](https://developers.google.com/cast/docs/android_tv_receiver/core_features) permite integração oficial em Android TV com infraestrutura Cast, não fornece por si só um receptor universal para Fire OS. O [registro de testes/publicação](https://developers.google.com/cast/docs/registration) de um app não transforma o Fire TV em aparelho certificado. Ainda falta validar emissores Cast V2 reais e obter um caminho suportado para os apps que exigem autenticação.
 7. Emissor Windows/macOS e USB: projetos específicos; não vêm automaticamente com o receptor Android.
 8. Sincronização multiroom AirExpress/AirPlay e múltiplas telas simultâneas: investigação de protocolo, relógio e recursos do dispositivo.

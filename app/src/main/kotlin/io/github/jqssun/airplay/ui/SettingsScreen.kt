@@ -93,6 +93,14 @@ fun SettingsScreen(viewModel: MainViewModel) {
     ) {
         SectionHeader(stringResource(R.string.section_server))
 
+        Text("Perfil de transmissão", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+        Text("Mudar o perfil reinicia o receptor. A qualidade efetiva depende do emissor e da rede.", modifier = Modifier.padding(horizontal = 16.dp))
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            io.github.jqssun.airplay.media.ExperienceProfiles.names.forEach { profile ->
+                OutlinedButton(onClick = { viewModel.applyProfile(profile) }, modifier = Modifier.dpadFocus()) { Text(profile) }
+            }
+        }
+
         SettingTextField(
             label = stringResource(R.string.setting_server_name),
             value = serverName,
@@ -156,6 +164,14 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
         SectionHeader(stringResource(R.string.section_airplay_security))
 
+        val approvalEnabled by viewModel.pref(Prefs.APPROVE_CONNECTIONS).collectAsState()
+        SettingSwitch(title = "Aprovar conexões", description = "AirPlay, DLNA, FCast e Cast V2: aceitar ou recusar pelo controle. Identificação pelo protocolo e IP; autorização por 5 minutos.",
+            checked = approvalEnabled, onCheckedChange = { viewModel.set(Prefs.APPROVE_CONNECTIONS,it) })
+
+        val recoveryEnabled by viewModel.pref(Prefs.NETWORK_RECOVERY).collectAsState()
+        SettingSwitch(title = "Recuperar após queda de rede", description = "Reanuncia o receptor após a rede voltar. Vídeos compatíveis tentam retomar; o emissor AirPlay pode exigir reconectar.",
+            checked = recoveryEnabled, onCheckedChange = { viewModel.set(Prefs.NETWORK_RECOVERY,it) })
+
         SettingSwitch(
             title = stringResource(R.string.setting_require_pin),
             description = stringResource(R.string.setting_require_pin_desc),
@@ -206,6 +222,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
         )
 
         SectionHeader(stringResource(R.string.section_display))
+        val calibrationContext = LocalContext.current
+        OutlinedButton(onClick = { calibrationContext.startActivity(Intent(calibrationContext,io.github.jqssun.airplay.media.CalibrationActivity::class.java)) },
+            modifier = Modifier.padding(horizontal = 16.dp).dpadFocus()) { Text("Calibrar os quatro cantos") }
         SettingChips(
             title = stringResource(R.string.setting_tv_margin),
             description = stringResource(R.string.setting_tv_margin_desc),
