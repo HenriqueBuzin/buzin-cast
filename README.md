@@ -4,6 +4,8 @@ Receptor gratuito, sem anúncios e sem limite de tempo para Fire TV com Fire OS.
 
 Repositório do Buzin Cast: https://github.com/HenriqueBuzin/buzin-cast
 
+Criação e manutenção do Buzin Cast: **Henrique Buzin**. Derivado de android-airplay-server, de jqssun e contribuidores. Código sob [GNU GPL v3](LICENSE), com créditos originais preservados. Veja [AUTHORS.md](AUTHORS.md).
+
 **Protótipo em desenvolvimento; recursos e compatibilidade ainda precisam de testes no aparelho.**
 
 Versão 0.2.0: gravação manual do espelhamento AirPlay em MKV com áudio, retransmissão criptografada entre dois Buzin Cast, visualizador/apresentação de fotos DLNA e atalho para o Miracast nativo quando disponível. Google Cast/Chromecast continua pendente. Esses recursos são experimentais; não equivalem à compatibilidade completa do AirScreen.

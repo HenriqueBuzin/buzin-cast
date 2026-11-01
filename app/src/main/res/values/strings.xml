@@ -18,7 +18,10 @@
     <string name="buzin_about">About Buzin Cast</string>
     <string name="setting_dlna">DLNA receiver (experimental)</string>
     <string name="setting_dlna_desc">Receive video and audio from your local network. AirPlay PIN does not protect DLNA. Restart after connecting to a different network.</string>
-    <string name="buzin_credits">Buzin Cast 0.3.0\nBased on android-airplay-server by jqssun and UxPlay, with third-party components. Distributed under GNU GPL v3; source and license notices accompany this version.\n\ngithub.com/jqssun/android-airplay-server\ngithub.com/FDH2/UxPlay\n\nIndependent project, not affiliated with Apple or Amazon.</string>
+    <string name="buzin_credits">Buzin Cast\nCreated and maintained by Henrique Buzin.\n© 2026 Henrique Buzin — Buzin Cast contributions.\n\nBased on android-airplay-server by jqssun and contributors, UxPlay and third-party components. Licensed under GNU GPL v3. Original credits and licenses are preserved.\n\nSource: github.com/HenriqueBuzin/buzin-cast\n\nIndependent project, not affiliated with Apple or Amazon.</string>
+    <string name="tv_edit_save">Save</string>
+    <string name="tv_edit_cancel">Cancel</string>
+    <string name="tv_edit_empty">Not set</string>
 
     <!-- Notification -->
     <string name="notification_channel">AirPlay Service</string>

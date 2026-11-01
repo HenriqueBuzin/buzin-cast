@@ -1,5 +1,7 @@
 # Créditos e componentes
 
+**Buzin Cast — criação e manutenção: Henrique Buzin.** Copyright © 2026 Henrique Buzin nas contribuições próprias; GNU GPL v3. A autoria dos componentes originais permanece preservada.
+
 Este projeto deriva de **AirPlay Receiver for Android**, de jqssun e contribuidores, sob GNU GPL v3. O código original e seu histórico foram preservados. Alterações Buzin Cast: identidade, tela de conexão, tradução inicial, configurações padrão para Fire TV e ajustes de compilação.
 
 Na versão 0.2.0, o código Buzin Cast também acrescenta muxer Matroska, transporte de retransmissão autenticado, captura PCM no caminho nativo, visualizador DLNA de fotos e controles de gravação/retransmissão. Os padrões sintéticos de vídeo e áudio dos testes foram gerados com FFmpeg; não são mídia de terceiros.

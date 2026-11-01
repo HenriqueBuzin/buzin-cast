@@ -4,6 +4,16 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Navegação e autoria 0.5.7
+
+A tela de conexão mantém as órbitas e remove o pulso que imitava um sinal. Nas configurações da TV, os campos de nome, porta, valores avançados e opções personalizadas só iniciam edição após OK. O formulário único de outra TV mostra IP em cima e porta/código lado a lado: setas percorrem os campos, OK inicia a digitação e Voltar fecha o teclado. Não há uma janela de edição extra por campo nesse formulário. O comportamento de toque em celulares continua separado.
+
+Henrique Buzin consta como criador e mantenedor do Buzin Cast na tela Sobre e na documentação, preservando jqssun e os demais autores da base. A GPL v3 permanece, incluindo sua permissão de uso comercial. Consulte [autoria e licença](AUTHORS.md) e a [revisão de arquitetura](docs/ARCHITECTURE_REVIEW.md).
+
+O desaparecimento do ícone após substituir o APK foi reproduzido no Fire OS 6: o launcher registrou erro Glide/ContentResolver ao abrir o recurso, embora o arquivo e seu ID permanecessem no pacote. Reiniciar o aparelho restaurou a logo aprovada, sem alterar a arte nem apagar dados. É uma falha de carregamento após atualização local; não depende de a conexão ADB estar ativa. A conferência do launcher deve fazer parte da instalação, sem prometer que toda versão do Fire OS tenha o mesmo comportamento.
+
+Validação no emulador API 36 em modo TV: 65 passos nas configurações normais e 80 nas avançadas com resolução personalizada, sem abertura do teclado; formulário com três campos, navegação para cima/baixo sem IME, OK para digitar e Voltar seguido de Descer sem reabertura. Cancelar preservou o nome salvo. O helper de retorno de foco passou a verificar o resultado booleano da solicitação, repetindo tentativas recusadas, em vez de considerar apenas a ausência de exceção. Compilação, 144 testes existentes, lint sem erros e assinatura v2 passaram. A versão foi instalada no terceiro Fire Stick API 25; os dois anteriores seguem sem atualização nesta etapa.
+
 ### Marca e foco para TV 0.5.6
 
 Ícone aprovado no Fire TV API 25: B à esquerda, Buzin à direita e CAST abaixo, mantendo o fundo integrado ao launcher. As variantes normais e de TV usam a mesma arte, de 128 a 512 pixels conforme a densidade. A interface mantém a marca vetorial; a resolução de vídeo depende do hardware e do emissor, separadamente da escala da interface.
