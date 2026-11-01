@@ -32,6 +32,7 @@ class VideoRenderer(ctx: Context) {
     @Volatile var framePacingJitterUs = 0L; private set
 
     var enforceSdr = true
+    fun setMarginPercent(percent: Int) = pipeline.setMarginPercent(percent)
     var keyAllowFrameDrop = true
     var scheduledOutputBufferRelease = true
     var benchmarkLog = false

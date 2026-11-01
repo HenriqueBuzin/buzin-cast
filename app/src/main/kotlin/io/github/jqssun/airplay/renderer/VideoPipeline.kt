@@ -41,6 +41,11 @@ class VideoPipeline {
     private var displayDirty = false
     @Volatile private var videoW = 0
     @Volatile private var videoH = 0
+    @Volatile private var marginPercent = 0
+    private var layoutDirty = false
+    fun setMarginPercent(percent: Int) = synchronized(lock) {
+        marginPercent = percent.coerceIn(0, 10); layoutDirty = true; lock.notifyAll()
+    }
 
     fun start() = synchronized(lock) {
         if (running) return@synchronized
@@ -89,8 +94,10 @@ class VideoPipeline {
             var newDisplay: Surface? = null
             var displayChanged = false
             var doFrame = false
+            var repaint = false
             synchronized(lock) {
-                while (running && !frameAvailable && !displayDirty) lock.wait()
+                while (running && !frameAvailable && !displayDirty && !layoutDirty) lock.wait()
+                if (layoutDirty) { layoutDirty = false; repaint = true }
                 if (running && displayDirty) {
                     newDisplay = pendingDisplay
                     displayChanged = true
@@ -104,6 +111,7 @@ class VideoPipeline {
             if (!running) break
             if (displayChanged) _bindDisplay(newDisplay)
             if (doFrame) _consumeAndDraw()
+            else if (repaint && hasFrame && window != EGL14.EGL_NO_SURFACE) { egl?.makeCurrent(window); _render() }
         }
         _releaseGl()
     }
@@ -148,6 +156,12 @@ class VideoPipeline {
     private fun _render() {
         GLES20.glViewport(0, 0, winW, winH)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        // EGL surface dimensions may change without replacing the Surface object.
+        winW = egl?.query(window, EGL14.EGL_WIDTH) ?: winW
+        winH = egl?.query(window, EGL14.EGL_HEIGHT) ?: winH
+        if (winW <= 0 || winH <= 0 || videoW <= 0 || videoH <= 0) return
+        val fit = io.buzincast.media.DisplayFit.viewport(winW, winH, videoW, videoH, marginPercent)
+        GLES20.glViewport(fit.x, fit.y, fit.width, fit.height)
         GLES20.glUseProgram(program)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTex)
