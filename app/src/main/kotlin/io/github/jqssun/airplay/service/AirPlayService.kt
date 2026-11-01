@@ -642,6 +642,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         _clientVolDriveEnd()
         _applyClientVol()
         _refreshDacpPlayer()
+        clearPin()
         log("Server stopped")
     }
 

@@ -88,9 +88,14 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     if (requirePin) {
         /* avoid UxPlay's random-PIN retry path: use one random PIN for this server run */
         int pin = random_pin();
-        if (pin < 0) {
-            LOGE("Failed to generate random pin");
-            pin = 1234;
+        if (pin < 0 || pin > 9999) {
+            LOGE("Cannot start PIN-protected receiver: random PIN generation failed");
+            env->ReleaseStringUTFChars(keyFile, keyfile_c);
+            env->ReleaseStringUTFChars(name, name_c);
+            raop_destroy(ctx->raop);
+            android_callbacks_destroy(&ctx->cb_ctx, env);
+            delete ctx;
+            return 0;
         }
         raop_set_plist(ctx->raop, "pin", pin + 10000);
     }

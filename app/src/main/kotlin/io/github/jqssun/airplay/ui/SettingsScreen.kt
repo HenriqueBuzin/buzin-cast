@@ -154,6 +154,8 @@ fun SettingsScreen(viewModel: MainViewModel) {
             onValueChange = { viewModel.set(Prefs.USB_ONLY, it) }
         )
 
+        SectionHeader(stringResource(R.string.section_airplay_security))
+
         SettingSwitch(
             title = stringResource(R.string.setting_require_pin),
             description = stringResource(R.string.setting_require_pin_desc),
@@ -208,7 +210,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             title = stringResource(R.string.setting_tv_margin),
             description = stringResource(R.string.setting_tv_margin_desc),
             value = tvMargin.toString(),
-            options = listOf("0" to "0%", "2" to "2%", "3" to "3%", "5" to "5%", "8" to "8%"),
+            options = listOf("0" to stringResource(R.string.chip_auto), "2" to "2%", "3" to "3%", "5" to "5%", "8" to "8%"),
             onValueChange = { viewModel.set(Prefs.TV_MARGIN, it.toInt()) }
         )
 
