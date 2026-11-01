@@ -178,6 +178,7 @@ fun VideoControlsTop(
     onBackClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onDownloadClick: () -> Unit,
+    onSubtitlesClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues()
@@ -213,6 +214,9 @@ fun VideoControlsTop(
         ) {
             PlayerButton(onClick = onSpeedClick) {
                 Icon(Icons.Rounded.Speed, contentDescription = stringResource(R.string.select_playback_speed))
+            }
+            PlayerButton(onClick = onSubtitlesClick) {
+                Text("CC", color = Color.White)
             }
             if (videoUrl != null) {
                 val clipboard = LocalClipboardManager.current

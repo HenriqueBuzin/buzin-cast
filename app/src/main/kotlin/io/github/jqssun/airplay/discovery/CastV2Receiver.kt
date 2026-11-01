@@ -127,6 +127,7 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
     private fun serve(socket: SSLSocket) {
         var sender: String? = null
         try {
+            if (!service.authorizeConnection("Cast V2", socket.inetAddress.hostAddress.orEmpty())) return
             socket.soTimeout = 5000; socket.startHandshake(); socket.tcpNoDelay = true
             var window = SystemClock.elapsedRealtime(); var count = 0
             while (!closed) {

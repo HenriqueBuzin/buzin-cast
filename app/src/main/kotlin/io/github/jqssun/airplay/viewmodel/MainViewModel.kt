@@ -81,6 +81,28 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     private val prefs = app.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
     private val logFile = File(app.filesDir, "airplay_logs.txt")
     private var service: AirPlayService? = null
+    val pendingApproval = MutableStateFlow<io.github.jqssun.airplay.media.ConnectionApproval.Request?>(null)
+    val subtitleText = MutableStateFlow("")
+    val playbackMessage = MutableStateFlow("")
+    fun subtitle(uri: android.net.Uri?) {
+        val target = service ?: return
+        val session = target.videoPlaySeq.value
+        if (uri == null) { target.airPlayVideoPlayer.setSubtitle(null); return }
+        viewModelScope.launch {
+            runCatching {
+                val (local,mime) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    io.github.jqssun.airplay.media.ExternalSubtitles.import(getApplication(),uri)
+                }
+                if (service === target && target.videoPlaybackActive.value && target.videoPlaySeq.value == session) {
+                    target.airPlayVideoPlayer.setSubtitle(local,mime)
+                }
+            }.onFailure {
+                android.widget.Toast.makeText(getApplication(), it.message ?: "Falha ao carregar legenda", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    fun answerApproval(id: Long, allow: Boolean) { service?.approval?.answer(id,allow) }
+    fun applyProfile(name: String) { io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs,name) }
     private val _captureState = MutableStateFlow(io.github.jqssun.airplay.media.MirrorCapture.State())
     val captureState = _captureState.asStateFlow()
     private val _relayState = MutableStateFlow(io.github.jqssun.airplay.media.MirrorRelay.State())
@@ -411,6 +433,9 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     }
 
     fun updateFromService() {
+        subtitleText.value = service?.airPlayVideoPlayer?.subtitleText?.value.orEmpty()
+        playbackMessage.value = service?.networkMessage?.value.orEmpty()
+        pendingApproval.value = service?.approval?.request?.value
         service?.let {
             _captureState.value = it.capture.state.value
             _relayState.value = it.relay.state.value

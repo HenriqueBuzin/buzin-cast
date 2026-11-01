@@ -26,15 +26,17 @@
         android:name=".AirPlayApp"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
-        android:icon="@drawable/buzin_icon"
-        android:roundIcon="@drawable/buzin_icon"
-        android:banner="@drawable/buzin_banner"
+        android:icon="@drawable/buzin_tv_banner"
+        android:roundIcon="@mipmap/buzin_launcher"
+        android:banner="@drawable/buzin_tv_banner"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.AirPlayServer">
 
         <activity
             android:name=".MainActivity"
+            android:icon="@drawable/buzin_tv_banner"
+            android:banner="@drawable/buzin_tv_banner"
             android:exported="true"
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
@@ -47,6 +49,7 @@
         </activity>
 
         <activity android:name=".media.PhotoActivity" android:exported="false" android:screenOrientation="landscape" android:launchMode="singleTask" />
+        <activity android:name=".media.CalibrationActivity" android:exported="false" android:screenOrientation="landscape" />
         <service
             android:name=".service.AirPlayService"
             android:foregroundServiceType="connectedDevice|mediaPlayback"

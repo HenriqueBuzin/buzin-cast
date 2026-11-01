@@ -84,6 +84,16 @@ data class VideoPlaybackInfo(
 class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
     private var nativeHandle = 0L
+    private var networkRecovery: NetworkRecovery? = null
+    private val _networkMessage = MutableStateFlow("")
+    val networkMessage = _networkMessage.asStateFlow()
+    val approval = ConnectionApproval { _mainHandler.post { launchMainActivity() } }
+    fun onConnectionRequest(peer: String): Boolean = authorizeConnection("AirPlay", peer)
+    fun authorizeConnection(protocol: String, peer: String): Boolean {
+        if (!prefs[Prefs.APPROVE_CONNECTIONS]) return true
+        if (peer in setOf("127.0.0.1", "::1")) return true
+        return approval.ask(protocol,peer)
+    }
     private var nsdManager: NsdServiceManager? = null
     private var usbAdvertiser: UsbMdnsAdvertiser? = null
     private var dlnaReceiver: DlnaReceiver? = null
@@ -262,6 +272,13 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
     override fun onCreate() {
         super.onCreate()
+        networkRecovery = NetworkRecovery(this) { available ->
+            _networkMessage.value = if (available) "Rede disponível" else "Sem rede local. Aguardando conexão…"
+            if (available && prefs[Prefs.NETWORK_RECOVERY] && _serverState.value == ServerState.RUNNING && !prefs[Prefs.USB_ONLY]) {
+                _networkMessage.value = "Rede recuperada. Receptor disponível para reconectar."
+                _restartServer()
+            }
+        }.also { it.start() }
         createNotificationChannel()
         dacpController = DacpController(this)
         dacpPlayer = DacpPlayer(
@@ -358,6 +375,8 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         }
         airPlayVideoPlayer.onTitle = { _videoTitle.value = it ?: "" }
         airPlayVideoPlayer.onEnded = { _endVideoPlayback("AirPlay Video stopped (player)") }
+        airPlayVideoPlayer.recoveryEnabled = { prefs[Prefs.NETWORK_RECOVERY] }
+        airPlayVideoPlayer.onRecovery = { _networkMessage.value = it }
         airPlayVideoPlayer.onError = { if (networkPlaybackOwner == "fcast") fcastReceiver?.playbackError(it) }
         airPlayVideoPlayer.onPlaybackInfo = { snapshot ->
             if (nativeHandle != 0L) {
@@ -413,6 +432,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     private fun _startServer(ensureServiceStarted: Boolean) {
+        approval.open()
         if (_serverState.value == ServerState.RUNNING) return
         if (!hasLocalNetwork()) {
             log("Local network permission denied")
@@ -599,6 +619,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     private fun _shutdown() {
+        approval.close()
         capturedSessionHadVideo = false
         capture.stop()
         relay.stop()
@@ -703,6 +724,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     override fun onDestroy() {
+        networkRecovery?.close()
         stopServer()
         dacpPlayer.release()
         mediaReceiver?.let {

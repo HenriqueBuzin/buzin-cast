@@ -99,6 +99,25 @@ fun MainScreen(
     onLocalNetwork: () -> Unit = {}
 ) {
     var tab by remember { mutableStateOf(Tab.OVERVIEW) }
+    var subtitleMenu by remember { mutableStateOf(false) }
+    var subtitleFailure by remember { mutableStateOf("") }
+    val subtitlePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) viewModel.subtitle(uri) }
+    if (subtitleMenu) AlertDialog(onDismissRequest = { subtitleMenu = false }, title = { Text("Legendas externas") },
+        text = { Text("Selecione um arquivo SRT ou VTT UTF-8, até 2 MB. Disponível para vídeos recebidos por URL; não altera o espelhamento. É necessário um seletor de arquivos instalado. $subtitleFailure") },
+        confirmButton = { TextButton(onClick = {
+            runCatching { subtitlePicker.launch(arrayOf("*/*")); subtitleMenu = false }
+                .onFailure { subtitleFailure = "Seletor de arquivos indisponível neste aparelho." }
+        }, modifier = Modifier.dpadFocus()) { Text("Escolher arquivo") } },
+        dismissButton = { TextButton(onClick = { viewModel.subtitle(null); subtitleMenu = false }, modifier = Modifier.dpadFocus()) { Text("Sem legenda") } })
+    val approval by viewModel.pendingApproval.collectAsState()
+    approval?.let { request ->
+        AlertDialog(onDismissRequest = { viewModel.answerApproval(request.id,false) },
+            title = { Text("Permitir transmissão?") },
+            text = { Text("${request.protocol} • ${request.peer}\nAutorize apenas um dispositivo que você reconheça. A permissão vale por 5 minutos; sem resposta, a conexão é recusada em 25 segundos.") },
+            confirmButton = { TextButton(onClick = { viewModel.answerApproval(request.id,true) }, modifier = Modifier.dpadFocus()) { Text("Aceitar") } },
+            dismissButton = { TextButton(onClick = { viewModel.answerApproval(request.id,false) }, modifier = Modifier.dpadFocus()) { Text("Recusar") } })
+    }
     val developerOptions by viewModel.pref(Prefs.DEVELOPER_OPTIONS).collectAsState()
     val visibleTabs = listOf(Tab.OVERVIEW, Tab.TOOLS, Tab.SETTINGS) + if (developerOptions) listOf(Tab.LOGS) else emptyList()
     LaunchedEffect(developerOptions) { if (!developerOptions && tab == Tab.LOGS) tab = Tab.OVERVIEW }
@@ -329,6 +348,15 @@ fun MainScreen(
                 volumeAndBrightnessGestureState = volumeAndBrightnessGestureState,
                 zoomState = zoomState
             )
+            val externalCaption by viewModel.subtitleText.collectAsState()
+            if (externalCaption.isNotBlank()) Text(externalCaption,
+                color = Color.White, style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 48.dp, vertical = if (overlayVisible) 120.dp else 32.dp)
+                    .background(Color.Black.copy(alpha = 0.75f),RoundedCornerShape(8.dp)).padding(10.dp))
+            val playbackMessage by viewModel.playbackMessage.collectAsState()
+            if (playbackMessage.isNotBlank()) Text(playbackMessage, color = Color.White,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp).background(Color.Black.copy(alpha = 0.8f)).padding(12.dp))
             androidx.compose.animation.AnimatedVisibility(
                 visible = overlayVisible && videoPlaybackActive && !controlsLocked,
                 enter = androidx.compose.animation.fadeIn(),
@@ -427,7 +455,8 @@ fun MainScreen(
                             overlayVisible = false
                             showSpeedSelector = true
                         },
-                        onDownloadClick = { viewModel.toggleVideoDownload() }
+                        onDownloadClick = { viewModel.toggleVideoDownload() },
+                        onSubtitlesClick = { subtitleMenu = true }
                     )
                 }
                 androidx.compose.animation.AnimatedVisibility(
