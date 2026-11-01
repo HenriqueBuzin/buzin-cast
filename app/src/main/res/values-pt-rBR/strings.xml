@@ -2,6 +2,11 @@
 <resources>
     <string name="app_name">Buzin Cast</string>
     <string name="buzin_tagline">Sua tela merece uma tela maior.</string>
+    <string name="buzin_hero">Sua tela.\nNovas possibilidades.</string>
+    <string name="buzin_hero_detail">Suas ideias, fotos e bons momentos merecem uma tela maior.</string>
+    <string name="buzin_receiver_label">ESCOLHA ESTE NOME NO SEU DISPOSITIVO</string>
+    <string name="buzin_rename_hint">Altere em Configurações → Nome do receptor</string>
+    <string name="buzin_connect_heading">Conecte em três passos</string>
     <string name="buzin_free">Grátis • Sem anúncios • Sem limite de tempo</string>
     <string name="buzin_ready">Pronto para conectar</string>
     <string name="buzin_stopped">Inicie o receptor para conectar</string>
@@ -9,11 +14,11 @@
     <string name="buzin_step_wifi">Conecte o iPhone, iPad ou Mac à mesma rede local desta TV.</string>
     <string name="buzin_step_mirror">Abra a Central de Controle e selecione Espelhar a Tela.</string>
     <string name="buzin_step_choose">Selecione o nome do receptor mostrado ao lado.</string>
-    <string name="buzin_help">Espelhamento e áudio via AirPlay • Conteúdo protegido por DRM pode não reproduzir.</string>
+    <string name="buzin_help">Espelhamento e áudio via AirPlay.</string>
     <string name="buzin_about">Sobre o Buzin Cast</string>
     <string name="setting_dlna">Receptor DLNA (experimental)</string>
     <string name="setting_dlna_desc">Receber vídeos e áudio da rede local. O PIN do AirPlay não protege o DLNA. Reinicie o receptor após mudar de rede.</string>
-    <string name="buzin_credits">Buzin Cast 0.2.0\nReceptor gratuito, sem limite de tempo por sessão.\n\nBaseado no android-airplay-server de jqssun e no UxPlay, com componentes de terceiros. Distribuído sob GNU GPL v3; o código-fonte e as licenças acompanham esta versão.\n\ngithub.com/jqssun/android-airplay-server\ngithub.com/FDH2/UxPlay\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
+    <string name="buzin_credits">Buzin Cast 0.3.0\nBaseado no android-airplay-server de jqssun e no UxPlay, com componentes de terceiros. Distribuído sob GNU GPL v3; o código-fonte e as licenças acompanham esta versão.\n\ngithub.com/jqssun/android-airplay-server\ngithub.com/FDH2/UxPlay\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
     <string name="notification_channel">Receptor Buzin Cast</string>
     <string name="notification_title">Buzin Cast em execução</string>
     <string name="notification_text">Aguardando conexões AirPlay</string>
@@ -24,6 +29,8 @@
     <string name="tab_logs">Diagnóstico</string>
     <string name="tab_settings">Configurações</string>
     <string name="tab_tools">Ferramentas</string>
+    <string name="setting_tv_margin">Ajustar bordas da TV</string>
+    <string name="setting_tv_margin_desc" formatted="false">Exibe a imagem espelhada inteira, com margem em cada borda. Use 3% ou 5% se a TV cortar as pontas. O ajuste é imediato; não precisa reconectar.</string>
     <string name="server_stopped">Receptor parado</string>
     <string name="waiting_for_connection">Aguardando conexão…</string>
     <string name="waiting_for_playback">Inicie a reprodução no dispositivo de origem…</string>

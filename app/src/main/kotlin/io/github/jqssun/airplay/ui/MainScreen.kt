@@ -98,6 +98,9 @@ fun MainScreen(
     onLocalNetwork: () -> Unit = {}
 ) {
     var tab by remember { mutableStateOf(Tab.OVERVIEW) }
+    val developerOptions by viewModel.pref(Prefs.DEVELOPER_OPTIONS).collectAsState()
+    val visibleTabs = listOf(Tab.OVERVIEW, Tab.TOOLS, Tab.SETTINGS) + if (developerOptions) listOf(Tab.LOGS) else emptyList()
+    LaunchedEffect(developerOptions) { if (!developerOptions && tab == Tab.LOGS) tab = Tab.OVERVIEW }
     var fullscreen by remember { mutableStateOf(false) }
     val pin by viewModel.pinCode.collectAsState()
     val connections by viewModel.connectionCount.collectAsState()
@@ -519,8 +522,10 @@ fun MainScreen(
             onPip = onPip
         )
     } else {
+        val tvLayout = isTv()
         Scaffold(
             bottomBar = {
+              if (!tvLayout) {
                 Column {
                     AudioMiniController(
                         viewModel,
@@ -528,7 +533,7 @@ fun MainScreen(
                         onClick = { tab = Tab.OVERVIEW }
                     )
                     NavigationBar {
-                        Tab.entries.forEach { t ->
+                        visibleTabs.forEach { t ->
                             NavigationBarItem(
                                 selected = tab == t,
                                 onClick = { tab = t },
@@ -539,14 +544,36 @@ fun MainScreen(
                         }
                     }
                 }
+              }
             }
         ) { padding ->
-            Box(modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
+            Row(modifier = Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()
+                .then(if (tvLayout) Modifier.padding(start = 48.dp, end = 24.dp, top = 16.dp, bottom = 16.dp) else Modifier)) {
+              if (tvLayout) {
+                Column(Modifier.width(172.dp).fillMaxHeight().background(Color(0xFF080F18))
+                    .padding(end = 12.dp, top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    visibleTabs.forEach { t ->
+                        Surface(onClick = { tab = t }, shape = RoundedCornerShape(13.dp),
+                            color = if (tab == t) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent,
+                            contentColor = if (tab == t) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().height(54.dp).dpadFocus(RoundedCornerShape(13.dp))) {
+                            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(t.icon, null, Modifier.size(21.dp))
+                                Text(stringResource(t.labelRes), style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
+                }
+              }
+              Box(Modifier.weight(1f)) {
                 TabContent(
                     tab, viewModel, video,
                     onFullscreen = { fullscreen = true }, onPip = onPip, onLocalNetwork = onLocalNetwork,
                     showAudioMode = audioOnly
                 )
+              }
             }
         }
     }
@@ -615,8 +642,15 @@ private fun OverviewContent(
     val debugInfo by viewModel.debugInfo.collectAsState()
     val tv = isTv()
     val startFocus = remember { FocusRequester() }
+
+    if (tv && !grant && state != ServerState.ERROR && connections == 0 && !mirroringActive && !videoPlaybackActive) {
+        BuzinWelcome(serverName, state == ServerState.RUNNING,
+            onToggle = { if (state == ServerState.RUNNING) viewModel.stopServer() else viewModel.startServer() })
+        return
+    }
+
     LaunchedEffect(Unit) {
-        if (tv) startFocus.requestFocus()
+        if (tv) startFocus.requestFocusUntilLanded()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {

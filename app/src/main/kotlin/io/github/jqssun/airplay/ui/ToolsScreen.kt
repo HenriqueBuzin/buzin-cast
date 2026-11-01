@@ -27,18 +27,17 @@ fun ToolsScreen(viewModel: MainViewModel) {
     val video by viewModel.videoPlaybackActive.collectAsState()
     LaunchedEffect(capture.armed) { viewModel.refreshRecordings() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Ferramentas Buzin Cast", style = MaterialTheme.typography.headlineSmall)
-        Text("Recursos experimentais • sem anúncios e sem limite de tempo", style = MaterialTheme.typography.bodySmall)
+        Text("Ferramentas", style = MaterialTheme.typography.headlineSmall)
         HorizontalDivider()
-        Text("Gravar espelhamento AirPlay", style = MaterialTheme.typography.titleLarge)
-        Text("Salva vídeo H.264/H.265 e áudio em arquivo MKV nesta TV. Inicie antes de conectar ou reconecte o AirPlay para receber um quadro-chave. Não grava outros aplicativos da TV nem conteúdo protegido. A gravação termina ao desconectar ou quando falta espaço.")
+        Text("Gravar AirPlay", style = MaterialTheme.typography.titleLarge)
+        Text("Salve o espelhamento com áudio. Prepare a gravação antes de conectar.")
         Button(onClick = viewModel::toggleRecording, enabled = !relay.receiving && !video, modifier = Modifier.dpadFocus()) {
             Text(if (capture.armed) "■ Parar gravação" else "Preparar gravação")
         }
         if (capture.message.isNotBlank()) Text(capture.message, color = MaterialTheme.colorScheme.primary)
         HorizontalDivider()
-        Text("Retransmitir para outro Buzin Cast", style = MaterialTheme.typography.titleLarge)
-        Text("Use duas TVs com Buzin Cast 0.2.0 ou posterior na mesma rede. Na TV de destino, escolha Receber. Nesta TV, informe IP, porta e código exibidos no destino. A conexão usa criptografia autenticada. Transmite o espelhamento AirPlay; não retransmite vídeo DLNA, fotos nem serviços protegidos.")
+        Text("Outra TV", style = MaterialTheme.typography.titleLarge)
+        Text("Retransmita o AirPlay para outro Buzin Cast na mesma rede. No destino, escolha Receber e use os dados exibidos.")
         Text("IP desta TV: ${viewModel.localAddress()}")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = viewModel::listenRelay, enabled = busy == 0 && !video && !capture.armed && !relay.sending, modifier = Modifier.dpadFocus()) { Text("Receber nesta TV") }
@@ -56,20 +55,19 @@ fun ToolsScreen(viewModel: MainViewModel) {
             modifier = Modifier.dpadFocus()) { Text("Conectar e retransmitir") }
         HorizontalDivider()
         Text("Fotos via DLNA", style = MaterialTheme.typography.titleLarge)
-        Text("Ative DLNA nas Configurações e envie fotos JPEG ou PNG pelo seu aplicativo DLNA. O visualizador mantém as últimas 20 fotos da sessão para navegar, girar, ajustar ou apresentar automaticamente a cada 5 segundos. Use Voltar para fechar.")
+        Text("Ative DLNA nas Configurações para receber fotos e criar uma apresentação.")
         HorizontalDivider()
-        Text("Miracast do Fire TV", style = MaterialTheme.typography.titleLarge)
-        Text("Abre o receptor nativo nos modelos que oferecem esse recurso. A transmissão será controlada pelo Fire OS; gravação e retransmissão do Buzin Cast não se aplicam a essa tela.")
+        Text("Miracast", style = MaterialTheme.typography.titleLarge)
+        Text("Espelhamento do Fire TV. Disponível em modelos compatíveis.")
         OutlinedButton(onClick = {
             runCatching { context.startActivity(Intent().setComponent(ComponentName("com.amazon.cast.sink", "com.amazon.cast.sink.DisplayMirroringSinkActivity"))) }
                 .onFailure { message = "Miracast não disponível neste modelo. Consulte Configurações → Tela e sons → Espelhamento." }
         }, modifier = Modifier.dpadFocus()) { Text("Abrir espelhamento nativo") }
         if (message.isNotEmpty()) Text(message)
-        Text("Google Cast / Chromecast: ainda não implementado. O SDK oficial de Android TV depende de Google Play Services; nenhum receptor Cast é anunciado nesta versão.")
         HorizontalDivider()
         Text("Gravações locais", style = MaterialTheme.typography.titleLarge)
         OutlinedButton(onClick = viewModel::refreshRecordings, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Atualizar lista") }
-        if (recordings.isEmpty()) Text("Nenhuma gravação salva. Os arquivos ficam no armazenamento privado do app e são removidos ao desinstalar.")
+        if (recordings.isEmpty()) Text("Suas gravações aparecerão aqui.")
         recordings.forEach { recording ->
             Text("${recording.name} • ${recording.bytes / 1024 / 1024} MB")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

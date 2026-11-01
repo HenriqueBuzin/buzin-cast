@@ -53,6 +53,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
     val launchOnConnect by viewModel.pref(Prefs.LAUNCH_ON_CONNECT).collectAsState()
     val maxFps by viewModel.pref(Prefs.MAX_FPS).collectAsState()
     val overscanned by viewModel.pref(Prefs.OVERSCANNED).collectAsState()
+    val tvMargin by viewModel.pref(Prefs.TV_MARGIN).collectAsState()
     val requirePin by viewModel.pref(Prefs.REQUIRE_PIN).collectAsState()
     val allowNewConn by viewModel.pref(Prefs.ALLOW_NEW_CONN).collectAsState()
     val usbOnly by viewModel.pref(Prefs.USB_ONLY).collectAsState()
@@ -93,7 +94,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
         SettingTextField(
             label = stringResource(R.string.setting_server_name),
             value = serverName,
-            onCommit = { viewModel.set(Prefs.SERVER_NAME, it) }
+            onCommit = { viewModel.set(Prefs.SERVER_NAME, it.trim()) }
         )
 
         SettingTextField(
@@ -187,6 +188,13 @@ fun SettingsScreen(viewModel: MainViewModel) {
         )
 
         SectionHeader(stringResource(R.string.section_display))
+        SettingChips(
+            title = stringResource(R.string.setting_tv_margin),
+            description = stringResource(R.string.setting_tv_margin_desc),
+            value = tvMargin.toString(),
+            options = listOf("0" to "0%", "2" to "2%", "3" to "3%", "5" to "5%", "8" to "8%"),
+            onValueChange = { viewModel.set(Prefs.TV_MARGIN, it.toInt()) }
+        )
 
         SettingSwitch(
             title = stringResource(R.string.setting_auto_fullscreen),

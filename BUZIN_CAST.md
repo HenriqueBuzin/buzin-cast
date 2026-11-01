@@ -4,6 +4,15 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Novidades 0.3.0
+
+- Nova identidade com símbolo B, ícone de app e banner 16:9. Os PNGs podem ser gerados novamente com `powershell.exe -NoProfile -File tools/GenerateBrandAssets.ps1` no Windows. A marca usada na interface também possui uma versão vetorial Android em `buzin_mark.xml`.
+- Tela inicial para TV com navegação lateral, estado do receptor, nome de conexão e três instruções. Textos promocionais sobre gratuidade/anúncios e avisos de DRM foram retirados das telas; o comportamento continua gratuito e sem anúncios. Diagnóstico aparece no menu apenas quando as opções avançadas estiverem ativadas.
+- Nome padrão **Buzin Cast**, com alteração em **Configurações → Nome do receptor**. O nome é persistido e deve ser não vazio, sem caracteres de controle e com até 63 bytes UTF-8.
+- **Configurações → Imagem → Ajustar bordas da TV**: margem simétrica de 0%, 2%, 3%, 5% ou 8%, aplicada imediatamente ao espelhamento. O padrão global é 0%; uma margem de 3% foi aplicada para teste no aparelho do usuário, que relatou imagem ultrapassando a borda da TV. Não altera o tamanho da imagem original gravada ou retransmitida.
+- O renderizador agora preserva a proporção do quadro inteiro na superfície disponível, com barras quando necessário. Há testes para fonte Mac 16:10, conteúdo retrato, ultrawide e margens. A confirmação do resultado na borda física da TV depende de um novo teste com o emissor Apple.
+- Direção do produto: um receptor de transmissão de referência, com identidade própria, sem anúncios, gratuito e sem temporizador comercial. A compatibilidade com cada protocolo continua condicionada à implementação e aos testes documentados; Google Cast permanece pendente.
+
 ### Novidades 0.2.0
 
 - Aba **Ferramentas**, navegável com o controle remoto.
@@ -52,9 +61,9 @@ Fire OS 6+ (API 25+) é o alvo de instalação atual. O APK inclui ARM de 32 e 6
 
 ### Verificação desta versão
 
-- APK de debug 0.2.0 compilado com sucesso, com ARM de 32 e 64 bits e x86_64.
-- 126 testes de protocolo, autenticação e gravação passaram, sem falhas ou testes ignorados.
-- Android Lint: 0 erros, 71 avisos e 1 sugestão; os avisos ainda devem ser revisados antes da publicação.
+- APK de debug 0.3.0 compilado com ARM de 32 e 64 bits e x86_64.
+- 129 testes de protocolo, autenticação, gravação e ajuste de proporção/bordas passaram, sem falhas ou testes ignorados.
+- Android Lint executado sem erros; os avisos ainda devem ser revisados antes da publicação.
 - Assinatura APK v2 verificada; versão de teste, não destinada à publicação na loja.
 - Instalação e abertura verificadas em emulador Android 16; receptor AirPlay iniciou sem falha de carregamento nativo.
 - DLNA no emulador: descrição UPnP e SOAP responderam HTTP 200; um WAV local de teste chegou ao estado PLAYING, informou duração e progresso, e respondeu a Pause e Stop.

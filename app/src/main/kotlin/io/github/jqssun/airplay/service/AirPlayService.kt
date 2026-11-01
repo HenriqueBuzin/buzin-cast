@@ -376,6 +376,9 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
                 .collect { audioRenderer.updateConfig(it) }
         }
         lifecycleScope.launch {
+            prefs.observe { this[Prefs.TV_MARGIN] }.collect { videoRenderer.setMarginPercent(it) }
+        }
+        lifecycleScope.launch {
             prefs.observe { this[Prefs.SYNC_CLIENT_VOLUME] }.collect {
                 _syncClientVol = it
                 _clientVolDriveEnd()
