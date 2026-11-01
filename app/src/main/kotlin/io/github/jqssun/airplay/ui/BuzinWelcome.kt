@@ -56,8 +56,8 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (onToggle != null) {
-                    if (running) OutlinedButton(onClick = onToggle, shape = RoundedCornerShape(12.dp), modifier = Modifier.focusRequester(toggleFocus).dpadFocus()) { Text(stringResource(R.string.btn_stop)) }
-                    else Button(onClick = onToggle, shape = RoundedCornerShape(12.dp), modifier = Modifier.focusRequester(toggleFocus).dpadFocus()) { Text(stringResource(R.string.btn_start)) }
+                    if (running) OutlinedButton(onClick = onToggle, shape = RoundedCornerShape(12.dp), modifier = Modifier.focusRequester(toggleFocus).dpadFocus(RoundedCornerShape(12.dp))) { Text(stringResource(R.string.btn_stop)) }
+                    else Button(onClick = onToggle, shape = RoundedCornerShape(12.dp), modifier = Modifier.focusRequester(toggleFocus).dpadFocus(RoundedCornerShape(12.dp))) { Text(stringResource(R.string.btn_start)) }
                 }
                 TextButton(onClick = { about = true }, modifier = Modifier.dpadFocus()) {
                     Icon(Icons.Default.Info, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.buzin_about))
@@ -99,12 +99,16 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
                 Text(stringResource(if (running) R.string.buzin_ready else R.string.stopped_label), color = if (running) mint else muted, fontSize = 11.sp)
             }
         }
-        if (tv) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (tv && maxWidth >= 680.dp) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1.1f)) { identity() }
                 Box(Modifier.weight(1f)) { instructions() }
             }
-        } else { identity(); instructions() }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(22.dp)) { identity(); instructions() }
+        }
+        }
     }
     }
     if (about) {

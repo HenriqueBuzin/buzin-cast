@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
@@ -557,14 +558,14 @@ private fun SettingResolution(
                             onValueChange(key)
                         },
                         label = { Text(label) },
-                        modifier = Modifier.dpadFocus()
+                        modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp))
                     )
                     presets.forEach { (key, label) -> presetChip(key, label) }
                     FilterChip(
                         selected = !isPreset || editing,
                         onClick = { editing = true },
                         label = { Text(stringResource(R.string.chip_custom)) },
-                        modifier = Modifier.dpadFocus()
+                        modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp))
                     )
                     devicePresets.forEach { (key, label) -> presetChip(key, label) }
                 }
@@ -672,7 +673,7 @@ private fun SettingChipField(
                         selected = !isPreset || editing,
                         onClick = { editing = true },
                         label = { Text(stringResource(R.string.chip_custom)) },
-                        modifier = Modifier.dpadFocus()
+                        modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp))
                     )
                 }
                 if (editing || !isPreset) {
@@ -714,7 +715,7 @@ private fun ChipRow(
                 selected = value == key,
                 onClick = { onSelect(key) },
                 label = { Text(label) },
-                modifier = Modifier.dpadFocus()
+                modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp))
             )
         }
         trailing()

@@ -33,13 +33,9 @@ public static class BuzinBrand {
       // Fire OS 6 adds gray side panels and its own lower shadow to sideloaded icons.
       // Match the flat panel color; let the launcher apply the same shadow everywhere.
       g.Clear(C("#5A5A5A"));
-      using(var p=Round(144,70,224,224,58))
-      using(var b=new LinearGradientBrush(new Rectangle(144,70,224,224),C("#93FFDA"),C("#3BD8A6"),48)) g.FillPath(b,p);
-      Mark(g,157,80,198,C("#092A24"));
-      using(var f=new Font("Segoe UI",47,FontStyle.Bold,GraphicsUnit.Pixel))
-      using(var b=new SolidBrush(C("#FFFFFF")))
-      using(var format=new StringFormat { Alignment=StringAlignment.Center })
-        g.DrawString("Buzin Cast",f,b,256,320,format);
+      Mark(g,-58,112,284,C("#7CF4CD"));
+      Text(g,"Buzin","Segoe UI",84,FontStyle.Bold,C("#FFFFFF"),205,159);
+      Text(g,"CAST","Segoe UI",80,FontStyle.Bold,C("#7CF4CD"),210,260);
       bmp.Save(path,ImageFormat.Png);
     }
   }

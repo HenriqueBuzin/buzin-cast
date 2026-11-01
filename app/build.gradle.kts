@@ -35,8 +35,8 @@ android {
         applicationId = "com.buzincast.tv"
         minSdk = 25
         targetSdk = 36
-        versionCode = 17
-        versionName = "0.5.4"
+        versionCode = 19
+        versionName = "0.5.6"
 
         externalNativeBuild {
             cmake {

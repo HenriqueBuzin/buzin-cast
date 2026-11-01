@@ -4,6 +4,16 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Marca e foco para TV 0.5.6
+
+Ícone aprovado no Fire TV API 25: B à esquerda, Buzin à direita e CAST abaixo, mantendo o fundo integrado ao launcher. As variantes normais e de TV usam a mesma arte, de 128 a 512 pixels conforme a densidade. A interface mantém a marca vetorial; a resolução de vídeo depende do hardware e do emissor, separadamente da escala da interface.
+
+O foco dos botões usa contornos vetoriais com antialias, dentro dos limites e com o mesmo formato do controle. A ampliação fracionária do botão focado foi removida. Iniciar/Parar ocupa a altura mínima de interação, evitando o contorno deslocado. A tela inicial passa para uma coluna rolável quando o espaço disponível é estreito.
+
+Uma atividade apenas de debug permite conferir a tela inicial em resoluções simuladas, sem iniciar o receptor nem alterar preferências. Exige a permissão DUMP e não integra a versão de publicação. O novo ícone foi aprovado pelo usuário no terceiro Fire Stick; a instalação desta versão nos dois aparelhos anteriores ficou para depois, conforme solicitado.
+
+Validação: compilação, 144 testes existentes, assinatura v2 e lint sem erros (100 avisos e uma indicação). Renderização da tela inicial conferida no emulador API 36 em 1280×720, 1920×1080 e 3840×2160, além do layout estreito com rolagem. A tentativa de 7680×4320 foi limitada pelo emulador a 7272×4320; essa escala também renderizou, mas 8K exato e desempenho em TV 8K física permanecem sem validação. Isso não acrescenta decodificação de vídeo 8K.
+
 ### Ícone integrado ao launcher 0.5.4
 
 A arte de TV passa a ser quadrada, sem esticar o banner horizontal dentro do ícone. Usa a marca e o nome Buzin Cast com fundo cinza #5A5A5A, igual ao fundo lateral observado no launcher Fire OS 6 dos aparelhos de teste. Isso integra visualmente o ícone às faixas adicionadas pelo sistema; não remove os painéis internos do launcher. O banner horizontal continua separado para launchers que o utilizam. O redimensionamento repete os pixels da borda para evitar transparência e filetes claros introduzidos pela interpolação. Outros temas/versões podem usar cores diferentes. Preferências de imagem e transmissão não mudam.

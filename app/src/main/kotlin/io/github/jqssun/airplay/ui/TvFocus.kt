@@ -1,6 +1,5 @@
 package io.github.jqssun.airplay.ui
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -29,7 +28,7 @@ fun Modifier.focusRing(
     var focused by remember { mutableStateOf(false) }
     return this
         .onFocusChanged { focused = it.hasFocus }
-        .thenIf(focused) { border(width = width, color = color, shape = shape) }
+        .thenIf(focused) { smoothFocusOutline(shape = shape, color = color, width = width) }
 }
 
 // focus can only land once the target is composed; retry across frames
