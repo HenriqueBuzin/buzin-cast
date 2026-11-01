@@ -4,6 +4,12 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Correção 0.4.1
+
+A abertura na TV mantém logo e nome em tamanho fixo, com fade gradual e ondas de conexão. O zoom de 22% e o deslocamento da marca foram retirados; o logo passou de 96 dp para 84 dp. O relógio da animação começa após dois quadros de composição, para reduzir saltos durante a inicialização a frio. O tema de TV usa a mesma cor de fundo e não acrescenta uma transição de janela sobre a animação do app.
+
+APK 0.4.1 instalado no AFTMM/API 25. A abertura a frio foi gravada e os quadros inspecionados: tamanho fixo e opacidade progressiva, com retorno à tela inicial. Compilação e lint passaram sem erros; os 144 testes existentes continuam passando. A assinatura APK v2 foi verificada.
+
 ### Novidades 0.4.0
 
 - Abertura animada na TV: a marca surge com ondas de conexão e desaparece para a tela inicial em 1,5 segundo. Pode pular pelo controle/toque; não repete na troca de abas nem bloqueia o início do receptor. Animações seguem a escala de duração do sistema.
