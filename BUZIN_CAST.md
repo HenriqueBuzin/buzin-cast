@@ -4,6 +4,12 @@ Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limit
 
 ## Estado do projeto
 
+### Encerramento da abertura 0.4.4
+
+Os círculos desaparecem gradualmente até 80% da sequência, antes da preparação da tela principal em 82%. Na 0.4.3, essa preparação pausava o relógio com os círculos ainda visíveis, que depois retomavam o movimento. Agora a preparação acontece com apenas a marca e o nome completos em tela; os círculos não reaparecem durante o fade final.
+
+0.4.4 instalada e gravada no AFTMM/API 25. Os quadros confirmaram o desaparecimento dos círculos, a espera com a marca estática e o fade para a tela inicial, sem retomada dos círculos da abertura. Compilação/lint sem erros, 144 testes existentes passando e assinatura APK v2 verificada.
+
 ### Fluidez 0.4.3
 
 A tela principal é composta depois que o traço, o preenchimento e o nome terminam. Sua montagem ocorre sob a marca já completa, antes do fade final; o relógio da abertura aguarda dois quadros nessa preparação. Isso retira o trabalho da tela inicial do trecho em que o B está sendo desenhado. A animação mantém 2,4 segundos de movimento, além do tempo de preparação da tela principal. Voltar, toque ou qualquer tecla continuam pulando a abertura.
