@@ -23,6 +23,8 @@ jobs:
           java-version: '25.0.5+8'
       - name: Install verified stable CMake
         run: python3 tools/install_cmake.py
+      - name: Preserve approved launcher artwork
+        run: python3 tools/verify_brand.py
       - name: Compilar e executar lint
         run: bash ./gradlew :receiver-core:check :receiver-core:jacocoTestReport :dlna-domain:test assembleDebug lintDebug --console=plain
       - name: Compile native tests for ARM32 and ARM64

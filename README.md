@@ -8,6 +8,8 @@ Repositório do Buzin Cast: https://github.com/HenriqueBuzin/buzin-cast
 
 Criação e manutenção do Buzin Cast: **Henrique Buzin**. Derivado de android-airplay-server, de jqssun e contribuidores. Código sob [GNU GPL v3](LICENSE), com créditos originais preservados. Veja [AUTHORS.md](AUTHORS.md).
 
+A logo aprovada na lista de aplicativos é permanente: B à esquerda, Buzin acima e CAST abaixo à direita, sem bordas externas. Preservar a mesma arte nas duas edições e nas próximas atualizações; só redesenhar mediante pedido explícito de Henrique. O CI verifica os arquivos e as referências do launcher com `tools/verify_brand.py`. Conferir também o cache do Fire OS após atualizar um aparelho.
+
 **Protótipo em desenvolvimento; recursos e compatibilidade ainda precisam de testes no aparelho.**
 
 Versão 0.6.0: núcleo de sessões com gerações, adaptadores de recepção, logs assíncronos, perfis por capacidades do decodificador e navegação TV reutilizável. Testes de domínio e integração automatizados: [como executar e limites](docs/TESTING.md).

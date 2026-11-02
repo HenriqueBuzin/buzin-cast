@@ -38,10 +38,14 @@ Henrique pediu salvar o estado devido ao limite do Codex, atualizar os três Fir
 
 ## Fire Sticks e próximos passos
 
+Atualização concluída: a edição principal 0.6.0/código 22 foi instalada com sucesso nos três IPs abaixo. O cache da Appstore foi limpo pela opção **Limpar cache**, sem apagar dados; os aparelhos foram reiniciados e reconectados ao ADB. A logo aprovada foi confirmada visualmente nas três listas de apps. Capturas locais: `outputs/cozinha-apps-final-060.png`, `outputs/quarto-apps-final-060.png`, `outputs/sala-apps-final-060.png`. A cozinha exibiu um aviso de controle remoto após reiniciar; ele foi dispensado com OK.
+
+A arte permanece idêntica. `docs/approved-brand.json` e `tools/verify_brand.py` protegem os arquivos e referências do launcher no CI. Só alterar a identidade mediante pedido explícito de Henrique. Não confundir falha de cache do sistema com autorização para redesenhar a logo.
+
 - Cozinha/Samsung: `192.168.0.100:5555`.
 - Quarto: `192.168.0.121:5555`.
 - Sala: `192.168.0.153:5555`.
-- Os três são AFTMM/API 25 e recebem a edição principal. Autorização atual: instalar a versão atual nos três e verificar ícone/cache da lista de aplicativos. Registrar o resultado após a operação.
+- Os três são AFTMM/API 25 e receberam a edição principal. Instalação e conferência do ícone/cache concluídas; retomar o desenvolvimento/testes pendentes depois, conforme solicitado.
 - Preservar a logo aprovada: B à esquerda, Buzin acima e CAST abaixo à direita, sem borda externa. O launcher Fire OS pode manter cache após atualizar o APK; antes de limpar dados, verificar logs e tentar apenas cache/reinício do launcher. Não apagar dados/configurações do usuário.
 - CI de `8019bae`: execução `41528642737`. A anterior `41524350857` foi cancelada por estar superada. O commit deste checkpoint inicia outra execução; verificar o resultado mais recente no GitHub antes de afirmar aprovação da matriz de 12 APIs.
 - Continuar elevando cobertura real de todo o código próprio Android/C++, sem excluir arquivos por baixa cobertura. Ainda faltam caminhos de erro, USB/mDNS, gestos, controles e diversas transições. Emuladores não certificam sincronismo, Wi-Fi, desempenho, 4K ou comportamento de todos os Fire OS físicos. Vega fica fora do escopo.
