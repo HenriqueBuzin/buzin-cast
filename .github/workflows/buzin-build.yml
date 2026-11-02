@@ -14,22 +14,94 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25.0.5+8'
+      - name: Install verified stable CMake
+        run: python3 tools/install_cmake.py
       - name: Compilar e executar lint
-        run: bash ./gradlew :dlna-domain:test assembleDebug lintDebug --console=plain
-      - uses: actions/upload-artifact@v4
+        run: bash ./gradlew :receiver-core:check :receiver-core:jacocoTestReport :dlna-domain:test assembleDebug lintDebug --console=plain
+      - name: Compile native tests for ARM32 and ARM64
+        run: |
+          python3 tools/build_native_tests.py --abi armeabi-v7a --api 22 --output build/native-tests-arm32
+          python3 tools/build_native_tests.py --abi arm64-v8a --api 22 --output build/native-tests-arm64
+      - name: Compile Fire OS 5 compatibility APK
+        run: bash ./gradlew -PbuzinLegacy=true :app:assembleDebug :app:lintDebug --console=plain
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: buzin-cast-legacy-debug
+          path: app/build-legacy/outputs/apk/debug/*.apk
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: buzin-cast-debug
           path: app/build/outputs/apk/debug/*.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: buzin-cast-checks
-          path: app/build/reports/lint-results-debug.*
+          path: |
+            app/build/reports/lint-results-debug.*
+            app/build-legacy/reports/lint-results-debug.*
+            receiver-core/build/reports/
+            receiver-core/build/test-results/
+            dlna-domain/build/reports/tests/
           if-no-files-found: ignore
+
+  emulator:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        api: [22, 25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
+    env:
+      BUZIN_LEGACY: ${{ matrix.api == 22 }}
+      APP_BUILD: ${{ matrix.api == 22 && 'build-legacy' || 'build' }}
+      CHECKS_DIR: ${{ matrix.api == 22 && 'emulator-checks-legacy' || 'emulator-checks' }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25.0.5+8'
+      - name: Install verified stable CMake
+        run: python3 tools/install_cmake.py
+      - name: Instrument Android and app-owned C++
+        run: bash ./gradlew -PbuzinLegacy=$BUZIN_LEGACY -PbuzinCoverage=true -PbuzinAbis=x86_64 :receiver-core:check :dlna-domain:test :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+      - name: Build C++ unit tests with UBSan
+        run: python3 tools/build_native_tests.py --abi x86_64 --api ${{ matrix.api == 22 && 22 || 25 }} --output app/$APP_BUILD/native-tests
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: TV navigation, player and native integration
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 tools/test_emulator.py --serial emulator-5554 --apk app/$APP_BUILD/outputs/apk/debug/app-debug.apk --test-apk app/$APP_BUILD/outputs/apk/androidTest/debug/app-debug-androidTest.apk --native-tests app/$APP_BUILD/native-tests/native_core_tests --coverage --output build/$CHECKS_DIR
+      - name: Android/JVM coverage report
+        run: bash ./gradlew -PbuzinLegacy=$BUZIN_LEGACY -PbuzinCoverage=true -PbuzinAbis=x86_64 :app:fullCoverageReport --console=plain
+      - name: Native coverage and consolidated metrics
+        run: python3 tools/collect_native_coverage.py --profiles build/$CHECKS_DIR --output build/coverage-report
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: emulator-api-${{ matrix.api }}
+          path: |
+            build/emulator-checks*/
+            build/coverage-report/
+            app/build*/reports/jacoco/
+          if-no-files-found: warn

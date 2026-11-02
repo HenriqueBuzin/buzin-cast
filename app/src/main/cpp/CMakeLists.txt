@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.22.1)
 project(airplay_native C CXX)
 
 set(CMAKE_C_STANDARD 17)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffile-prefix-map=${CMAKE_SOURCE_DIR}=. -ffile-prefix-map=${CMAKE_BINARY_DIR}=. -ffile-prefix-map=${ANDROID_NDK}=.")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffile-prefix-map=${CMAKE_SOURCE_DIR}=. -ffile-prefix-map=${CMAKE_BINARY_DIR}=. -ffile-prefix-map=${ANDROID_NDK}=.")
@@ -11,7 +12,10 @@ set(UXPLAY_LIB third_party/UxPlay/lib)
 
 # ---------- OpenSSL (built from source via openssl-cmake) ----------
 set(BUILD_OPENSSL ON CACHE BOOL "" FORCE)
-set(OPENSSL_BUILD_VERSION "3.4.4" CACHE STRING "" FORCE)
+# Pre-Android 7 has a global linker namespace with a system libcrypto.so.
+# Embed our maintained crypto privately so that it cannot collide with that ABI.
+set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
+set(OPENSSL_BUILD_VERSION "3.5.9" CACHE STRING "" FORCE)
 set(CROSS_ANDROID ON CACHE BOOL "" FORCE)
 string(REGEX MATCH "[0-9]+" AIRPLAY_ANDROID_API "${ANDROID_PLATFORM}")
 set(OPENSSL_PARAMS "-D__ANDROID_API__=${AIRPLAY_ANDROID_API}" CACHE STRING "" FORCE)
@@ -45,6 +49,7 @@ set(PLIST_SRC third_party/libplist/src)
 set(PLIST_CNARY third_party/libplist/libcnary)
 
 add_library(plist STATIC
+    ${PLIST_SRC}/common.c
     ${PLIST_SRC}/base64.c
     ${PLIST_SRC}/bplist.c
     ${PLIST_SRC}/bytearray.c
@@ -70,7 +75,7 @@ target_include_directories(plist
 target_compile_definitions(plist PRIVATE
     _GNU_SOURCE
     HAVE_STRNDUP
-    PACKAGE_VERSION="2.6.0"
+    PACKAGE_VERSION="2.8.0"
 )
 
 # ---------- llhttp (embedded in UxPlay) ----------
@@ -143,7 +148,7 @@ target_compile_definitions(airplay_native PRIVATE
     TARGET_RT_LITTLE_ENDIAN=1
 )
 
-target_link_options(airplay_native PRIVATE "-Wl,--build-id=none")
+target_link_options(airplay_native PRIVATE "-Wl,--build-id=none" "-Wl,--exclude-libs,libcrypto.a")
 
 target_link_libraries(airplay_native
     llhttp
@@ -157,3 +162,16 @@ target_link_libraries(airplay_native
     log
     android
 )
+
+# Only app-owned bridge sources are instrumented; vendored codecs/protocols
+# remain uninstrumented. Release artifacts never enable this option.
+option(BUZIN_COVERAGE "Collect LLVM source coverage for app-owned native code" OFF)
+if(BUZIN_COVERAGE)
+    set_source_files_properties(${BRIDGE_SOURCES} PROPERTIES
+        COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping;-fcoverage-mcdc;-fprofile-update=atomic")
+    target_sources(airplay_native PRIVATE coverage_bridge.cpp)
+    target_link_options(airplay_native PRIVATE -fprofile-instr-generate)
+endif()
+
+# Keep upstream C libraries in their declared dialect; app-owned C uses C23.
+set_property(SOURCE android_dnssd_shim.c android_raop_callbacks.c APPEND PROPERTY COMPILE_OPTIONS -std=c23)

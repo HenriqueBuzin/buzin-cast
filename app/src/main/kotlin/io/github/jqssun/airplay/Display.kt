@@ -6,8 +6,13 @@ import android.view.Display
 
 // physical panel resolution
 fun Context.realDisplaySize(): Pair<Int, Int> {
-    val mode = getSystemService(DisplayManager::class.java)
-        ?.getDisplay(Display.DEFAULT_DISPLAY)?.mode
-    return if (mode != null) mode.physicalWidth to mode.physicalHeight
-    else resources.displayMetrics.let { it.widthPixels to it.heightPixels }
+    val display = (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).getDisplay(Display.DEFAULT_DISPLAY)
+    if (android.os.Build.VERSION.SDK_INT >= 23) display?.mode?.let { return it.physicalWidth to it.physicalHeight }
+    if (display != null) {
+        val size = android.graphics.Point()
+        @Suppress("DEPRECATION")
+        display.getRealSize(size)
+        return size.x to size.y
+    }
+    return resources.displayMetrics.let { it.widthPixels to it.heightPixels }
 }

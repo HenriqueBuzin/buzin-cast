@@ -107,4 +107,11 @@ class SoapParserTest {
           </s:Body>
         </s:Envelope>
     """.trimIndent()
+    @Test fun `valid header cannot authorize absent or different SOAP action`() {
+        val header = "urn:schemas-upnp-org:service:AVTransport:1#Play"
+        assertNull(SoapParser.parse(header, "<broken>"))
+        assertNull(SoapParser.parse(header, "<root/>"))
+        assertNull(SoapParser.parse(header, ""))
+        assertNull(SoapParser.parse("urn:schemas-upnp-org:service:AVTransport:1#Stop", playBody()))
+    }
 }

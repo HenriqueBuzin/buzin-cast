@@ -1,11 +1,11 @@
 package io.github.jqssun.airplay.discovery
 
-import android.content.Context
 import android.media.AudioManager
 import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.Looper
-import io.github.jqssun.airplay.service.AirPlayService
+import android.content.Context
+import io.buzincast.core.*
 import io.leancast.app.ControlServer
 import io.leancast.app.Net
 import io.leancast.app.SsdpAgent
@@ -25,10 +25,11 @@ import java.util.UUID
  * Playback shares the AirPlay media player. DLNA is opt-in and has no PIN.
  */
 class DlnaReceiver(
-    private val service: AirPlayService,
+    private val context: Context,
+    private val playback: ReceiverPlaybackPort,
     private val name: String,
     private val log: (String) -> Unit,
-) {
+) : ReceiverAdapter {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     @Volatile private var ownsPlayback = false
@@ -38,8 +39,8 @@ class DlnaReceiver(
     private var ssdp: SsdpAgent? = null
     private var lock: WifiManager.MulticastLock? = null
     private val events = SubscriptionRegistry()
-    private val audio = service.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val prefs = service.getSharedPreferences("buzin_dlna", Context.MODE_PRIVATE)
+    private val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val prefs = context.getSharedPreferences("buzin_dlna", Context.MODE_PRIVATE)
     private val uuid = prefs.getString("uuid", null) ?: "uuid:${UUID.randomUUID()}".also {
         prefs.edit().putString("uuid", it).apply()
     }
@@ -48,36 +49,36 @@ class DlnaReceiver(
             require(URI(uri).let { it.scheme in setOf("http", "https") && !it.host.isNullOrBlank() && it.userInfo == null }) {
                 "DLNA only supports HTTP(S) media URLs"
             }
-            check(service.connectionCount.value == 0) { "An AirPlay session is active" }
+            check(playback.activeConnections == 0) { "An AirPlay session is active" }
             main.post {
-                if (!closed && service.connectionCount.value == 0) {
+                if (!closed && playback.activeConnections == 0) {
                     ownsPlayback = true
                     val imageMetadata = session.currentMetaData.orEmpty().let { it.contains("image/jpeg", true) || it.contains("image/png", true) }
                     if (imageMetadata || URI(uri).path.orEmpty().lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") || it.endsWith(".png") }) {
                         ownsPlayback = false
                         ownsPhoto = true
                         photoStartedAt = System.currentTimeMillis()
-                        service.showDlnaPhoto(uri)
+                        playback.photo(uri)
                         session.onPlayerPrepared()
-                    } else service.playDlnaVideo(uri)
+                    } else playback.load(MediaRequest(uri, Protocol.DLNA))
                 } else session.onPlayerError()
             }
         }
-        override fun play() { main.post { if (ownsPlayback && !closed && service.networkPlaybackOwner == "dlna") service.airPlayVideoPlayer.setPlaying(true) } }
-        override fun pause() { main.post { if (ownsPlayback && !closed && service.networkPlaybackOwner == "dlna") service.airPlayVideoPlayer.setPlaying(false) } }
-        override fun seekTo(ms: Long) { main.post { if (ownsPlayback && !closed && service.networkPlaybackOwner == "dlna") service.onVideoScrub(ms / 1000f) } }
+        override fun play() { main.post { if (ownsPlayback && !closed && playback.mediaOwner == Protocol.DLNA) playback.playing(Protocol.DLNA, true) } }
+        override fun pause() { main.post { if (ownsPlayback && !closed && playback.mediaOwner == Protocol.DLNA) playback.playing(Protocol.DLNA, false) } }
+        override fun seekTo(ms: Long) { main.post { if (ownsPlayback && !closed && playback.mediaOwner == Protocol.DLNA) playback.seek(Protocol.DLNA, ms / 1000f) } }
         override fun stop() {
             main.post {
                 if (ownsPhoto) { ownsPhoto = false; io.github.jqssun.airplay.media.PhotoActivity.closePhoto() }
                 if (ownsPlayback) {
                     ownsPlayback = false
-                    if (service.networkPlaybackOwner == "dlna") service.stopVideoPlayback()
+                    if (playback.mediaOwner == Protocol.DLNA) playback.stop(Protocol.DLNA)
                 }
             }
         }
-        override fun currentPositionMs() = if (ownsPlayback) service.videoPlaybackInfo.value.positionMs else 0L
-        override fun currentDurationMs() = if (ownsPlayback) service.videoPlaybackInfo.value.durationMs else 0L
-        override fun isLive() = ownsPlayback && service.videoPlaybackInfo.value.durationMs <= 0
+        override fun currentPositionMs() = if (ownsPlayback) playback.playbackInfo.positionMs else 0L
+        override fun currentDurationMs() = if (ownsPlayback) playback.playbackInfo.durationMs else 0L
+        override fun isLive() = ownsPlayback && playback.playbackInfo.durationMs <= 0
     })
 
     private fun body(kind: String): String = when (kind) {
@@ -97,15 +98,15 @@ class DlnaReceiver(
                 ownsPhoto = false; session.stop()
             }
             if (ownsPlayback) {
-                if (service.connectionCount.value > 0 || service.networkPlaybackOwner != "dlna") {
+                if (playback.activeConnections > 0 || playback.mediaOwner != Protocol.DLNA) {
                     // The native AirPlay callbacks now own the shared player.
                     ownsPlayback = false
                     session.onPlayerError()
-                } else if (!service.videoPlaybackActive.value) {
+                } else if (!playback.mediaActive) {
                     ownsPlayback = false
                     session.stop()
                 } else {
-                    val info = service.videoPlaybackInfo.value
+                    val info = playback.playbackInfo
                     if (!info.buffering && info.playing) session.onPlayerPrepared()
                     if (!info.playing && session.state == TransportState.PLAYING) session.pause()
                     if (info.playing && session.state == TransportState.PAUSED_PLAYBACK) session.resume()
@@ -116,11 +117,11 @@ class DlnaReceiver(
     }
 
     @Synchronized
-    fun start() {
+    override fun start() {
         if (closed || server != null) return
         try {
             val ip = Net.lanIpv4() ?: error("No local IPv4 network for DLNA; restart the receiver after connecting")
-            val wifi = service.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             lock = wifi.createMulticastLock("buzin-dlna").apply { setReferenceCounted(false); acquire() }
             session.addListener { events.publish("avt", body("avt")) }
             val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
@@ -144,7 +145,7 @@ class DlnaReceiver(
                 },
                 router = SoapRouter(session), events = events,
                 eventBody = ::body, serverToken = token,
-                authorize = { peer -> service.authorizeConnection("DLNA", peer) },
+                authorize = { peer -> playback.authorize("DLNA", peer) },
             )
             server = control
             control.start()
@@ -158,7 +159,7 @@ class DlnaReceiver(
     }
 
     @Synchronized
-    fun close() {
+    override fun close() {
         closed = true
         if (ownsPhoto) { ownsPhoto = false; main.post { io.github.jqssun.airplay.media.PhotoActivity.closePhoto() } }
         main.removeCallbacks(tick)

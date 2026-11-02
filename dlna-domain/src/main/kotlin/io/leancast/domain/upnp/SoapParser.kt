@@ -19,17 +19,18 @@ object SoapParser {
         val headerRoute = soapActionHeader?.let { routeFromHeader(it) }
         val bodyRoute = routeFromBody(body)
         when {
+            bodyRoute == null -> null
+            headerRoute != null && (headerRoute.first != bodyRoute.first || headerRoute.second != bodyRoute.second) -> null
             headerRoute != null -> SoapRequest(
                 service = headerRoute.first,
                 action = headerRoute.second,
-                args = bodyArgs(body),
+                args = bodyRoute.third,
             )
-            bodyRoute != null -> SoapRequest(
+            else -> SoapRequest(
                 service = bodyRoute.first,
                 action = bodyRoute.second,
                 args = bodyRoute.third,
             )
-            else -> null
         }
     } catch (_: XmlPullParserException) {
         null
@@ -76,9 +77,6 @@ object SoapParser {
         val s = service ?: return null
         return Triple(s, a, args)
     }
-
-    private fun bodyArgs(body: String): Map<String, String> =
-        routeFromBody(body)?.third ?: emptyMap()
 
     /**
      * Captures an argument's text content, tolerating senders that embed raw

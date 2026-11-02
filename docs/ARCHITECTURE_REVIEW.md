@@ -1,5 +1,15 @@
 # Revisão de arquitetura do Buzin Cast
 
+## Implementação 0.6.0
+
+As primeiras extrações foram realizadas: módulo JVM `receiver-core` com `SessionCoordinator`, protocolos tipados, tokens de geração, perfis negociados, recuperação, `ReceiverGroup` e logs assíncronos. DLNA/FCast/Cast V2 agora dependem de `ReceiverPlaybackPort` e de um Context, sem acessar o serviço ou o ExoPlayer diretamente. `AirPlayReceiverAdapter` possui a criação, inicialização e destruição do motor JNI; configurações de renderização e callbacks permanecem no host, preservando a integração nativa.
+
+O player vincula seus callbacks e controles remotos à geração da sessão. Uma parada AirPlay não encerra mídia local/FCast de outra origem. A navegação lateral foi extraída para `TvSidebar`, compartilhada pelo app e pelo suporte de teste de UI. Logs carregam e persistem em um worker com fila e histórico limitados, fora do construtor/fluxo de UI. Os perfis consultam capacidades AVC anunciadas pelo aparelho; isso não garante desempenho sustentado nas condições reais da rede.
+
+Os detalhes de execução, gates de cobertura e limites estão em [TESTING.md](TESTING.md). O serviço ainda é o host Android da integração; futuras extrações podem reduzir seus callbacks e separar os grupos de Configurações sem reescrever o motor que funciona.
+
+## Avaliação original
+
 Revisão estática em 01/11/2026, durante a versão 0.5.7. Abrange os caminhos centrais de serviço, interface, preferências, player, descoberta, aprovação, gravação e retransmissão, além do pipeline de build. Não representa auditoria integral de todas as dependências ou validação de todos os emissores físicos.
 
 ## Avaliação

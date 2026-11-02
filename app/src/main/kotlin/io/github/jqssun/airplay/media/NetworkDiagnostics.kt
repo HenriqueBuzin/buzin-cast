@@ -9,8 +9,8 @@ import io.leancast.app.Net
 
 object NetworkDiagnostics {
     fun report(context: Context, running: Boolean): String {
-        val manager = context.getSystemService(ConnectivityManager::class.java)
-        val network = manager.activeNetwork
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = manager.currentNetworkCompat()
         val capabilities = network?.let(manager::getNetworkCapabilities)
         val ip = Net.lanIpv4()
         val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)

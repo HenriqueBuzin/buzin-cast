@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 rootProject.name = "BuzinCast"
 include(":app")
 include(":dlna-domain")
+include(":receiver-core")

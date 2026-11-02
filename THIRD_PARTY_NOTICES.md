@@ -12,7 +12,7 @@ Na versão 0.2.0, o código Buzin Cast também acrescenta muxer Matroska, transp
 - FFmpeg: https://github.com/FFmpeg/FFmpeg — LGPL 2.1 ou posterior para a configuração sem componentes GPL; consultar `COPYING*` e `LICENSE.md` no submódulo.
 - libplist: https://github.com/libimobiledevice/libplist — LGPL 2.1 ou posterior; consultar o submódulo.
 - openssl-cmake: https://github.com/viaduck/openssl-cmake — MIT; aviso no `CMakeLists.txt` do submódulo.
-- OpenSSL 3.4.4: https://github.com/openssl/openssl — Apache 2.0; baixado pelo processo de compilação.
+- OpenSSL 3.5.9 LTS: https://github.com/openssl/openssl — Apache 2.0; baixado pelo processo de compilação.
 - AndroidX, Jetpack Compose, Media3 e Oboe — consultar licenças dos respectivos artefatos e repositórios Android/Google, normalmente Apache 2.0.
 - Kotlin, kotlinx.coroutines, Dagger/Hilt e KSP — consultar as licenças dos artefatos fixados em `gradle/libs.versions.toml`.
 

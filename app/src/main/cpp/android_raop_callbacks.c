@@ -15,12 +15,29 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
+// Detach only native-created threads that this bridge attached. Store the VM,
+// not the receiver context, because TLS destructors run as the thread exits.
+static pthread_key_t jni_detach_key;
+static pthread_once_t jni_detach_once = PTHREAD_ONCE_INIT;
+static int jni_detach_ready = 0;
+static void _detach_native_thread(void *value) {
+    JavaVM *vm = (JavaVM *)value;
+    if (vm) (*vm)->DetachCurrentThread(vm);
+}
+static void _create_detach_key(void) {
+    jni_detach_ready = pthread_key_create(&jni_detach_key, _detach_native_thread) == 0;
+}
 static JNIEnv *_get_env(android_callback_ctx_t *ctx) {
     JNIEnv *env = NULL;
     int status = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6);
     if (status == JNI_EDETACHED) {
-        (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL);
-    }
+        pthread_once(&jni_detach_once, _create_detach_key);
+        if (!jni_detach_ready || (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL) != JNI_OK) return NULL;
+        if (pthread_setspecific(jni_detach_key, ctx->jvm) != 0) {
+            (*ctx->jvm)->DetachCurrentThread(ctx->jvm);
+            return NULL;
+        }
+    } else if (status != JNI_OK) return NULL;
     /* Clear any pending exception from a previous callback on this thread,
        otherwise JNI calls like NewByteArray will fatally abort. */
     if (env && (*env)->ExceptionCheck(env)) {

@@ -27,9 +27,11 @@ class RelayPlayback(private val renderer: VideoRenderer, private val videoSize: 
                         require(audio.sampleRate == 44100 && audio.channels == 2)
                         if (audioTrack == null) {
                             val minimum = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
-                            audioTrack = AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-                                .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(44100).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build())
-                                .setBufferSizeInBytes(maxOf(minimum * 4, 32768)).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.play() }
+                            audioTrack = AudioTrack(
+                                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build(),
+                                AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(44100).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build(),
+                                maxOf(minimum * 4, 32768), AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE
+                            ).also { it.play() }
                         }
                         val waitNs = if (base != Long.MIN_VALUE) clock + audio.ptsNs - base - System.nanoTime() - 60_000_000 else 0
                         if (waitNs in 1..500_000_000) Thread.sleep(waitNs / 1_000_000, (waitNs % 1_000_000).toInt())
