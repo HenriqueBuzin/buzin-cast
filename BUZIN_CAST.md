@@ -165,11 +165,13 @@ A base utiliza [android-airplay-server](https://github.com/jqssun/android-airpla
 9. Testes de reconexão, sincronização audiovisual, sessões longas e uso em segundo plano.
 10. Preparação e submissão de uma versão gratuita à Amazon Appstore.
 
-Fire OS 6+ (API 25+) é o alvo de instalação atual. O APK inclui ARM de 32 e 64 bits e x86_64 para testes. Isso não equivale a validação em todas as versões de Fire OS. Fire OS 5 requer estudo separado. Vega OS fica fora desta etapa.
+Fire OS 6+ (API 25+) é o alvo da edição principal. A edição de compatibilidade para Fire OS 5 (API 22) usa o mesmo código e as bibliotecas mais recentes que ainda aceitam esse sistema. Os APKs incluem ARM de 32 e 64 bits e x86_64 para testes. Isso não equivale a validação em todas as versões/aparelhos Fire OS. Vega OS fica fora desta etapa. Consulte `docs/DEPENDENCIES.md`.
 
 ## Compilar
 
-### Verificação desta versão
+### Verificação histórica — 0.4.0
+
+Os itens abaixo registram a validação da versão 0.4.0. Para a suíte da versão 0.6.0, relatórios de cobertura e limites atuais, consulte `docs/TESTING.md`. A meta global de 100% ainda não foi atingida.
 
 - APK de debug 0.4.0 compilado com ARM de 32 e 64 bits e x86_64.
 - 144 testes de protocolo, autenticação, gravação, ajuste de proporção/bordas e enquadramento FCast/Cast V2 passaram, sem falhas ou testes ignorados.
@@ -186,7 +188,7 @@ Fire OS 6+ (API 25+) é o alvo de instalação atual. O APK inclui ARM de 32 e 6
 - Foto enviada por SOAP/DLNA ao emulador abriu no visualizador, com imagem e controles verificados visualmente. O modo de apresentação mantém um histórico de até 20 URLs durante a sessão; não salva cópias permanentes das fotos.
 - AirPlay 0.1.0 foi confirmado pelo usuário no Fire TV. A regressão com um emissor Apple real na versão 0.2.0, a recepção SSDP entre aparelhos físicos e a sincronização audiovisual em sessões longas continuam pendentes.
 
-O código nativo usa OpenSSL e FFmpeg com ferramentas Unix. Use Linux, WSL ou macOS com Java 17+ (21 recomendado), Git, C/C++, make, Perl e Android SDK/NDK. No Windows, o caminho de compilação previsto é WSL, não o Gradle nativo do Windows.
+O código nativo usa OpenSSL e FFmpeg com ferramentas Unix. Use Linux/WSL com JDK 25 LTS, Git, C/C++, make, Perl e Android SDK/NDK. No Windows, o caminho de compilação validado é WSL. Configure o CMake fixado com `python3 tools/install_cmake.py`. Outras plataformas precisam de toolchains equivalentes e validação própria.
 
 ```sh
 git -c core.autocrlf=false clone --recurse-submodules https://github.com/HenriqueBuzin/buzin-cast.git
@@ -195,7 +197,7 @@ cd buzin-cast
 ./gradlew :dlna-domain:test assembleDebug lintDebug
 ```
 
-SDK de compilação: Android 36. NDK: 27.0.12077973. O Gradle utiliza os arquivos de versões fixados no projeto. Para compilar apenas uma arquitetura durante o desenvolvimento:
+SDK de compilação: Android 37. NDK r30 LTS: 30.0.16248370. O Gradle utiliza as versões fixadas no projeto. Use `-PbuzinLegacy=true` para a edição Fire OS 5. As saídas normais ficam em `app/build` e `app/build-legacy`; com `-PbuzinCoverage=true`, em `app/build-coverage` e `app/build-legacy-coverage`. Compile em sequência no mesmo checkout. Para compilar apenas uma arquitetura durante o desenvolvimento:
 
 ```sh
 ./gradlew assembleDebug -PbuzinAbis=armeabi-v7a

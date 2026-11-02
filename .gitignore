@@ -18,3 +18,5 @@
 __pycache__/
 
 /app/build-legacy/
+/app/build-coverage/
+/app/build-legacy-coverage/

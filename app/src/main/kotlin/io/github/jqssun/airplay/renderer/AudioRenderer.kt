@@ -55,9 +55,12 @@ class AudioRenderer {
 
     private fun pushConfig() {
         if (serverHandle == 0L) return
+        // API 22's NDK codec factory can return a wrapper with a null internal
+        // codec, which then crashes configure(). Use the bundled decoders there.
+        val softwareOnly = android.os.Build.VERSION.SDK_INT < 23
         NativeBridge.nativeServerAudioConfigure(
             serverHandle, config.cushionMs, config.percentilePct, config.oboeBufferFrames,
-            config.forceSwAlac, config.forceSwAac, config.realtimePriority, config.lowLatency,
+            softwareOnly || config.forceSwAlac, softwareOnly || config.forceSwAac, config.realtimePriority, config.lowLatency,
             config.benchmarkLog)
     }
 

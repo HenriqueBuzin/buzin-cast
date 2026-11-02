@@ -153,17 +153,18 @@ class Suite:
         self.shot("settings-advanced" if advanced else "settings-normal")
 
     def edit_cancel(self):
-        self.start("settings"); self.profile_focus();self.key(20)
-        assert ("name" in self.focused().lower() or "nome" in self.focused().lower())
-        self.key(23)
-        self.wait(self.keyboard,"OK did not open keyboard")
-        self.adb("shell","input","text","_AUTOTEST")
-        self.key(4); self.wait(lambda:not self.keyboard(),"Back did not close keyboard")
-        self.key(4)
-        self.wait(lambda: not any(n.get("class")=="android.widget.EditText" for n in self.ui().iter()),"Dialog did not close")
-        assert "_AUTOTEST" not in self.texts(self.ui()),"Cancel saved the draft"
-        assert ("name" in self.focused().lower() or "nome" in self.focused().lower()),"Focus did not return to name"
-        self.key(20);assert not self.keyboard()
+        for attempt in range(3):
+            self.start("settings"); self.profile_focus();self.key(20)
+            assert ("name" in self.focused().lower() or "nome" in self.focused().lower())
+            self.key(23)
+            self.wait(self.keyboard,f"OK did not open keyboard (attempt {attempt+1})")
+            self.adb("shell","input","text","_AUTOTEST")
+            self.key(4); self.wait(lambda:not self.keyboard(),"Back did not close keyboard")
+            self.key(4)
+            self.wait(lambda: not any(n.get("class")=="android.widget.EditText" for n in self.ui().iter()),"Dialog did not close")
+            assert "_AUTOTEST" not in self.texts(self.ui()),"Cancel saved the draft"
+            assert ("name" in self.focused().lower() or "nome" in self.focused().lower()),"Focus did not return to name"
+            self.key(20);assert not self.keyboard()
 
     def relay_form(self):
         self.start("tools")
@@ -209,6 +210,28 @@ class Suite:
         self.wait(lambda: len(list(self.ui().iter()))>15,"Launcher did not resume")
         assert self.debug().get("serverState")=="RUNNING"
         self.shot("launcher-entry-resume")
+
+    def calibration(self):
+        self.start("tools")
+        original=self.debug()["margin"]
+        def open_preview():
+            self.debug("calibrate")
+            self.wait(lambda: re.search(r"mCurrentFocus=.*CalibrationActivity",self.adb("shell","dumpsys","window","windows")),"Calibration did not open")
+        def saved(value):
+            self.wait(lambda:self.debug().get("margin")==value,"Calibration did not save margin: "+str(value))
+        try:
+            self.setting("tv_margin","2")
+            open_preview(); self.key(22); self.key(22); self.key(23); saved(4)
+            open_preview(); self.key(21); self.key(4); saved(4)
+            open_preview()
+            for _ in range(15): self.key(21)
+            self.key(23); saved(0)
+            open_preview()
+            for _ in range(15): self.key(22)
+            self.shot("calibration-upper-bound")
+            self.key(23); saved(10)
+        finally:
+            self.setting("tv_margin",original)
 
     def media_recovery(self):
         self.start("home")  # Android requires a foreground app to start the receiver service.
@@ -339,7 +362,7 @@ class Suite:
                 self.instrumentation()
             cases=[("normal settings",lambda:self.scan_settings(False)),("advanced/custom settings",lambda:self.scan_settings(True)),
                    ("cancel and restore focus",self.edit_cancel),("single relay form",self.relay_form),
-                   ("device-aware profiles",self.profiles),("shared audio controls",self.audio_controls),("native/player recovery and ownership",self.media_recovery),("native codecs and recording smoke",self.native_capture),("launcher entry and resume",self.launcher_entry)]
+                   ("device-aware profiles",self.profiles),("shared audio controls",self.audio_controls),("native/player recovery and ownership",self.media_recovery),("native codecs and recording smoke",self.native_capture),("launcher entry and resume",self.launcher_entry),("guided calibration save/cancel and bounds",self.calibration)]
             selected=[(name,test) for name,test in cases if not self.args.case or any(pattern in name for pattern in self.args.case)]
             assert selected,"No test matches --case"
             for name,test in selected:

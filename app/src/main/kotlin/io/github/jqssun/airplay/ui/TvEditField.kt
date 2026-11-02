@@ -17,6 +17,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +39,7 @@ internal fun TvEditField(
     var editing by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(value) }
     var restoreFocus by remember { mutableStateOf(false) }
+    var inputFocused by remember { mutableStateOf(false) }
     val buttonFocus = remember { FocusRequester() }
     val inputFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -73,17 +75,18 @@ internal fun TvEditField(
                         value = draft, onValueChange = { draft = normalize(it) },
                         label = { Text(label) }, singleLine = true,
                         isError = !validate(draft),
-                        modifier = Modifier.fillMaxWidth().focusRequester(inputFocus),
+                        modifier = Modifier.fillMaxWidth().focusRequester(inputFocus).onFocusChanged { inputFocused = it.isFocused },
                         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { save() }),
                     )
                     description?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    ShowTvKeyboardWhenReady(inputFocused)
                 }
             },
             confirmButton = { TextButton(onClick = ::save, enabled = validate(draft), modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tv_edit_save)) } },
             dismissButton = { TextButton(onClick = ::close, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tv_edit_cancel)) } },
         )
-        LaunchedEffect(Unit) { inputFocus.requestFocusUntilLanded(); keyboard?.show() }
+        LaunchedEffect(Unit) { inputFocus.requestFocusUntilLanded() }
     }
 }
 
@@ -97,15 +100,16 @@ internal fun TvFormTextField(
     onNext: () -> Unit = {}, onDone: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf(false) }
+    var inputFocused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
-    LaunchedEffect(editing) { if (editing) keyboard?.show() }
+    ShowTvKeyboardWhenReady(editing && inputFocused)
     OutlinedTextField(value = value, onValueChange = onValueChange, label = { Text(label) },
         singleLine = true, readOnly = !editing,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
         keyboardActions = KeyboardActions(onNext = { editing = false; keyboard?.hide(); onNext() },
             onDone = { keyboard?.hide(); editing = false; onDone() }),
-        modifier = modifier.onFocusChanged { if (!it.isFocused) editing = false }
+        modifier = modifier.onFocusChanged { inputFocused = it.isFocused; if (!it.isFocused) editing = false }
             .onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
                 when (key.keyCode) {
@@ -124,4 +128,18 @@ internal fun TvFormTextField(
                     else -> false
                 }
             })
+}
+
+/** A dialog can focus its field before Android has focused its window (notably API 22). */
+@Composable
+private fun ShowTvKeyboardWhenReady(enabled: Boolean) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(enabled, windowFocused) {
+        if (enabled && windowFocused) {
+            // Let the focused field's text-input session reach the platform first.
+            withFrameNanos { }
+            keyboard?.show()
+        }
+    }
 }

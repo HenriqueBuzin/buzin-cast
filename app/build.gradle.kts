@@ -14,9 +14,9 @@ val localProps = Properties().apply {
 }
 
 val legacyEdition = providers.gradleProperty("buzinLegacy").orNull == "true"
-if (legacyEdition) layout.buildDirectory.set(file("build-legacy"))
-
 val coverageEnabled = providers.gradleProperty("buzinCoverage").orNull == "true"
+val editionBuildDirectory = "build" + (if (legacyEdition) "-legacy" else "") + (if (coverageEnabled) "-coverage" else "")
+layout.buildDirectory.set(file(editionBuildDirectory))
 
 val allAbis = providers.gradleProperty("buzinAbis").orNull?.split(",")
     ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64")
