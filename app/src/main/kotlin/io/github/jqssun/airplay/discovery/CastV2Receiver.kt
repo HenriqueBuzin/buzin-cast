@@ -6,7 +6,8 @@ import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import io.buzincast.media.CastEnvelope
-import io.github.jqssun.airplay.service.AirPlayService
+import android.content.Context
+import io.buzincast.core.*
 import io.leancast.app.Net
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,7 +32,7 @@ import javax.security.auth.x500.X500Principal
  * Works only with senders that do not require Google's device-auth chain.
  * App namespaces, protected services and Cast Streaming mirroring are unsupported.
  */
-class CastV2Receiver(private val service: AirPlayService, private val name: String, private val log: (String) -> Unit) {
+class CastV2Receiver(private val context: Context, private val playback: ReceiverPlaybackPort, private val name: String, private val log: (String) -> Unit) : ReceiverAdapter {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     @Volatile private var listener: SSLServerSocket? = null
@@ -56,17 +57,24 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
 
     private fun tls(): SSLContext {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val alias = "buzin-cast-v2-tls-2"
+        val alias = "buzin-cast-v2-tls-4"
         if (!store.containsAlias(alias)) {
             val now = System.currentTimeMillis()
             KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore").apply {
-                initialize(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
+                val spec: java.security.spec.AlgorithmParameterSpec = if (android.os.Build.VERSION.SDK_INT >= 23) KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
                     // API 25 Conscrypt asks AndroidKeyStore to sign a precomputed TLS digest.
-                    .setKeySize(2048).setDigests(KeyProperties.DIGEST_NONE, KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
-                    .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
+                    .setKeySize(2048).setDigests(KeyProperties.DIGEST_NONE, KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA384, KeyProperties.DIGEST_SHA512)
+                    .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1, KeyProperties.SIGNATURE_PADDING_RSA_PSS)
+                    // Conscrypt also signs precomputed TLS blocks through private-key Cipher.
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE, KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
                     .setCertificateSubject(X500Principal("CN=Buzin Cast Experimental"))
                     .setCertificateSerialNumber(BigInteger(63, SecureRandom()).add(BigInteger.ONE))
-                    .setCertificateNotBefore(Date(now - 86400000L)).setCertificateNotAfter(Date(now + 315360000000L)).build())
+                    .setCertificateNotBefore(Date(now - 86400000L)).setCertificateNotAfter(Date(now + 315360000000L)).build()
+                else @Suppress("DEPRECATION") android.security.KeyPairGeneratorSpec.Builder(context)
+                    .setAlias(alias).setKeySize(2048).setSubject(X500Principal("CN=Buzin Cast Experimental"))
+                    .setSerialNumber(BigInteger(63, SecureRandom()).add(BigInteger.ONE))
+                    .setStartDate(Date(now - 86400000L)).setEndDate(Date(now + 315360000000L)).build()
+                initialize(spec)
                 generateKeyPair()
             }
         }
@@ -83,7 +91,7 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
         return SSLContext.getInstance("TLS").apply { init(arrayOf(manager), null, SecureRandom()) }
     }
 
-    @Synchronized fun start() {
+    @Synchronized override fun start() {
         if (closed || listener != null) return
         try {
             val ip = Net.lanIpv4() ?: error("No LAN IPv4")
@@ -92,9 +100,9 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
             server.enabledProtocols = server.supportedProtocols.filter { it == "TLSv1.2" }.toTypedArray()
             // Fire TV's system receiver can hold 8009. DNS-SD advertises our actual port.
             server.bind(InetSocketAddress(ip, 0), 1)
-            val prefs = service.getSharedPreferences("buzin_castv2", 0)
+            val prefs = context.getSharedPreferences("buzin_castv2", 0)
             val id = prefs.getString("id", null) ?: UUID.randomUUID().toString().replace("-", "").also { prefs.edit().putString("id", it).apply() }
-            discovery = NsdServiceManager(service).also {
+            discovery = NsdServiceManager(context).also {
                 it.acquireMulticastLock()
                 it.register(listOf(MdnsService("Buzin-$id", "_googlecast._tcp", server.localPort,
                     mapOf("id" to id, "fn" to name, "md" to "Buzin Cast Experimental", "ve" to "05", "ca" to "5", "st" to "0"))))
@@ -127,7 +135,7 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
     private fun serve(socket: SSLSocket) {
         var sender: String? = null
         try {
-            if (!service.authorizeConnection("Cast V2", socket.inetAddress.hostAddress.orEmpty())) return
+            if (!playback.authorize("Cast V2", socket.inetAddress.hostAddress.orEmpty())) return
             socket.soTimeout = 5000; socket.startHandshake(); socket.tcpNoDelay = true
             var window = SystemClock.elapsedRealtime(); var count = 0
             while (!closed) {
@@ -146,7 +154,7 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
                     continue
                 }
                 require(frame.text != null)
-                val body = JSONObject(frame.text)
+                val body = JSONObject(requireNotNull(frame.text))
                 if (frame.namespace == HEARTBEAT) {
                     if (body.optString("type") == "PING") send(socket, CastEnvelope(frame.destination, frame.source, HEARTBEAT, "{\"type\":\"PONG\"}"))
                     continue
@@ -179,8 +187,8 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
     }
     private fun mediaReply(destination: String, request: Int?): CastEnvelope {
         val statuses = JSONArray()
-        if (service.networkPlaybackOwner == "castv2" && service.videoPlaybackActive.value) {
-            val info = service.videoPlaybackInfo.value
+        if (playback.mediaOwner == Protocol.CAST_V2 && playback.mediaActive) {
+            val info = playback.playbackInfo
             val description = JSONObject(media.toString()).put("duration", info.durationMs.coerceAtLeast(0) / 1000.0)
             statuses.put(JSONObject().put("mediaSessionId", mediaId).put("media", description)
                 .put("currentTime", info.positionMs / 1000.0).put("playbackRate", info.speed.toDouble())
@@ -220,7 +228,7 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
                 }
                 "STOP" -> {
                     require(!body.has("sessionId") || body.getString("sessionId") == session)
-                    if (service.networkPlaybackOwner == "castv2") service.stopVideoPlayback()
+                    if (playback.mediaOwner == Protocol.CAST_V2) playback.stop(Protocol.CAST_V2)
                     launched = false
                 }
                 "SET_VOLUME" -> setVolume(body.getJSONObject("volume"))
@@ -230,7 +238,7 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
         }
         require(frame.namespace == MEDIA && launched && frame.destination == transport)
         if (type == "GET_STATUS") return listOf(mediaReply(frame.source, id))
-        check(service.connectionCount.value == 0 && !service.relay.state.value.receiving)
+        check(playback.activeConnections == 0 && !playback.relayReceiving)
         if (type == "LOAD") {
             check(SystemClock.elapsedRealtime() - lastLoadAt >= 500)
             val item = body.getJSONObject("media")
@@ -243,21 +251,21 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
             val autoplay = body.optBoolean("autoplay", true)
             media = JSONObject().put("contentId", url).put("contentType", mime).put("streamType", item.optString("streamType", "BUFFERED"))
             lastLoadAt = SystemClock.elapsedRealtime(); mediaId = if (mediaId == Int.MAX_VALUE) 1 else mediaId + 1
-            service.playNetworkVideo(url, "castv2", time.toFloat(), mime)
-            service.airPlayVideoPlayer.setClientGain(if (muted) 0f else level.toFloat())
-            if (!autoplay) service.airPlayVideoPlayer.setPlaying(false)
+            playback.load(MediaRequest(url, Protocol.CAST_V2, time.toFloat(), mime))
+            playback.gain(Protocol.CAST_V2, if (muted) 0f else level.toFloat())
+            if (!autoplay) playback.playing(Protocol.CAST_V2, false)
         } else {
-            check(service.networkPlaybackOwner == "castv2" && service.videoPlaybackActive.value)
+            check(playback.mediaOwner == Protocol.CAST_V2 && playback.mediaActive)
             require(body.getInt("mediaSessionId") == mediaId)
             when (type) {
-                "PLAY" -> service.airPlayVideoPlayer.setPlaying(true)
-                "PAUSE" -> service.airPlayVideoPlayer.setPlaying(false)
-                "STOP" -> service.stopVideoPlayback()
+                "PLAY" -> playback.playing(Protocol.CAST_V2, true)
+                "PAUSE" -> playback.playing(Protocol.CAST_V2, false)
+                "STOP" -> playback.stop(Protocol.CAST_V2)
                 "SEEK" -> {
-                    service.onVideoScrub(finite(body, "currentTime", 0.0, 31536000.0).toFloat())
+                    playback.seek(Protocol.CAST_V2, finite(body, "currentTime", 0.0, 31536000.0).toFloat())
                     when (body.optString("resumeState")) {
-                        "PLAYBACK_START" -> service.airPlayVideoPlayer.setPlaying(true)
-                        "PLAYBACK_PAUSE" -> service.airPlayVideoPlayer.setPlaying(false)
+                        "PLAYBACK_START" -> playback.playing(Protocol.CAST_V2, true)
+                        "PLAYBACK_PAUSE" -> playback.playing(Protocol.CAST_V2, false)
                     }
                 }
                 "SET_VOLUME" -> setVolume(body.getJSONObject("volume"))
@@ -271,9 +279,9 @@ class CastV2Receiver(private val service: AirPlayService, private val name: Stri
         val nextLevel = if (value.has("level")) finite(value, "level", 0.0, 1.0) else level
         val nextMuted = if (value.has("muted")) value.getBoolean("muted") else muted
         level = nextLevel; muted = nextMuted
-        if (service.networkPlaybackOwner == "castv2") service.airPlayVideoPlayer.setClientGain(if (muted) 0f else level.toFloat())
+        if (playback.mediaOwner == Protocol.CAST_V2) playback.gain(Protocol.CAST_V2, if (muted) 0f else level.toFloat())
     }
-    @Synchronized fun close() {
+    @Synchronized override fun close() {
         closed = true
         runCatching { listener?.close() }; listener = null
         runCatching { client?.close() }; client = null

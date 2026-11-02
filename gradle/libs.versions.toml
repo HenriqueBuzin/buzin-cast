@@ -1,25 +1,41 @@
 [versions]
-agp = "9.4.1"
-kotlin = "2.2.10"
-ksp = "2.3.12"
-compose-bom = "2026.05.00"
+legacy-compose-bom = "2025.11.01"
+legacy-core = "1.17.0"
+legacy-activity = "1.11.0"
+legacy-lifecycle = "2.9.4"
+legacy-media3 = "1.8.1"
+legacy-media = "1.7.0"
+desugar = "2.1.5"
+ndk = "30.0.16248370"
+cmake = "4.4.5"
+jacoco = "0.8.16"
+android-test-runner = "1.7.0"
+android-test-junit = "1.3.0"
+junit4 = "4.13.2"
+kxml = "2.3.0"
+agp = "9.5.0"
+kotlin = "2.4.21"
+ksp = "2.3.13"
+compose-bom = "2026.09.00"
 hilt = "2.60.1"
-hilt-navigation = "1.2.0"
-lifecycle = "2.9.4"
-activity-compose = "1.9.3"
-core-ktx = "1.16.0"
-datastore = "1.1.1"
-coroutines = "1.9.0"
+lifecycle = "2.11.0"
+activity-compose = "1.13.0"
+core-ktx = "1.19.1"
+coroutines = "1.11.0"
 media3 = "1.11.1"
-oboe = "1.9.3"
+oboe = "1.11.0"
 
 [libraries]
+desugar = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
+android-test-runner = { group = "androidx.test", name = "runner", version.ref = "android-test-runner" }
+android-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "android-test-junit" }
+junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
+kxml = { group = "net.sf.kxml", name = "kxml2", version.ref = "kxml" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }
 androidx-lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
-androidx-datastore-prefs = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
@@ -31,13 +47,11 @@ compose-material-icons = { group = "androidx.compose.material", name = "material
 
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation" }
 
-androidx-media = { group = "androidx.media", name = "media", version = "1.7.0" }
+androidx-media = { group = "androidx.media", name = "media", version = "1.8.0" }
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
 media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3" }
-media3-ui-compose-material3 = { group = "androidx.media3", name = "media3-ui-compose-material3", version.ref = "media3" }
 
 kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 

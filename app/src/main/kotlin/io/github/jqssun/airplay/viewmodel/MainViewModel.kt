@@ -17,6 +17,10 @@ import io.github.jqssun.airplay.observe
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import io.buzincast.core.AsyncLogStore
+import io.buzincast.core.FileLogStorage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,7 +106,12 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
         }
     }
     fun answerApproval(id: Long, allow: Boolean) { service?.approval?.answer(id,allow) }
-    fun applyProfile(name: String) { io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs,name) }
+    fun applyProfile(name: String) {
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs,name) } }
+                .onFailure { android.widget.Toast.makeText(getApplication(), "Perfil indisponível: ${it.message}", android.widget.Toast.LENGTH_LONG).show() }
+        }
+    }
     private val _captureState = MutableStateFlow(io.github.jqssun.airplay.media.MirrorCapture.State())
     val captureState = _captureState.asStateFlow()
     private val _relayState = MutableStateFlow(io.github.jqssun.airplay.media.MirrorRelay.State())
@@ -137,7 +146,7 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     fun playRecording(name: String) {
         val file = recordingFile(name) ?: return
         val context = getApplication<Application>()
-        service?.playDlnaVideo(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file).toString())
+        service?.playLocalVideo(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file).toString())
     }
     val dacpPlayer: Player? get() = service?.dacpPlayer
 
@@ -253,68 +262,31 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     // logs
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     val logs: StateFlow<List<String>> = _logs.asStateFlow()
-    private val _logLock = Any()
-    private val _logList = mutableListOf<String>()
+    private val logStore = AsyncLogStore(FileLogStorage(logFile),
+        publish = { _logs.value = it },
+        failure = { android.util.Log.w("BuzinLogs", "Log storage unavailable", it) })
     private val _dateFmt = object : ThreadLocal<SimpleDateFormat>() {
         override fun initialValue() = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     }
-
-    init {
-        loadPersistedLogs()
-    }
-
-    fun addLog(msg: String) {
-        val line = "${_dateFmt.get()!!.format(Date())} $msg"
-        val snapshot: List<String>
-        synchronized(_logLock) {
-            _logList.add(line)
-            while (_logList.size > 9999) _logList.removeAt(0)
-            persistLogsLocked()
-            snapshot = _logList.toList()
-        }
-        _logs.value = snapshot
-    }
-
-    fun clearLogs() {
-        synchronized(_logLock) {
-            _logList.clear()
-            runCatching { logFile.delete() }
-        }
-        _logs.value = emptyList()
-    }
-
+    fun addLog(msg: String) { logStore.append("${_dateFmt.get()!!.format(Date())} $msg") }
+    fun clearLogs() { logStore.clear() }
     fun exportLogs() {
-        val ctx = getApplication<Application>()
-        val file = File(ctx.cacheDir, "airplay_logs.txt")
-        file.writeText(_logList.joinToString("\n"))
-        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val chooserTitle = ctx.getString(io.github.jqssun.airplay.R.string.export_logs_chooser_title)
-        ctx.startActivity(Intent.createChooser(intent, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
-
-    private fun loadPersistedLogs() {
-        val snapshot: List<String>
-        synchronized(_logLock) {
-            val restored = runCatching {
-                if (logFile.exists()) logFile.readLines().takeLast(9999) else emptyList()
-            }.getOrDefault(emptyList())
-            _logList.clear()
-            _logList.addAll(restored)
-            snapshot = _logList.toList()
-        }
-        _logs.value = snapshot
-    }
-
-    private fun persistLogsLocked() {
-        runCatching {
-            logFile.writeText(_logList.joinToString("\n"))
+        viewModelScope.launch {
+            runCatching {
+                val ctx = getApplication<Application>()
+                val file = withContext(Dispatchers.IO) {
+                    check(logStore.flush()) { "Logs ocupados. Tente exportar novamente." }
+                    File(ctx.cacheDir, "airplay_logs.txt").also { it.writeText(logStore.snapshot().joinToString("\n")) }
+                }
+                val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+                val intent = Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                ctx.startActivity(Intent.createChooser(intent, ctx.getString(io.github.jqssun.airplay.R.string.export_logs_chooser_title))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure { android.widget.Toast.makeText(getApplication(), it.message, android.widget.Toast.LENGTH_LONG).show() }
         }
     }
+    override fun onCleared() { logStore.close(); super.onCleared() }
 
     // service binding
     fun bindService(svc: AirPlayService) {

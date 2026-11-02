@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    jacoco
 }
 
 import java.util.Properties
@@ -12,13 +13,18 @@ val localProps = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
 }
 
+val legacyEdition = providers.gradleProperty("buzinLegacy").orNull == "true"
+if (legacyEdition) layout.buildDirectory.set(file("build-legacy"))
+
+val coverageEnabled = providers.gradleProperty("buzinCoverage").orNull == "true"
+
 val allAbis = providers.gradleProperty("buzinAbis").orNull?.split(",")
     ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 
 android {
     namespace = "io.github.jqssun.airplay"
-    compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    compileSdk = 37
+    ndkVersion = libs.versions.ndk.get()
 
     if (localProps.containsKey("storeFile")) {
         signingConfigs {
@@ -33,10 +39,11 @@ android {
 
     defaultConfig {
         applicationId = "com.buzincast.tv"
-        minSdk = 25
-        targetSdk = 36
-        versionCode = 20
-        versionName = "0.5.7"
+        minSdk = if (legacyEdition) 22 else 25
+        targetSdk = 37
+        versionCode = if (legacyEdition) 21 else 22
+        versionName = if (legacyEdition) "0.6.0-compat" else "0.6.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         externalNativeBuild {
             cmake {
@@ -49,11 +56,15 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
+            version = libs.versions.cmake.get()
         }
     }
 
     buildTypes {
         debug {
+            enableAndroidTestCoverage = coverageEnabled
+            enableUnitTestCoverage = coverageEnabled
+            externalNativeBuild { cmake { arguments += "-DBUZIN_COVERAGE=${if (coverageEnabled) "ON" else "OFF"}" } }
             ndk { abiFilters += allAbis }
         }
         release {
@@ -82,6 +93,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -90,7 +102,7 @@ android {
         compose = true
         prefab = true
     }
-    sourceSets.getByName("debug").assets.srcDir("../dlna-domain/src/test/resources")
+    sourceSets.getByName("debug").assets.directories.add("../dlna-domain/src/test/resources")
 }
 
 tasks.register("applyUxplayPatches") {
@@ -140,22 +152,24 @@ tasks.configureEach {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar)
+    androidTestImplementation(libs.android.test.runner)
+    androidTestImplementation(libs.android.test.junit)
+    implementation(project(":receiver-core"))
     implementation(project(":dlna-domain"))
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.lifecycle.runtime)
-    implementation(libs.androidx.lifecycle.service)
-    implementation(libs.androidx.lifecycle.viewmodel)
-    implementation(libs.androidx.datastore.prefs)
-    implementation(libs.androidx.media)
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.exoplayer.hls)
-    implementation(libs.media3.ui.compose.material3)
-    implementation(libs.media3.transformer)
+    implementation(if (legacyEdition) "androidx.core:core-ktx:${libs.versions.legacy.core.get()}" else libs.androidx.core.ktx.get())
+    implementation(if (legacyEdition) "androidx.activity:activity-compose:${libs.versions.legacy.activity.get()}" else libs.androidx.activity.compose.get())
+    implementation(if (legacyEdition) "androidx.lifecycle:lifecycle-runtime-compose:${libs.versions.legacy.lifecycle.get()}" else libs.androidx.lifecycle.runtime.get())
+    implementation(if (legacyEdition) "androidx.lifecycle:lifecycle-service:${libs.versions.legacy.lifecycle.get()}" else libs.androidx.lifecycle.service.get())
+    implementation(if (legacyEdition) "androidx.lifecycle:lifecycle-viewmodel-compose:${libs.versions.legacy.lifecycle.get()}" else libs.androidx.lifecycle.viewmodel.get())
+    implementation(if (legacyEdition) "androidx.media:media:${libs.versions.legacy.media.get()}" else libs.androidx.media.get())
+    implementation(if (legacyEdition) "androidx.media3:media3-exoplayer:${libs.versions.legacy.media3.get()}" else libs.media3.exoplayer.asProvider().get())
+    implementation(if (legacyEdition) "androidx.media3:media3-exoplayer-hls:${libs.versions.legacy.media3.get()}" else libs.media3.exoplayer.hls.get())
+    implementation(if (legacyEdition) "androidx.media3:media3-transformer:${libs.versions.legacy.media3.get()}" else libs.media3.transformer.get())
     implementation(libs.kotlinx.coroutines)
     implementation(libs.oboe)
 
-    implementation(platform(libs.compose.bom))
+    implementation(platform(if (legacyEdition) "androidx.compose:compose-bom:${libs.versions.legacy.compose.bom.get()}" else libs.compose.bom.get()))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
@@ -165,5 +179,47 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
-    implementation(libs.hilt.navigation.compose)
+}
+
+// Includes every production class in the three source modules. Debug fixtures,
+// generated Hilt/KSP code and external dependencies are outside this inventory.
+jacoco { toolVersion = libs.versions.jacoco.get() }
+
+if (legacyEdition) {
+    // Align complete AndroidX families so a transitive dependency cannot silently
+    // raise the legacy APK's minimum SDK. No overrideLibrary bypass is used.
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            when (requested.group) {
+                "androidx.core" -> if (requested.name in setOf("core", "core-ktx")) useVersion(libs.versions.legacy.core.get())
+                "androidx.activity" -> useVersion(libs.versions.legacy.activity.get())
+                "androidx.lifecycle" -> useVersion(libs.versions.legacy.lifecycle.get())
+                "androidx.media3" -> useVersion(libs.versions.legacy.media3.get())
+            }
+        }
+    }
+}
+
+val coverageFolder = if (legacyEdition) "emulator-checks-legacy" else "emulator-checks"
+val productionClasses = files(
+    fileTree(layout.buildDirectory.dir("intermediates/classes/debug/transformDebugClassesWithAsm/dirs")) {
+        exclude("**/DebugMediaReceiver*", "**/DebugNativeBridge*", "**/DebugCoverage*", "**/DebugTvPreviewActivity*", "**/DebugTvPlaybackActivity*", "**/DebugNativeFixture*")
+        exclude("**/Hilt_*", "**/*_Hilt*", "**/*_Factory*", "**/*_MembersInjector*", "**/hilt_aggregated_deps/**", "dagger/**")
+    },
+    fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")),
+    project(":receiver-core").layout.buildDirectory.dir("classes/kotlin/main"),
+    project(":dlna-domain").layout.buildDirectory.dir("classes/kotlin/main")
+)
+tasks.register<JacocoReport>("fullCoverageReport") {
+    dependsOn(":receiver-core:test", ":dlna-domain:test")
+    doFirst {
+        check(layout.buildDirectory.file("intermediates/classes/debug/transformDebugClassesWithAsm/dirs/io/github/jqssun/airplay/ui/MainScreenKt.class").get().asFile.isFile) { "Build the coverage APK before reporting" }
+        check(fileTree(rootProject.layout.buildDirectory.dir(coverageFolder)) { include("**/*.ec") }.files.isNotEmpty()) { "Android execution coverage is missing" }
+    }
+    executionData(fileTree(rootProject.layout.buildDirectory.dir(coverageFolder)) { include("**/*.ec", "**/*.exec") },
+        project(":receiver-core").layout.buildDirectory.file("jacoco/test.exec"),
+        project(":dlna-domain").layout.buildDirectory.file("jacoco/test.exec"))
+    classDirectories.setFrom(productionClasses)
+    sourceDirectories.setFrom(files("src/main/kotlin", "../receiver-core/src/main/kotlin", "../dlna-domain/src/main/kotlin"))
+    reports { xml.required.set(true); html.required.set(true) }
 }

@@ -1,8 +1,18 @@
+## Automação e cobertura — escopo solicitado
+
+Inclui testes unitários, integração Android com sockets reais, smoke JNI, funcionais por controle remoto, regressão, concorrência e falhas de rede/disco. A meta global de 100% inclui Android e C++ próprios; ainda precisa ser comprovada pelos relatórios completos, não apenas pelo gate do núcleo. Não instalar nas TVs em uso durante esta etapa. Consulte `docs/TESTING.md`.
+
 # Buzin Cast
 
 Receptor para Fire TV com Fire OS. Gratuito, sem anúncios, assinaturas ou limite artificial de tempo por sessão.
 
 ## Estado do projeto
+
+### Núcleo de recepção e automação 0.6.0
+
+Sessões possuem protocolo e geração, com proteção contra callbacks atrasados após substituição. O ciclo JNI do AirPlay está em um adaptador; DLNA/FCast/Cast V2 usam um contrato de reprodução independente do serviço e do player. Encerramento dos receptores, política de recuperação e negociação dos perfis têm testes no módulo `receiver-core`. A navegação lateral é compartilhada com a atividade de teste de TV. Logs usam uma fila limitada e persistência em IO; a exportação também ocorre fora da UI.
+
+O CI inclui testes JVM com gates de cobertura do novo núcleo, build/lint e suíte de UI/player em emuladores API 25 e 35, sem usar TVs físicas. Veja [testes e limites](docs/TESTING.md) e [arquitetura](docs/ARCHITECTURE_REVIEW.md). A versão não promove os protocolos experimentais a estáveis e não garante cobertura/compatibilidade de 100% do aplicativo.
 
 ### Navegação e autoria 0.5.7
 

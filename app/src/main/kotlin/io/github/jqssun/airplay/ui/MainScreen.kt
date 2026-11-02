@@ -1,6 +1,5 @@
 package io.github.jqssun.airplay.ui
 
-import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -70,24 +69,9 @@ import io.github.jqssun.airplay.viewmodel.MainViewModel
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSourceBitmapLoader
-import androidx.media3.ui.compose.material3.MiniController
-import androidx.media3.ui.compose.material3.buttons.NextButton
-import androidx.media3.ui.compose.material3.buttons.PlayPauseButton
-import androidx.media3.ui.compose.material3.buttons.PreviousButton
-import androidx.media3.ui.compose.material3.indicator.DurationText
-import androidx.media3.ui.compose.material3.indicator.PositionText
-import androidx.media3.ui.compose.material3.indicator.ProgressSlider
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-
-private enum class Tab(val labelRes: Int, val icon: ImageVector) {
-    OVERVIEW(R.string.tab_overview, Icons.Default.Cast),
-    LOGS(R.string.tab_logs, Icons.AutoMirrored.Filled.Article),
-    TOOLS(R.string.tab_tools, Icons.Default.Build),
-    SETTINGS(R.string.tab_settings, Icons.Default.Settings)
-}
 
 @Composable
 fun MainScreen(
@@ -98,7 +82,7 @@ fun MainScreen(
     onPip: () -> Unit = {},
     onLocalNetwork: () -> Unit = {}
 ) {
-    var tab by remember { mutableStateOf(Tab.OVERVIEW) }
+    var tab by remember { mutableStateOf(AppDestination.OVERVIEW) }
     var subtitleMenu by remember { mutableStateOf(false) }
     var subtitleFailure by remember { mutableStateOf("") }
     val subtitlePicker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -119,8 +103,8 @@ fun MainScreen(
             dismissButton = { TextButton(onClick = { viewModel.answerApproval(request.id,false) }, modifier = Modifier.dpadFocus()) { Text("Recusar") } })
     }
     val developerOptions by viewModel.pref(Prefs.DEVELOPER_OPTIONS).collectAsState()
-    val visibleTabs = listOf(Tab.OVERVIEW, Tab.TOOLS, Tab.SETTINGS) + if (developerOptions) listOf(Tab.LOGS) else emptyList()
-    LaunchedEffect(developerOptions) { if (!developerOptions && tab == Tab.LOGS) tab = Tab.OVERVIEW }
+    val visibleTabs = listOf(AppDestination.OVERVIEW, AppDestination.TOOLS, AppDestination.SETTINGS) + if (developerOptions) listOf(AppDestination.LOGS) else emptyList()
+    LaunchedEffect(developerOptions) { if (!developerOptions && tab == AppDestination.LOGS) tab = AppDestination.OVERVIEW }
     var fullscreen by remember { mutableStateOf(false) }
     val pin by viewModel.pinCode.collectAsState()
     val connections by viewModel.connectionCount.collectAsState()
@@ -160,7 +144,7 @@ fun MainScreen(
         if (videoPlaybackActive) fullscreen = false
     }
 
-    val activity = LocalContext.current as? Activity
+    val activity = androidx.activity.compose.LocalActivity.current
     val videoScreen = videoPlaybackActive || videoSessionPending
     LaunchedEffect(fullscreen, videoScreen) {
         val window = activity?.window ?: return@LaunchedEffect
@@ -559,8 +543,8 @@ fun MainScreen(
                 Column {
                     AudioMiniController(
                         viewModel,
-                        visible = audioOnly && connections > 0 && tab != Tab.OVERVIEW,
-                        onClick = { tab = Tab.OVERVIEW }
+                        visible = audioOnly && connections > 0 && tab != AppDestination.OVERVIEW,
+                        onClick = { tab = AppDestination.OVERVIEW }
                     )
                     NavigationBar {
                         visibleTabs.forEach { t ->
@@ -580,22 +564,7 @@ fun MainScreen(
             Row(modifier = Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()
                 .then(if (tvLayout) Modifier.padding(start = 48.dp, end = 24.dp, top = 16.dp, bottom = 16.dp) else Modifier)) {
               if (tvLayout) {
-                Column(Modifier.width(172.dp).fillMaxHeight().background(Color(0xFF080F18))
-                    .padding(end = 12.dp, top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    visibleTabs.forEach { t ->
-                        Surface(onClick = { tab = t }, shape = RoundedCornerShape(13.dp),
-                            color = if (tab == t) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent,
-                            contentColor = if (tab == t) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().height(54.dp).dpadFocus(RoundedCornerShape(13.dp))) {
-                            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(t.icon, null, Modifier.size(21.dp))
-                                Text(stringResource(t.labelRes), style = MaterialTheme.typography.labelLarge,
-                                    maxLines = 1, softWrap = false)
-                            }
-                        }
-                    }
-                }
+                TvSidebar(visibleTabs, tab, onSelect = { tab = it })
               }
               val tabEntrance = remember(tab) { androidx.compose.animation.core.Animatable(0f) }
               LaunchedEffect(tab) { tabEntrance.animateTo(1f, androidx.compose.animation.core.tween(260)) }
@@ -636,7 +605,7 @@ fun MainScreen(
 
 @Composable
 private fun TabContent(
-    tab: Tab,
+    tab: AppDestination,
     viewModel: MainViewModel,
     video: @Composable () -> Unit,
     onFullscreen: () -> Unit,
@@ -645,13 +614,13 @@ private fun TabContent(
     showAudioMode: Boolean
 ) {
     when (tab) {
-        Tab.OVERVIEW -> OverviewContent(
+        AppDestination.OVERVIEW -> OverviewContent(
             viewModel, video,
             onFullscreen = onFullscreen, onPip = onPip, onLocalNetwork = onLocalNetwork, showAudioMode = showAudioMode
         )
-        Tab.LOGS -> LogsScreen(viewModel)
-        Tab.TOOLS -> ToolsScreen(viewModel)
-        Tab.SETTINGS -> SettingsScreen(viewModel)
+        AppDestination.LOGS -> LogsScreen(viewModel)
+        AppDestination.TOOLS -> ToolsScreen(viewModel)
+        AppDestination.SETTINGS -> SettingsScreen(viewModel)
     }
 }
 
@@ -737,7 +706,7 @@ private fun OverviewContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
-                if (state == ServerState.RUNNING && mirroringActive) {
+                if (!tv && state == ServerState.RUNNING && mirroringActive) {
                     Row(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
                         IconButton(onClick = onPip, modifier = Modifier.dpadFocus()) {
                             Icon(
@@ -856,6 +825,7 @@ private fun FullscreenVideo(
     val debugEnabled by viewModel.pref(Prefs.DEBUG_ENABLED).collectAsState()
     val debugInfo by viewModel.debugInfo.collectAsState()
     val captureStatus by viewModel.captureState.collectAsState()
+    val tv = isTv()
 
     var controlsVisible by remember { mutableStateOf(true) }
     var tapTick by remember { mutableStateOf(0) }
@@ -878,7 +848,7 @@ private fun FullscreenVideo(
                 modifier = Modifier.align(Alignment.TopStart).padding(16.dp))
         }
         androidx.compose.animation.AnimatedVisibility(
-            visible = controlsVisible,
+            visible = controlsVisible && (!tv || captureStatus.armed),
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Row(modifier = Modifier.padding(8.dp)) {
@@ -888,6 +858,7 @@ private fun FullscreenVideo(
                         Text("■ Parar gravação", color = Color.Red)
                     }
                 }
+                if (!tv) {
                 IconButton(onClick = onPip, modifier = Modifier.dpadFocus()) {
                     Icon(
                         painterResource(R.drawable.ic_pip), contentDescription = stringResource(R.string.cd_pip),
@@ -899,6 +870,7 @@ private fun FullscreenVideo(
                         Icons.Default.FullscreenExit, contentDescription = stringResource(R.string.cd_exit_fullscreen),
                         tint = Color.White.copy(alpha = 0.7f)
                     )
+                }
                 }
             }
         }
@@ -960,12 +932,8 @@ private fun HoldScanButton(
 private fun AudioMiniController(viewModel: MainViewModel, visible: Boolean, onClick: () -> Unit) {
     if (!visible) return
     val player = viewModel.dacpPlayer ?: return
-    val context = LocalContext.current
-    MiniController(
-        player,
-        bitmapLoader = remember { DataSourceBitmapLoader.Builder(context).build() },
-        onClick = onClick
-    )
+    val track by viewModel.trackInfo.collectAsState()
+    AudioMiniRow(player, track.title.ifEmpty { stringResource(R.string.unknown_track) }, onClick)
 }
 
 @Composable
@@ -1042,9 +1010,9 @@ private fun NowPlayingContent(viewModel: MainViewModel) {
         if (player != null) {
             // BottomControls' default row, minus its video-overlay gradient
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                PositionText(player, Modifier.padding(end = 8.dp))
-                Box(modifier = Modifier.weight(1f)) { ProgressSlider(player) }
-                DurationText(player, Modifier.padding(start = 8.dp))
+                AudioPositionText(player, Modifier.padding(end = 8.dp))
+                Box(modifier = Modifier.weight(1f)) { AudioProgressSlider(player) }
+                AudioDurationText(player, Modifier.padding(start = 8.dp))
             }
 
             Spacer(Modifier.height(8.dp))
@@ -1060,13 +1028,13 @@ private fun NowPlayingContent(viewModel: MainViewModel) {
                     onBegin = { viewModel.audioScanBegin(false) },
                     onEnd = { viewModel.audioScanEnd() }
                 )
-                PreviousButton(player, modifier = Modifier.dpadFocus())
-                PlayPauseButton(
+                AudioPreviousButton(player, modifier = Modifier.dpadFocus())
+                AudioPlayPauseButton(
                     player,
                     modifier = Modifier.size(63.dp).dpadFocus(CircleShape),
                     iconSize = 40.dp
                 )
-                NextButton(player, modifier = Modifier.dpadFocus())
+                AudioNextButton(player, modifier = Modifier.dpadFocus())
                 HoldScanButton(
                     icon = Icons.Default.FastForward,
                     contentDescription = stringResource(R.string.cd_fast_forward),

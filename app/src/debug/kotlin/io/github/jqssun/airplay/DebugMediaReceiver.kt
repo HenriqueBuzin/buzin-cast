@@ -11,6 +11,14 @@ class DebugMediaReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pending = goAsync()
         val app = context.applicationContext
+        if (intent.getStringExtra("command") == "startserver") {
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(app,
+                    Intent(app, AirPlayService::class.java).setAction(AirPlayService.ACTION_START_SERVER))
+            } catch (e: Exception) {
+                pending.resultCode = 1; pending.resultData = e.toString(); pending.finish(); return
+            }
+        }
         val connection = object : ServiceConnection {
             override fun onServiceDisconnected(name: ComponentName?) { }
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -18,11 +26,18 @@ class DebugMediaReceiver : BroadcastReceiver() {
                 Thread({
                     try {
                         when (intent.getStringExtra("command")) {
+                            "coverage" -> DebugCoverage.dump(app)
+                            "startserver" -> Unit // Service owns its started lifetime before this binding is released.
+                            "stopvideo" -> service.stopVideoPlayback()
+                            "native-stop" -> service.onVideoStop()
+                            "native-disconnect" -> service.onConnectionDestroy()
+                            "mirror-start" -> { check(service.connectionCount.value == 0); service.onConnectionInit(); service.onVideoSize(64f,48f,64f,48f) }
+                            "airplayurl" -> service.onVideoPlay(intent.getStringExtra("url")!!,0f)
                             "calibrate" -> app.startActivity(Intent(app, io.github.jqssun.airplay.media.CalibrationActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                             "approvalsetting" -> Prefs.APPROVE_CONNECTIONS.write(app.getSharedPreferences(Prefs.NAME,0),intent.getBooleanExtra("enabled",false))
                             "approve", "deny" -> service.approval.request.value?.let { service.approval.answer(it.id,intent.getStringExtra("command") == "approve") }
                             "profile" -> io.github.jqssun.airplay.media.ExperienceProfiles.apply(app.getSharedPreferences(Prefs.NAME,0),intent.getStringExtra("name")!!)
-                            "playurl" -> android.os.Handler(android.os.Looper.getMainLooper()).post { service.playNetworkVideo(intent.getStringExtra("url")!!,"debug") }
+                            "playurl" -> android.os.Handler(android.os.Looper.getMainLooper()).post { service.playLocalVideo(intent.getStringExtra("url")!!) }
                             "subtitlefixture" -> {
                                 val kind = intent.getStringExtra("kind") ?: "vtt"
                                 val file = java.io.File(app.cacheDir,"test-caption.$kind")
@@ -79,6 +94,11 @@ class DebugMediaReceiver : BroadcastReceiver() {
                         val relay = service.relay.state.value
                         pending.resultCode = -1
                         pending.resultData = JSONObject().put("recording", service.capture.state.value.recording)
+                            .put("serverState",service.serverState.value.name)
+                            .put("resolution",service.videoResolution.value)
+                            .put("sessionProtocol",service.sessionSnapshot()?.token?.protocol?.name)
+                            .put("sessionGeneration",service.sessionSnapshot()?.token?.generation)
+                            .put("sessionPhase",service.sessionSnapshot()?.phase?.name)
                             .put("approvalPeer",service.approval.request.value?.peer).put("approvalProtocol",service.approval.request.value?.protocol)
                             .put("caption",service.airPlayVideoPlayer.subtitleText.value)
                             .put("networkMessage",service.networkMessage.value)
@@ -86,6 +106,7 @@ class DebugMediaReceiver : BroadcastReceiver() {
                             .put("activeVideo",service.videoPlaybackActive.value)
                             .put("margin",Prefs.TV_MARGIN.read(app.getSharedPreferences(Prefs.NAME,0)))
                             .put("captureMessage", service.capture.state.value.message)
+                            .put("recordings", org.json.JSONArray(service.capture.directory.listFiles()?.filter { it.extension == "mkv" }?.map { JSONObject().put("name",it.name).put("bytes",it.length()) } ?: emptyList<JSONObject>()))
                             .put("relayPort", relay.port).put("relayCode", relay.code)
                             .put("sending", relay.sending).put("receiving", relay.receiving).put("relayMessage", relay.message).toString()
                     } catch (e: Exception) { pending.resultCode = 1; pending.resultData = e.toString() }

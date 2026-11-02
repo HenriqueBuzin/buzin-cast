@@ -3,7 +3,8 @@ package io.github.jqssun.airplay.discovery
 import android.os.Handler
 import android.os.Looper
 import io.buzincast.media.FCastFrame
-import io.github.jqssun.airplay.service.AirPlayService
+import android.content.Context
+import io.buzincast.core.*
 import io.leancast.app.Net
 import org.json.JSONObject
 import java.net.InetSocketAddress
@@ -14,7 +15,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** Opt-in LAN receiver implementing the URL playback subset of FCast v2 (not Google Cast). */
-class FCastReceiver(private val service: AirPlayService, private val name: String, private val log: (String) -> Unit) {
+class FCastReceiver(private val context: Context, private val playback: ReceiverPlaybackPort, private val name: String, private val log: (String) -> Unit) : ReceiverAdapter {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     @Volatile private var listener: ServerSocket? = null
@@ -34,8 +35,8 @@ class FCastReceiver(private val service: AirPlayService, private val name: Strin
             if (writeStartedAt != 0L && android.os.SystemClock.elapsedRealtime() - writeStartedAt > 5000) {
                 runCatching { client?.close() }
             }
-            val owns = service.networkPlaybackOwner == "fcast" && service.videoPlaybackActive.value
-            val info = service.videoPlaybackInfo.value
+            val owns = playback.mediaOwner == Protocol.FCAST && playback.mediaActive
+            val info = playback.playbackInfo
             state = FCastFrame(6, JSONObject().put("generationTime", System.currentTimeMillis())
                 .put("time", if (owns) info.positionMs / 1000.0 else 0.0)
                 .put("duration", if (owns) info.durationMs.coerceAtLeast(0) / 1000.0 else 0.0)
@@ -45,14 +46,14 @@ class FCastReceiver(private val service: AirPlayService, private val name: Strin
         }
     }
 
-    @Synchronized fun start() {
+    @Synchronized override fun start() {
         if (closed || listener != null) return
         try {
             val ip = Net.lanIpv4() ?: error("No LAN IPv4")
             val server = ServerSocket().apply { reuseAddress = true }
             listener = server
             server.bind(InetSocketAddress(ip, 46899), 1)
-            discovery = NsdServiceManager(service).also {
+            discovery = NsdServiceManager(context).also {
                 it.acquireMulticastLock()
                 it.register(listOf(MdnsService(name, "_fcast._tcp", 46899, mapOf("v" to "2", "appName" to "Buzin Cast"))))
             }
@@ -84,7 +85,7 @@ class FCastReceiver(private val service: AirPlayService, private val name: Strin
     private fun session(socket: Socket) {
         try {
             socket.tcpNoDelay = true
-            if (!service.authorizeConnection("FCast", socket.inetAddress.hostAddress.orEmpty())) return
+            if (!playback.authorize("FCast", socket.inetAddress.hostAddress.orEmpty())) return
             send(socket, FCastFrame(11, "{\"version\":2}"))
             var window = System.currentTimeMillis(); var count = 0
             while (!closed && !socket.isClosed) {
@@ -127,7 +128,7 @@ class FCastReceiver(private val service: AirPlayService, private val name: Strin
         body.getDouble(key).also { require(it.isFinite() && it in min..max) { "Invalid $key" } }
 
     private fun command(opcode: Int, body: JSONObject) {
-        check(service.connectionCount.value == 0 && !service.relay.state.value.receiving) { "Another screen session is active" }
+        check(playback.activeConnections == 0 && !playback.relayReceiving) { "Another screen session is active" }
         if (opcode == 1) {
             check(System.currentTimeMillis() - lastRequestAt >= 500) { "Wait before starting another item" }
             require(!body.has("content") || body.isNull("content")) { "Inline manifests are not supported; send an HTTP(S) URL" }
@@ -149,23 +150,23 @@ class FCastReceiver(private val service: AirPlayService, private val name: Strin
             val time = if (body.has("time") && !body.isNull("time")) number(body, "time", 0.0, 31536000.0) else 0.0
             val speed = if (body.has("speed") && !body.isNull("speed")) number(body, "speed", 0.25, 4.0) else 1.0
             lastRequestAt = System.currentTimeMillis()
-            service.playNetworkVideo(url, "fcast", time.toFloat(), mime, headers)
+            playback.load(MediaRequest(url, Protocol.FCAST, time.toFloat(), mime, headers))
             volume = 1.0
-            service.airPlayVideoPlayer.setSpeed(speed.toFloat())
+            playback.speed(Protocol.FCAST, speed.toFloat())
         } else {
-            check(service.networkPlaybackOwner == "fcast" && service.videoPlaybackActive.value) { "No FCast media is playing" }
+            check(playback.mediaOwner == Protocol.FCAST && playback.mediaActive) { "No FCast media is playing" }
             when (opcode) {
-                2 -> service.airPlayVideoPlayer.setPlaying(false)
-                3 -> service.airPlayVideoPlayer.setPlaying(true)
-                4 -> service.stopVideoPlayback()
-                5 -> service.onVideoScrub(number(body, "time", 0.0, 31536000.0).toFloat())
-                8 -> { volume = number(body, "volume", 0.0, 1.0); service.airPlayVideoPlayer.setClientGain(volume.toFloat()) }
-                10 -> service.airPlayVideoPlayer.setSpeed(number(body, "speed", 0.25, 4.0).toFloat())
+                2 -> playback.playing(Protocol.FCAST, false)
+                3 -> playback.playing(Protocol.FCAST, true)
+                4 -> playback.stop(Protocol.FCAST)
+                5 -> playback.seek(Protocol.FCAST, number(body, "time", 0.0, 31536000.0).toFloat())
+                8 -> { volume = number(body, "volume", 0.0, 1.0); playback.gain(Protocol.FCAST, volume.toFloat()) }
+                10 -> playback.speed(Protocol.FCAST, number(body, "speed", 0.25, 4.0).toFloat())
             }
         }
     }
 
-    @Synchronized fun close() {
+    @Synchronized override fun close() {
         closed = true
         runCatching { listener?.close() }; listener = null
         runCatching { client?.close() }; client = null

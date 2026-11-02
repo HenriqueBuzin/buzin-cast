@@ -1,15 +1,23 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    jacoco
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(25)
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 }
 
 dependencies {
     // XmlPullParser API: provided by Android at runtime; kxml2 backs JVM tests only.
-    compileOnly("net.sf.kxml:kxml2:2.3.0")
+    compileOnly(libs.kxml)
 
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("net.sf.kxml:kxml2:2.3.0")
+    testImplementation(libs.junit4)
+    testImplementation(libs.kxml)
 }
+
+tasks.test { finalizedBy(tasks.jacocoTestReport) }
+tasks.jacocoTestReport { reports { xml.required.set(true); html.required.set(true) } }
+
+java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+jacoco { toolVersion = libs.versions.jacoco.get() }
