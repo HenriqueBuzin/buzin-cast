@@ -216,7 +216,7 @@ class Suite:
         original=self.debug()["margin"]
         def open_preview():
             self.debug("calibrate")
-            self.wait(lambda: re.search(r"mCurrentFocus=.*CalibrationActivity",self.adb("shell","dumpsys","window","windows")),"Calibration did not open")
+            self.wait(lambda: re.search(r"mCurrentFocus=.*CalibrationActivity",self.adb("shell","dumpsys","window")),"Calibration did not open")
         def saved(value):
             self.wait(lambda:self.debug().get("margin")==value,"Calibration did not save margin: "+str(value))
         try:
@@ -232,6 +232,61 @@ class Suite:
             self.key(23); saved(10)
         finally:
             self.setting("tv_margin",original)
+
+    def media_controls(self):
+        # Silent PCM keeps this test deterministic without external media,
+        # downloads or a dependency on video hardware in the host emulator.
+        self.adb("shell","am","start","-S","-n",f"{PKG}/{BASE}DebugTvPlaybackActivity")
+        buffer=io.BytesIO()
+        with wave.open(buffer,"wb") as wav:
+            wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(8000);wav.writeframes(b"\0\0"*8000*120)
+        body=buffer.getvalue()
+        class Media(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200);self.send_header("Content-Type","audio/wav")
+                self.send_header("Content-Length",str(len(body)));self.end_headers()
+                try:self.wfile.write(body)
+                except (BrokenPipeError,ConnectionResetError):pass
+            def log_message(self,*_):pass
+        server=ThreadingHTTPServer(("0.0.0.0",0),Media)
+        threading.Thread(target=server.serve_forever,daemon=True).start()
+        try:
+            self.debug("startserver")
+            self.debug("playurl",url=f"http://10.0.2.2:{server.server_port}/controls.wav")
+            self.wait(lambda:self.debug().get("positionMs",0)>1000,"Media did not start")
+            self.key(127)  # MEDIA_PAUSE: remote keys must reach the actual player.
+            self.wait(lambda:not self.debug().get("playing"),"Remote pause did not apply")
+            before=self.debug()["positionMs"]
+            self.key(90)
+            self.wait(lambda:self.debug().get("positionMs",0)>before+8000,"Remote forward did not seek")
+            after=self.debug()["positionMs"]
+            self.key(89)
+            self.wait(lambda:self.debug().get("positionMs",0)<after-8000,"Remote rewind did not seek")
+            self.activate("Playback speed","Velocidade de reprodução",description=True)
+            self.activate("2.0")
+            self.wait(lambda:sum(n.get("text")=="2.0" for n in self.ui().iter())>=2,"Speed did not update")
+            assert not self.debug()["playing"],"Changing speed resumed paused media"
+            self.key(4)
+            assert self.debug()["activeVideo"],"Closing speed menu stopped playback"
+            for kind in ("srt","vtt"):
+                caption="Legenda "+kind.upper()+" Buzin"
+                self.debug("subtitlefixture",kind=kind)
+                self.wait(lambda:caption in self.debug().get("caption",""),"Subtitle decoder did not emit "+kind)
+                self.wait(lambda:caption in self.texts(self.ui()),"Subtitle was not rendered in the player")
+                self.shot("rendered-caption-"+kind)
+            self.key(127)
+            self.activate("CC")
+            self.activate("Sem legenda")
+            self.wait(lambda:not self.debug().get("caption"),"Removing captions left stale text")
+            self.key(127)
+            self.activate("Lock controls","Bloquear controles",description=True)
+            self.activate("Unlock controls","Desbloquear controles",description=True)
+            self.key(126)
+            self.wait(lambda:self.debug().get("playing"),"Remote play did not resume")
+            self.key(86)
+            self.wait(lambda:not self.debug().get("activeVideo"),"Remote stop did not release media")
+        finally:
+            server.shutdown();server.server_close()
 
     def media_recovery(self):
         self.start("home")  # Android requires a foreground app to start the receiver service.
@@ -363,6 +418,9 @@ class Suite:
             cases=[("normal settings",lambda:self.scan_settings(False)),("advanced/custom settings",lambda:self.scan_settings(True)),
                    ("cancel and restore focus",self.edit_cancel),("single relay form",self.relay_form),
                    ("device-aware profiles",self.profiles),("shared audio controls",self.audio_controls),("native/player recovery and ownership",self.media_recovery),("native codecs and recording smoke",self.native_capture),("launcher entry and resume",self.launcher_entry),("guided calibration save/cancel and bounds",self.calibration)]
+            extended=("media remote controls and rendered captions",self.media_controls)
+            if self.args.extended or (self.args.case and any(pattern in extended[0] for pattern in self.args.case)):
+                cases.append(extended)
             selected=[(name,test) for name,test in cases if not self.args.case or any(pattern in name for pattern in self.args.case)]
             assert selected,"No test matches --case"
             for name,test in selected:
@@ -390,4 +448,5 @@ if __name__=="__main__":
     parser.add_argument("--coverage", action="store_true", help="Require Android and native coverage checkpoints after every scenario")
     parser.add_argument("--output",default="build/emulator-checks")
     parser.add_argument("--case",action="append",help="Run matching case descriptions; repeat to select multiple cases")
+    parser.add_argument("--extended",action="store_true",help="Include additional scenarios still under validation; see docs/WORK_CHECKPOINT.md")
     Suite(parser.parse_args()).run()
