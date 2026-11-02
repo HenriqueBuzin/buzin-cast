@@ -1,0 +1,22 @@
+{
+  "description": "Logo approved by Henrique Buzin. Preserve across editions and updates; redesign only upon explicit user request.",
+  "application": {
+    "icon": "@mipmap/buzin_launcher",
+    "roundIcon": "@mipmap/buzin_launcher",
+    "banner": "@drawable/buzin_tv_banner"
+  },
+  "resources": {
+    "app/src/main/res/drawable-nodpi/buzin_banner.png": "8e638f6e0609ad90f8b2687be3408aee6410fae316761f8149df944da2bc22d8",
+    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "e88906347b0cf0bf51e6869bc8750ef5899e7af620d072c49884b990070526e8",
+    "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "362ba06f5a1eaad2ccc5c3c528efc881e4afffa03c6adc59dba37d5a39796a1b",
+    "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "3741178bfd6874841eeb09e6dc236bc48a04f1b6254e3e524e7613a1972aa490",
+    "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "362ba06f5a1eaad2ccc5c3c528efc881e4afffa03c6adc59dba37d5a39796a1b",
+    "app/src/main/res/mipmap-television-mdpi/buzin_launcher.png": "3741178bfd6874841eeb09e6dc236bc48a04f1b6254e3e524e7613a1972aa490",
+    "app/src/main/res/mipmap-television-xhdpi/buzin_launcher.png": "d1d7055f75bc30c1ed4f40499f060ce7698a30dd8de35820571e6e9bed047f9a",
+    "app/src/main/res/mipmap-television-xxhdpi/buzin_launcher.png": "19da0752c85d1140c215ded2f7456c138fbaa08a08c41a5bf4a68c4d6736abdd",
+    "app/src/main/res/mipmap-television-xxxhdpi/buzin_launcher.png": "df5ec14cbd7c7ba3365938cad3ee1cbcd73f0920923271d90d21bd779b85bb88",
+    "app/src/main/res/mipmap-xhdpi/buzin_launcher.png": "d1d7055f75bc30c1ed4f40499f060ce7698a30dd8de35820571e6e9bed047f9a",
+    "app/src/main/res/mipmap-xxhdpi/buzin_launcher.png": "19da0752c85d1140c215ded2f7456c138fbaa08a08c41a5bf4a68c4d6736abdd",
+    "app/src/main/res/mipmap-xxxhdpi/buzin_launcher.png": "df5ec14cbd7c7ba3365938cad3ee1cbcd73f0920923271d90d21bd779b85bb88"
+  }
+}
