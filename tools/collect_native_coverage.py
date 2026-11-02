@@ -16,7 +16,7 @@ root=Path(__file__).resolve().parents[1]
 sdk=Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"])
 ndk=re.search(r'^ndk = "([^"]+)"', (root/"gradle/libs.versions.toml").read_text(), re.M).group(1)
 llvm=sdk/("ndk/"+ndk+"/toolchains/llvm/prebuilt/linux-x86_64/bin")
-app_build="build-legacy" if args.legacy else "build"
+app_build="build-legacy-coverage" if args.legacy else "build-coverage"
 binaries=list((root/("app/"+app_build+"/intermediates/cxx/Debug")).glob("*/obj/x86_64/libairplay_native.so"))
 binaries=[binary for binary in binaries if b"__llvm_covmap" in subprocess.check_output([str(llvm/"llvm-readelf"),"-S",str(binary)])]
 if not binaries: raise SystemExit("Instrumented x86_64 native library missing; build with -PbuzinCoverage=true")

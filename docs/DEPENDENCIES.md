@@ -40,6 +40,8 @@ A troca das versões não prova compatibilidade. Validar compilação ARM32/ARM6
 
 Compile com `-PbuzinLegacy=true`. A saída fica em `app/build-legacy`, separada da edição principal. As duas edições compartilham código e identidade do aplicativo; os binários devem receber filtros de dispositivos distintos na Amazon Appstore. Não usamos `overrideLibrary` para burlar mínimos declarados.
 
+As saídas normais e instrumentadas também são isoladas: `app/build`, `app/build-legacy`, `app/build-coverage` e `app/build-legacy-coverage`. A propriedade `-PbuzinCoverage=true` seleciona a pasta instrumentada da edição correspondente. Execute builds do mesmo checkout em sequência; arquivos Gradle, patches e caches do projeto continuam compartilhados.
+
 Esta edição usa as versões estáveis mais recentes cujos manifests AAR ainda aceitam API 22, verificadas diretamente no repositório oficial:
 
 - Compose BOM 2025.11.01, com Compose UI 1.9.5 e Material3 1.4.0.

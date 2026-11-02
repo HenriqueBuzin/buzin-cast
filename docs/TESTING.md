@@ -17,7 +17,7 @@ O gate do núcleo exige pelo menos 90% de cobertura de linhas e 80% de decisões
 Em um emulador isolado, com ADB autorizado:
 
 ```bash
-python3 tools/test_emulator.py --serial emulator-5554 --apk app/build/outputs/apk/debug/app-debug.apk
+python3 tools/test_emulator.py --serial emulator-5554 --apk app/build-coverage/outputs/apk/debug/app-debug.apk
 ```
 
 O script recusa serial físico ou IP. Usa apenas a biblioteca padrão Python. Instala o debug APK, usa a navegação lateral e os controles reais em uma atividade exclusiva de debug, ajusta preferências do emulador, gera áudio silencioso sintético e simula uma falha HTTP. Não conecta nas TVs da rede. No fim, encerra o app no emulador e restaura os overrides de tamanho/densidade.
@@ -48,7 +48,7 @@ Não marcar recursos experimentais como estáveis apenas porque o CI passou. O C
 
 ## Integração, smoke, funcional e regressão
 
-A suíte tem 23 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 17 testes instrumentados Android, nove testes C++ e nove cenários de interface/serviço. As categorias se complementam:
+A suíte tem 23 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 17 testes instrumentados Android, nove testes C++ e dez cenários de interface/serviço. As categorias se complementam:
 
 - Unitários e de contrato: políticas de sessão, ajuste da imagem, perfis, quadros e parsers.
 - Integração: listeners FCast/DLNA/Cast V2, TCP/TLS, HTTP/SOAP, NSD, handlers Android, importação por ContentResolver, autorização e armazenamento.
@@ -64,7 +64,7 @@ A meta solicitada é 100% do código próprio, incluindo Android e C++. O gate a
 
 ```bash
 ./gradlew -PbuzinCoverage=true -PbuzinAbis=x86_64 :receiver-core:check :dlna-domain:test :app:assembleDebug :app:assembleDebugAndroidTest
-python3 tools/test_emulator.py --serial emulator-5554 --apk app/build/outputs/apk/debug/app-debug.apk --test-apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk --coverage
+python3 tools/test_emulator.py --serial emulator-5554 --apk app/build-coverage/outputs/apk/debug/app-debug.apk --test-apk app/build-coverage/outputs/apk/androidTest/debug/app-debug-androidTest.apk --coverage
 ./gradlew -PbuzinCoverage=true -PbuzinAbis=x86_64 :app:fullCoverageReport
 python3 tools/collect_native_coverage.py --profiles build/emulator-checks --output build/coverage-report
 ```
@@ -81,7 +81,7 @@ A medição Android segue a [documentação oficial de cobertura](https://develo
 
 ```bash
 python3 tools/build_native_tests.py --abi x86_64 --api 22 --output build/native-tests
-python3 tools/test_emulator.py --serial emulator-5554 --apk app/build-legacy/outputs/apk/debug/app-debug.apk --test-apk app/build-legacy/outputs/apk/androidTest/debug/app-debug-androidTest.apk --native-tests build/native-tests/native_core_tests --coverage --output build/emulator-checks-legacy
+python3 tools/test_emulator.py --serial emulator-5554 --apk app/build-legacy-coverage/outputs/apk/debug/app-debug.apk --test-apk app/build-legacy-coverage/outputs/apk/androidTest/debug/app-debug-androidTest.apk --native-tests build/native-tests/native_core_tests --coverage --output build/emulator-checks-legacy
 ./gradlew -PbuzinLegacy=true -PbuzinCoverage=true -PbuzinAbis=x86_64 :app:fullCoverageReport
 python3 tools/collect_native_coverage.py --legacy --profiles build/emulator-checks-legacy --output build/coverage-report-legacy
 ```
@@ -103,3 +103,9 @@ O cenário RTSP também cobre a criação e saída dos pthreads de callbacks. Es
 A atividade de TV dos testes mantém a opção de abrir a atividade principal desligada durante o cenário. Isso evita criar outro host com início automático enquanto o teste verifica o encerramento. As configurações padrão de distribuição continuam definidas em `Prefs`.
 
 O cenário do launcher abre a `MainActivity` real, verifica o início automático do receptor, sai para Home e retoma o app. Formulário, perfis e controles de áudio usam foco e OK; coordenadas de toque não são necessárias. Os emuladores têm o teclado virtual habilitado mesmo quando o host anuncia um teclado físico, para verificar a edição e o cancelamento de forma consistente.
+
+A edição/cancelamento é repetida três vezes para detectar corridas na abertura do diálogo. O teclado só é solicitado pelo controlador da janela do diálogo, após foco da janela e do campo e a instalação da sessão de entrada. Isso usa [WindowInfo.isWindowFocused](https://developer.android.com/reference/kotlin/androidx/compose/ui/platform/WindowInfo).
+
+O cenário de calibração altera a margem com setas, salva com OK, cancela com Voltar, verifica os limites 0–10 e restaura a preferência original do emulador.
+
+No Android 5.1, a fábrica NDK de codecs pode retornar um wrapper cujo codec interno é nulo. A implementação [AOSP 5.1](https://android.googlesource.com/platform/frameworks/av/+/android-5.1.1_r1/media/ndk/NdkMediaCodec.cpp) não verifica esse resultado antes de devolver o wrapper. A configuração do bridge força os decodificadores FFmpeg embarcados nesse sistema, evitando a falha nativa; a política vale também para a configuração inicial, antes de chegar uma atualização de preferências. A suíte mantém o smoke AAC real para detectar regressões.
