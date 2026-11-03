@@ -11,8 +11,8 @@ class ReceiverGroup(private val failure: (Exception) -> Unit = {}) : AutoCloseab
         if (admitted == null) { release(receiver); return }
         try { receiver.start() }
         catch (e: Exception) {
-            synchronized(lock) { active.remove(receiver) }
-            release(receiver); failure(e)
+            if (synchronized(lock) { active.remove(receiver) }) release(receiver)
+            failure(e)
         }
     }
     override fun close() {

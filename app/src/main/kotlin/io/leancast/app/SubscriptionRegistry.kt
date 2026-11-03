@@ -145,7 +145,7 @@ class SubscriptionRegistry {
                     flush()
                 }
                 val status = sock.getInputStream().bufferedReader().readLine().orEmpty()
-                status.contains(" 200")
+                status.substringAfter(' ', "").substringBefore(' ') == "200"
             }
         } catch (e: Exception) {
             Log.d(TAG, "NOTIFY to $url failed: ${e.javaClass.simpleName}: ${e.message}")
@@ -170,7 +170,7 @@ class SubscriptionRegistry {
         fun parseTimeout(raw: String?): Int {
             val value = raw?.trim() ?: return DEFAULT_TIMEOUT
             if (!value.startsWith("Second-", ignoreCase = true)) return DEFAULT_TIMEOUT
-            val tail = value.removePrefix("Second-").removePrefix("second-")
+            val tail = value.substring("Second-".length)
             if (tail.equals("infinite", ignoreCase = true)) return DEFAULT_TIMEOUT
             return tail.toIntOrNull()?.coerceIn(60, 86_400) ?: DEFAULT_TIMEOUT
         }

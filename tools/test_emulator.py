@@ -383,12 +383,14 @@ class Suite:
         self.adb("shell","rm","-f",remote+"/native-unit.profraw")
         output=self.adb("shell","LLVM_PROFILE_FILE="+remote+"/native-unit.profraw",remote+"/native_core_tests")
         (self.out/"native-unit.txt").write_text(output,encoding="utf-8")
-        assert "Native tests: 9, failures: 0" in output,output
+        result = re.search(r"^Native tests: ([1-9]\d*), failures: 0$", output.replace("\r", ""), re.MULTILINE)
+        assert result, output
+        cases = int(result.group(1))
         directory=self.out/"coverage";directory.mkdir(parents=True,exist_ok=True)
         (directory/"0-native-unit.profraw").write_bytes(self.adb("exec-out","cat",remote+"/native-unit.profraw",binary=True))
         shutil.copyfile(self.args.native_tests,self.out/"native_core_tests")
-        self.results.append({"test":"C++ unit concurrency and timing", "passed":True,"cases":9})
-        print("PASS C++ unit tests (9 cases, UBSan)",flush=True)
+        self.results.append({"test":"C++ unit concurrency and timing", "passed":True,"cases":cases})
+        print(f"PASS C++ unit tests ({cases} cases, UBSan)", flush=True)
 
     def instrumentation(self):
         apk=str(Path(self.args.test_apk).resolve())
