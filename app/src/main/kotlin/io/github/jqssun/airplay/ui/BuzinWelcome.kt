@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -112,8 +113,16 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
     }
     }
     if (about) {
+        val context = LocalContext.current
+        @Suppress("DEPRECATION")
+        val version = remember(context) { context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty() }
         AlertDialog(onDismissRequest = { about = false }, title = { Text(stringResource(R.string.buzin_about)) },
-            text = { Text(stringResource(R.string.buzin_credits), Modifier.verticalScroll(rememberScrollState())) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.buzin_version, version), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.buzin_credits))
+                }
+            },
             confirmButton = { TextButton(onClick = { about = false }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.btn_ok)) } })
     }
 }

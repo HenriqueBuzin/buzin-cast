@@ -106,10 +106,20 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
         }
     }
     fun answerApproval(id: Long, allow: Boolean) { service?.approval?.answer(id,allow) }
+    private var profileJob: Job? = null
     fun applyProfile(name: String) {
-        viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO) { io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs,name) } }
-                .onFailure { android.widget.Toast.makeText(getApplication(), "Perfil indisponível: ${it.message}", android.widget.Toast.LENGTH_LONG).show() }
+        profileJob?.cancel()
+        profileJob = viewModelScope.launch {
+            try {
+                val capabilities = if (name == Prefs.DEFAULT_PROFILE) null else withContext(Dispatchers.IO) {
+                    io.github.jqssun.airplay.media.DeviceCapabilityProbe.read()
+                }
+                io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs, name, capabilities)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(getApplication(), "Perfil indisponível: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            }
         }
     }
     private val _captureState = MutableStateFlow(io.github.jqssun.airplay.media.MirrorCapture.State())

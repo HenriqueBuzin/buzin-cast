@@ -37,7 +37,9 @@ import androidx.compose.ui.res.stringResource
 import kotlin.math.roundToInt
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun SettingsScreen(viewModel: MainViewModel) {
+    val selectedProfile by viewModel.pref(Prefs.EXPERIENCE_PROFILE).collectAsState()
     val dlnaEnabled by viewModel.pref(Prefs.DLNA_ENABLED).collectAsState()
     val fcastEnabled by viewModel.pref(Prefs.FCAST_ENABLED).collectAsState()
     val castV2Enabled by viewModel.pref(Prefs.CASTV2_ENABLED).collectAsState()
@@ -96,9 +98,10 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
         Text("Perfil de transmissão", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
         Text("Mudar o perfil reinicia o receptor. A qualidade efetiva depende do emissor e da rede.", modifier = Modifier.padding(horizontal = 16.dp))
-        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             io.github.jqssun.airplay.media.ExperienceProfiles.names.forEach { profile ->
-                OutlinedButton(onClick = { viewModel.applyProfile(profile) }, modifier = Modifier.dpadFocus()) { Text(profile) }
+                FilterChip(selected = selectedProfile == profile, onClick = { viewModel.applyProfile(profile) },
+                    label = { Text(profile) }, modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp)))
             }
         }
 

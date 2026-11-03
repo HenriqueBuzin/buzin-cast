@@ -48,15 +48,18 @@ Não marcar recursos experimentais como estáveis apenas porque o CI passou. O C
 
 ## Integração, smoke, funcional e regressão
 
-A suíte tem 23 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 17 testes instrumentados Android, nove testes C++ e dez cenários de interface/serviço. As categorias se complementam:
+A suíte tem 23 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 18 testes instrumentados Android, nove testes C++ e 11 cenários de interface/serviço. As categorias se complementam:
 
 - Unitários e de contrato: políticas de sessão, ajuste da imagem, perfis, quadros e parsers.
 - Integração: listeners FCast/DLNA/Cast V2, TCP/TLS, HTTP/SOAP, NSD, handlers Android, importação por ContentResolver, autorização e armazenamento.
 - Funcionais e ponta a ponta: controle remoto, edição/cancelamento, aplicação persistida dos perfis, reprodução após falha HTTP, gravação e saída do espelhamento.
+
 - Smoke: entrada real do launcher e retomada da atividade, inicialização do receptor JNI e do player, fluxo sintético de mídia e finalização da gravação.
 - Regressão: eventos antigos de outra sessão, teclado indevido, cabeçalho SOAP com corpo inválido e assinatura TLS no AndroidKeyStore.
 - Concorrência e resiliência: disputa por sessão, encerramento durante inicialização, filas limitadas, disco lento/indisponível, aprovação pendente, quadros inválidos e reconexão TCP.
 - Análise estática: Android Lint. A variante `sanitize` existente oferece HWASan/UBSan em ARM64; ela precisa de ambiente compatível e não é executada no emulador x86_64 desta suíte.
+
+Os casos `--case profiles --case 'about version'` verificam o destaque de uma única escolha, a persistência após reabrir o app e a versão exibida em Sobre. Padrão restaura apenas os ajustes de vídeo e áudio gerenciados pelos perfis; o teste Android `FeatureIntegrationTest#defaultProfileRestoresOnlyPresetSettingsAndKeepsExistingProfileNames` confere que nome, PIN e margem não são afetados. Para executar apenas esse teste Android, informe o nome qualificado do método em `--test-class` com `--test-apk`.
 
 ## Cobertura de todo o código de produção
 

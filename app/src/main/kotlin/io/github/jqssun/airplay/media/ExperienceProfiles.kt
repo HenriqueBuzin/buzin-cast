@@ -5,20 +5,21 @@ import io.github.jqssun.airplay.Prefs
 import io.buzincast.core.*
 
 object ExperienceProfiles {
-    val names = listOf("Cinema", "Apresentação", "Jogos")
-    fun apply(prefs: SharedPreferences, name: String, capabilities: DeviceCapabilities = DeviceCapabilityProbe.read()) {
+    private val presets = linkedMapOf("Cinema" to ExperienceProfile.CINEMA,
+        "Apresentação" to ExperienceProfile.PRESENTATION, "Jogos" to ExperienceProfile.GAMES)
+    val names = listOf(Prefs.DEFAULT_PROFILE) + presets.keys
+    fun apply(prefs: SharedPreferences, name: String, capabilities: DeviceCapabilities? = null) {
         require(name in names)
-        val profile = ExperienceProfile.entries[names.indexOf(name)]
-        val plan = QualityProfiles.choose(profile, capabilities)
+        val plan = presets[name]?.let { QualityProfiles.choose(it, capabilities ?: DeviceCapabilityProbe.read()) }
         // One atomic preference edit produces one debounced receiver restart.
-        prefs.edit().putString("experience_profile", name)
-            .putString(Prefs.RESOLUTION.key, "${plan.mode.width}x${plan.mode.height}")
-            .putInt(Prefs.MAX_FPS.key, plan.mode.fps)
-            .putString(Prefs.H265.key, Prefs.OFF)
-            .putBoolean(Prefs.LOW_LATENCY.key, plan.lowLatency)
-            .putBoolean(Prefs.AUDIO_AUTO_BUFFER.key, plan.autoBuffer)
-            .putInt(Prefs.AUDIO_CUSHION_MS.key, plan.cushionMs)
-            .putInt(Prefs.AUDIO_ADAPTIVE_STEP.key, plan.adaptiveStep)
-            .putBoolean(Prefs.SYNC_CLIENT_VOLUME.key, true).apply()
+        prefs.edit().putString(Prefs.EXPERIENCE_PROFILE.key, name)
+            .putString(Prefs.RESOLUTION.key, plan?.mode?.let { "${it.width}x${it.height}" } ?: Prefs.RESOLUTION.def)
+            .putInt(Prefs.MAX_FPS.key, plan?.mode?.fps ?: Prefs.MAX_FPS.def)
+            .putString(Prefs.H265.key, if (plan == null) Prefs.H265.def else Prefs.OFF)
+            .putBoolean(Prefs.LOW_LATENCY.key, plan?.lowLatency ?: Prefs.LOW_LATENCY.def)
+            .putBoolean(Prefs.AUDIO_AUTO_BUFFER.key, plan?.autoBuffer ?: Prefs.AUDIO_AUTO_BUFFER.def)
+            .putInt(Prefs.AUDIO_CUSHION_MS.key, plan?.cushionMs ?: Prefs.AUDIO_CUSHION_MS.def)
+            .putInt(Prefs.AUDIO_ADAPTIVE_STEP.key, plan?.adaptiveStep ?: Prefs.AUDIO_ADAPTIVE_STEP.def)
+            .putBoolean(Prefs.SYNC_CLIENT_VOLUME.key, Prefs.SYNC_CLIENT_VOLUME.def).apply()
     }
 }
