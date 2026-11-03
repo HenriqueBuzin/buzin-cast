@@ -84,6 +84,30 @@ class FeatureIntegrationTest {
             Prefs.SERVER_NAME.write(prefs,"Sala"); assertEquals("Sala",Prefs.SERVER_NAME.read(prefs))
         } finally { prefs.edit().clear().commit() }
     }
+    @Test fun defaultProfileRestoresOnlyPresetSettingsAndKeepsExistingProfileNames() {
+        val prefs = context.getSharedPreferences("integration-profiles", 0)
+        prefs.edit().clear().commit()
+        try {
+            assertEquals(Prefs.DEFAULT_PROFILE, Prefs.EXPERIENCE_PROFILE.read(prefs))
+            Prefs.SERVER_NAME.write(prefs, "Sala")
+            Prefs.TV_MARGIN.write(prefs, 6)
+            Prefs.REQUIRE_PIN.write(prefs, true)
+            val device = io.buzincast.core.DeviceCapabilities(setOf(io.buzincast.core.VideoMode(1280, 720, 60)), true)
+            io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs, "Jogos", device)
+            assertEquals("Jogos", Prefs.EXPERIENCE_PROFILE.read(prefs))
+            assertEquals("1280x720", Prefs.RESOLUTION.read(prefs))
+            assertFalse(Prefs.AUDIO_AUTO_BUFFER.read(prefs))
+            io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs, Prefs.DEFAULT_PROFILE,
+                io.buzincast.core.DeviceCapabilities(emptySet(), false))
+            val defaults = listOf(Prefs.RESOLUTION, Prefs.MAX_FPS, Prefs.H265, Prefs.LOW_LATENCY,
+                Prefs.AUDIO_AUTO_BUFFER, Prefs.AUDIO_CUSHION_MS, Prefs.AUDIO_ADAPTIVE_STEP, Prefs.SYNC_CLIENT_VOLUME)
+            defaults.forEach { assertEquals(it.key, it.def, it.read(prefs)) }
+            assertEquals(Prefs.DEFAULT_PROFILE, Prefs.EXPERIENCE_PROFILE.read(prefs))
+            assertEquals("Sala", Prefs.SERVER_NAME.read(prefs))
+            assertEquals(6, Prefs.TV_MARGIN.read(prefs))
+            assertTrue(Prefs.REQUIRE_PIN.read(prefs))
+        } finally { prefs.edit().clear().commit() }
+    }
     @Test fun diagnosticsAndPhysicalDisplayWorkOnLegacyAndModernAndroid() {
         val report = io.github.jqssun.airplay.media.NetworkDiagnostics.report(context, true)
         assertTrue(report.contains("Receptor iniciado.")); assertTrue(report.contains("AirPlay:"))

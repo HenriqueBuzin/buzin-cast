@@ -180,14 +180,30 @@ class Suite:
         self.shot("relay-one-form")
 
     def profiles(self):
+        names = ["Cinema", "Apresentação", "Jogos", "Padrão"]
+        def selected():
+            return {c.get("text") for n in self.ui().iter()
+                    if n.get("selected")=="true" or n.get("checked")=="true"
+                    for c in n.iter() if c.get("text") in names}
+        def saved():
+            xml=self.adb("shell","run-as",PKG,"cat","shared_prefs/settings.xml")
+            return next((n.text for n in ET.fromstring(xml) if n.get("name")=="experience_profile"), "Padrão")
         self.start("settings")
-        for name in ["Cinema","Apresentação","Jogos"]:
+        assert selected()=={saved()}, "Settings did not show the saved or default profile"
+        for name in names:
             self.activate(name)
-            def applied():
-                xml=self.adb("shell","run-as",PKG,"cat","shared_prefs/settings.xml")
-                tree=ET.fromstring(xml)
-                return next((n.text for n in tree if n.get("name")=="experience_profile"),None)==name
-            self.wait(applied,"Profile did not apply: "+name)
+            self.wait(lambda: saved()==name,"Profile did not apply: "+name)
+            self.wait(lambda: selected()=={name},"Profile selection was not highlighted: "+name)
+            self.start("settings")
+            assert selected()=={name}, "Profile selection was lost after relaunch: "+name
+
+    def about_version(self):
+        package=self.adb("shell","dumpsys","package",PKG)
+        version=re.search(r"\bversionName=(\S+)",package).group(1)
+        self.start("home")
+        self.activate("About Buzin Cast","Sobre o Buzin Cast")
+        self.wait(lambda:any(n.get("text") in ("Version "+version,"Versão "+version) for n in self.ui().iter()),
+                  "About does not show installed version "+version)
 
     def audio_controls(self):
         self.start("audio")
@@ -380,12 +396,16 @@ class Suite:
             apk=subprocess.check_output(["wslpath","-w",apk],text=True).strip()
         self.adb("install", "--no-streaming", "-r", apk)
         # adb command timeout is intentionally higher for the complete test runner.
-        command=[self.args.adb,"-s",self.args.serial,"shell","am","instrument","-w", "-r",
-                 "com.buzincast.tv.test/androidx.test.runner.AndroidJUnitRunner"]
+        command=[self.args.adb,"-s",self.args.serial,"shell","am","instrument","-w", "-r"]
+        if self.args.test_class:
+            # adb shell parses the remote command; quote a possible Class#method selector.
+            import shlex
+            command.extend(["-e", "class", shlex.quote(self.args.test_class)])
+        command.append("com.buzincast.tv.test/androidx.test.runner.AndroidJUnitRunner")
         result=subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300, check=True)
         output=result.stdout.decode("utf-8","replace")
         (self.out/"instrumentation.txt").write_text(output,encoding="utf-8")
-        assert re.search(r"OK \(\d+ tests?\)",output) and "FAILURES" not in output,output
+        assert re.search(r"OK \([1-9]\d* tests?\)",output) and "FAILURES" not in output,output
         self.results.append({"test":"Android socket integration", "passed":True, "runner":output})
         if self.args.coverage:
             self.checkpoint += 1
@@ -417,7 +437,7 @@ class Suite:
                 self.instrumentation()
             cases=[("normal settings",lambda:self.scan_settings(False)),("advanced/custom settings",lambda:self.scan_settings(True)),
                    ("cancel and restore focus",self.edit_cancel),("single relay form",self.relay_form),
-                   ("device-aware profiles",self.profiles),("shared audio controls",self.audio_controls),("native/player recovery and ownership",self.media_recovery),("native codecs and recording smoke",self.native_capture),("launcher entry and resume",self.launcher_entry),("guided calibration save/cancel and bounds",self.calibration)]
+                   ("device-aware profiles",self.profiles),("about version",self.about_version),("shared audio controls",self.audio_controls),("native/player recovery and ownership",self.media_recovery),("native codecs and recording smoke",self.native_capture),("launcher entry and resume",self.launcher_entry),("guided calibration save/cancel and bounds",self.calibration)]
             extended=("media remote controls and rendered captions",self.media_controls)
             if self.args.extended or (self.args.case and any(pattern in extended[0] for pattern in self.args.case)):
                 cases.append(extended)
@@ -445,6 +465,7 @@ if __name__=="__main__":
     parser.add_argument("--apk")
     parser.add_argument("--native-tests", help="Standalone native C++ unit executable built for this emulator ABI")
     parser.add_argument("--test-apk", help="Run Android instrumentation integration suite first")
+    parser.add_argument("--test-class", help="Select an AndroidJUnitRunner class or Class#method with --test-apk")
     parser.add_argument("--coverage", action="store_true", help="Require Android and native coverage checkpoints after every scenario")
     parser.add_argument("--output",default="build/emulator-checks")
     parser.add_argument("--case",action="append",help="Run matching case descriptions; repeat to select multiple cases")
