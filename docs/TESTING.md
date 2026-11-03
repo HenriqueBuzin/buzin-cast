@@ -48,7 +48,7 @@ Não marcar recursos experimentais como estáveis apenas porque o CI passou. O C
 
 ## Integração, smoke, funcional e regressão
 
-A suíte tem 23 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 18 testes instrumentados Android, nove testes C++ e 11 cenários de interface/serviço. As categorias se complementam:
+A suíte tem 24 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 19 testes instrumentados Android, dez testes C++ e 11 cenários de interface/serviço. As categorias se complementam:
 
 - Unitários e de contrato: políticas de sessão, ajuste da imagem, perfis, quadros e parsers.
 - Integração: listeners FCast/DLNA/Cast V2, TCP/TLS, HTTP/SOAP, NSD, handlers Android, importação por ContentResolver, autorização e armazenamento.
@@ -60,6 +60,8 @@ A suíte tem 23 testes JVM em `receiver-core`, 145 testes em `dlna-domain`, 18 t
 - Análise estática: Android Lint. A variante `sanitize` existente oferece HWASan/UBSan em ARM64; ela precisa de ambiente compatível e não é executada no emulador x86_64 desta suíte.
 
 Os casos `--case profiles --case 'about version'` verificam o destaque de uma única escolha, a persistência após reabrir o app e a versão exibida em Sobre. Padrão restaura apenas os ajustes de vídeo e áudio gerenciados pelos perfis; o teste Android `FeatureIntegrationTest#defaultProfileRestoresOnlyPresetSettingsAndKeepsExistingProfileNames` confere que nome, PIN e margem não são afetados. Para executar apenas esse teste Android, informe o nome qualificado do método em `--test-class` com `--test-apk`.
+
+O teste GENA do DLNA usa sockets para verificar assinatura, envio da notificação inicial, tentativa de outro callback após erro HTTP, renovação e cancelamento. A suíte também verifica que um receptor é fechado uma única vez quando a inicialização falha durante o encerramento, e que a saída PCM estéreo retoma após falta de amostras e recuo do relógio do emissor.
 
 ## Cobertura de todo o código de produção
 

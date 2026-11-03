@@ -15,6 +15,7 @@ import org.junit.Assert.*
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -126,6 +127,51 @@ class ReceiverIntegrationTest {
             assertTrue(request("HEAD", "/desc.xml").substringAfter("\r\n\r\n").isEmpty())
             val invalid = request("POST", "/ctl/avt", "SOAPAction: urn:schemas-upnp-org:service:AVTransport:1#GetTransportInfo\r\n", "<broken>")
             assertTrue(invalid, invalid.startsWith("HTTP/1.1 400"))
+        }
+    }
+    @Test fun dlnaSubscriptionNotifiesFallbackCallbackAndSupportsRenewalAndRemoval() {
+        val log = CopyOnWriteArrayList<String>()
+        DlnaReceiver(context, Playback(), "Buzin integration", { log += it }).use { receiver ->
+            receiver.start()
+            val port = log.first { it.contains("receiver started on") }.substringAfterLast(':').toInt()
+            fun eventRequest(method: String, vararg headers: String): String = Socket(ip, port).use { socket ->
+                socket.soTimeout = 5000
+                val head = listOf("$method /evt/avt HTTP/1.1", "Host: $ip", "Connection: close") + headers
+                socket.getOutputStream().write((head.joinToString("\r\n") + "\r\n\r\n").toByteArray())
+                socket.getInputStream().bufferedReader().readText()
+            }
+            assertTrue(eventRequest("SUBSCRIBE").startsWith("HTTP/1.1 412"))
+            assertTrue(eventRequest("SUBSCRIBE", "CALLBACK: <http://127.0.0.1/foreign>").startsWith("HTTP/1.1 412"))
+            ServerSocket(0).use { callback ->
+                callback.soTimeout = 5000
+                val base = "http://$ip:${callback.localPort}"
+                val response = eventRequest("SUBSCRIBE", "CALLBACK: <$base/fail> <$base/notify?source=test>",
+                    "NT: upnp:event", "TIMEOUT: SECOND-120")
+                assertTrue(response, response.startsWith("HTTP/1.1 200"))
+                assertTrue(response, response.contains("TIMEOUT: Second-120", ignoreCase = true))
+                val sid = response.lineSequence().first { it.startsWith("SID:", ignoreCase = true) }.substringAfter(':').trim()
+
+                fun receive(path: String, status: String) = callback.accept().use { socket ->
+                    socket.soTimeout = 5000
+                    val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
+                    assertEquals("NOTIFY $path HTTP/1.1", input.readLine())
+                    val headers = generateSequence { input.readLine()?.takeIf(String::isNotEmpty) }.toList()
+                    assertTrue("SID: $sid" in headers)
+                    assertTrue("SEQ: 0" in headers)
+                    val size = headers.first { it.startsWith("CONTENT-LENGTH:") }.substringAfter(':').trim().toInt()
+                    val body = buildString { repeat(size) { append(input.read().also { assertTrue(it >= 0) }.toChar()) } }
+                    assertTrue(body.contains("LastChange"))
+                    socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
+                }
+                receive("/fail", "500 Diagnostic 200")
+                receive("/notify?source=test", "200 OK")
+                val renewed = eventRequest("SUBSCRIBE", "SID: $sid", "TIMEOUT: Second-10")
+                assertTrue(renewed.startsWith("HTTP/1.1 200"))
+                assertTrue(renewed.contains("TIMEOUT: Second-60", ignoreCase = true))
+                assertTrue(eventRequest("UNSUBSCRIBE", "SID: $sid").startsWith("HTTP/1.1 200"))
+                assertTrue(eventRequest("SUBSCRIBE", "SID: $sid").startsWith("HTTP/1.1 412"))
+                assertTrue(eventRequest("UNSUBSCRIBE", "SID: $sid").startsWith("HTTP/1.1 412"))
+            }
         }
     }
     @Test fun castV2TlsHeartbeatStatusAndUnsupportedApp() {

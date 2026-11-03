@@ -88,13 +88,35 @@ static void sustainedBacklogIsTrimmed() {
     std::this_thread::sleep_for(std::chrono::milliseconds(2100)); timeline.read(&output,1);
     CHECK(output==1 && timeline.debugInfo().metrics.trims==1 && timeline.debugInfo().backlogMs==19);
 }
+static void stereoResumesAfterUnderrunAndClockReset() {
+    TimelineBuffer timeline(1000, 2, 1, 95);
+    std::array<int16_t, 20> packet;
+    std::array<int16_t, 30> output;
+    packet.fill(1);
+    timeline.write(packet.data(), packet.size(), 1'000'000'000);
+    timeline.read(output.data(), 15);
+    for (size_t i = 0; i < output.size(); ++i) CHECK(output[i] == (i < packet.size() ? 1 : 0));
+
+    packet.fill(2);
+    timeline.write(packet.data(), packet.size(), 1'040'000'000);
+    timeline.read(output.data(), 10);
+    for (size_t i = 0; i < packet.size(); ++i) CHECK(output[i] == 2);
+
+    packet.fill(3);
+    timeline.write(packet.data(), packet.size(), 100'000'000);
+    timeline.read(output.data(), 10);
+    for (size_t i = 0; i < packet.size(); ++i) CHECK(output[i] == 3);
+    const auto metrics = timeline.debugInfo().metrics;
+    CHECK(metrics.underruns == 1 && metrics.silences == 0 && metrics.drops == 0);
+}
 int main() {
     const std::pair<const char*,void(*)()> cases[]={
         {"ring bounds and wrap",ringBoundsAndWrap},{"64-bit stream positions",ringCrosses32BitBoundary},
         {"SPSC concurrent order",ringConcurrentOrder},{"jitter policies",fixedAndAdaptiveJitter},
         {"PCM underrun and resume",pcmUnderrunAndReprime},{"short sounds",partialSoundsEventuallyPlay},
         {"timestamp gaps drops and capture",timestampGapsDropsAndCapture},{"discontinuity and metrics",discontinuityAndMetrics},
-        {"sustained backlog trimming",sustainedBacklogIsTrimmed}};
+        {"sustained backlog trimming",sustainedBacklogIsTrimmed},
+        {"stereo recovery after underrun and clock reset",stereoResumesAfterUnderrunAndClockReset}};
     int failures=0;
     for(const auto &test:cases) { try {test.second(); std::cout<<"PASS "<<test.first<<std::endl;} catch(const std::exception &error) {++failures; std::cerr<<"FAIL "<<test.first<<": "<<error.what()<<std::endl;} }
     std::cout<<"Native tests: "<<std::size(cases)<<", failures: "<<failures<<std::endl;
