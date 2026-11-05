@@ -1,5 +1,46 @@
 # Retomada — 4 de novembro de 2026
 
+## Módulo nativo e execução no VVD — 4 de novembro de 2026
+
+- SDK e VVD 2.0.13986 instalados. Build release com C++23 concluída nas
+  três arquiteturas, com `libBuzinNetwork.so` e validação ABI pelo VPT.
+- Turbo Module próprio, derivado de `basic-turbo-module`, usa headers reais
+  do SDK. Interface gerada por Kepler Codegen 1.2.5. Autolink fica em
+  `react-native.config.js`: a CLI rejeita o campo antigo em `package.json`,
+  embora o guia ainda o mostre para módulos in-app.
+- Diagnóstico acionado pelo controle testa TCP/UDP em loopback, bind TCP
+  em todas as interfaces e entrada/saída do grupo multicast 224.0.0.251.
+  Nenhum anúncio DNS-SD, receptor AirPlay ou pacote multicast é enviado.
+  Resultado booleano salvo em `/data/network-probe.json` no sandbox do app.
+- `python3 tools/test_vega.py --serial emulator-5554 --vpkg
+  vega/build/aarch64-release/buzincast_aarch64.vpkg` passou no VVD ARM64.
+  A sequência de controle acionou JS → C++ → sockets no sandbox, voltou,
+  percorreu Sobre e repetiu o diagnóstico. Todos os quatro resultados foram
+  `true` nas duas execuções. O script recusa seriais físicos/IP.
+- Executável de diagnóstico também rodou no shell de desenvolvimento, com
+  quatro resultados `true`; esse resultado separado não substitui o teste no
+  sandbox. Executar de `/tmp` dentro do sandbox foi negado (noexec), como
+  esperado; nenhuma proteção foi desligada.
+- Artefatos locais: `build/vega-checks/result.json`, `commands.json`,
+  `packages.json` (tamanhos/SHA256) e `native-build.log`. SDK, imagens, logs,
+  executáveis e pacotes continuam fora do Git.
+- **Validação visual pendente:** o app foi instalado/iniciado e o ciclo de
+  controle/diagnóstico passou, mas `gwsi-tool-screenshooter` ficou aguardando
+  e criou PNG vazio. Captura QMP do framebuffer ficou preta; logs em macOS
+  27.2 têm falhas de validação OpenGL. Desbloquear o Mac não resolveu.
+  Tentativa reversível de SwiftShader no config do VVD foi ignorada pelo
+  wrapper (modo host); a biblioteca SwiftShader não está no SDK instalado.
+  Config original restaurado e VVD encerrado para liberar recursos.
+- Lint sem avisos, TypeScript, quatro testes Jest e doctor aprovados nesta
+  etapa. O CI cobre fontes; ainda não executa o SDK/VVD. Meta global de
+  cobertura 100% permanece pendente. Android não foi alterado nesta etapa.
+- Próximo: resolver renderização do VVD neste Mac, testar layout/launcher
+  visualmente e persistência de configurações; testar TCP/UDP recebidos da
+  LAN e anúncio mDNS com privilégios reais antes de portar UxPlay e mídia.
+  O diagnóstico de sockets não é receptor nem prova de descoberta local.
+  Áudio/vídeo, sincronismo, protocolos e paridade Fire OS continuam pendentes.
+
+
 ## Build Vega concluída no Mac — 4 de novembro de 2026
 
 - Após limpeza de espaço autorizada, SDK estável 2.0.13986 reinstalado e

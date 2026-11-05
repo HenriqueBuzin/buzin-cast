@@ -1,4 +1,5 @@
 import React, {useEffect, useState} from 'react';
+import Network from './turbo-modules/BuzinNetwork';
 import {
   BackHandler,
   Image,
@@ -11,6 +12,7 @@ import {
 export default function App() {
   const [page, setPage] = useState<'home' | 'status' | 'about'>('home');
   const [focused, setFocused] = useState('status');
+  const [report, setReport] = useState('');
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -73,7 +75,21 @@ export default function App() {
               ? 'AirPlay, DLNA, FCast e Cast V2 ainda não estão disponíveis no Vega. Nenhum receptor é anunciado na rede.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}
           </Text>
-          {action('back', 'Voltar', () => setPage('home'), true)}
+          {page === 'status' &&
+            action(
+              'network',
+              'Testar rede local',
+              () => {
+                try {
+                  setReport(Network.getReport());
+                } catch {
+                  setReport('Falha no diagnóstico nativo. Tente novamente.');
+                }
+              },
+              true,
+            )}
+          {page === 'status' && <Text style={styles.details}>{report}</Text>}
+          {action('back', 'Voltar', () => setPage('home'), page !== 'status')}
         </View>
       )}
     </View>

@@ -5,12 +5,37 @@ com React Native 0.83 e identidade `com.buzincast.tv`. A interface continua
 sendo uma prévia; ainda não há receptor ou serviço anunciado na rede.
 A arte aprovada é copiada sem alterações para `src/assets/buzin_banner.png`.
 
+## Execução e diagnóstico nativo
+
+O VVD ARM64 2.0.13986 instalou e iniciou o app. O controle aciona o módulo
+C++ que verifica sockets TCP/UDP, bind e adesão multicast dentro do sandbox.
+Os quatro resultados passaram, inclusive após voltar e repetir a navegação.
+Isso não implementa recepção nem comprova descoberta mDNS/tráfego de LAN.
+
+```sh
+# Na raiz do repositório, após iniciar o VVD e compilar:
+python3 tools/test_vega.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg
+```
+
+O teste recusa TVs físicas. Resultados e comandos ficam em `build/vega-checks`.
+O último diagnóstico persiste como booleanos em `/data/network-probe.json`
+no sandbox; não armazena endereços nem conteúdo do usuário. O executável
+`build/<arquitetura>-release/bin/buzin-network-probe` é um artefato de teste
+separado e não integra o VPKG.
+
+**A validação visual não passou:** no macOS 27.2 deste Mac, a captura oficial
+ficou aguardando e a captura do framebuffer ficou preta. O wrapper usou
+OpenGL host com erros de validação; SwiftShader não está presente no SDK.
+Não apresentar o layout/launcher como visualmente aprovados. As tentativas
+anteriores registradas abaixo são históricas; o handoff tem o estado atual.
+
 ## Build verificada no Mac
 
 Em 4/11/2026, `npm run build:app` gerou VPKGs release ARM64, ARMv7 e
 x86_64, com logo e ícone aprovados. `vega project doctor`, lint sem avisos,
 TypeScript e três testes Jest passaram. O pacote ARM64 passou em `vpt validate`.
-A imagem do simulador está sendo instalada; a execução ainda não foi validada.
+A execução funcional foi verificada depois, conforme o diagnóstico acima.
 Os registros abaixo descrevem a primeira tentativa e são históricos.
 
 ## Ambiente e comandos

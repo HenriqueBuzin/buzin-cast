@@ -74,3 +74,20 @@ nas ferramentas Amazon, além de ferramentas de CLI/testes/lint. A auditoria
 indica ausência de correção para parte das ferramentas Amazon; não contornar
 isso com rebaixamentos automáticos do React Native CLI. Nenhum novo núcleo
 nativo ou biblioteca de protocolo foi incorporado nesta etapa.
+
+### Ponte nativa Vega
+
+Adicionado `@amazon-devices/keplerscript-turbomodule-api` 1.2.5, fixado no
+package.json/lock. É ferramenta/ponte app-bundled descrita no guia oficial
+[Create a Turbo Module](https://developer.amazon.com/docs/vega/2.0/create-turbo-module),
+embora `vega project install` não a liste como módulo gerenciado do perfil.
+O doctor aceitou a árvore e os três builds passaram. O Codegen gera apenas
+a especificação; a implementação própria usa C++23 e sockets POSIX reais.
+
+O pacote Amazon tem licença Program Materials License, com termos em
+[Amazon PML](https://developer.amazon.com/support/legal/pml), e avisos de
+terceiros (inclusive MIT/Meta) em `LICENSE`/`THIRD_PARTY_NOTICES.txt` do npm.
+Preservar esses avisos e revisar as obrigações antes de distribuir o port;
+não reatribuir a licença do SDK como GPL. SDK/runtime não são versionados.
+A toolchain utiliza o CMake 3.30.5 empacotado pelo SDK; não confundir essa
+versão interna com a política das ferramentas Android mantidas pelo projeto.
