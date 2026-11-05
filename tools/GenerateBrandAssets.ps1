@@ -1,3 +1,4 @@
+param([string]$StoreDirectory)
 Add-Type -AssemblyName System.Drawing
 Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
@@ -25,6 +26,33 @@ public static class BuzinBrand {
   }
   static void Text(Graphics g,string text,string family,float size,FontStyle style,Color color,float x,float y) {
     using(var f=new Font(family,size,style,GraphicsUnit.Pixel)) using(var b=new SolidBrush(color)) g.DrawString(text,f,b,x,y,StringFormat.GenericTypographic);
+  }
+  public static void GenerateStoreIcon(string path, int width, int height) {
+    using(var bmp=new Bitmap(width,height, width==height ? PixelFormat.Format32bppArgb : PixelFormat.Format24bppRgb))
+    using(var g=Graphics.FromImage(bmp)) {
+      g.SmoothingMode=SmoothingMode.AntiAlias;
+      g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+      var frame=new Rectangle(0,0,width,height);
+      if(width==height) {
+        using(var mask=Round(0,0,width,height,width*0.075f)) g.SetClip(mask);
+      }
+      using(var bg=new LinearGradientBrush(frame,C("#12364A"),C("#071621"),38))
+        g.FillRectangle(bg,frame);
+      using(var orbit=new Pen(Color.FromArgb(52,53,192,216),width/640f)) {
+        foreach(float radius in new[]{0.27f,0.38f,0.50f})
+          g.DrawEllipse(orbit,width*(0.57f-radius),height*0.49f-width*radius,width*radius*2,width*radius*2);
+      }
+      float scale=width/600f;
+      g.TranslateTransform(width/2f-230*scale,height/2f-88*scale);
+      g.ScaleTransform(scale,scale);
+      using(var tile=Round(0,0,176,176,40))
+      using(var mint=new LinearGradientBrush(new Rectangle(0,0,176,176),C("#91FFD6"),C("#42DFAE"),45))
+        g.FillPath(mint,tile);
+      Mark(g,3,7,151,C("#092A24"));
+      Text(g,"Buzin","Segoe UI",100,FontStyle.Bold,C("#F3F7F5"),202,11);
+      Text(g,"CAST","Segoe UI",55,FontStyle.Bold,C("#7CF4CD"),207,111);
+      bmp.Save(path,ImageFormat.Png);
+    }
   }
   public static void GenerateFireIcon(string path) {
     using(var bmp=new Bitmap(512,512)) using(var g=Graphics.FromImage(bmp)) {
@@ -68,5 +96,12 @@ public static class BuzinBrand {
   }
 }
 '@
+if ($StoreDirectory) {
+    New-Item -ItemType Directory -Path $StoreDirectory -Force | Out-Null
+    [BuzinBrand]::GenerateStoreIcon((Join-Path $StoreDirectory 'icon-512.png'),512,512)
+    [BuzinBrand]::GenerateStoreIcon((Join-Path $StoreDirectory 'icon-114.png'),114,114)
+    [BuzinBrand]::GenerateStoreIcon((Join-Path $StoreDirectory 'fire-tv-icon-1280x720.png'),1280,720)
+    return
+}
 [BuzinBrand]::Generate((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi'))
 [BuzinBrand]::GenerateFireIcon((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi\buzin_fire_icon.png'))

@@ -2,7 +2,6 @@ param([Parameter(Mandatory=$true)][string]$CaptureDirectory)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $assetRoot = Join-Path $PSScriptRoot '..\store\amazon\images'
-$resourceRoot = Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi'
 $captureRoot = Join-Path $assetRoot 'screenshots\pt-BR'
 New-Item -ItemType Directory -Path $captureRoot -Force | Out-Null
 
@@ -18,10 +17,7 @@ function Export-StorePng([string]$InputPath, [string]$OutputPath, [int]$Width, [
     } finally { $drawing.Dispose(); $outputImage.Dispose(); $sourceImage.Dispose() }
 }
 
-# Preserve the approved artwork. Export/downsample for store formats only.
-Export-StorePng (Join-Path $resourceRoot 'buzin_fire_icon.png') (Join-Path $assetRoot 'icon-512.png') 512 512
-Export-StorePng (Join-Path $resourceRoot 'buzin_fire_icon.png') (Join-Path $assetRoot 'icon-114.png') 114 114
-Export-StorePng (Join-Path $resourceRoot 'buzin_banner.png') (Join-Path $assetRoot 'fire-tv-icon-1280x720.png') 1280 720
+& (Join-Path $PSScriptRoot 'GenerateBrandAssets.ps1') -StoreDirectory $assetRoot
 foreach ($captureName in @('01-conectar.png','02-configuracoes.png','03-sobre.png')) {
     $capturePath = Join-Path $CaptureDirectory $captureName
     $captureImage = [System.Drawing.Image]::FromFile($capturePath)
