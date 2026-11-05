@@ -30,4 +30,5 @@ Para relatar um problema, abra uma [issue no GitHub](https://github.com/Henrique
 - [Dependências e compatibilidade](docs/DEPENDENCIES.md)
 - [Andamento do trabalho](docs/WORK_CHECKPOINT.md) e [retomada do Vega OS no Mac](docs/VEGA_HANDOFF.md)
 - [Identidade visual e ícone](docs/BRAND.md)
+- [Política de privacidade / Privacy Policy](docs/PRIVACY.md)
 - [Documentação histórica do projeto original](docs/UPSTREAM.md)
