@@ -55,9 +55,14 @@ class ReceiverIntegrationTest {
     }
     private fun withFcast(test: (Playback, Socket) -> Unit) {
         val playback = Playback()
-        FCastReceiver(context, playback, "Buzin integration", {}).use { receiver ->
-            receiver.start(); receiver.start() // idempotent startup
-            Socket(ip, 46899).use { socket -> socket.soTimeout = 5000; assertTrue(frame(socket, 11).body.contains("2")); test(playback, socket) }
+        val diagnostics = CopyOnWriteArrayList<String>()
+        FCastReceiver(context, playback, "Buzin integration", { diagnostics += it }).use { receiver ->
+            try {
+                receiver.start(); receiver.start() // idempotent startup
+                Socket(ip, 46899).use { socket -> socket.soTimeout = 5000; assertTrue(frame(socket, 11).body.contains("2")); test(playback, socket) }
+            } catch (failure: Exception) {
+                throw AssertionError("FCast socket integration failed: ${diagnostics.joinToString("; ")}", failure)
+            }
         }
     }
     @Test fun fcastHandshakePingAndUnknownOpcode() = withFcast { _, socket ->
