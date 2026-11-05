@@ -56,10 +56,11 @@ class ReceiverIntegrationTest {
     private fun withFcast(test: (Playback, Socket) -> Unit) {
         val playback = Playback()
         val diagnostics = CopyOnWriteArrayList<String>()
-        FCastReceiver(context, playback, "Buzin integration", { diagnostics += it }).use { receiver ->
+        FCastReceiver(context, playback, "Buzin integration", { diagnostics += it }, requestedPort = 0).use { receiver ->
             try {
                 receiver.start(); receiver.start() // idempotent startup
-                Socket(ip, 46899).use { socket -> socket.soTimeout = 5000; assertTrue(frame(socket, 11).body.contains("2")); test(playback, socket) }
+                check(receiver.listeningPort > 0) { "FCast listener did not start" }
+                Socket(ip, receiver.listeningPort).use { socket -> socket.soTimeout = 5000; assertTrue(frame(socket, 11).body.contains("2")); test(playback, socket) }
             } catch (failure: Exception) {
                 throw AssertionError("FCast socket integration failed: ${diagnostics.joinToString("; ")}", failure)
             }
@@ -103,15 +104,35 @@ class ReceiverIntegrationTest {
     }
     @Test fun fcastReconnectsAfterMalformedFrame() {
         val playback = Playback()
-        FCastReceiver(context, playback, "Buzin integration", {}).use { receiver ->
+        FCastReceiver(context, playback, "Buzin integration", {}, requestedPort = 0).use { receiver ->
             receiver.start()
-            Socket(ip, 46899).use { socket ->
+            Socket(ip, receiver.listeningPort).use { socket ->
                 socket.soTimeout = 5000; frame(socket, 11)
                 socket.getOutputStream().write(byteArrayOf(-1,-1,-1,127))
                 eventually { socket.getInputStream().read() == -1 }
             }
             Thread.sleep(100)
-            Socket(ip, 46899).use { socket -> socket.soTimeout = 5000; frame(socket, 11); FCastFrame(12).writeTo(socket.getOutputStream()); frame(socket, 13) }
+            Socket(ip, receiver.listeningPort).use { socket -> socket.soTimeout = 5000; frame(socket, 11); FCastFrame(12).writeTo(socket.getOutputStream()); frame(socket, 13) }
+        }
+    }
+    @Test fun fcastReleasesItsPortBeforeAnotherReceiverStarts() {
+        repeat(5) {
+            val diagnostics = CopyOnWriteArrayList<String>()
+            val first = FCastReceiver(context, Playback(), "Buzin close test", { diagnostics += it }, requestedPort = 0)
+            first.start()
+            val port = first.listeningPort
+            assertTrue(diagnostics.toString(), port > 0)
+            try {
+                Socket(ip, port).use { socket ->
+                    socket.soTimeout = 5000; frame(socket, 11)
+                    first.close()
+                    FCastReceiver(context, Playback(), "Buzin restart test", { diagnostics += it }, requestedPort = port).use { next ->
+                        next.start()
+                        assertEquals(diagnostics.toString(), port, next.listeningPort)
+                        Socket(ip, port).use { fresh -> fresh.soTimeout = 5000; frame(fresh, 11) }
+                    }
+                }
+            } finally { first.close() }
         }
     }
     @Test fun dlnaHttpDescriptionAndScpdsUseRealListener() {

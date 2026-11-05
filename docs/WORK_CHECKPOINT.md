@@ -45,6 +45,21 @@
   anterior e três na API 28 com as esperas novas passaram. APK de debug
   recompilado do código atual, em AVDs isolados; nenhuma TV usada nesses
   testes. Demais APIs e nova execução da correção ainda pendentes.
+- A execução `42074548928` também passou APIs 32, 33, 34 e 35. A API 36
+  revelou pelo diagnóstico novo `EADDRINUSE` no início do FCast. Reproduzido
+  localmente ao fechar um receptor com cliente conectado e imediatamente
+  abrir outro na mesma porta: o descritor nativo ainda pertencia à thread
+  bloqueada em accept/read. Corrigido o encerramento para fechar os sockets
+  e aguardar essas threads, com limite de espera e diagnóstico de timeout.
+- A integração agora usa portas atribuídas pelo sistema, anunciando a porta
+  efetivamente vinculada no mDNS. A porta padrão de produção continua 46899.
+  Novo teste verifica cinco ciclos de fechamento/reabertura na mesma porta
+  enquanto há cliente conectado. Falhou antes da correção e passou depois:
+  cinco execuções locais da classe na API 36, 10 testes por execução.
+  Essa mudança requer reconstruir e reassinar os dois APKs antes de trocar
+  os arquivos da Amazon e atualizar novamente as três TVs.
+- A matriz de CI passa a executar até seis APIs em paralelo, em runners
+  independentes, preservando todas as 12 versões e verificações existentes.
 
 ## Candidatas de produção e rascunho Amazon — 5 de novembro de 2026
 
