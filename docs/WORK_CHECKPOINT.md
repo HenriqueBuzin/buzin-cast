@@ -1,5 +1,22 @@
 # Retomada — 4 de novembro de 2026
 
+## Decisão vigente — 5 de novembro de 2026
+
+Henrique adiou a unificação depois de avaliar a interface React Native comum.
+As duas edições Fire OS devem permanecer nativas e iguais ao estado já testado;
+a edição Fire OS 6+ 0.6.0/código 22 é a referência funcional e visual.
+Continuar somente o port específico Vega com SDK oficial e integrações C++.
+Primeiro testar a equivalência; pensar em interface/base unificada depois.
+Não migrar os launchers ou interfaces Android para React Native nesta etapa.
+
+Conferência: `git diff a5af641 -- app receiver-core dlna-domain gradle
+build.gradle.kts settings.gradle.kts` não mostrou alterações. Não houve
+migração Android para desfazer. Na preparação local foram instalados JDK
+Temurin 25.0.5+8 LTS, Android CLI atual, plataforma 37.0, build-tools 37.0.0 e
+NDK r30; a instalação já havia terminado quando a decisão chegou. Essas
+ferramentas locais não alteram os apps nem as TVs e não são versionadas.
+
+
 ## Núcleo UxPlay compilado para Vega — 4 de novembro de 2026
 
 - `vega/cmake/AirPlayCore.cmake` compila os mesmos submódulos UxPlay 1.73.7,
