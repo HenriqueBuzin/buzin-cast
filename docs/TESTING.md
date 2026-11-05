@@ -114,3 +114,28 @@ A edição/cancelamento é repetida três vezes para detectar corridas na abertu
 O cenário de calibração altera a margem com setas, salva com OK, cancela com Voltar, verifica os limites 0–10 e restaura a preferência original do emulador.
 
 No Android 5.1, a fábrica NDK de codecs pode retornar um wrapper cujo codec interno é nulo. A implementação [AOSP 5.1](https://android.googlesource.com/platform/frameworks/av/+/android-5.1.1_r1/media/ndk/NdkMediaCodec.cpp) não verifica esse resultado antes de devolver o wrapper. A configuração do bridge força os decodificadores FFmpeg embarcados nesse sistema, evitando a falha nativa; a política vale também para a configuração inicial, antes de chegar uma atualização de preferências. A suíte mantém o smoke AAC real para detectar regressões.
+
+## Vega: fontes e integração no VVD
+
+Em `vega/`, com `nvm use`: `npm ci`, `npm run lint -- --max-warnings 0`,
+`npx tsc --noEmit`, `npm test -- --runInBand`, `vega project doctor` e
+`npm run build:app`. O SDK oficial deve estar ativo e `/usr/sbin` no PATH
+(a compilação nativa usa `sysctl`). Não substituir o runtime interno do SDK.
+A configuração TypeScript inclui somente `src/` e `test/`, para não tratar
+scripts JavaScript da toolchain gerada como fontes do aplicativo.
+
+O workflow `vega-check.yml` verifica fontes e cópias da marca, sem executar
+SDK ou VVD. Para integração real, inicie o VVD e execute na raiz:
+
+```sh
+python3 tools/test_vega.py --serial emulator-5554 --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg
+```
+
+A suíte instala/inicia somente no emulador indicado e usa OK, Voltar e setas
+para chamar o módulo C++ no sandbox. Confere o arquivo novo de resultados,
+TCP/UDP em loopback, bind e adesão multicast; depois repete a navegação e o
+resultado. Ela preserva configurações, encerra apenas o Buzin Cast e recusa
+seriais físicos/IP. Não anuncia serviços nem valida LAN, mDNS, áudio/vídeo,
+layout ou launcher. Em 4/11/2026 passou no VVD ARM64; x86_64/ARMv7 foram
+compilados, sem execução registrada. A captura visual no Mac permanece com
+problema gráfico documentado no handoff. Sem equivalência física declarada.

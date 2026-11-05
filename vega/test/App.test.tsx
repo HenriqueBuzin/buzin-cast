@@ -1,7 +1,13 @@
 import React from 'react';
 import {act, fireEvent, render} from '@testing-library/react-native';
 import App from '../src/App';
+
+jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
+  __esModule: true,
+  default: {getReport: jest.fn(() => '{"tcpLoopback":true}')},
+}));
 import {BackHandler} from 'react-native';
+import Network from '../src/turbo-modules/BuzinNetwork';
 
 test('identifica a prévia e informa que o receptor está em desenvolvimento', () => {
   const screen = render(<App />);
@@ -38,4 +44,18 @@ test('Voltar fecha a página interna e permite sair a partir do início', () => 
   screen.unmount();
   expect(remove).toHaveBeenCalled();
   listener.mockRestore();
+});
+
+test('exibe o resultado do módulo e informa uma falha nativa ao usuário', () => {
+  const screen = render(<App />);
+  fireEvent.press(screen.getByRole('button', {name: 'Estado do port'}));
+  fireEvent.press(screen.getByRole('button', {name: 'Testar rede local'}));
+  expect(screen.getByText('{"tcpLoopback":true}')).toBeTruthy();
+  jest.mocked(Network.getReport).mockImplementationOnce(() => {
+    throw new Error('socket failure');
+  });
+  fireEvent.press(screen.getByRole('button', {name: 'Testar rede local'}));
+  expect(
+    screen.getByText('Falha no diagnóstico nativo. Tente novamente.'),
+  ).toBeTruthy();
 });

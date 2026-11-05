@@ -10,5 +10,7 @@ build
 node_modules
 CMakeUserPresets.json
 npm-debug.log
-generated/
+/generated/
 *.vpkg
+
+buildinfo.json

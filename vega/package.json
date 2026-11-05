@@ -16,9 +16,11 @@
     "build:debug": "react-native build-vega --build-type Debug",
     "build:app": "npm-run-all build:release",
     "build": "npm-run-all build:release",
-    "release": "npm-run-all lint test build:app"
+    "release": "npm-run-all lint test build:app",
+    "codegen:network": "keplerscript-turbomodule-api codegen src/turbo-modules/BuzinNetwork.ts -o kepler/turbo-modules/ -s BuzinNetworkTurboModule"
   },
   "dependencies": {
+    "@amazon-devices/keplerscript-turbomodule-api": "1.2.5",
     "@amazon-devices/react-native-kepler": "~4.0.0",
     "react": "19.2.0",
     "react-native": "0.83.0"
@@ -27,8 +29,8 @@
     "node": ">=26.13.0 <27"
   },
   "devDependencies": {
-    "@amazon-devices/kepler-cli-platform": "^0",
     "@amazon-devices/eslint-plugin-kepler": "^0.1.8",
+    "@amazon-devices/kepler-cli-platform": "^0",
     "@react-native-community/cli": "20.0.0",
     "@react-native/babel-preset": "0.83.0",
     "@react-native/eslint-config": "0.83.0",
