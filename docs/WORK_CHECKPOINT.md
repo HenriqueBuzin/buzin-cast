@@ -1,4 +1,65 @@
-# Retomada — 4 de novembro de 2026
+# Retomada — 5 de novembro de 2026
+
+## Candidatas de produção e rascunho Amazon — 5 de novembro de 2026
+
+Henrique autorizou preparar os pacotes de produção e usar somente as duas
+edições Fire OS nesta publicação. Vega ainda está em desenvolvimento e não
+foi anexado à loja. O código Android permanece nativo, sem alterações.
+
+- Fontes dos APKs: commit `91b5a3676d7627b1ba5c713306f7bf5f49c9d5ee`.
+  A cópia de build WSL foi sincronizada por `git archive`, preservando os
+  caches. Submódulos e patches UxPlay conferidos contra as fontes do Git;
+  diferenças na libplist eram apenas finais de linha.
+- Principal: `buzin-cast-0.6.0.apk`, código 22, mínimo API 25, 24.014.277 bytes.
+  SHA256 `cf64c91e5fec1d8b41ce2e17c111554df70b3f289b2dab22ac593bba9365782e`.
+- Compatível: `buzin-cast-0.6.0-compat.apk`, código 21, mínimo API 22,
+  11.446.897 bytes. SHA256
+  `c43140ea2507ff41627b8c893fbe308fc9215efbabb38912121e745a1f60a2f2`.
+- Ambos: `com.buzincast.tv`, target API 37, ARM32/ARM64/x86_64,
+  mesma chave RSA-4096 de produção. Assinatura v2 validada nos dois e v1
+  também na edição compatível. APKs íntegros, sem flag debuggable, componentes
+  exclusivos de debug ou instrumentação JaCoCo/LLVM. Arte aprovada preservada.
+- Chave de produção criada fora do repositório, em uma pasta de assinatura
+  com ACL restrita ao usuário Windows e SYSTEM. O mantenedor foi orientado a
+  guardar backup do PKCS12 e do JSON de credenciais. Não versionar nem anexar
+  esses arquivos à Amazon. A configuração WSL está em `local.properties`
+  ignorado pelo Git e com permissões 600.
+- Builds `assembleRelease` e `lintRelease` passaram sequencialmente nas duas
+  edições. Lint: zero erros, 90 avisos na principal e 99 na compatível. Os
+  avisos continuam pendentes de revisão; não afirmar lint sem avisos.
+- Reexecutados 24 testes de `receiver-core` e 145 de `dlna-domain`, sem
+  falhas, erros ou testes ignorados; gate de cobertura do núcleo passou.
+  Não foi reexecutada a coleta de cobertura global.
+- APKs assinados instalados em AVDs novos API 36 e 22: entrada pelo alias
+  do launcher, configurações por teclas de controle e retomada após Home
+  passaram. O endpoint nativo AirPlay respondeu `RTSP/1.0 200 OK` a OPTIONS
+  nos dois. Usadas imagens de sistema de telefone com perfil de hardware TV;
+  isso não certifica o layout/launcher Amazon, recepção Apple, áudio/vídeo
+  sincronizados, sessões longas ou Fire OS físico. Nenhuma TV física foi
+  atualizada, reiniciada ou teve dados apagados.
+- Arquivos, logs, relatórios, mappings R8, capturas e fonte correspondente
+  estão em `C:\Users\henri\Documents\Buzin Cast\releases\0.6.0`.
+  O arquivo de fontes inclui submódulos, patches e OpenSSL 3.5.9, sem segredos.
+  Os arquivos de assinatura ficam em uma pasta separada, fora desses artefatos.
+- Conta empresarial Amazon aprovada e rascunho **Buzin Cast** criado.
+  Os dois APKs foram recebidos pelo console, com DRM Amazon desativado.
+  Seleção salva apenas para Fire TV: 92 modelos na principal e 5 na compatível;
+  tablets e automotivos desmarcados. Os três modelos do catálogo que o console
+  marcou como incompatíveis com os APKs permanecem fora desta publicação.
+- Compatível selecionada para Fire TV Gen 1, Fire TV Stick Gen 1,
+  Fire TV Gen 2, Fire TV Stick Gen 2 e Fire TV Edition Element 4K (2017).
+  Esses são filtros do console, não resultados de teste físico nesses modelos.
+- A submissão permanece **Incomplete**, sem envio para revisão/publicação.
+  Faltam classificação/público, declaração de dados e privacidade, descrição,
+  imagens e validação física das candidatas. Antes de instalar em uma TV que
+  ainda usa chave de debug, planejar a troca de assinatura sem apagar dados
+  ou preferências automaticamente.
+- CI mais recente consultado: [execução Android 42051919790](https://github.com/HenriqueBuzin/buzin-cast/actions/runs/42051919790).
+  O job de build/lint APK passou; a matriz teve falhas em integração de
+  emuladores e um job falhou na instalação de CMake. As causas não foram
+  diagnosticadas nesta preparação; resolver antes de tratar a versão como
+  pronta para submissão final. Os testes locais acima não substituem essa matriz.
+
 
 ## Decisão vigente — 5 de novembro de 2026
 
