@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import Network from './turbo-modules/BuzinNetwork';
 import {getMediaReport} from './mediaCapabilities';
 import PlaybackScreen from './PlaybackScreen';
+import FCastScreen from './FCastScreen';
 import {
   BackHandler,
   Image,
@@ -13,7 +14,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const [focused, setFocused] = useState('status');
@@ -33,6 +34,10 @@ export default function App() {
     );
     return () => subscription.remove();
   }, [page]);
+
+  if (page === 'fcast') {
+    return <FCastScreen onBack={goHome} />;
+  }
 
   if (page === 'playback') {
     return <PlaybackScreen onBack={goHome} />;
@@ -121,6 +126,7 @@ export default function App() {
             false,
           )}
           {action('about', 'Sobre', () => setPage('about'), false)}
+          {action('fcast', 'Ativar FCast', () => setPage('fcast'), false)}
         </View>
       ) : (
         <View style={styles.panel}>
@@ -133,7 +139,7 @@ export default function App() {
           </Text>
           <Text style={styles.details}>
             {page === 'status'
-              ? 'AirPlay, DLNA, FCast e Cast V2 ainda não estão disponíveis no Vega. Nenhum receptor é anunciado na rede.'
+              ? 'AirPlay, DLNA e Cast V2 ainda não estão disponíveis no Vega. FCast tem recepção manual experimental de URLs. Nenhum receptor é anunciado na rede.'
               : page === 'media'
               ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Use a amostra para testar a reprodução.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}

@@ -29,6 +29,11 @@ jobs:
       - run: npm run lint -- --max-warnings 0
       - run: npx tsc --noEmit
       - run: npm test -- --runInBand
+      - name: Testar transporte FCast com sockets reais
+        run: |
+          mkdir -p ../build/vega-native-tests
+          clang++ -std=c++23 -Wall -Wextra -Werror -pthread -Ikepler/turbo-modules test/FCastTransportTest.cpp kepler/turbo-modules/FCastTransport.cpp -o ../build/vega-native-tests/fcast-transport
+          ../build/vega-native-tests/fcast-transport
       - name: Conferir cópia da arte aprovada
         run: cmp src/assets/buzin_banner.png ../app/src/main/res/drawable-nodpi/buzin_banner.png
       - name: Conferir ícone aprovado

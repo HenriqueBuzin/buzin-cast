@@ -3,6 +3,7 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 import App from '../src/App';
 
 jest.mock('../src/PlaybackScreen', () => () => null);
+jest.mock('../src/FCastScreen', () => () => null);
 
 jest.mock('../src/mediaCapabilities', () => ({
   getMediaReport: jest.fn(

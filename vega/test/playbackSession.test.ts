@@ -152,3 +152,15 @@ test('erro de decodificação não é apagado por um evento atrasado de reprodu�
   expect(changed).toHaveBeenLastCalledWith({state: 'error', seconds: 1.5});
   await session.stop();
 });
+
+test('Voltar cancela initialize pendente pela API do SDK sem esperar seu retorno', async () => {
+  const player = fakePlayer();
+  player.initialize.mockReturnValue(new Promise<void>(() => {}));
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  const ready = jest.fn();
+  const session = createPlaybackSession(ready, jest.fn());
+  await Promise.resolve();
+  await session.stop();
+  expect(player.deinitialize).toHaveBeenCalledTimes(1);
+  expect(ready).not.toHaveBeenCalled();
+});

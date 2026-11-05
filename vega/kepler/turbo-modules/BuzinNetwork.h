@@ -7,6 +7,7 @@
  */
 
 #include "generated/BuzinNetworkSpec.h"
+#include "FCastTransport.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -15,9 +16,18 @@ public:
   BuzinNetwork();
   ~BuzinNetwork() noexcept;
 
+  double startFCast() override;
+  void stopFCast() override;
+  std::string pollFCastCommand() override;
+  bool isFCastClient(double client) override;
+  void disconnectFCastClient(double client) override;
+  void fcastError(double client, std::string message) override;
+  void updateFCastState(std::string playback, std::string volume) override;
   std::string getReport() override;
   void recordPlaybackState(std::string state, double seconds) override;
   std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
+private:
+  FCastTransport fcast;
 };
 
 } // namespace BuzinNetworkTurboModule
