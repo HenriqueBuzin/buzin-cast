@@ -17,3 +17,8 @@ install(TARGETS BuzinNetwork)
 add_executable(buzin-network-probe
   kepler/network_probe_main.cpp kepler/turbo-modules/NetworkProbe.cpp)
 install(TARGETS buzin-network-probe RUNTIME DESTINATION bin)
+
+include(cmake/AirPlayCore.cmake)
+target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp)
+target_link_libraries(BuzinNetwork PRIVATE BuzinAirPlayCore)
+target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")

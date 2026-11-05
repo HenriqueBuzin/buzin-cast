@@ -7,7 +7,7 @@ jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
   default: {
     getReport: jest.fn(
       () =>
-        '{"tcpLoopback":true,"udpLoopback":true,"wildcardBind":true,"multicastMembership":true}',
+        '{"tcpLoopback":true,"udpLoopback":true,"wildcardBind":true,"multicastMembership":true,"rtspParser":true,"malformedRtspRejected":true,"aesCtrVector":true}',
     ),
   },
 }));

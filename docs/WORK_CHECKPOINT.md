@@ -1,5 +1,27 @@
 # Retomada — 4 de novembro de 2026
 
+## Núcleo UxPlay compilado para Vega — 4 de novembro de 2026
+
+- `vega/cmake/AirPlayCore.cmake` compila os mesmos submódulos UxPlay 1.73.7,
+  libplist 2.8.0, llhttp e PlayFair usados no Fire OS, sem copiar suas fontes.
+  Cifra com OpenSSL 3.5.9 LTS estático, compilado pela toolchain Vega.
+- Download oficial OpenSSL com SHA256
+  `603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a`,
+  conferido no asset oficial `.sha256`. Build release completa nas três ABIs.
+- Diagnóstico no sandbox inclui parser UxPlay com RTSP OPTIONS fragmentado,
+  rejeição de mensagem malformada e vetor AES-128-CTR NIST SP 800-38A F.5.1.
+  Os sete resultados (quatro de sockets e três novos) passaram no VVD ARM64,
+  via controle real, e após Voltar/Sobre/nova execução. Relatório em
+  `build/vega-protocol-checks/result.json`. O primeiro teste do parser falhou
+  por interpretar seu retorno como contagem de bytes; corrigido para HPE_OK.
+- Licenças e créditos do código incorporado adicionados em `vega/assets/raw`.
+  O VPT passou na ABI; informa uso de dlopen no OpenSSL. Rever configuração
+  de providers/DSO antes de publicação e manter teste de cifra no dispositivo.
+- Limite: parser/cripto e arquivo estático de protocolo não são recepção
+  AirPlay. DNS-SD é uma fronteira ainda sem adaptador Vega; não foi criada
+  implementação fictícia nem anunciado serviço. Áudio/vídeo seguem pendentes.
+
+
 ## Revalidação visual e correção de layout — 4 de novembro de 2026
 
 - Henrique confirmou launcher e Buzin Cast visíveis. A captura da tela inteira
