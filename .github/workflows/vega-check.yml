@@ -1,0 +1,35 @@
+name: Buzin Cast - verificar fontes Vega
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['vega/**', '.github/workflows/vega-check.yml']
+  push:
+    branches: [main]
+    paths: ['vega/**', '.github/workflows/vega-check.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: vega
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: vega/.nvmrc
+          cache: npm
+          cache-dependency-path: vega/package-lock.json
+      - run: npm ci
+      - run: npm run lint -- --max-warnings 0
+      - run: npx tsc --noEmit
+      - run: npm test -- --runInBand
+      - name: Conferir cópia da arte aprovada
+        run: cmp src/assets/buzin_banner.png ../app/src/main/res/drawable-nodpi/buzin_banner.png
+      - name: Conferir ícone aprovado
+        run: cmp assets/image/buzin_launcher.png ../app/src/main/res/mipmap-xxxhdpi/buzin_launcher.png

@@ -1,5 +1,28 @@
 # Retomada — 4 de novembro de 2026
 
+## Build Vega concluída no Mac — 4 de novembro de 2026
+
+- Após limpeza de espaço autorizada, SDK estável 2.0.13986 reinstalado e
+  selecionado com `vega sdk use 2.0.13986`; CLI 1.4.7, Node nvm 26.13.0 LTS.
+- `vega project update-manifest --os-min 2.0 --os-version 2.0` removeu a
+  dependência OS gerada manualmente pelo template. Removida também a
+  dependência opcional NetworkManager que a prévia não usa.
+- Prévia ganhou foco visível, páginas Estado do port/Sobre e retorno pelo
+  controle. Três testes Jest passaram; TypeScript e lint sem avisos.
+- Ícone 512x512 copiado sem alterações de `mipmap-xxxhdpi/buzin_launcher.png`,
+  referenciado pelo manifesto e confirmado dentro do pacote.
+- `vega project doctor`: todas as verificações críticas passaram.
+  `npm run build:app`: release concluída em ARM64, ARMv7 e x86_64.
+  VPKGs em `vega/build/{aarch64,armv7,x86_64}-release/` (não versionados).
+  `vega exec vpt validate` aceitou o pacote ARM64.
+- CI de fontes adicionado em `.github/workflows/vega-check.yml`: npm ci,
+  lint sem avisos, TypeScript, Jest e comparação binária das duas artes.
+  Esse CI não equivale a build SDK nem execução no VVD.
+- Instalação da imagem VVD ainda em andamento nesta entrega de build;
+  execução no simulador e testes nativos serão registrados separadamente.
+  Não há receptor implementado nem paridade concluída.
+
+
 ## Retomada no Mac — 4 de novembro de 2026
 
 - Integrado em `vega/` o template oficial `helloWorld` do SDK 2.0.13986,

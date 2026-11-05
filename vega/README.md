@@ -5,6 +5,14 @@ com React Native 0.83 e identidade `com.buzincast.tv`. A interface continua
 sendo uma prévia; ainda não há receptor ou serviço anunciado na rede.
 A arte aprovada é copiada sem alterações para `src/assets/buzin_banner.png`.
 
+## Build verificada no Mac
+
+Em 4/11/2026, `npm run build:app` gerou VPKGs release ARM64, ARMv7 e
+x86_64, com logo e ícone aprovados. `vega project doctor`, lint sem avisos,
+TypeScript e três testes Jest passaram. O pacote ARM64 passou em `vpt validate`.
+A imagem do simulador está sendo instalada; a execução ainda não foi validada.
+Os registros abaixo descrevem a primeira tentativa e são históricos.
+
 ## Ambiente e comandos
 
 Use o nvm já instalado no Mac e o [instalador oficial Vega](https://developer.amazon.com/docs/vega/2.0/install-vega-sdk).
