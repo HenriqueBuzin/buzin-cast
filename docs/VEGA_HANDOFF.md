@@ -17,6 +17,51 @@ NDK r30; a instalação já havia terminado quando a decisão chegou. Essas
 ferramentas locais não alteram os apps nem as TVs e não são versionadas.
 
 
+## Reprodução local W3C no Vega — 5 de novembro de 2026
+
+- Integrado o player nativo do sistema por `@amazon-devices/react-native-w3cmedia`
+  (perfil SDK `~2.3.0`, lock 2.3.5), com VideoPlayer e KeplerVideoSurfaceView.
+  A página Mídia oferece Testar reprodução. A amostra própria inclui padrão
+  animado H.264 Baseline 320×180/15 fps e AAC estéreo 48 kHz, oito segundos,
+  em `assets/raw/media/playback-sample.mp4`. Não depende de internet.
+- Reprodução com imagem visível foi conferida na tela do Mac. O smoke passou
+  pelo controle real: relógio avançando, pausa mantendo posição, retomada,
+  Voltar aguardando deinitialize, segunda sessão, evento ended em 7,999 s,
+  Home liberando recursos no segundo plano e retorno à tela inicial.
+  Relatório: `build/vega-playback-checks/result.json`; captura local em
+  `playback-visible.png`. Som audível/sincronismo não foram medidos.
+- O controller serializa a abertura após o encerramento da sessão anterior,
+  trata Voltar durante initialize, remove listeners/timer, mantém erro terminal
+  diante de evento atrasado e usa AppState para sair do teste no segundo plano.
+  O módulo C++ grava estado/segundos reais por renomeação atômica no sandbox,
+  sem URL ou conteúdo do usuário, em `/data/playback-state.json`.
+- O primeiro manifesto de mídia deixou faltar audio.system e os canais GIPC;
+  corrigido conforme a documentação completa. Adicionados os privilégios
+  documentados secureplayback/file-sharing e serviços de buffers/transforms.
+  Ainda houve timeout GetWriteBuff/Bad Value em novaaudiosink no VVD que vinha
+  rodando desde a sessão anterior. Após reiniciar **somente o VVD**, preservando
+  seus dados, todos os cenários passaram. Não afirmar que era defeito do app ou
+  do hardware sem nova reprodução; guardar esse diagnóstico para recorrências.
+- getVideoPlaybackQuality devolveu zero e registrou erro nativo 50001 apesar
+  da imagem visível. Removida a consulta desse contador do teste/player; não
+  expor zero como prova de ausência de vídeo. A consulta separada de capacidade
+  H.264 também segue retornando zero, apesar de esta amostra ser reproduzida.
+- Lint sem avisos, TypeScript, doctor e 12 testes Jest passaram; as três ABIs
+  release passaram em build e validação ABI. Smoke inclui regressão dos sete
+  testes de rede/parser/cripto, consulta de codecs e navegação Sobre/Voltar.
+  O aviso dlopen do OpenSSL continua pendente da revisão já registrada.
+- Fire OS permanece sem alterações. Não há receptor/descoberta anunciado no
+  Vega nem integração dos callbacks AirPlay. Próximo: conectar recepção ao
+  player (URL para os protocolos correspondentes; MSSE para amostras AirPlay),
+  implementar descoberta/ciclo de vida dos servidores e portar configurações,
+  perfis e interface da edição Fire OS 6+ testada. A meta de equivalência segue
+  ativa; reprodução local não comprova paridade ou validação física.
+
+Referências: [player W3C](https://developer.amazon.com/docs/vega-api/2.0/README.amazon-devices_react-native-w3cmedia),
+[manifesto de mídia](https://developer.amazon.com/docs/vega/2.0/multiview-apps)
+e [arquivos do pacote](https://developer.amazon.com/docs/vega/2.0/vpt).
+
+
 ## Consulta de mídia no Vega — 5 de novembro de 2026
 
 - Integrado `@amazon-devices/keplermediadescriptor`, resolvido oficialmente por

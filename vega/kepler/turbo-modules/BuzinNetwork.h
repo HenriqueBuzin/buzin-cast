@@ -16,6 +16,7 @@ public:
   ~BuzinNetwork() noexcept;
 
   std::string getReport() override;
+  void recordPlaybackState(std::string state, double seconds) override;
   std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
 };
 

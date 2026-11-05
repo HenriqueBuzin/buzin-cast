@@ -17,7 +17,11 @@ O Vega ainda é uma prévia: não recebe nem anuncia AirPlay, DLNA, FCast ou Cas
 - Página Mídia consulta o módulo público Vega Media Descriptor: o VVD informou
   zero resultados H.264/HEVC e um AAC. Lista vazia também pode indicar erro da
   consulta; esses números não comprovam reprodução ou capacidades de TVs físicas.
-- Lint sem avisos, TypeScript, doctor e sete testes Jest passaram.
+- Reprodução local com VideoPlayer/superfície nativa: amostra H.264/AAC de oito
+  segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
+  reabertura e liberação no segundo plano passaram no VVD. Som audível e
+  sincronismo com emissores físicos ainda não foram medidos.
+- Lint sem avisos, TypeScript, doctor e 12 testes Jest passaram.
 
 ## Ambiente e build
 
@@ -54,14 +58,16 @@ python3 tools/test_vega.py --serial emulator-5554 \
 
 O script recusa TVs físicas. Exercita o controle real, os sete resultados
 nativos, consulta de mídia, Sobre/Voltar e repetição. Resultados e comandos ficam
-no diretório indicado. Os relatórios do sandbox `/data/network-probe.json` e
-`/data/media-capabilities.json` guardam somente booleanos/contagens, sem mídia
-ou endereços. O runner `build/<arquitetura>-release/bin/buzin-network-probe`
+no diretório indicado. Também verifica a amostra local, pausa/retomada,
+fim, reabertura e segundo plano. Os relatórios do sandbox
+`/data/network-probe.json`, `/data/media-capabilities.json` e
+`/data/playback-state.json` guardam somente resultados, estados e segundos,
+sem mídia ou endereços. O runner `build/<arquitetura>-release/bin/buzin-network-probe`
 é um artefato separado e não integra o VPKG.
 
 ## Trabalho restante
 
-Integrar decodificação, saída de áudio/vídeo, relógios, descoberta e receptores;
+Integrar amostras AirPlay/MSSE, relógios, descoberta e receptores;
 portar configurações e os demais recursos Fire OS. Recepção com emissores reais,
 sincronismo e sessões longas dependem de validação em Fire TV Vega físico.
 Somente ARM64 foi executada no simulador. O build mantém o aviso dlopen do
