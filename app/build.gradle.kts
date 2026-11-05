@@ -41,8 +41,8 @@ android {
         applicationId = "com.buzincast.tv"
         minSdk = if (legacyEdition) 22 else 25
         targetSdk = 37
-        versionCode = if (legacyEdition) 21 else 22
-        versionName = if (legacyEdition) "0.6.0-compat" else "0.6.0"
+        versionCode = if (legacyEdition) 23 else 24
+        versionName = if (legacyEdition) "0.6.1-compat" else "0.6.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         externalNativeBuild {
