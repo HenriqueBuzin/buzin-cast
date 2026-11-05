@@ -12,6 +12,13 @@
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() = default;
 BuzinNetwork::~BuzinNetwork() noexcept = default;
+double BuzinNetwork::startFCast() {return fcast.start();}
+void BuzinNetwork::stopFCast() {fcast.stop();}
+std::string BuzinNetwork::pollFCastCommand() {return fcast.pollCommand();}
+bool BuzinNetwork::isFCastClient(double client) {return fcast.isClient(client);}
+void BuzinNetwork::disconnectFCastClient(double client) {fcast.disconnect(client);}
+void BuzinNetwork::fcastError(double client, std::string message) {fcast.error(client, message);}
+void BuzinNetwork::updateFCastState(std::string playback, std::string volume) {fcast.update(playback, volume);}
 std::string BuzinNetwork::getReport() {
   auto report = runNetworkProbe();
   report.pop_back();

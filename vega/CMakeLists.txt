@@ -8,6 +8,7 @@ find_package(turbomoduleAPI CONFIG REQUIRED)
 kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/generated/BuzinNetworkSpec.cpp
   kepler/turbo-modules/BuzinNetwork.cpp
+  kepler/turbo-modules/FCastTransport.cpp
   kepler/turbo-modules/NetworkProbe.cpp
   kepler/AutoLinkInit.cpp)
 target_link_options(BuzinNetwork PRIVATE "LINKER:--no-undefined" "LINKER:-z,defs")
