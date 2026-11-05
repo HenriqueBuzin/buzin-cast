@@ -44,22 +44,30 @@ export default function App() {
       onFocus={() => setFocused(id)}
       onBlur={() => setFocused('')}
       onPress={onPress}
-      style={[styles.button, focused === id && styles.focused]}>
+      style={[
+        styles.button,
+        page !== 'home' && styles.compactButton,
+        focused === id && styles.focused,
+      ]}>
       <Text style={styles.buttonLabel}>{label}</Text>
     </Pressable>
   );
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, page !== 'home' && styles.compactScreen]}>
       <Image
         accessible
         aria-label="Buzin Cast"
         source={require('./assets/buzin_banner.png')}
         resizeMode="contain"
-        style={styles.logo}
+        style={page === 'home' ? styles.logo : styles.compactLogo}
       />
-      <Text style={styles.title}>Prévia para Vega OS</Text>
-      <Text style={styles.description}>Receptor em desenvolvimento</Text>
+      {page === 'home' && (
+        <>
+          <Text style={styles.title}>Prévia para Vega OS</Text>
+          <Text style={styles.description}>Receptor em desenvolvimento</Text>
+        </>
+      )}
       {page === 'home' ? (
         <View style={styles.actions}>
           {action('status', 'Estado do port', () => setPage('status'), true)}
@@ -81,7 +89,28 @@ export default function App() {
               'Testar rede local',
               () => {
                 try {
-                  setReport(Network.getReport());
+                  const result = JSON.parse(Network.getReport()) as Record<
+                    string,
+                    unknown
+                  >;
+                  const keys = [
+                    'tcpLoopback',
+                    'udpLoopback',
+                    'wildcardBind',
+                    'multicastMembership',
+                  ];
+                  if (keys.some((key) => typeof result[key] !== 'boolean')) {
+                    throw new Error('Invalid network diagnostic');
+                  }
+                  const state = (key: string) =>
+                    result[key] ? 'OK' : 'Falhou';
+                  setReport(
+                    `TCP local: ${state('tcpLoopback')} • UDP local: ${state(
+                      'udpLoopback',
+                    )}\nBind de rede: ${state(
+                      'wildcardBind',
+                    )} • Multicast: ${state('multicastMembership')}`,
+                  );
                 } catch {
                   setReport('Falha no diagnóstico nativo. Tente novamente.');
                 }
@@ -104,6 +133,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#081323',
     padding: 48,
   },
+  compactScreen: {padding: 24},
+  compactLogo: {width: 160, height: 90, marginBottom: 12},
+  compactButton: {paddingVertical: 10},
   actions: {flexDirection: 'row', marginTop: 32, gap: 24},
   button: {
     backgroundColor: '#18334F',
@@ -115,9 +147,14 @@ const styles = StyleSheet.create({
   },
   focused: {borderColor: '#69D8FF', backgroundColor: '#245578'},
   buttonLabel: {color: '#FFFFFF', fontSize: 24},
-  panel: {marginTop: 24, maxWidth: 900, alignItems: 'center', gap: 20},
+  panel: {marginTop: 16, maxWidth: 820, alignItems: 'center', gap: 12},
   panelTitle: {color: '#FFFFFF', fontSize: 28},
-  details: {color: '#B7C9DD', fontSize: 22, textAlign: 'center'},
+  details: {
+    color: '#B7C9DD',
+    fontSize: 20,
+    lineHeight: 26,
+    textAlign: 'center',
+  },
   logo: {width: 320, height: 180, marginBottom: 24},
   title: {color: '#FFFFFF', fontSize: 32, fontWeight: '600'},
   description: {color: '#B7C9DD', fontSize: 22, marginTop: 12},
