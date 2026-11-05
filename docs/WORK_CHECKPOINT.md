@@ -1,5 +1,40 @@
 # Retomada — 5 de novembro de 2026
 
+## Candidatas corrigidas 0.6.1 — estado atual
+
+- Fontes: `61daec22d9b7288ede4b66c74556b68387cdeb39`. Corrigido encerramento
+  das threads de socket FCast antes de reutilizar a porta. Teste novo falhou
+  antes e passou depois da correção: cinco execuções de 10 testes na API 36
+  e três na API 22, incluindo cinco ciclos de reabertura por execução.
+- Principal 0.6.1/código 24: SHA256
+  `8c7c627901c1fd7dd6c15b7fc46913c8469a888ea88da176fc426c089017d1e2`.
+- Compatível 0.6.1-compat/código 23: SHA256
+  `78a893c882891717876391a1adb76ed5da47ad36b5ffc475c141f3d0476931aa`.
+- Mesma chave de produção. Assinaturas verificadas, três ABIs, min SDK
+  25/22 e target 37, sem depuração ou instrumentação de cobertura. Build e
+  lint release passaram nas duas: zero erros, 90/99 avisos respectivamente.
+- APKs assinados conferidos em AVDs API 36/22: launcher, configurações por
+  controle, retomada e OPTIONS nativo AirPlay 200. As limitações de emissor
+  Apple real, áudio/sincronismo e Fire OS 5 físico continuam explícitas.
+- Artefatos e fontes correspondentes em
+  `C:\Users\henri\Documents\Buzin Cast\releases\0.6.1`. Arquivo completo de
+  fontes SHA256 `edf28e24dd1f3a30c1c11e8649d028307c1a416082e22540cb28d3ad7eade38c`.
+- Rascunho Amazon já recebeu os dois APKs novos pelo comando Replace,
+  preservando 92/5 modelos Fire TV, tablets/automotivos desmarcados e DRM
+  desativado. Descrições PT-BR/EN-US, imagens, classificação e privacidade
+  preparados anteriormente. Henrique enviou a versão e o console confirmou
+  **Under Review**, com distribuição em todas as regiões e inglês dos EUA
+  marcado como completo.
+- CI final: [42088008733](https://github.com/HenriqueBuzin/buzin-cast/actions/runs/42088008733).
+  Build e todas as 12 APIs passaram.
+  Execuções anteriores redundantes `42083009064` e `42087765602` canceladas;
+  a primeira já havia confirmado a correção de foco na API 28.
+- 0.6.1 instalada nas três TVs preservando os dados e sem backups. As três
+  responderam a OPTIONS com RTSP 200. Capturas da versão feitas no quarto.
+- Três ícones da ficha padronizados com fundo azul, órbitas e marca maior
+  centralizada. Os novos arquivos estão preparados para a próxima edição
+  da ficha, que está bloqueada durante a análise.
+
 ## Loja e instalação física — atualização de 5 de novembro de 2026
 
 - Henrique autorizou preencher a página, investigar o CI e enviar as duas
