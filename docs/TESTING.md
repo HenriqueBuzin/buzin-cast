@@ -140,3 +140,8 @@ layout ou launcher. Em 4/11/2026 passou no VVD ARM64; x86_64/ARMv7 foram
 compilados, sem execução registrada. A revisão visual posterior via captura do macOS confirmou tela inicial,
 estado e Sobre, após corrigir o corte de Voltar. Captura interna do SDK
 continua sem funcionar neste ambiente. Sem equivalência física declarada.
+
+O diagnóstico Vega também testa o parser RTSP do próprio UxPlay com solicitação
+fragmentada e entrada malformada, e seu helper AES-128-CTR contra o vetor NIST
+SP 800-38A F.5.1. São sete verificações nativas no sandbox ARM64; não constituem
+uma sessão AirPlay com áudio/vídeo. Logs da rodada: `build/vega-protocol-checks`.

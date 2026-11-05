@@ -98,6 +98,9 @@ export default function App() {
                     'udpLoopback',
                     'wildcardBind',
                     'multicastMembership',
+                    'rtspParser',
+                    'malformedRtspRejected',
+                    'aesCtrVector',
                   ];
                   if (keys.some((key) => typeof result[key] !== 'boolean')) {
                     throw new Error('Invalid network diagnostic');
@@ -109,7 +112,13 @@ export default function App() {
                       'udpLoopback',
                     )}\nBind de rede: ${state(
                       'wildcardBind',
-                    )} • Multicast: ${state('multicastMembership')}`,
+                    )} • Multicast: ${state(
+                      'multicastMembership',
+                    )}\nParser RTSP: ${
+                      result.rtspParser && result.malformedRtspRejected
+                        ? 'OK'
+                        : 'Falhou'
+                    } • AES-CTR: ${state('aesCtrVector')}`,
                   );
                 } catch {
                   setReport('Falha no diagnóstico nativo. Tente novamente.');

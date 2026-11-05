@@ -63,7 +63,8 @@ def main():
                 if attempt == 9:
                     raise
                 time.sleep(0.5)
-        expected = ["tcpLoopback", "udpLoopback", "wildcardBind", "multicastMembership"]
+        expected = ["tcpLoopback", "udpLoopback", "wildcardBind", "multicastMembership",
+                    "rtspParser", "malformedRtspRejected", "aesCtrVector"]
         if any(native.get(key) is not True for key in expected):
             raise RuntimeError(f"Diagnóstico nativo reprovado: {native}")
         report["checks"]["remoteToNativeSandbox"] = native

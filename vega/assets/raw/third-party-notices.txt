@@ -1,0 +1,21 @@
+Buzin Cast — criação e manutenção: Henrique Buzin.
+Contribuições próprias: GNU GPL v3. Créditos originais preservados.
+Base original Android: jqssun/android-airplay-server (GNU GPL v3).
+
+Componentes do núcleo de protocolo incorporados nesta build Vega:
+- UxPlay 1.73.7, https://github.com/FDH2/UxPlay (GPL v3 e avisos internos).
+- RPiPlay crypto helpers: Florian Draschbacher, Jaslo Ziska (GPL v3).
+- HTTP/RAOP library: Juho Vähä-Herttua e contribuidores (LGPL 2.1+).
+- libplist 2.8.0, https://github.com/libimobiledevice/libplist (LGPL 2.1+).
+- libcnary: avisos e licença em licenses/libcnary.txt.
+- llhttp: licença MIT em licenses/llhttp-MIT.txt.
+- PlayFair: licença e créditos em licenses/playfair.txt.
+- OpenSSL 3.5.9 LTS, https://github.com/openssl/openssl (Apache 2.0).
+
+Licenças integrais em assets/raw/licenses.
+As fontes e alterações Buzin Cast estão em https://github.com/HenriqueBuzin/buzin-cast.
+
+O app usa o runtime React Native for Vega fornecido pelo sistema Amazon.
+A ferramenta/ponte @amazon-devices/keplerscript-turbomodule-api 1.2.5 usa
+Amazon Program Materials License e avisos de terceiros, preservados no npm:
+https://developer.amazon.com/support/legal/pml
