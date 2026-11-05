@@ -53,3 +53,24 @@ Java 25 LTS, Kotlin 2.4.21, Gradle/AGP, NDK r30 LTS, CMake, Hilt, Coroutines, Ob
 Os controles de áudio pertencem ao aplicativo e usam a interface Player comum às duas linhas Media3. DataStore, Hilt Navigation e o pacote Media3 UI Compose não utilizados pelo novo conjunto de controles foram removidos das dependências. `desugar_jdk_libs` 2.1.5 cobre APIs Java em sistemas antigos.
 
 O acesso à rede, à resolução física, aos fones e ao AndroidKeyStore tem caminhos específicos para Android 5.1. Esses caminhos devem passar por lint e execução API 22, além dos testes da edição principal.
+
+## Vega no Mac — 4 de novembro de 2026
+
+Manter a preferência solicitada por versões estáveis e/ou LTS. Node 26.13.0
+é o LTS atual, verificado no [site oficial Node](https://nodejs.org/en/about/previous-releases),
+instalado via nvm e fixado em `vega/.nvmrc`. CLI Vega 1.4.7 e SDK 2.0.13986
+foram selecionados pelo instalador oficial, sem canal preview.
+
+O template oficial fixa React 19.2.0 e React Native 0.83.0, perfil gerenciado
+pelo SDK para Vega 2.0. Isso não significa que todas as ferramentas do template
+sejam as últimas versões upstream: ESLint 8.57.1, Jest 29 e plugins antigos
+continuam na base oficial. A atualização/migração dessas ferramentas fica
+pendente de validação com a build Vega. Não declarar toda a árvore atualizada.
+O lock registra versões exatas e exclui caches/SDK/`node_modules` do Git.
+
+Após `npm audit fix` sem force, o npm informa 30 vulnerabilidades: 10 baixas,
+15 moderadas e 5 altas. As cadeias restantes incluem `toml`, `lodash` e `uuid`
+nas ferramentas Amazon, além de ferramentas de CLI/testes/lint. A auditoria
+indica ausência de correção para parte das ferramentas Amazon; não contornar
+isso com rebaixamentos automáticos do React Native CLI. Nenhum novo núcleo
+nativo ou biblioteca de protocolo foi incorporado nesta etapa.

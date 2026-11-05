@@ -1,5 +1,35 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Retomada no Mac — 4 de novembro de 2026
+
+- Integrado em `vega/` o template oficial `helloWorld` do SDK 2.0.13986,
+  gerado primeiro em `/tmp/buzin-cast-vega-official`. Manifesto com ID
+  `com.buzincast.tv`, mínimo/target 2.0 e categoria principal do launcher.
+- Fontes em `vega/src`, arte aprovada copiada sem alterações, entrypoint,
+  configurações, teste de renderização e lock npm adicionados.
+- Mac arm64/macOS 27.2. CLI 1.4.7 instalada em `~/vega/bin`.
+  Node 26.13.0 LTS instalado pelo nvm; `.nvmrc` fixa essa versão.
+  Dependências Homebrew exigidas pela documentação instaladas.
+- `npm ci`, `npm test -- --runInBand`, `npx tsc --noEmit` e verificação da
+  marca executados. Build release gerou JS/sourcemap/Hermes, mas falhou na
+  etapa nativa por ausência de SDK após a reversão descrita abaixo.
+- Bloqueio: disco chegou a aproximadamente 1 GiB livre durante extração VVD.
+  Interrompida a extração; o gerenciador reverteu SDK e VVD. Somente a CLI
+  permanece instalada. O SDK ocupa cerca de 2,7 GiB e o arquivo VVD contém
+  cerca de 3,51 GiB descompactados, além de downloads e temporários.
+  Após espaço liberado por Henrique, havia cerca de 5,1 GiB livres; reservar
+  pelo menos 10 GiB antes de repetir `vega sdk install 2.0.13986`.
+- `npm audit fix` aplicou atualizações compatíveis: ainda há 30 ocorrências
+  (10 baixas, 15 moderadas, 5 altas), incluindo ferramentas Amazon sem correção
+  indicada. Não executado `--force`, que sugeria rebaixamentos incompatíveis.
+- Nenhum VPKG validado, nenhum teste no simulador e nenhum receptor portado.
+  Código Android e TVs da rede preservados; sem nova regressão Android nesta
+  entrega restrita a Vega/documentação. A paridade permanece pendente.
+- Próximo: reinstalar SDK/VVD com espaço suficiente, repetir doctor e build,
+  abrir a prévia no VVD, implementar/verificar foco e controle remoto; só então
+  avançar para rede e o módulo nativo com headers reais do SDK.
+
+
 Atualizado em 4 de novembro de 2026, após alinhamento com Henrique.
 
 ## Objetivo autorizado
@@ -8,11 +38,11 @@ Levar Vega OS, Fire OS 6+ e Fire OS 5 ao mesmo nível de recursos e experiência
 
 Henrique tem outro computador com macOS, onde o Codex continuará o trabalho. Ainda não há Fire TV com Vega OS disponível. Usar o simulador para avançar e registrar separadamente o que exige aparelho físico. Fazer commit ao terminar cada entrega verificável.
 
-## Estado conferido no repositório
+## Estado anterior à integração no Mac
 
 - Fire OS 6+: `app`, versão `0.6.0`, código `22`, mínimo API 25.
 - Fire OS 5: mesmo módulo e fontes, com `-PbuzinLegacy=true`, versão `0.6.0-compat`, código `21`, mínimo API 22. Há dependências compatíveis e caminhos específicos para o sistema antigo, inclusive áudio. Não duplicar o aplicativo em uma terceira implementação Android.
-- Vega OS: `vega/App.tsx` apenas exibe a marca e a mensagem de prévia. Não há projeto completo gerado pelo SDK, manifesto Vega, módulo nativo, descoberta, receptor ou pipeline de áudio/vídeo nessa pasta. Não há VPKG compilado ou validado registrado.
+- Vega OS: A antiga `vega/App.tsx` (agora `vega/src/App.tsx`) apenas exibe a marca e a mensagem de prévia. Não há projeto completo gerado pelo SDK, manifesto Vega, módulo nativo, descoberta, receptor ou pipeline de áudio/vídeo nessa pasta. Não há VPKG compilado ou validado registrado.
 - Identidade do aplicativo: `com.buzincast.tv`. Preservar a logo aprovada, verificada por `tools/verify_brand.py` e `docs/approved-brand.json`.
 - Código Android de referência: `app/src/main/kotlin`, `app/src/main/cpp`, `receiver-core` e `dlna-domain`. Os dois últimos são Kotlin/JVM; a ausência de APIs Android nesses módulos não os torna diretamente executáveis no Vega.
 - Os commits `4883a29` e `2d0b94c` contêm a rodada de regressões, a prévia Vega e a apresentação pública do projeto. Conferir o estado atual do Git antes de trabalhar; não depender da informação antiga de que esses commits estavam sem push.
