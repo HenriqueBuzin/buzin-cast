@@ -2,6 +2,7 @@ schema-version = 1
 
 [package]
 title = "Buzin Cast"
+icon = "@image/buzin_launcher.png"
 version = "0.6.0"
 # Floor so local builds pass vpt validate; pass an increasing --build-number for every Appstore upload.
 build-number = 1
@@ -10,14 +11,6 @@ id = "com.buzincast.tv"
 [os.version]
 min = "2.0"
 target = "2.0"
-
-[needs]
-[[needs.module]]
-id = "/com.amazon.vega.os@IVega_1_2"
-
-[wants]
-[[wants.module]]
-id = "/com.amazon.kepler.net.net_manager@INetManager"
 
 [components]
 [[components.interactive]]
