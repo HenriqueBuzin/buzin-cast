@@ -1,4 +1,16 @@
-# Retomada — 2 de novembro de 2026
+# Retomada — 4 de novembro de 2026
+
+## Prioridade atual: paridade das três edições
+
+Henrique pediu alinhar Vega OS às duas edições Fire OS e continuar o port no outro computador com macOS. Não há Fire TV Vega físico disponível. O roteiro, o estado conferido e o prompt para o Codex do Mac estão em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+Fire OS principal e compatível já compartilham o código; Vega continua sendo apenas uma tela de prévia, sem receptor integrado ou VPKG validado. Esta atualização prepara a retomada, sem alterar o código do app ou declarar a paridade concluída. O simulador permite avançar no Mac; recepção e sincronismo reais precisam de aparelho Vega.
+
+Os commits `4883a29` e `2d0b94c` já estão no histórico. A suíte documentada em [TESTING.md](TESTING.md) foi ampliada desde o registro abaixo; os números antigos de cobertura e as pendências antigas devem ser tratados como históricos até nova conferência dos relatórios. Os caminhos Windows/WSL abaixo não estarão disponíveis no clone do Mac.
+
+## Registro histórico — 2 de novembro de 2026
+
+As referências abaixo a Vega fora do escopo pertencem ao plano anterior; a prioridade atual está acima.
 
 Henrique pediu salvar o estado devido ao limite do Codex, atualizar os três Fire Sticks e conferir o ícone/cache. Depois continuaremos os testes e a refatoração. Não considerar a meta global de 100% concluída.
 

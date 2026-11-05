@@ -3,6 +3,11 @@
 Esta prévia abre a tela inicial com a marca do Buzin Cast. A primeira
 entrega funcional será o espelhamento AirPlay com áudio.
 
+O próximo desenvolvimento será feito no Mac, com o objetivo de alcançar os
+recursos das duas edições Fire OS. O [ponto de retomada para o Codex no Mac](../docs/VEGA_HANDOFF.md)
+registra o escopo, a ordem de implementação e as validações necessárias.
+Ainda não há Fire TV Vega físico disponível; os primeiros testes usarão o simulador.
+
 ## Gerar e executar a prévia
 
 Instale o [Vega Developer Tools](https://developer.amazon.com/docs/vega/latest/install-vega-sdk)
@@ -16,7 +21,7 @@ cp vega/App.tsx app/src/main/res/drawable-nodpi/buzin_banner.png ../buzin-cast-v
 cd ../buzin-cast-vega-preview
 vega project update-manifest --os-min 2.0 --os-version 2.0
 npm install
-npx react-native build-vega
+npm run build:app
 ```
 
 Siga as [instruções de execução](https://developer.amazon.com/docs/vega/latest/run-apps)

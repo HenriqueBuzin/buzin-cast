@@ -28,5 +28,6 @@ Para relatar um problema, abra uma [issue no GitHub](https://github.com/Henrique
 - [Histórico técnico, instalação e publicação](BUZIN_CAST.md)
 - [Arquitetura](docs/ARCHITECTURE_REVIEW.md) e [testes e cobertura](docs/TESTING.md)
 - [Dependências e compatibilidade](docs/DEPENDENCIES.md)
+- [Andamento do trabalho](docs/WORK_CHECKPOINT.md) e [retomada do Vega OS no Mac](docs/VEGA_HANDOFF.md)
 - [Identidade visual e ícone](docs/BRAND.md)
 - [Documentação histórica do projeto original](docs/UPSTREAM.md)
