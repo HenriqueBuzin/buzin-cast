@@ -174,12 +174,19 @@ class Suite:
         self.wait(lambda: "Conectar a outra TV" in self.texts(self.ui()),"Tools not available")
         self.activate("Conectar a outra TV")
         self.wait(lambda: sum(n.get("class")=="android.widget.EditText" for n in self.ui().iter())==3,"Relay form did not open")
+        # Composing the fields precedes the dialog's initial focus effect on
+        # slower API 28 emulators. Send each key only after that focus lands.
+        self.wait(lambda: "IP" in self.focused(), "Relay form did not focus the address")
         assert not self.keyboard()
         for key,label in [(20,"Porta"),(20,"Código"),(19,"Porta"),(19,"IP")]:
-            self.key(key); assert label in self.focused(),(key,self.focused());assert not self.keyboard()
+            self.key(key)
+            self.wait(lambda: label in self.focused(), f"Relay focus did not move to {label} after key {key}")
+            assert not self.keyboard()
         self.key(23);self.wait(self.keyboard,"OK did not enable form input")
         self.key(4);self.wait(lambda:not self.keyboard(),"Back did not hide IME")
-        self.key(20);assert "Porta" in self.focused();assert not self.keyboard()
+        self.key(20)
+        self.wait(lambda: "Porta" in self.focused(), "Relay focus did not return to port after closing the keyboard")
+        assert not self.keyboard()
         self.shot("relay-one-form")
 
     def profiles(self):
