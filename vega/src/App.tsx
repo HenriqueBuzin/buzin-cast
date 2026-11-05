@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import Network from './turbo-modules/BuzinNetwork';
+import {getMediaReport} from './mediaCapabilities';
 import {
   BackHandler,
   Image,
@@ -10,9 +11,12 @@ import {
 } from 'react-native';
 
 export default function App() {
-  const [page, setPage] = useState<'home' | 'status' | 'about'>('home');
+  const [page, setPage] = useState<'home' | 'status' | 'about' | 'media'>(
+    'home',
+  );
   const [focused, setFocused] = useState('status');
   const [report, setReport] = useState('');
+  const [mediaReport, setMediaReport] = useState('');
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -71,16 +75,61 @@ export default function App() {
       {page === 'home' ? (
         <View style={styles.actions}>
           {action('status', 'Estado do port', () => setPage('status'), true)}
+          {action(
+            'media',
+            'Mídia',
+            () => {
+              setPage('media');
+              try {
+                const result = JSON.parse(getMediaReport()) as Record<
+                  string,
+                  unknown
+                >;
+                const fields = [
+                  ['H.264', 'h264Decoders'],
+                  ['HEVC', 'hevcDecoders'],
+                  ['AAC', 'aacDecoders'],
+                ];
+                if (
+                  fields.some(
+                    ([, key]) =>
+                      !Number.isInteger(result[key]) || Number(result[key]) < 0,
+                  )
+                ) {
+                  throw new Error('Invalid media capabilities');
+                }
+                setMediaReport(
+                  fields
+                    .map(
+                      ([name, key]) =>
+                        `${name}: ${result[key]} resultado(s) informado(s)`,
+                    )
+                    .join('\n'),
+                );
+              } catch {
+                setMediaReport(
+                  'Não foi possível consultar os codecs neste dispositivo.',
+                );
+              }
+            },
+            false,
+          )}
           {action('about', 'Sobre', () => setPage('about'), false)}
         </View>
       ) : (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>
-            {page === 'status' ? 'Estado do port' : 'Sobre'}
+            {page === 'status'
+              ? 'Estado do port'
+              : page === 'media'
+              ? 'Capacidades de mídia'
+              : 'Sobre'}
           </Text>
           <Text style={styles.details}>
             {page === 'status'
               ? 'AirPlay, DLNA, FCast e Cast V2 ainda não estão disponíveis no Vega. Nenhum receptor é anunciado na rede.'
+              : page === 'media'
+              ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Reprodução ainda não validada.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}
           </Text>
           {page === 'status' &&
@@ -127,6 +176,9 @@ export default function App() {
               true,
             )}
           {page === 'status' && <Text style={styles.details}>{report}</Text>}
+          {page === 'media' && (
+            <Text style={styles.details}>{mediaReport}</Text>
+          )}
           {action('back', 'Voltar', () => setPage('home'), page !== 'status')}
         </View>
       )}

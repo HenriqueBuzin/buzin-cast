@@ -19,6 +19,7 @@ BuzinNetworkSpec::~BuzinNetworkSpec() = default;
 
 void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& methodAggregator) const noexcept {
   methodAggregator.addMethod("getReport", &BuzinNetworkSpec::getReport);
+  methodAggregator.addMethod("recordMediaCapabilities", &BuzinNetworkSpec::recordMediaCapabilities);
 }
 
 } // namespace BuzinNetworkTurboModule
