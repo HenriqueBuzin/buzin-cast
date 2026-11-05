@@ -1,5 +1,51 @@
 # Retomada — 5 de novembro de 2026
 
+## Loja e instalação física — atualização de 5 de novembro de 2026
+
+- Henrique autorizou preencher a página, investigar o CI e enviar as duas
+  edições Fire OS à revisão quando estiverem prontas. Vega fica fora.
+- Reinstalação limpa da candidata principal assinada autorizada e concluída
+  nos três Fire TV Stick AFTMM da casa (API 25/Fire OS 6). Todos iniciaram a
+  versão 0.6.0/código 22; o receptor nativo respondeu `RTSP/1.0 200 OK` a
+  OPTIONS nos três. Não houve nova sessão com emissor Apple, medição de áudio
+  audível/sincronismo ou teste físico de Fire OS 5 nesta validação.
+- A pedido de Henrique, não criar mais backups dos dispositivos. O backup
+  local do quarto foi removido da pasta e enviado à Lixeira do Windows.
+- Política pública bilíngue em `docs/PRIVACY.md`; URL GitHub conferida com
+  HTTP 200. Textos PT-BR/EN-US, arte aprovada e três capturas reais do APK
+  de produção na TV estão em `store/amazon`. Capturas em RGB 24 bits,
+  1920×1080, sem edição visual. Nenhum backup ou segredo foi publicado.
+- Rascunho Amazon: gratuito, todos os países disponíveis, todas as faixas
+  etárias, classificação completa, declaração de privacidade salva para
+  revisão. Declarados identificadores de dispositivos, fotos, vídeos,
+  áudio, diagnósticos e arquivos usados localmente; sem transferência a
+  terceiros. Finalidade funcional; diagnósticos também para análise de
+  desempenho. Sem conta, anúncios, localização ou publicidade direcionada.
+- Descrições e imagens obrigatórias aparecem completas na revisão. O
+  console exigiu também a galeria geral, preenchida com as mesmas três
+  capturas reais da TV; dispositivos tablet continuam desmarcados.
+- Ainda **não enviado**. A tela final exige certificação de conformidade
+  de importação/exportação, incluindo criptografia. Obter confirmação de
+  Henrique no momento dessa declaração antes de marcá-la e submeter.
+- CI anterior diagnosticado: CMake recebeu 403 da API GitHub; API 37 exige
+  plataforma/imagem `37.0`; rotação/perfil de telefone alterava a navegação;
+  aviso inicial de modo imersivo cobria o app nas APIs recentes. Corrigidos
+  ambiente autenticado do instalador, imagem 37.0, perfil TV e preparação
+  do emulador, sem remover asserções. Acrescentados diagnósticos à falha
+  FCast observada na API 25; causa ainda em investigação.
+- Execução de verificação atual: [42074548928](https://github.com/HenriqueBuzin/buzin-cast/actions/runs/42074548928),
+  commit `6cb3d0b`. Canceladas duas execuções anteriores redundantes ainda
+  na fila. Não afirmar CI verde antes de conferir a matriz completa.
+- Nessa execução, build/lint das duas edições e matriz API 22, 25, 29, 30 e
+  31 passaram. API 28 passou integração Android (19 testes), nativa (10)
+  e cancelamento/retorno de foco, mas falhou no foco do formulário relay.
+  Ajustado somente o teste para aguardar o foco inicial e as transições
+  assíncronas, preservando uma tecla por movimento e todas as verificações.
+  Conferência local: cinco repetições do formulário na API 36 com o teste
+  anterior e três na API 28 com as esperas novas passaram. APK de debug
+  recompilado do código atual, em AVDs isolados; nenhuma TV usada nesses
+  testes. Demais APIs e nova execução da correção ainda pendentes.
+
 ## Candidatas de produção e rascunho Amazon — 5 de novembro de 2026
 
 Henrique autorizou preparar os pacotes de produção e usar somente as duas
