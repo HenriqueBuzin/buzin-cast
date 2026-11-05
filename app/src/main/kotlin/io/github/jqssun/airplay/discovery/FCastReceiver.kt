@@ -15,11 +15,16 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** Opt-in LAN receiver implementing the URL playback subset of FCast v2 (not Google Cast). */
-class FCastReceiver(private val context: Context, private val playback: ReceiverPlaybackPort, private val name: String, private val log: (String) -> Unit) : ReceiverAdapter {
+class FCastReceiver(private val context: Context, private val playback: ReceiverPlaybackPort, private val name: String, private val log: (String) -> Unit,
+    private val requestedPort: Int = 46899,
+) : ReceiverAdapter {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var closed = false
     @Volatile private var listener: ServerSocket? = null
     @Volatile private var client: Socket? = null
+    @Volatile private var listenerThread: Thread? = null
+    @Volatile private var clientThread: Thread? = null
+    internal val listeningPort: Int get() = listener?.localPort?.takeIf { it > 0 } ?: 0
     private val writes = Any()
     private var discovery: NsdServiceManager? = null
     private val ticker = Executors.newSingleThreadScheduledExecutor()
@@ -52,10 +57,11 @@ class FCastReceiver(private val context: Context, private val playback: Receiver
             val ip = Net.lanIpv4() ?: error("No LAN IPv4")
             val server = ServerSocket().apply { reuseAddress = true }
             listener = server
-            server.bind(InetSocketAddress(ip, 46899), 1)
+            server.bind(InetSocketAddress(ip, requestedPort), 1)
+            val port = server.localPort
             discovery = NsdServiceManager(context).also {
                 it.acquireMulticastLock()
-                it.register(listOf(MdnsService(name, "_fcast._tcp", 46899, mapOf("v" to "2", "appName" to "Buzin Cast"))))
+                it.register(listOf(MdnsService(name, "_fcast._tcp", port, mapOf("v" to "2", "appName" to "Buzin Cast"))))
             }
             main.post(update)
             ticker.scheduleAtFixedRate({
@@ -71,10 +77,14 @@ class FCastReceiver(private val context: Context, private val playback: Receiver
                     val socket = try { server.accept() } catch (_: Exception) { break }
                     if (closed || !socket.inetAddress.isSiteLocalAddress || client != null) { socket.close(); continue }
                     client = socket
-                    Thread({ session(socket) }, "buzin-fcast-client").apply { isDaemon = true; start() }
+                    Thread({ session(socket) }, "buzin-fcast-client").also {
+                        it.isDaemon = true; clientThread = it; it.start()
+                    }
                 }
-            }, "buzin-fcast-listener").apply { isDaemon = true; start() }
-            log("FCast v2 experimental listening on $ip:46899")
+            }, "buzin-fcast-listener").also {
+                it.isDaemon = true; listenerThread = it; it.start()
+            }
+            log("FCast v2 experimental listening on $ip:$port")
         } catch (e: Exception) { log("FCast start failed: ${e.message}"); close() }
     }
 
@@ -169,9 +179,23 @@ class FCastReceiver(private val context: Context, private val playback: Receiver
     @Synchronized override fun close() {
         closed = true
         runCatching { listener?.close() }; listener = null
-        runCatching { client?.close() }; client = null
+        runCatching { client?.close() }
         ticker.shutdownNow()
+        // Android retains a socket's native descriptor while accept/read is
+        // unwinding. Wait for those owners before a replacement binds the port.
+        awaitShutdown(listenerThread); listenerThread = null
+        // accept() can return between the closed check and assigning client.
+        runCatching { client?.close() }
+        awaitShutdown(clientThread); clientThread = null
+        client = null
         main.removeCallbacks(update)
         discovery?.release(); discovery = null
+    }
+    private fun awaitShutdown(thread: Thread?) {
+        if (thread == null || thread === Thread.currentThread()) return
+        try {
+            thread.join(1000)
+            if (thread.isAlive) log("FCast worker shutdown timed out: ${thread.name}")
+        } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
     }
 }

@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 6
       matrix:
         api: [22, 25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
     env:
