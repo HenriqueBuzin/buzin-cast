@@ -91,3 +91,15 @@ Preservar esses avisos e revisar as obrigações antes de distribuir o port;
 não reatribuir a licença do SDK como GPL. SDK/runtime não são versionados.
 A toolchain utiliza o CMake 3.30.5 empacotado pelo SDK; não confundir essa
 versão interna com a política das ferramentas Android mantidas pelo projeto.
+
+### Consulta de capacidades de mídia — 5 de novembro de 2026
+
+`vega project install @amazon-devices/keplermediadescriptor` selecionou a linha
+`~1.1.0` do perfil OS 2.0/RN 0.83; o lock fixa 1.1.17. É biblioteca distribuída
+pelo sistema, ligada ao módulo versionado público, com termos Amazon PML.
+Doctor, manifesto gerado, instalação e consulta no VVD foram verificados.
+O aviso informativo de import SDL foi reconhecido somente nos dois arquivos
+que usam essa API; as verificações de versões do pacote continuam ativas.
+Não substituir esse caminho por IDL interno apenas porque seu header compila.
+Ver [arquitetura oficial](https://developer.amazon.com/docs/vega/2.0/vega-rn-arch)
+e [API](https://developer.amazon.com/docs/vega-api/2.0/classes.KeplerMediaDescriptor.amazon-devices_keplermediadescriptor).

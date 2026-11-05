@@ -68,11 +68,29 @@ def main():
         if any(native.get(key) is not True for key in expected):
             raise RuntimeError(f"Diagnóstico nativo reprovado: {native}")
         report["checks"]["remoteToNativeSandbox"] = native
-        # Return to Home, move to About, return and run the diagnostic again.
+        # Query system codecs through the public system media descriptor, then traverse About.
         shell("inputd-cli", "button_press", "KEY_BACK")
+        app_shell("rm", "-f", "/data/media-capabilities.json")
+        shell("inputd-cli", "button_press", "KEY_RIGHT")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        for attempt in range(10):
+            try:
+                media = json.loads(app_shell("cat", "/data/media-capabilities.json"))
+                break
+            except (RuntimeError, json.JSONDecodeError):
+                if attempt == 9:
+                    raise
+                time.sleep(0.5)
+        for key in ("h264Decoders", "hevcDecoders", "aacDecoders"):
+            if type(media.get(key)) is not int or media[key] < 0:
+                raise RuntimeError(f"Capacidade de mídia inválida: {media}")
+        report["checks"]["mediaDescriptorQuery"] = media
+        shell("inputd-cli", "button_press", "KEY_BACK")
+        shell("inputd-cli", "button_press", "KEY_RIGHT")
         shell("inputd-cli", "button_press", "KEY_RIGHT")
         shell("inputd-cli", "button_press", "KEY_ENTER")
         shell("inputd-cli", "button_press", "KEY_BACK")
+        shell("inputd-cli", "button_press", "KEY_LEFT")
         shell("inputd-cli", "button_press", "KEY_LEFT")
         app_shell("rm", "-f", "/data/network-probe.json")
         shell("inputd-cli", "button_press", "KEY_ENTER")

@@ -16,6 +16,7 @@ public:
   ~BuzinNetwork() noexcept;
 
   std::string getReport() override;
+  std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
 };
 
 } // namespace BuzinNetworkTurboModule

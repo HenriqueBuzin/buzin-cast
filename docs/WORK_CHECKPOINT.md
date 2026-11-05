@@ -17,6 +17,42 @@ NDK r30; a instalação já havia terminado quando a decisão chegou. Essas
 ferramentas locais não alteram os apps nem as TVs e não são versionadas.
 
 
+## Consulta de mídia no Vega — 5 de novembro de 2026
+
+- Integrado `@amazon-devices/keplermediadescriptor`, resolvido oficialmente por
+  `vega project install` para OS 2.0/RN 0.83: linha `~1.1.0`, lock 1.1.17.
+  A página Mídia consulta as classes públicas VideoDecoderConfig e
+  AudioDecoderConfig com `video/h264`, `video/hevc` e `audio/aac`.
+- No VVD ARM64: H.264 = 0 resultados, HEVC = 0, AAC = 1. Também foi consultado
+  `video/avc` em uma build anterior, com zero resultados. A API pode retornar
+  lista vazia por erro interno ou ausência de suporte; zero não prova que o
+  hardware não tenha o codec. Não há fallback com valores inventados.
+- O módulo C++ registra apenas as três contagens verificadas em
+  `/data/media-capabilities.json`; rejeita negativos, frações e não finitos.
+  Não grava mídia ou endereços. Uma consulta interrompida não grava relatório
+  parcial. A tela distingue consulta de capacidade de reprodução validada.
+- Cuidado para a retomada: os headers IDL do SDK oferecem
+  `media_descriptor@IMediaDescriptorFactory`, mas esse módulo não está no
+  contrato público OS 2.0 nem na lista `vpm list modules` do VVD. A tentativa
+  compilou e foi recusada na instalação. Removidos o import IDL e a dependência
+  manual; a integração final usa o módulo público versionado
+  `/com.amazon.kepler.keplermediadescriptor_1@IKeplermediadescriptor_1`,
+  declarado automaticamente pelo build. Não basta um header existir no SDK.
+- Lint sem avisos, TypeScript, doctor e sete testes Jest passaram. Build release
+  ARM64/ARMv7/x86_64 e validação ABI passaram. Persiste o aviso dlopen do OpenSSL
+  já registrado. Smoke pelo controle: sete verificações nativas aprovadas,
+  consulta real dos codecs, navegação Sobre/Voltar e repetição do diagnóstico.
+  Resultados locais em `build/vega-media-checks/result.json`; revisão visual
+  em `media-visible.png`, com texto e foco Voltar inteiros na tela.
+- Android permanece idêntico à referência testada; nenhum teste foi instalado
+  nas TVs físicas. A integração de reprodução, saída de áudio/vídeo e descoberta
+  permanece pendente. Próximo: usar as interfaces públicas W3C Media/MSSE para
+  validar amostras reais antes de conectar callbacks do UxPlay ou anunciar AirPlay.
+  Capacidades do simulador não comprovam decodificação ou equivalência física.
+
+Referência: [KeplerMediaDescriptor — API OS 2.0](https://developer.amazon.com/docs/vega-api/2.0/classes.KeplerMediaDescriptor.amazon-devices_keplermediadescriptor).
+
+
 ## Núcleo UxPlay compilado para Vega — 4 de novembro de 2026
 
 - `vega/cmake/AirPlayCore.cmake` compila os mesmos submódulos UxPlay 1.73.7,

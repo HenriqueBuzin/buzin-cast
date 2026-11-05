@@ -145,3 +145,35 @@ O diagnóstico Vega também testa o parser RTSP do próprio UxPlay com solicita�
 fragmentada e entrada malformada, e seu helper AES-128-CTR contra o vetor NIST
 SP 800-38A F.5.1. São sete verificações nativas no sandbox ARM64; não constituem
 uma sessão AirPlay com áudio/vídeo. Logs da rodada: `build/vega-protocol-checks`.
+
+## Vega OS no Mac — 5 de novembro de 2026
+
+Com SDK/VVD 2.0.13986 instalado e Node da `.nvmrc` pelo nvm:
+
+```sh
+cd vega
+nvm use
+npm ci
+npm run lint -- --max-warnings 0
+npx tsc --noEmit
+npm test -- --runInBand
+vega project doctor
+npm run build:app
+cd ..
+python3 tools/test_vega.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --output build/vega-media-checks
+```
+
+Sete testes Jest cobrem navegação, Voltar, erros do diagnóstico, apresentação
+honesta dos codecs, configurações/MIME públicos do SDK e consulta interrompida.
+O smoke recusa seriais físicos e verifica sockets, parser RTSP fragmentado,
+rejeição de RTSP inválido e vetor AES-CTR dentro do sandbox. Também consulta
+os codecs pelo módulo público de mídia, verifica o relatório e repete o
+diagnóstico após navegar. Não exige contagens positivas: a API pode devolver
+zero por ausência de suporte ou erro de consulta. O VVD ARM64 informou 0/0/1
+para H.264/HEVC/AAC. Isso não testa decodificação, saída de som ou recepção.
+
+As três ABIs compilaram; somente ARM64 foi executada. O CI Vega verifica fontes,
+tipos, testes Jest e marca sem instalar SDK/VVD. Cobertura global de 100% continua
+pendente. Ver o estado atual e os limites em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).

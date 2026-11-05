@@ -33,6 +33,7 @@ public:
   void aggregateMethods(com::amazon::kepler::turbomodule::MethodAggregator<KeplerTurboModule>& methodAggregator) const noexcept override;
 
   virtual std::string getReport() = 0;
+  virtual std::string recordMediaCapabilities(double h264, double hevc, double aac) = 0;
 };
 
 } // namespace BuzinNetworkTurboModule
