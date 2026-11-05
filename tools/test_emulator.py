@@ -114,8 +114,10 @@ class Suite:
             target.write_bytes(self.adb("exec-out", "run-as", PKG, "cat", "files/coverage/"+filename, binary=True))
 
     def start(self, screen):
-        self.adb("shell","am","start","-S","-n",f"{PKG}/{BASE}DebugTvPreviewActivity","--es","screen",screen)
-        self.wait(lambda: len(list(self.ui().iter()))>15, "Screen did not compose")
+        self.key(224)  # Wake the isolated emulator before waiting for Compose frames.
+        output=self.adb("shell","am","start","-W","-S","-n",f"{PKG}/{BASE}DebugTvPreviewActivity","--es","screen",screen)
+        assert "Error:" not in output,output
+        self.wait(lambda: len(list(self.ui().iter()))>15, "Screen did not compose",45)
 
     def profile_focus(self):
         for _ in range(15):
@@ -155,7 +157,8 @@ class Suite:
     def edit_cancel(self):
         for attempt in range(3):
             self.start("settings"); self.profile_focus();self.key(20)
-            assert ("name" in self.focused().lower() or "nome" in self.focused().lower())
+            initial_focus=self.focused()
+            assert ("name" in initial_focus.lower() or "nome" in initial_focus.lower()),initial_focus
             self.key(23)
             self.wait(self.keyboard,f"OK did not open keyboard (attempt {attempt+1})")
             self.adb("shell","input","text","_AUTOTEST")
@@ -427,6 +430,11 @@ class Suite:
         api=int(self.adb("shell","getprop","ro.build.version.sdk").strip())
         if api>=33: self.adb("shell","pm","grant",PKG,"android.permission.POST_NOTIFICATIONS")
         if api>=37: self.adb("shell","pm","grant",PKG,"android.permission.ACCESS_LOCAL_NETWORK")
+        # First-run immersive hints obscure the fixture on API 35+; these are
+        # emulator-only setup choices, not app permissions or skipped assertions.
+        self.adb("shell","settings","put","secure","immersive_mode_confirmations","confirmed")
+        self.adb("shell","svc","power","stayon","true")
+        self.key(224)
         # Emulator hosts can report a hardware keyboard after key injection.
         # Keep software IME available so edit/Back assertions are deterministic.
         self.adb("shell","settings","put","secure","show_ime_with_hard_keyboard","1")

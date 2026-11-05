@@ -23,7 +23,11 @@ base=Path(os.environ.get("BUZIN_TOOLCHAIN_HOME",str(root/"build/toolchains"))).r
 base.mkdir(parents=True,exist_ok=True)
 folder=base/name.replace(".tar.gz","").replace(".zip","")
 if not (folder/"bin"/("cmake.exe" if system=="windows" else "cmake")).is_file():
-    request=urllib.request.Request("https://api.github.com/repos/Kitware/CMake/releases/tags/v"+version,headers={"User-Agent":"Buzin-Cast-build"})
+    headers={"User-Agent":"Buzin-Cast-build"}
+    token=os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"]="Bearer "+token
+    request=urllib.request.Request("https://api.github.com/repos/Kitware/CMake/releases/tags/v"+version,headers=headers)
     release=json.load(urllib.request.urlopen(request,timeout=60))
     asset=next(asset for asset in release["assets"] if asset["name"]==name)
     expected=asset.get("digest","").removeprefix("sha256:") if hasattr(str,"removeprefix") else asset.get("digest","").replace("sha256:","",1)

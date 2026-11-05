@@ -22,6 +22,8 @@ jobs:
           distribution: temurin
           java-version: '25.0.5+8'
       - name: Install verified stable CMake
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/install_cmake.py
       - name: Preserve approved launcher artwork
         run: python3 tools/verify_brand.py
@@ -75,6 +77,8 @@ jobs:
           distribution: temurin
           java-version: '25.0.5+8'
       - name: Install verified stable CMake
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/install_cmake.py
       - name: Instrument Android and app-owned C++
         run: bash ./gradlew -PbuzinLegacy=$BUZIN_LEGACY -PbuzinCoverage=true -PbuzinAbis=x86_64 :receiver-core:check :dlna-domain:test :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
@@ -88,9 +92,11 @@ jobs:
       - name: TV navigation, player and native integration
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
-          api-level: ${{ matrix.api }}
+          api-level: ${{ matrix.api == 37 && '37.0' || matrix.api }}
+          system-image-api-level: ${{ matrix.api == 37 && '37.0' || matrix.api }}
           arch: x86_64
-          target: google_apis
+          target: ${{ matrix.api == 37 && 'default' || 'google_apis' }}
+          profile: tv_1080p
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: python3 tools/test_emulator.py --serial emulator-5554 --apk app/$APP_BUILD/outputs/apk/debug/app-debug.apk --test-apk app/$APP_BUILD/outputs/apk/androidTest/debug/app-debug-androidTest.apk --native-tests app/$APP_BUILD/native-tests/native_core_tests --coverage --output build/$CHECKS_DIR
