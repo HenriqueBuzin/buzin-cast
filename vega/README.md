@@ -24,11 +24,11 @@ no sandbox; não armazena endereços nem conteúdo do usuário. O executável
 `build/<arquitetura>-release/bin/buzin-network-probe` é um artefato de teste
 separado e não integra o VPKG.
 
-**A validação visual não passou:** no macOS 27.2 deste Mac, a captura oficial
-ficou aguardando e a captura do framebuffer ficou preta. O wrapper usou
-OpenGL host com erros de validação; SwiftShader não está presente no SDK.
-Não apresentar o layout/launcher como visualmente aprovados. As tentativas
-anteriores registradas abaixo são históricas; o handoff tem o estado atual.
+**Revisão visual concluída depois:** a captura da tela do macOS mostrou a
+prévia funcionando. Foi corrigido o botão Voltar cortado na página de estado.
+Tela inicial, resultado de rede, foco e Sobre foram conferidos visualmente.
+O screenshooter do guest e o framebuffer QMP continuam inadequados para
+capturar este ambiente; isso não indica falha de renderização do aplicativo.
 
 ## Build verificada no Mac
 

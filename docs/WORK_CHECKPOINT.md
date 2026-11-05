@@ -1,5 +1,30 @@
 # Retomada — 4 de novembro de 2026
 
+## Revalidação visual e correção de layout — 4 de novembro de 2026
+
+- Henrique confirmou launcher e Buzin Cast visíveis. A captura da tela inteira
+  do macOS mostrou o app funcionando, com logo aprovada e foco correto.
+  **A hipótese anterior de falha de renderização não se confirmou**: PNG vazio
+  do screenshooter e framebuffer QMP preto são limitações desses métodos de
+  captura neste ambiente, não evidência de app sem imagem.
+- A revisão visual encontrou um defeito real: na página Estado do port o
+  cabeçalho grande empurrava Voltar para fora da tela. Corrigido com cabeçalho
+  compacto, espaçamentos menores nas páginas internas e resultado de rede
+  legível em duas linhas. Tela inicial mantém o cabeçalho original.
+- Verificadas visualmente tela inicial, diagnóstico completo, foco de Voltar
+  e página Sobre, usando controle do VVD. Capturas locais em
+  `build/vega-checks/{home-visible,status-fixed,status-back-focus,about-visible}.png`.
+  Captura da tela inteira não é versionada (inclui outras janelas do usuário).
+- Lint sem avisos, TypeScript e quatro testes Jest passaram; VPKGs release
+  recompilados nas três arquiteturas. Aplicativo aberto no VVD ARM64.
+- O controle de PC não reconhece o executável Qt do VVD como app selecionável;
+  a captura do macOS, explicitamente solicitada por Henrique, permitiu a revisão.
+  Não bloquear o port por essa limitação da ferramenta.
+- A meta reafirmada por Henrique é paridade funcional com as duas edições
+  Fire OS. Projeto, prévia e diagnóstico não encerram o trabalho: seguir com
+  rede/LAN/mDNS, UxPlay, decodificação/renderização/áudio e demais recursos.
+
+
 ## Módulo nativo e execução no VVD — 4 de novembro de 2026
 
 - SDK e VVD 2.0.13986 instalados. Build release com C++23 concluída nas

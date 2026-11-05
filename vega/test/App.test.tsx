@@ -4,7 +4,12 @@ import App from '../src/App';
 
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
   __esModule: true,
-  default: {getReport: jest.fn(() => '{"tcpLoopback":true}')},
+  default: {
+    getReport: jest.fn(
+      () =>
+        '{"tcpLoopback":true,"udpLoopback":true,"wildcardBind":true,"multicastMembership":true}',
+    ),
+  },
 }));
 import {BackHandler} from 'react-native';
 import Network from '../src/turbo-modules/BuzinNetwork';
@@ -50,7 +55,7 @@ test('exibe o resultado do módulo e informa uma falha nativa ao usuário', () =
   const screen = render(<App />);
   fireEvent.press(screen.getByRole('button', {name: 'Estado do port'}));
   fireEvent.press(screen.getByRole('button', {name: 'Testar rede local'}));
-  expect(screen.getByText('{"tcpLoopback":true}')).toBeTruthy();
+  expect(screen.getByText(/TCP local: OK/)).toBeTruthy();
   jest.mocked(Network.getReport).mockImplementationOnce(() => {
     throw new Error('socket failure');
   });

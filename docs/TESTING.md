@@ -137,5 +137,6 @@ TCP/UDP em loopback, bind e adesão multicast; depois repete a navegação e o
 resultado. Ela preserva configurações, encerra apenas o Buzin Cast e recusa
 seriais físicos/IP. Não anuncia serviços nem valida LAN, mDNS, áudio/vídeo,
 layout ou launcher. Em 4/11/2026 passou no VVD ARM64; x86_64/ARMv7 foram
-compilados, sem execução registrada. A captura visual no Mac permanece com
-problema gráfico documentado no handoff. Sem equivalência física declarada.
+compilados, sem execução registrada. A revisão visual posterior via captura do macOS confirmou tela inicial,
+estado e Sobre, após corrigir o corte de Voltar. Captura interna do SDK
+continua sem funcionar neste ambiente. Sem equivalência física declarada.
