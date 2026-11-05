@@ -177,3 +177,20 @@ para H.264/HEVC/AAC. Isso não testa decodificação, saída de som ou recepçã
 As três ABIs compilaram; somente ARM64 foi executada. O CI Vega verifica fontes,
 tipos, testes Jest e marca sem instalar SDK/VVD. Cobertura global de 100% continua
 pendente. Ver o estado atual e os limites em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+### Reprodução local Vega
+
+O mesmo smoke agora verifica a amostra H.264/AAC incluída no pacote, sem
+internet: estado playing com relógio real, pausa com posição estável,
+retomada, liberação após Voltar, segunda sessão com ended, Home liberando
+recursos e retorno ao app. O relatório nativo de estado é gravado atomicamente;
+não registra conteúdo ou URL. Em falha, a suíte coleta logs do próprio app e
+encerra somente esse pacote no VVD. Não alcança TVs físicas.
+
+A suíte Jest soma 12 testes, incluindo cancelamento durante initialize,
+serialização após deinitialize, falha de inicialização, erro terminal diante
+de eventos atrasados e saída no segundo plano. O smoke executado está em
+`build/vega-playback-checks/result.json`. A imagem foi revisada no Mac; som
+audível, sincronismo, sessões longas e recepção permanecem sem validação física.
+O contador de quadros do SDK falhou com código 50001 neste VVD; foi retirado do
+diagnóstico em vez de apresentar zero como evidência de vídeo inexistente.

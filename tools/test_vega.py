@@ -85,7 +85,67 @@ def main():
             if type(media.get(key)) is not int or media[key] < 0:
                 raise RuntimeError(f"Capacidade de mídia inválida: {media}")
         report["checks"]["mediaDescriptorQuery"] = media
+
+        def playback():
+            value = json.loads(app_shell("cat", "/data/playback-state.json"))
+            if (type(value.get("seconds")) not in (int, float)
+                    or not 0 <= value["seconds"] < 60):
+                raise RuntimeError(f"Relógio de reprodução inválido: {value}")
+            if value.get("state") == "error":
+                raise RuntimeError(f"Falha real do player: {value}")
+            return value
+
+        def wait_playback(predicate, timeout=20):
+            deadline = time.monotonic() + timeout
+            last = None
+            while time.monotonic() < deadline:
+                try:
+                    last = playback()
+                except (json.JSONDecodeError, RuntimeError) as error:
+                    if "Falha real" in str(error) or "inválido" in str(error):
+                        raise
+                else:
+                    if predicate(last):
+                        return last
+                time.sleep(0.25)
+            raise RuntimeError(f"Player não atingiu o estado esperado: {last}")
+
+        # Use the packaged H.264/AAC sample, not a mock or an internet URL.
+        app_shell("rm", "-f", "/data/playback-state.json")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        playing = wait_playback(lambda value: value["state"] == "playing" and value["seconds"] >= 0.5)
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        paused = wait_playback(lambda value: value["state"] == "paused")
+        time.sleep(0.5)
+        held = playback()
+        if held["state"] != "paused" or abs(held["seconds"] - paused["seconds"]) > 0.25:
+            raise RuntimeError(f"Pausa não manteve o relógio: {paused}, {held}")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        resumed = wait_playback(lambda value: value["state"] == "playing" and value["seconds"] > held["seconds"] + 0.3)
         shell("inputd-cli", "button_press", "KEY_BACK")
+        released = wait_playback(lambda value: value["state"] == "released")
+        report["checks"]["localPlayback"] = {
+            "playing": playing, "paused": held, "resumed": resumed, "released": released,
+        }
+        # A second native player must initialize after Back released the first.
+        shell("inputd-cli", "button_press", "KEY_RIGHT")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        app_shell("rm", "-f", "/data/playback-state.json")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        reopened = wait_playback(lambda value: value["state"] == "playing" and value["seconds"] >= 0.25)
+        ended = wait_playback(lambda value: value["state"] == "ended" and value["seconds"] >= 7.5)
+        shell("inputd-cli", "button_press", "KEY_BACK")
+        wait_playback(lambda value: value["state"] == "released")
+        report["checks"]["playbackReopened"] = reopened
+        report["checks"]["playbackEnded"] = ended
+        shell("inputd-cli", "button_press", "KEY_RIGHT")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        app_shell("rm", "-f", "/data/playback-state.json")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        wait_playback(lambda value: value["state"] == "playing" and value["seconds"] >= 0.25)
+        shell("inputd-cli", "button_press", "KEY_HOMEPAGE")
+        report["checks"]["backgroundReleased"] = wait_playback(lambda value: value["state"] == "released")
+        run(["device", "launch-app", "--device", args.serial, "--appName", COMPONENT])
         shell("inputd-cli", "button_press", "KEY_RIGHT")
         shell("inputd-cli", "button_press", "KEY_RIGHT")
         shell("inputd-cli", "button_press", "KEY_ENTER")
@@ -105,6 +165,14 @@ def main():
         report.update(passed=False, error=str(error))
         raise
     finally:
+        if not report.get("passed"):
+            # Preserve the failure and release only this test app's resources.
+            try:
+                log = shell("loggingctl", "log", "-v", "com.buzincast.tv")
+                (args.output / "playback-failure.log").write_text(log)
+                shell("vlcm", "terminate-app", "--pkg-id", "com.buzincast.tv")
+            except Exception as cleanup_error:
+                report["cleanupError"] = str(cleanup_error)
         (args.output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
         (args.output / "commands.json").write_text(json.dumps(history, ensure_ascii=False, indent=2) + "\n")
 

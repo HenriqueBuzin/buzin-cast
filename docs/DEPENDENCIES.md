@@ -103,3 +103,12 @@ que usam essa API; as verificações de versões do pacote continuam ativas.
 Não substituir esse caminho por IDL interno apenas porque seu header compila.
 Ver [arquitetura oficial](https://developer.amazon.com/docs/vega/2.0/vega-rn-arch)
 e [API](https://developer.amazon.com/docs/vega-api/2.0/classes.KeplerMediaDescriptor.amazon-devices_keplermediadescriptor).
+
+### Player do sistema Vega — 5 de novembro de 2026
+
+`vega project install @amazon-devices/react-native-w3cmedia` resolveu a linha
+`~2.3.0` do perfil OS 2.0/RN 0.83; o lock fixa 2.3.5. O player/decodificadores
+são do sistema, acessados pelo pacote oficial com termos do fornecedor;
+não foram copiados runtimes/encoders. A amostra sintética foi gerada localmente
+com FFmpeg e somente seu MP4 é incluído, com comando de geração documentado.
+Doctor, build/ABI das três arquiteturas e execução ARM64 foram verificados.

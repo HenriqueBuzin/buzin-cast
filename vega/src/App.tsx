@@ -1,6 +1,7 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import Network from './turbo-modules/BuzinNetwork';
 import {getMediaReport} from './mediaCapabilities';
+import PlaybackScreen from './PlaybackScreen';
 import {
   BackHandler,
   Image,
@@ -11,9 +12,10 @@ import {
 } from 'react-native';
 
 export default function App() {
-  const [page, setPage] = useState<'home' | 'status' | 'about' | 'media'>(
-    'home',
-  );
+  const [page, setPage] = useState<
+    'home' | 'status' | 'about' | 'media' | 'playback'
+  >('home');
+  const goHome = useCallback(() => setPage('home'), []);
   const [focused, setFocused] = useState('status');
   const [report, setReport] = useState('');
   const [mediaReport, setMediaReport] = useState('');
@@ -31,6 +33,10 @@ export default function App() {
     );
     return () => subscription.remove();
   }, [page]);
+
+  if (page === 'playback') {
+    return <PlaybackScreen onBack={goHome} />;
+  }
 
   const action = (
     id: string,
@@ -129,7 +135,7 @@ export default function App() {
             {page === 'status'
               ? 'AirPlay, DLNA, FCast e Cast V2 ainda não estão disponíveis no Vega. Nenhum receptor é anunciado na rede.'
               : page === 'media'
-              ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Reprodução ainda não validada.'
+              ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Use a amostra para testar a reprodução.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}
           </Text>
           {page === 'status' &&
@@ -179,7 +185,14 @@ export default function App() {
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}
-          {action('back', 'Voltar', () => setPage('home'), page !== 'status')}
+          {page === 'media' &&
+            action(
+              'playback',
+              'Testar reprodução',
+              () => setPage('playback'),
+              true,
+            )}
+          {action('back', 'Voltar', goHome, page === 'about')}
         </View>
       )}
     </View>
