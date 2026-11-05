@@ -6,8 +6,8 @@ export default function App() {
     <View style={styles.screen}>
       <Image
         accessible
-        accessibilityLabel="Buzin Cast"
-        source={require('./buzin_banner.png')}
+        aria-label="Buzin Cast"
+        source={require('./assets/buzin_banner.png')}
         resizeMode="contain"
         style={styles.logo}
       />

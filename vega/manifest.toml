@@ -1,0 +1,27 @@
+schema-version = 1
+
+[package]
+title = "Buzin Cast"
+version = "0.6.0"
+# Floor so local builds pass vpt validate; pass an increasing --build-number for every Appstore upload.
+build-number = 1
+id = "com.buzincast.tv"
+
+[os.version]
+min = "2.0"
+target = "2.0"
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[wants]
+[[wants.module]]
+id = "/com.amazon.kepler.net.net_manager@INetManager"
+
+[components]
+[[components.interactive]]
+id = "com.buzincast.tv.main"
+runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
+launch-type = "singleton"
+categories = ["com.amazon.category.main"]

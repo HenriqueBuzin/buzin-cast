@@ -1,10 +1,40 @@
 # Retomada — 4 de novembro de 2026
 
+## Retomada no Mac — 4 de novembro de 2026
+
+- Integrado em `vega/` o template oficial `helloWorld` do SDK 2.0.13986,
+  gerado primeiro em `/tmp/buzin-cast-vega-official`. Manifesto com ID
+  `com.buzincast.tv`, mínimo/target 2.0 e categoria principal do launcher.
+- Fontes em `vega/src`, arte aprovada copiada sem alterações, entrypoint,
+  configurações, teste de renderização e lock npm adicionados.
+- Mac arm64/macOS 27.2. CLI 1.4.7 instalada em `~/vega/bin`.
+  Node 26.13.0 LTS instalado pelo nvm; `.nvmrc` fixa essa versão.
+  Dependências Homebrew exigidas pela documentação instaladas.
+- `npm ci`, `npm test -- --runInBand`, `npx tsc --noEmit` e verificação da
+  marca executados. Build release gerou JS/sourcemap/Hermes, mas falhou na
+  etapa nativa por ausência de SDK após a reversão descrita abaixo.
+- Bloqueio: disco chegou a aproximadamente 1 GiB livre durante extração VVD.
+  Interrompida a extração; o gerenciador reverteu SDK e VVD. Somente a CLI
+  permanece instalada. O SDK ocupa cerca de 2,7 GiB e o arquivo VVD contém
+  cerca de 3,51 GiB descompactados, além de downloads e temporários.
+  Após espaço liberado por Henrique, havia cerca de 5,1 GiB livres; reservar
+  pelo menos 10 GiB antes de repetir `vega sdk install 2.0.13986`.
+- `npm audit fix` aplicou atualizações compatíveis: ainda há 30 ocorrências
+  (10 baixas, 15 moderadas, 5 altas), incluindo ferramentas Amazon sem correção
+  indicada. Não executado `--force`, que sugeria rebaixamentos incompatíveis.
+- Nenhum VPKG validado, nenhum teste no simulador e nenhum receptor portado.
+  Código Android e TVs da rede preservados; sem nova regressão Android nesta
+  entrega restrita a Vega/documentação. A paridade permanece pendente.
+- Próximo: reinstalar SDK/VVD com espaço suficiente, repetir doctor e build,
+  abrir a prévia no VVD, implementar/verificar foco e controle remoto; só então
+  avançar para rede e o módulo nativo com headers reais do SDK.
+
+
 ## Prioridade atual: paridade das três edições
 
 Henrique pediu alinhar Vega OS às duas edições Fire OS e continuar o port no outro computador com macOS. Não há Fire TV Vega físico disponível. O roteiro, o estado conferido e o prompt para o Codex do Mac estão em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
 
-Fire OS principal e compatível já compartilham o código; Vega continua sendo apenas uma tela de prévia, sem receptor integrado ou VPKG validado. Esta atualização prepara a retomada, sem alterar o código do app ou declarar a paridade concluída. O simulador permite avançar no Mac; recepção e sincronismo reais precisam de aparelho Vega.
+Fire OS principal e compatível já compartilham o código; Vega já tem a estrutura do projeto oficial integrada, mas continua com uma tela de prévia, sem receptor integrado ou VPKG validado. Esta atualização prepara a retomada, sem alterar o código do app ou declarar a paridade concluída. O simulador permite avançar no Mac; recepção e sincronismo reais precisam de aparelho Vega.
 
 Os commits `4883a29` e `2d0b94c` já estão no histórico. A suíte documentada em [TESTING.md](TESTING.md) foi ampliada desde o registro abaixo; os números antigos de cobertura e as pendências antigas devem ser tratados como históricos até nova conferência dos relatórios. Os caminhos Windows/WSL abaixo não estarão disponíveis no clone do Mac.
 
