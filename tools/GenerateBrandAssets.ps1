@@ -104,4 +104,5 @@ if ($StoreDirectory) {
     return
 }
 [BuzinBrand]::Generate((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi'))
-[BuzinBrand]::GenerateFireIcon((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi\buzin_fire_icon.png'))
+[BuzinBrand]::GenerateStoreIcon((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi\buzin_fire_icon.png'),512,512)
+[BuzinBrand]::GenerateStoreIcon((Join-Path $PSScriptRoot '..\app\src\main\res\drawable-nodpi\buzin_banner.png'),1280,720)
