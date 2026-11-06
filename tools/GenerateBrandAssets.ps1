@@ -42,12 +42,11 @@ public static class BuzinBrand {
         foreach(float radius in new[]{0.27f,0.38f,0.50f})
           g.DrawEllipse(orbit,width*(0.57f-radius),height*0.49f-width*radius,width*radius*2,width*radius*2);
       }
-      // Full-bleed stays untouched; this only makes the center lockup a
-      // little less wide on the landscape Fire TV artwork.
-      float scale=width/600f;
-      float xScale=width>height ? 0.92f : 1f;
-      g.TranslateTransform(width/2f-230*scale*xScale,height/2f-88*scale);
-      g.ScaleTransform(scale*xScale,scale);
+      // Full-bleed stays untouched. Scale the central signature uniformly
+      // on landscape Fire TV artwork so it stays proportional, never stretched.
+      float scale=width/600f*(width>height ? 0.86f : 1f);
+      g.TranslateTransform(width/2f-230*scale,height/2f-88*scale);
+      g.ScaleTransform(scale,scale);
       using(var tile=Round(0,0,176,176,40))
       using(var mint=new LinearGradientBrush(new Rectangle(0,0,176,176),C("#91FFD6"),C("#42DFAE"),45))
         g.FillPath(mint,tile);
