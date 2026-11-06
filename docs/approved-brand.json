@@ -8,15 +8,15 @@
   "resources": {
     "app/src/main/res/drawable-nodpi/buzin_banner.png": "04355550748813174651071de27c5cfeff87ed33ba400af24293706a8d1d7636",
     "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "82c1548e7771fc41547c581d2dfdb9cae959c545dc1de1e6e055f3701f41046d",
-    "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "d578d589a1b555ec36d3e08d38a9e3f1ef4fe2144fdbd24c3ee0a8341eb9d928",
-    "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "6e496e199cdd9ddce82d15cdf047bb1942cc4632a9cac846088099487d049836",
-    "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "d578d589a1b555ec36d3e08d38a9e3f1ef4fe2144fdbd24c3ee0a8341eb9d928",
-    "app/src/main/res/mipmap-television-mdpi/buzin_launcher.png": "6e496e199cdd9ddce82d15cdf047bb1942cc4632a9cac846088099487d049836",
-    "app/src/main/res/mipmap-television-xhdpi/buzin_launcher.png": "0185cf1938cae239e0556351beda84c17e47b8a1168a03f5fbcf546dd7f6db10",
-    "app/src/main/res/mipmap-television-xxhdpi/buzin_launcher.png": "0da38baec1c9e46f6f926238c3abe64a7c5629230e795e1e376d301355474867",
-    "app/src/main/res/mipmap-television-xxxhdpi/buzin_launcher.png": "4b3449fdd138a363bc62c2744d990cbde84d5e769d52e732e8916dc206d2f31c",
-    "app/src/main/res/mipmap-xhdpi/buzin_launcher.png": "0185cf1938cae239e0556351beda84c17e47b8a1168a03f5fbcf546dd7f6db10",
-    "app/src/main/res/mipmap-xxhdpi/buzin_launcher.png": "0da38baec1c9e46f6f926238c3abe64a7c5629230e795e1e376d301355474867",
-    "app/src/main/res/mipmap-xxxhdpi/buzin_launcher.png": "4b3449fdd138a363bc62c2744d990cbde84d5e769d52e732e8916dc206d2f31c"
+    "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "b9bde27b4a66fdccd39c2a60343097ae9457ce351857afb4ece27a62cf9bc932",
+    "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "90a8dc0894f078b30f503d17263b3cb16bb7a0127c5ade5c804e39daa1284f8b",
+    "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "b9bde27b4a66fdccd39c2a60343097ae9457ce351857afb4ece27a62cf9bc932",
+    "app/src/main/res/mipmap-television-mdpi/buzin_launcher.png": "90a8dc0894f078b30f503d17263b3cb16bb7a0127c5ade5c804e39daa1284f8b",
+    "app/src/main/res/mipmap-television-xhdpi/buzin_launcher.png": "236dde94e994c3691add6f7538ffbdf4061cb88e86e3f5129ad65a53b7cabb28",
+    "app/src/main/res/mipmap-television-xxhdpi/buzin_launcher.png": "b73462047ab44be7572081c17aaad840478dcc7b1206d2a09a3d7cea9b2e887c",
+    "app/src/main/res/mipmap-television-xxxhdpi/buzin_launcher.png": "486efe643436edf8282b8e71b796af92100d3b914ff2f96a963104c024891dc7",
+    "app/src/main/res/mipmap-xhdpi/buzin_launcher.png": "236dde94e994c3691add6f7538ffbdf4061cb88e86e3f5129ad65a53b7cabb28",
+    "app/src/main/res/mipmap-xxhdpi/buzin_launcher.png": "b73462047ab44be7572081c17aaad840478dcc7b1206d2a09a3d7cea9b2e887c",
+    "app/src/main/res/mipmap-xxxhdpi/buzin_launcher.png": "486efe643436edf8282b8e71b796af92100d3b914ff2f96a963104c024891dc7"
   }
 }

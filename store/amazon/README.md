@@ -12,15 +12,15 @@ com Fire OS. Nenhum VPKG Vega integra esta submissão.
 - `images/fire-tv-background-1920x1080.png`: fundo geométrico com a paleta e
   as órbitas do app, sem títulos ou logos, conforme a orientação da Amazon.
 - `images/screenshots/pt-BR`: capturas nativas 1920×1080 do APK principal
-  0.6.1/código 24 de produção, no Fire TV Stick AFTMM/API 25 do quarto,
-  em 5 de novembro de 2026. Reencodificação RGB24 sem recorte, montagem,
+  0.6.2/código 26 de produção, no Fire TV Stick AFTMM/API 25 do quarto,
+  em 6 de novembro de 2026. Reencodificação RGB24 sem recorte, montagem,
   mudança de interface ou conteúdo pessoal. A interface está em português.
 - [Política de privacidade em português e inglês](../../docs/PRIVACY.md).
 
 Para regenerar os formatos gráficos a partir das capturas originais locais:
 
 ```powershell
-./tools/PrepareAmazonAssets.ps1 -CaptureDirectory '<pasta com as três capturas>'
+powershell.exe -NoProfile -File ./tools/PrepareAmazonAssets.ps1 -CaptureDirectory '<pasta com as três capturas>'
 ```
 
 Os textos diferenciam AirPlay dos recursos experimentais. Não anunciar

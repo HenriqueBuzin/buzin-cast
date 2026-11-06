@@ -33,9 +33,8 @@ public static class BuzinBrand {
       g.SmoothingMode=SmoothingMode.AntiAlias;
       g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
       var frame=new Rectangle(0,0,width,height);
-      if(width==height) {
-        using(var mask=Round(0,0,width,height,width*0.075f)) g.SetClip(mask);
-      }
+      // Full-bleed artwork: the launcher/store controls any outer shape.
+      // Fill every pixel instead of baking transparent corners into the PNG.
       using(var bg=new LinearGradientBrush(frame,C("#12364A"),C("#071621"),38))
         g.FillRectangle(bg,frame);
       using(var orbit=new Pen(Color.FromArgb(52,53,192,216),width/640f)) {
