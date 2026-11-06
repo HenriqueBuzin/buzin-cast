@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -90,7 +91,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.background(Color(0xFF202B35), RoundedCornerShape(18.dp)).padding(horizontal = 16.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(52.dp).background(mint.copy(alpha = 0.10f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                             Image(painterResource(R.drawable.buzin_mark), null, Modifier.size(34.dp))
@@ -102,7 +103,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
                         }
                     }
                     HorizontalDivider(color = Color(0xFF34434E))
-                    Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.Business, null, Modifier.size(20.dp), tint = mint)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -124,7 +125,6 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
                     }
                 }
                 Text("© 2026 Buzin Solutions Ltda.", Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 14.sp, color = muted, textAlign = TextAlign.Center)
-                Text(stringResource(R.string.buzin_independent), Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 14.sp, color = muted, textAlign = TextAlign.Center)
                 }
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().focusRequester(closeFocus).dpadFocus(RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp)) {
                     Text(stringResource(R.string.buzin_close))
@@ -139,7 +139,8 @@ private fun AboutLink(icon: ImageVector, title: String, detail: String, external
     val mint = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     HorizontalDivider(color = Color(0xFF34434E))
-    Row(Modifier.fillMaxWidth().dpadFocus(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 11.dp),
+    val shape = RoundedCornerShape(10.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).dpadFocus(shape).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(icon, null, Modifier.size(20.dp), tint = mint)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
