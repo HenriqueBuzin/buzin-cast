@@ -8,6 +8,13 @@
 - [ ] Preparar edições específicas para Alemanha e Áustria sem funções de
   gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
   política e validar os binários antes da distribuição.
+- [ ] Publicar somente para Fire TV Stick, contemplando todas as gerações
+  já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
+  3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
+  limita o escopo: acrescentar outras versões que existam ao retomar o trabalho.
+  Confirmar os nomes comerciais, níveis reais de API e compatibilidade antes
+  de cada disponibilização. Vega continua fora desta publicação enquanto seu
+  receptor e o VPKG não forem validados.
 
 ## Candidatas corrigidas 0.6.1 — estado atual
 
