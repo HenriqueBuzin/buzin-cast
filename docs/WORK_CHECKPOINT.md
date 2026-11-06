@@ -1,4 +1,55 @@
-# Retomada — 5 de novembro de 2026
+# Retomada — 6 de novembro de 2026
+
+## Tarefa futura registrada por Henrique — Alemanha e Áustria
+
+- [ ] Preparar edições específicas para esses dois países sem funções de
+  gravação, cópia, download ou armazenamento de vídeo/áudio. Considerar as
+  edições principal e compatível Fire OS; não basta ocultar os botões.
+  Revisar novamente a política e validar os binários antes da distribuição.
+  Henrique pediu expressamente guardar essa tarefa para outro momento;
+  não implementá-la nesta atualização de identidade visual.
+- Base: [FAQ oficial da Amazon, seção General](https://developer.amazon.com/docs/fire-tv/faq-general.html).
+  A regra consultada em 6 de novembro de 2026 exclui Alemanha e Áustria de
+  apps que permitem essas operações no Fire TV ou armazenamento conectado.
+  Na atualização 0.6.2, manter os dois países fora da distribuição.
+
+## Tarefa futura registrada por Henrique — DRM Amazon e gravações
+
+- [ ] Avaliar em conjunto a ideia de gravações e a integração de DRM da
+  Amazon Appstore. O console avisa que o APK atual usa um SDK sem a
+  integração de DRM; a preferência de DRM deve ficar desativada enquanto o
+  app não implementar esse suporte no código.
+- Não marcar DRM apenas para ocultar o aviso. Antes de qualquer alteração,
+  definir quais conteúdos serão protegidos, os requisitos de licença e o
+  impacto nas edições Fire OS principal/compatível e nos países restritos.
+
+## Atualização em andamento — 0.6.2
+
+- A Amazon confirmou 0.6.1 e 0.6.1-compat **Live**, com as três validações
+  aprovadas; o status foi conferido no console em 6 de novembro.
+- Henrique aprovou a mesma marca azul/verde do catálogo em todos os
+  ícones, preenchidos até as bordas, sem molduras ou cantos transparentes.
+  O padrão e as referências estão em `docs/BRAND.md`.
+- Também autorizou incluir nesta publicação o nome BuzinCast e o novo
+  Sobre, com site da empresa, fontes/licenças e espaçamento antes do ®.
+  Confirmou que o registro da marca Buzin Solutions já foi concedido.
+- Fontes candidatas atuais: `edf7484` mais o ajuste visual pendente de
+  confirmação no launcher. Principal código 26, compatível 25.
+  Rascunho Amazon: `amzn1.devportal.apprelease.854798fe28fb4208ae96ae44098c65e7`.
+  Descrições PT-BR/EN-US, gratuito, 92/5 modelos Fire TV, sem Vega,
+  tablets ou automotivos. Apenas Alemanha e Áustria excluídas da seleção.
+- CI: [42253171413](https://github.com/HenriqueBuzin/buzin-cast/actions/runs/42253171413)
+  concluiu com build e as 12 APIs de emulador aprovados. O retoque final da
+  arte é somente visual; será recompilado e conferido no quarto antes do envio.
+- Usar somente o Fire Stick do quarto (`192.168.0.121:5555`) para esta
+  atualização. As outras duas TVs podem estar em uso e não devem ser
+  alteradas. Nenhum backup novo. O ícone novo apareceu após limpar apenas
+  o cache da Appstore e reiniciar, preservando seus dados. O launcher do
+  Fire OS 6 adiciona faixas a APKs instalados diretamente; o banner da
+  loja deve permanecer horizontal e preenchido por completo.
+- Ainda não submetido: concluir instalação/conferência dos APKs finais,
+  capturas do novo Sobre, substituição dos dois arquivos e galeria final,
+  verificar CI e então enviar à análise.
 
 ## Candidatas corrigidas 0.6.1 — estado atual
 
