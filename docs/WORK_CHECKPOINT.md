@@ -1,5 +1,14 @@
 # Retomada — 5 de novembro de 2026
 
+## Tarefas futuras registradas por Henrique
+
+- [ ] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
+  Appstore. Não ativar DRM apenas para suprimir o aviso: definir primeiro o
+  conteúdo protegido, requisitos de licença e impacto nas duas edições Fire OS.
+- [ ] Preparar edições específicas para Alemanha e Áustria sem funções de
+  gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
+  política e validar os binários antes da distribuição.
+
 ## Candidatas corrigidas 0.6.1 — estado atual
 
 - Fontes: `61daec22d9b7288ede4b66c74556b68387cdeb39`. Corrigido encerramento
