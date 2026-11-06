@@ -562,13 +562,17 @@ fun MainScreen(
             }
         ) { padding ->
             Row(modifier = Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()
-                .then(if (tvLayout) Modifier.padding(start = 48.dp, end = 24.dp, top = 16.dp, bottom = 16.dp) else Modifier)) {
+                .then(if (tvLayout) Modifier.padding(start = 48.dp) else Modifier)) {
               if (tvLayout) {
-                TvSidebar(visibleTabs, tab, onSelect = { tab = it })
+                Box(Modifier.padding(vertical = 16.dp)) {
+                    TvSidebar(visibleTabs, tab, onSelect = { tab = it })
+                }
               }
               val tabEntrance = remember(tab) { androidx.compose.animation.core.Animatable(0f) }
               LaunchedEffect(tab) { tabEntrance.animateTo(1f, androidx.compose.animation.core.tween(260)) }
-              Box(Modifier.weight(1f).graphicsLayer {
+              Box(Modifier.weight(1f)
+                  .then(if (tvLayout && tab != AppDestination.OVERVIEW) Modifier.padding(end = 24.dp, top = 16.dp, bottom = 16.dp) else Modifier)
+                  .graphicsLayer {
                   alpha = tabEntrance.value
                   translationX = (1f - tabEntrance.value) * 10.dp.toPx()
               }) {

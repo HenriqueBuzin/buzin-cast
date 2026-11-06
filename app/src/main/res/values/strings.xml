@@ -19,7 +19,7 @@
     <string name="buzin_version">Version %1$s</string>
     <string name="setting_dlna">DLNA receiver (experimental)</string>
     <string name="setting_dlna_desc">Receive video and audio from your local network. AirPlay PIN does not protect DLNA. Restart after connecting to a different network.</string>
-    <string name="buzin_credits">BuzinCast\nCreated and maintained by Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — BuzinCast contributions.\n\nWebsite: https://buzin.solutions\n\nBased on android-airplay-server by jqssun and contributors, UxPlay and third-party components. Licensed under GNU GPL v3. Original credits and licenses are preserved.\n\nSource: github.com/HenriqueBuzin/buzin-cast\n\nIndependent project, not affiliated with Apple or Amazon.</string>
+    <string name="buzin_credits">BuzinCast\nCreated and maintained by Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — BuzinCast contributions.\n\nWebsite: https://buzin.solutions\n\nBased on android-airplay-server by jqssun and contributors, UxPlay and third-party components. Licensed under GNU GPL v3. Original credits and licenses are preserved.\n\nSource: github.com/HenriqueBuzin/buzin-cast</string>
     <string name="tv_edit_save">Save</string>
     <string name="tv_edit_cancel">Cancel</string>
     <string name="tv_edit_empty">Not set</string>
@@ -237,7 +237,6 @@
     <string name="buzin_source">Source code</string>
     <string name="buzin_licenses">Open source and licenses</string>
     <string name="buzin_licenses_detail">GNU GPL v3 · Third-party credits</string>
-    <string name="buzin_independent">Independent project, not affiliated with Apple or Amazon.</string>
     <string name="buzin_close">Close</string>
     <string name="buzin_back_about">Back to About</string>
     <string name="buzin_no_browser">No browser is available to open the link.</string>
