@@ -51,8 +51,9 @@ public static class BuzinBrand {
       using(var mint=new LinearGradientBrush(new Rectangle(0,0,176,176),C("#91FFD6"),C("#42DFAE"),45))
         g.FillPath(mint,tile);
       Mark(g,3,7,151,C("#092A24"));
-      Text(g,"Buzin","Segoe UI",100,FontStyle.Bold,C("#F3F7F5"),202,11);
-      Text(g,"CAST","Segoe UI",55,FontStyle.Bold,C("#7CF4CD"),207,111);
+      bool wide=width>height;
+      Text(g,"Buzin","Segoe UI",wide?82:100,FontStyle.Bold,C("#F3F7F5"),202,wide?27:11);
+      Text(g,"CAST","Segoe UI",wide?48:55,FontStyle.Bold,C("#7CF4CD"),207,wide?108:111);
       bmp.Save(path,ImageFormat.Png);
     }
   }
