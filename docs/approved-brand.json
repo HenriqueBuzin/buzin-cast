@@ -1,13 +1,13 @@
 {
-  "description": "Artwork approved by Henrique on 2026-11-06: navy orbits, mint B badge and a lightly compacted centered Buzin CAST lockup; shared with Amazon listing.",
+  "description": "Artwork approved by Henrique on 2026-11-06: navy orbits, mint B badge and centered Buzin CAST lockup; shared with Amazon listing.",
   "application": {
     "icon": "@mipmap/buzin_launcher",
     "roundIcon": "@mipmap/buzin_launcher",
     "banner": "@drawable/buzin_tv_banner"
   },
   "resources": {
-    "app/src/main/res/drawable-nodpi/buzin_banner.png": "f26a722600a8137159d116596346bdaffc415ca9bfa2757b01a5ea364e0f2b7c",
-    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "122c985cd4c23818c829007b57b07a4a81833a0ba3b314a7176ef31a8665006a",
+    "app/src/main/res/drawable-nodpi/buzin_banner.png": "60684704e36385ece049225b23e333f0d222026f1b262e9b4e7b3d81db7b5fe6",
+    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "a1e08d51cee7e29644b7298d67e349754e232b0bb92100932f4b3f185df049f1",
     "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "ba7b4d1c90d704ac79082d58e7dc8d642d9e7b84b06ac7313349bd37f2cefb42",
     "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "65acb86eea04ce362a7ddd6bb696a3395556b29d94e7dab7d13cf83143aebb2a",
     "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "ba7b4d1c90d704ac79082d58e7dc8d642d9e7b84b06ac7313349bd37f2cefb42",
