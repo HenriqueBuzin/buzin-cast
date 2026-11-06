@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import java.util.Calendar
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,6 +54,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
     val version = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
     }
+    val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
     val mint = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.92f
@@ -124,7 +126,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
                         licenses = true
                     }
                 }
-                Text("© 2026 Buzin Solutions Ltda.", Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 14.sp, color = muted, textAlign = TextAlign.Center)
+                Text("© $currentYear Buzin Solutions LTDA", Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 14.sp, color = muted, textAlign = TextAlign.Center)
                 }
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().focusRequester(closeFocus).dpadFocus(RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp)) {
                     Text(stringResource(R.string.buzin_close))
