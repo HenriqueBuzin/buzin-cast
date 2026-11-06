@@ -19,7 +19,7 @@
     <string name="buzin_version">Versão %1$s</string>
     <string name="setting_dlna">Receptor DLNA (experimental)</string>
     <string name="setting_dlna_desc">Receber vídeos e áudio da rede local. O PIN do AirPlay não protege o DLNA. Reinicie o receptor após mudar de rede.</string>
-    <string name="buzin_credits">Buzin Cast\nCriação e manutenção: Henrique Buzin.\n© 2026 Henrique Buzin — contribuições do Buzin Cast.\n\nBaseado no android-airplay-server de jqssun e contribuidores, UxPlay e componentes de terceiros. Licenciado sob GNU GPL v3. Créditos e licenças originais preservados.\n\nCódigo-fonte: github.com/HenriqueBuzin/buzin-cast\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
+    <string name="buzin_credits">Buzin Cast\nCriação e manutenção: Buzin Solutions®.\n© 2026 Buzin Solutions Ltda. — contribuições do Buzin Cast.\n\nSite: https://buzin.solutions\n\nBaseado no android-airplay-server de jqssun e contribuidores, UxPlay e componentes de terceiros. Licenciado sob GNU GPL v3. Créditos e licenças originais preservados.\n\nCódigo-fonte: github.com/HenriqueBuzin/buzin-cast\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
     <string name="tv_edit_save">Salvar</string>
     <string name="tv_edit_cancel">Cancelar</string>
     <string name="tv_edit_empty">Não definido</string>
