@@ -6,8 +6,8 @@
     "banner": "@drawable/buzin_tv_banner"
   },
   "resources": {
-    "app/src/main/res/drawable-nodpi/buzin_banner.png": "ebfb763893321f697d914c53637ddc6f21644681a497ef4befdef604be58e035",
-    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "8145776b58fc9a7aa2de1f8c150de0e9f8b9ffd74e6e6566c9f9d4a9f840c437",
+    "app/src/main/res/drawable-nodpi/buzin_banner.png": "7095be0b02501a18769d98a7d0e72980cb5d00ba817feccea60a2fdea7688fb2",
+    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "db090ece157b14660476afc848eb1d39440b60fc639b0df165556c0cf176dbef",
     "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "ba7b4d1c90d704ac79082d58e7dc8d642d9e7b84b06ac7313349bd37f2cefb42",
     "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "65acb86eea04ce362a7ddd6bb696a3395556b29d94e7dab7d13cf83143aebb2a",
     "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "ba7b4d1c90d704ac79082d58e7dc8d642d9e7b84b06ac7313349bd37f2cefb42",
