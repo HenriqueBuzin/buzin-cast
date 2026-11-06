@@ -5,6 +5,8 @@
 - [ ] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
   Appstore. Não ativar DRM apenas para suprimir o aviso: definir primeiro o
   conteúdo protegido, requisitos de licença e impacto nas duas edições Fire OS.
+- [ ] Traduzir e revisar a ficha da Amazon Appstore para todos os idiomas que
+  a loja disponibilizar antes de ampliar a distribuição internacional.
 - [ ] Preparar edições específicas para Alemanha e Áustria sem funções de
   gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
   política e validar os binários antes da distribuição.
