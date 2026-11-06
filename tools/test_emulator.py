@@ -216,6 +216,7 @@ class Suite:
                   "About does not show installed version "+version)
         assert "Buzin Solutions" in self.texts(self.ui()), "About is missing company attribution"
         assert "buzin.solutions" in self.texts(self.ui()), "About is missing the official website"
+        assert any(n.get("text") in ("Close", "Fechar") for n in self.ui().iter()), "About must keep Close visible without scrolling"
         self.shot("about-company")
         self.activate("Open source and licenses","Código aberto e licenças")
         self.wait(lambda:"GNU GPL v3" in self.texts(self.ui()) and "jqssun" in self.texts(self.ui()),

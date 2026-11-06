@@ -87,29 +87,30 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
             shape = RoundedCornerShape(24.dp),
             color = Color(0xFF101922),
         ) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.background(Color(0xFF202B35), RoundedCornerShape(18.dp)).padding(horizontal = 16.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(52.dp).background(mint.copy(alpha = 0.10f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                             Image(painterResource(R.drawable.buzin_mark), null, Modifier.size(34.dp))
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(stringResource(R.string.app_name), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                            Text(stringResource(R.string.buzin_about_tagline), fontSize = 12.sp, color = muted)
-                            Text(stringResource(R.string.buzin_version, version), fontSize = 11.sp, color = mint, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.app_name), fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.buzin_about_tagline), fontSize = 12.sp, lineHeight = 17.sp, color = muted)
+                            Text(stringResource(R.string.buzin_version, version), fontSize = 11.sp, lineHeight = 15.sp, color = mint, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     HorizontalDivider(color = Color(0xFF34434E))
-                    Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.Business, null, Modifier.size(20.dp), tint = mint)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.buzin_maintained_by), fontSize = 11.sp, color = muted)
+                            Text(stringResource(R.string.buzin_maintained_by), fontSize = 11.sp, lineHeight = 15.sp, color = muted)
                             Text(buildAnnotatedString {
                                 append("Buzin Solutions\u2009")
                                 withStyle(SpanStyle(fontSize = 10.sp, baselineShift = BaselineShift.Superscript)) { append("®") }
-                            }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     AboutLink(Icons.Default.Language, stringResource(R.string.buzin_website), "buzin.solutions", external = true) {
@@ -122,8 +123,9 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
                         licenses = true
                     }
                 }
-                Text("© 2026 Buzin Solutions Ltda.", Modifier.fillMaxWidth(), fontSize = 10.sp, color = muted, textAlign = TextAlign.Center)
-                Text(stringResource(R.string.buzin_independent), Modifier.fillMaxWidth(), fontSize = 10.sp, color = muted, textAlign = TextAlign.Center)
+                Text("© 2026 Buzin Solutions Ltda.", Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 14.sp, color = muted, textAlign = TextAlign.Center)
+                Text(stringResource(R.string.buzin_independent), Modifier.fillMaxWidth(), fontSize = 10.sp, lineHeight = 14.sp, color = muted, textAlign = TextAlign.Center)
+                }
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().focusRequester(closeFocus).dpadFocus(RoundedCornerShape(12.dp)), shape = RoundedCornerShape(12.dp)) {
                     Text(stringResource(R.string.buzin_close))
                 }
@@ -137,12 +139,12 @@ private fun AboutLink(icon: ImageVector, title: String, detail: String, external
     val mint = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     HorizontalDivider(color = Color(0xFF34434E))
-    Row(Modifier.fillMaxWidth().dpadFocus(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
+    Row(Modifier.fillMaxWidth().dpadFocus(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(icon, null, Modifier.size(20.dp), tint = mint)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, fontSize = 11.sp, color = muted)
+            Text(title, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
+            Text(detail, fontSize = 11.sp, lineHeight = 16.sp, color = muted)
         }
         Icon(if (external) Icons.Default.OpenInNew else Icons.Default.ChevronRight, null, Modifier.size(16.dp), tint = muted)
     }
