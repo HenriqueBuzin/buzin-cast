@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Buzin Cast</string>
+    <string name="app_name">BuzinCast</string>
     <string name="buzin_tagline">Your screen. A bigger stage.</string>
     <string name="buzin_hero">Small screen.\nBig possibilities.</string>
     <string name="buzin_hero_detail">Mirror your ideas, photos and favorite moments on your TV.</string>
@@ -15,18 +15,18 @@
     <string name="buzin_step_mirror">Open Control Center and choose Screen Mirroring.</string>
     <string name="buzin_step_choose">Select the receiver name shown on the left.</string>
     <string name="buzin_help">AirPlay mirroring and audio.</string>
-    <string name="buzin_about">About Buzin Cast</string>
+    <string name="buzin_about">About BuzinCast</string>
     <string name="buzin_version">Version %1$s</string>
     <string name="setting_dlna">DLNA receiver (experimental)</string>
     <string name="setting_dlna_desc">Receive video and audio from your local network. AirPlay PIN does not protect DLNA. Restart after connecting to a different network.</string>
-    <string name="buzin_credits">Buzin Cast\nCreated and maintained by Buzin Solutions®.\n© 2026 Buzin Solutions Ltda. — Buzin Cast contributions.\n\nWebsite: https://buzin.solutions\n\nBased on android-airplay-server by jqssun and contributors, UxPlay and third-party components. Licensed under GNU GPL v3. Original credits and licenses are preserved.\n\nSource: github.com/HenriqueBuzin/buzin-cast\n\nIndependent project, not affiliated with Apple or Amazon.</string>
+    <string name="buzin_credits">BuzinCast\nCreated and maintained by Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — BuzinCast contributions.\n\nWebsite: https://buzin.solutions\n\nBased on android-airplay-server by jqssun and contributors, UxPlay and third-party components. Licensed under GNU GPL v3. Original credits and licenses are preserved.\n\nSource: github.com/HenriqueBuzin/buzin-cast\n\nIndependent project, not affiliated with Apple or Amazon.</string>
     <string name="tv_edit_save">Save</string>
     <string name="tv_edit_cancel">Cancel</string>
     <string name="tv_edit_empty">Not set</string>
 
     <!-- Notification -->
     <string name="notification_channel">AirPlay Service</string>
-    <string name="notification_title">Buzin Cast is running</string>
+    <string name="notification_title">BuzinCast is running</string>
     <string name="notification_text">Accepting AirPlay connections</string>
     <string name="notification_pin_title">AirPlay PIN Required</string>
     <string name="notification_pin_text">PIN: %1$s</string>
@@ -231,4 +231,14 @@
     <string name="setting_fcast_desc">Receive media from compatible senders on your local network. No PIN. Restart after changing networks.</string>
     <string name="setting_castv2">Cast V2 · experimental</string>
     <string name="setting_castv2_desc">URL media from compatible senders. Apps requiring Google device certification are not supported. No PIN.</string>
+    <string name="buzin_about_tagline">Screen mirroring made simple</string>
+    <string name="buzin_maintained_by">Developed and maintained by</string>
+    <string name="buzin_website">Official website</string>
+    <string name="buzin_source">Source code</string>
+    <string name="buzin_licenses">Open source and licenses</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · Third-party credits</string>
+    <string name="buzin_independent">Independent project, not affiliated with Apple or Amazon.</string>
+    <string name="buzin_close">Close</string>
+    <string name="buzin_back_about">Back to About</string>
+    <string name="buzin_no_browser">No browser is available to open the link.</string>
 </resources>

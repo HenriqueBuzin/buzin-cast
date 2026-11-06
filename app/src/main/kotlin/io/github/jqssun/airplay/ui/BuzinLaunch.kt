@@ -1,5 +1,8 @@
 package io.github.jqssun.airplay.ui
 
+import androidx.compose.ui.res.stringResource
+import io.github.jqssun.airplay.R
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -83,7 +86,7 @@ fun BuzinLaunch(enabled: Boolean, content: @Composable () -> Unit) {
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     BuzinLogoReveal(progress = { reveal.value }, modifier = Modifier.size(84.dp))
-                    Text("Buzin Cast", color = Color(0xFFF1F5F1), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
+                    Text(stringResource(R.string.app_name), color = Color(0xFFF1F5F1), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
                         modifier = Modifier.graphicsLayer {
                             alpha = ((reveal.value - 0.58f) / 0.16f).coerceIn(0f, 1f)
                         }.drawWithContent {

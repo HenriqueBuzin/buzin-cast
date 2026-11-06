@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Buzin Cast</string>
+    <string name="app_name">BuzinCast</string>
     <string name="buzin_tagline">Sua tela merece uma tela maior.</string>
     <string name="buzin_hero">Sua tela.\nNovas possibilidades.</string>
     <string name="buzin_hero_detail">Suas ideias, fotos e bons momentos merecem uma tela maior.</string>
@@ -15,16 +15,16 @@
     <string name="buzin_step_mirror">Abra a Central de Controle e selecione Espelhar a Tela.</string>
     <string name="buzin_step_choose">Selecione o nome do receptor mostrado ao lado.</string>
     <string name="buzin_help">Espelhamento e áudio via AirPlay.</string>
-    <string name="buzin_about">Sobre o Buzin Cast</string>
+    <string name="buzin_about">Sobre o BuzinCast</string>
     <string name="buzin_version">Versão %1$s</string>
     <string name="setting_dlna">Receptor DLNA (experimental)</string>
     <string name="setting_dlna_desc">Receber vídeos e áudio da rede local. O PIN do AirPlay não protege o DLNA. Reinicie o receptor após mudar de rede.</string>
-    <string name="buzin_credits">Buzin Cast\nCriação e manutenção: Buzin Solutions®.\n© 2026 Buzin Solutions Ltda. — contribuições do Buzin Cast.\n\nSite: https://buzin.solutions\n\nBaseado no android-airplay-server de jqssun e contribuidores, UxPlay e componentes de terceiros. Licenciado sob GNU GPL v3. Créditos e licenças originais preservados.\n\nCódigo-fonte: github.com/HenriqueBuzin/buzin-cast\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
+    <string name="buzin_credits">BuzinCast\nCriação e manutenção: Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — contribuições do BuzinCast.\n\nSite: https://buzin.solutions\n\nBaseado no android-airplay-server de jqssun e contribuidores, UxPlay e componentes de terceiros. Licenciado sob GNU GPL v3. Créditos e licenças originais preservados.\n\nCódigo-fonte: github.com/HenriqueBuzin/buzin-cast\n\nProjeto independente, sem vínculo com Apple ou Amazon.</string>
     <string name="tv_edit_save">Salvar</string>
     <string name="tv_edit_cancel">Cancelar</string>
     <string name="tv_edit_empty">Não definido</string>
-    <string name="notification_channel">Receptor Buzin Cast</string>
-    <string name="notification_title">Buzin Cast em execução</string>
+    <string name="notification_channel">Receptor BuzinCast</string>
+    <string name="notification_title">BuzinCast em execução</string>
     <string name="notification_text">Aguardando conexões AirPlay</string>
     <string name="notification_pin_title">Digite o PIN do AirPlay</string>
     <string name="notification_pin_text">PIN: %1$s</string>
@@ -72,7 +72,7 @@
     <string name="setting_server_name">Nome do receptor</string>
     <string name="setting_server_port">Porta do receptor</string>
     <string name="setting_auto_start">Iniciar ao abrir o app</string>
-    <string name="setting_auto_start_desc">Disponibilizar o receptor ao abrir o Buzin Cast</string>
+    <string name="setting_auto_start_desc">Disponibilizar o receptor ao abrir o BuzinCast</string>
     <string name="setting_boot_auto_start">Iniciar ao ligar a TV</string>
     <string name="setting_boot_auto_start_desc">Executar o receptor após iniciar o dispositivo</string>
     <string name="setting_run_in_background">Executar em segundo plano</string>
@@ -131,7 +131,7 @@
     <string name="setting_aac">Disponibilizar codec AAC</string>
     <string name="setting_aac_desc">Oferecer AAC-ELD e AAC-LC para áudio do espelhamento</string>
     <string name="setting_launch_on_connect">Abrir o app ao conectar</string>
-    <string name="setting_launch_on_connect_desc">Mostrar o Buzin Cast quando um dispositivo conectar</string>
+    <string name="setting_launch_on_connect_desc">Mostrar o BuzinCast quando um dispositivo conectar</string>
     <string name="setting_launch_on_connect_no_permission">Selecione para permitir exibição sobre outros apps</string>
     <string name="setting_discovery">Disponível nas redes</string>
     <string name="setting_discovery_all_desc">Usar todas as interfaces de rede disponíveis</string>
@@ -199,4 +199,14 @@
     <string name="setting_fcast_desc">Receba mídia de emissores compatíveis na rede local. Sem PIN. Reinicie ao trocar de rede.</string>
     <string name="setting_castv2">Cast V2 · experimental</string>
     <string name="setting_castv2_desc">Mídia por URL de emissores compatíveis. Apps que exigem certificação Google não são suportados. Sem PIN.</string>
+    <string name="buzin_about_tagline">Espelhamento sem complicações</string>
+    <string name="buzin_maintained_by">Desenvolvido e mantido por</string>
+    <string name="buzin_website">Site oficial</string>
+    <string name="buzin_source">Código-fonte</string>
+    <string name="buzin_licenses">Código aberto e licenças</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · Créditos de terceiros</string>
+    <string name="buzin_independent">Projeto independente, sem vínculo com Apple ou Amazon.</string>
+    <string name="buzin_close">Fechar</string>
+    <string name="buzin_back_about">Voltar ao Sobre</string>
+    <string name="buzin_no_browser">Nenhum navegador disponível para abrir o link.</string>
 </resources>

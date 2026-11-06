@@ -211,9 +211,24 @@ class Suite:
         package=self.adb("shell","dumpsys","package",PKG)
         version=re.search(r"\bversionName=(\S+)",package).group(1)
         self.start("home")
-        self.activate("About Buzin Cast","Sobre o Buzin Cast")
+        self.activate("About BuzinCast","Sobre o BuzinCast")
         self.wait(lambda:any(n.get("text") in ("Version "+version,"Versão "+version) for n in self.ui().iter()),
                   "About does not show installed version "+version)
+        assert "Buzin Solutions" in self.texts(self.ui()), "About is missing company attribution"
+        assert "buzin.solutions" in self.texts(self.ui()), "About is missing the official website"
+        self.shot("about-company")
+        self.activate("Open source and licenses","Código aberto e licenças")
+        self.wait(lambda:"GNU GPL v3" in self.texts(self.ui()) and "jqssun" in self.texts(self.ui()),
+                  "Third-party credits and license are missing")
+        self.shot("about-licenses")
+        self.activate("Back to About","Voltar ao Sobre")
+        self.wait(lambda:"buzin.solutions" in self.texts(self.ui()), "Cannot return from licenses to About")
+        self.activate("Close","Fechar")
+        self.wait(lambda:"buzin.solutions" not in self.texts(self.ui()), "Close did not dismiss About")
+        self.activate("About BuzinCast","Sobre o BuzinCast")
+        self.wait(lambda:"buzin.solutions" in self.texts(self.ui()), "About did not reopen")
+        self.key(4)
+        self.wait(lambda:"buzin.solutions" not in self.texts(self.ui()), "Back did not dismiss About")
 
     def audio_controls(self):
         self.start("audio")
