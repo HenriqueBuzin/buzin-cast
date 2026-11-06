@@ -91,7 +91,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.background(Color(0xFF202B35), RoundedCornerShape(18.dp)).padding(horizontal = 16.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(52.dp).background(mint.copy(alpha = 0.10f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
                             Image(painterResource(R.drawable.buzin_mark), null, Modifier.size(34.dp))
@@ -103,7 +103,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
                         }
                     }
                     HorizontalDivider(color = Color(0xFF34434E))
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.Business, null, Modifier.size(20.dp), tint = mint)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -140,7 +140,7 @@ private fun AboutLink(icon: ImageVector, title: String, detail: String, external
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     HorizontalDivider(color = Color(0xFF34434E))
     val shape = RoundedCornerShape(10.dp)
-    Row(Modifier.fillMaxWidth().clip(shape).dpadFocus(shape).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
+    Row(Modifier.fillMaxWidth().padding(4.dp).clip(shape).dpadFocus(shape).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(icon, null, Modifier.size(20.dp), tint = mint)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
