@@ -12,7 +12,7 @@ com Fire OS. Nenhum VPKG Vega integra esta submissão.
 - `images/fire-tv-background-1920x1080.png`: fundo geométrico com a paleta e
   as órbitas do app, sem títulos ou logos, conforme a orientação da Amazon.
 - `images/screenshots/pt-BR`: capturas nativas 1920×1080 do APK principal
-  0.6.2/código 26 de produção, no Fire TV Stick AFTMM/API 25 do quarto,
+  0.6.3/código 28 de produção, no Fire TV Stick AFTMM/API 25 do quarto,
   em 6 de novembro de 2026. Reencodificação RGB24 sem recorte, montagem,
   mudança de interface ou conteúdo pessoal. A interface está em português.
 - [Política de privacidade em português e inglês](../../docs/PRIVACY.md).

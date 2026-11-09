@@ -1,22 +1,22 @@
 {
-  "description": "Artwork approved by Henrique on 2026-11-06: navy orbits, mint B badge and a lightly compacted centered Buzin CAST lockup; shared with Amazon listing.",
+  "description": "Artwork refined by Henrique on 2026-11-07: full-bleed navy background, stronger orbits and a larger precisely centered Buzin CAST lockup; shared with Amazon listing.",
   "application": {
     "icon": "@mipmap/buzin_launcher",
     "roundIcon": "@mipmap/buzin_launcher",
     "banner": "@drawable/buzin_tv_banner"
   },
   "resources": {
-    "app/src/main/res/drawable-nodpi/buzin_banner.png": "7095be0b02501a18769d98a7d0e72980cb5d00ba817feccea60a2fdea7688fb2",
-    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "db090ece157b14660476afc848eb1d39440b60fc639b0df165556c0cf176dbef",
-    "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "ba7b4d1c90d704ac79082d58e7dc8d642d9e7b84b06ac7313349bd37f2cefb42",
-    "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "65acb86eea04ce362a7ddd6bb696a3395556b29d94e7dab7d13cf83143aebb2a",
-    "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "ba7b4d1c90d704ac79082d58e7dc8d642d9e7b84b06ac7313349bd37f2cefb42",
-    "app/src/main/res/mipmap-television-mdpi/buzin_launcher.png": "65acb86eea04ce362a7ddd6bb696a3395556b29d94e7dab7d13cf83143aebb2a",
-    "app/src/main/res/mipmap-television-xhdpi/buzin_launcher.png": "4dd049966707497fe5a12955371c619ea543db989b50dc01fcdebb94c1fa11ff",
-    "app/src/main/res/mipmap-television-xxhdpi/buzin_launcher.png": "ae828b78ee222aba2a466dd9b76388e533089e4d405312b529c272a11f648c92",
-    "app/src/main/res/mipmap-television-xxxhdpi/buzin_launcher.png": "d02c318ecabd175e78e32647559f5802980ba3d6afcb47642c1cd30e369dcd80",
-    "app/src/main/res/mipmap-xhdpi/buzin_launcher.png": "4dd049966707497fe5a12955371c619ea543db989b50dc01fcdebb94c1fa11ff",
-    "app/src/main/res/mipmap-xxhdpi/buzin_launcher.png": "ae828b78ee222aba2a466dd9b76388e533089e4d405312b529c272a11f648c92",
-    "app/src/main/res/mipmap-xxxhdpi/buzin_launcher.png": "d02c318ecabd175e78e32647559f5802980ba3d6afcb47642c1cd30e369dcd80"
+    "app/src/main/res/drawable-nodpi/buzin_banner.png": "782586c6d72c83213cf669c7474029852faef38a267eef1cfb8c77e454516e38",
+    "app/src/main/res/drawable-xhdpi/buzin_tv_banner.png": "424638a49f6717bcfeb5af617808e3b80cddf2a2c67fdca4a1d708fd6d0df8cc",
+    "app/src/main/res/mipmap-hdpi/buzin_launcher.png": "575eb2cc07e49ed4483312dd6df29414d1655b77f50d4bd6eb6698d3a23022bd",
+    "app/src/main/res/mipmap-mdpi/buzin_launcher.png": "dd5cfc195b00142bd6db3066b695438c3b7a83010fd432315f8e688b03b0015a",
+    "app/src/main/res/mipmap-television-hdpi/buzin_launcher.png": "575eb2cc07e49ed4483312dd6df29414d1655b77f50d4bd6eb6698d3a23022bd",
+    "app/src/main/res/mipmap-television-mdpi/buzin_launcher.png": "dd5cfc195b00142bd6db3066b695438c3b7a83010fd432315f8e688b03b0015a",
+    "app/src/main/res/mipmap-television-xhdpi/buzin_launcher.png": "d4ca85ce80872150c3d63e35abd6c766f12f04aa57a80389868ea6c50c7480ca",
+    "app/src/main/res/mipmap-television-xxhdpi/buzin_launcher.png": "79f3e6a20817ac257c6790be46d6b228654e885511aeea7b8d03193c11b1744c",
+    "app/src/main/res/mipmap-television-xxxhdpi/buzin_launcher.png": "b712e9432c1d11a288df1e03bc53b6a91f08a571eaafe04c6233c460000fd3d7",
+    "app/src/main/res/mipmap-xhdpi/buzin_launcher.png": "d4ca85ce80872150c3d63e35abd6c766f12f04aa57a80389868ea6c50c7480ca",
+    "app/src/main/res/mipmap-xxhdpi/buzin_launcher.png": "79f3e6a20817ac257c6790be46d6b228654e885511aeea7b8d03193c11b1744c",
+    "app/src/main/res/mipmap-xxxhdpi/buzin_launcher.png": "b712e9432c1d11a288df1e03bc53b6a91f08a571eaafe04c6233c460000fd3d7"
   }
 }
