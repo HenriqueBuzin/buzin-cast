@@ -42,7 +42,7 @@ android {
         applicationId = "com.buzincast.tv"
         minSdk = if (legacyEdition) 22 else 25
         targetSdk = 37
-        versionCode = if (legacyEdition) 31 else 32
+        versionCode = if (legacyEdition) 31 else if (noDownloadEdition) 33 else 32
         versionName = if (legacyEdition) "0.6.3-compat" else if (noDownloadEdition) "0.6.3-nodownload" else "0.6.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "VIDEO_DOWNLOAD_ENABLED", (!noDownloadEdition).toString())
