@@ -51,6 +51,16 @@ android {
             cmake {
                 arguments += "-DANDROID_STL=c++_shared"
                 arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                if (org.gradle.internal.os.OperatingSystem.current().isWindows) {
+                    // Avoids an extra top-level build.ninja regenerate check on
+                    // Windows. The actual Windows-only "ninja: error: failed
+                    // recompaction: Permission denied" during OpenSSL's install
+                    // step came from a separate, explicit "force CMake-reload"
+                    // command in upstream openssl-cmake's BuildOpenSSL.cmake,
+                    // skipped for our Android cross build by patch 0004 (see
+                    // src/main/cpp/patches/openssl-cmake).
+                    arguments += "-DCMAKE_SUPPRESS_REGENERATION=ON"
+                }
             }
         }
     }
@@ -108,50 +118,56 @@ android {
     sourceSets.getByName("debug").assets.directories.add("../dlna-domain/src/test/resources")
 }
 
-tasks.register("applyUxplayPatches") {
-    doLast {
-        fun git(vararg args: String): String {
-            val proc = ProcessBuilder("git", "-C", "$projectDir/src/main/cpp/third_party/UxPlay", *args)
-                .redirectErrorStream(true).start()
-            val out = proc.inputStream.bufferedReader().readText()
-            check(proc.waitFor() == 0) { "git ${args.joinToString(" ")} failed:\n$out" }
-            return out
-        }
-        val patches = file("src/main/cpp/patches/UxPlay").listFiles { f -> f.extension == "patch" }!!.sorted()
-        fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
-            .digest(bytes).joinToString("") { "%02x".format(it) }
-        val patchHash = digest(patches.flatMap { it.readBytes().toList() }.toByteArray())
-        val marker = file("src/main/cpp/third_party/UxPlay/.buzin-patches.properties")
-        val touched = patches.flatMap { git("apply", "--numstat", it.absolutePath).trim().lines() }
-            .map { it.substringAfterLast("\t") }.distinct()
-        if (marker.exists()) {
-            val recorded = Properties().apply { marker.inputStream().use(::load) }
-            check(recorded.getProperty("patchSet") == patchHash) { "UxPlay patch set changed; use a fresh submodule checkout." }
-            check(touched.all { name -> recorded.getProperty(name) == digest(file("src/main/cpp/third_party/UxPlay/$name").readBytes()) }) {
-                "Patched UxPlay files were edited. Review the local changes before rebuilding."
+fun registerSubmodulePatchTask(taskName: String, submoduleName: String) {
+    tasks.register(taskName) {
+        doLast {
+            val submoduleDir = "$projectDir/src/main/cpp/third_party/$submoduleName"
+            fun git(vararg args: String): String {
+                val proc = ProcessBuilder("git", "-C", submoduleDir, *args)
+                    .redirectErrorStream(true).start()
+                val out = proc.inputStream.bufferedReader().readText()
+                check(proc.waitFor() == 0) { "git ${args.joinToString(" ")} failed:\n$out" }
+                return out
             }
-            return@doLast
-        }
-        patches.forEach { patch ->
-            // Also supports source distributions without Git metadata. Never reset local edits.
-            val applied = ProcessBuilder("git", "-C", "$projectDir/src/main/cpp/third_party/UxPlay",
-                "apply", "--reverse", "--check", "--unidiff-zero", patch.absolutePath)
-                .redirectErrorStream(true).start().let { proc ->
-                    proc.inputStream.bufferedReader().readText()
-                    proc.waitFor() == 0
+            val patches = file("src/main/cpp/patches/$submoduleName").listFiles { f -> f.extension == "patch" }!!.sorted()
+            fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
+                .digest(bytes).joinToString("") { "%02x".format(it) }
+            val patchHash = digest(patches.flatMap { it.readBytes().toList() }.toByteArray())
+            val marker = file("$submoduleDir/.buzin-patches.properties")
+            val touched = patches.flatMap { git("apply", "--numstat", it.absolutePath).trim().lines() }
+                .map { it.substringAfterLast("\t") }.distinct()
+            if (marker.exists()) {
+                val recorded = Properties().apply { marker.inputStream().use(::load) }
+                check(recorded.getProperty("patchSet") == patchHash) { "$submoduleName patch set changed; use a fresh submodule checkout." }
+                check(touched.all { name -> recorded.getProperty(name) == digest(file("$submoduleDir/$name").readBytes()) }) {
+                    "Patched $submoduleName files were edited. Review the local changes before rebuilding."
                 }
-            if (!applied) git("apply", "--unidiff-zero", patch.absolutePath)
+                return@doLast
+            }
+            patches.forEach { patch ->
+                // Also supports source distributions without Git metadata. Never reset local edits.
+                val applied = ProcessBuilder("git", "-C", submoduleDir,
+                    "apply", "--reverse", "--check", "--unidiff-zero", patch.absolutePath)
+                    .redirectErrorStream(true).start().let { proc ->
+                        proc.inputStream.bufferedReader().readText()
+                        proc.waitFor() == 0
+                    }
+                if (!applied) git("apply", "--unidiff-zero", patch.absolutePath)
+            }
+            val recorded = Properties().apply {
+                setProperty("patchSet", patchHash)
+                touched.forEach { name -> setProperty(name, digest(file("$submoduleDir/$name").readBytes())) }
+            }
+            marker.outputStream().use { recorded.store(it, "Buzin Cast applied $submoduleName patches") }
         }
-        val recorded = Properties().apply {
-            setProperty("patchSet", patchHash)
-            touched.forEach { name -> setProperty(name, digest(file("src/main/cpp/third_party/UxPlay/$name").readBytes())) }
-        }
-        marker.outputStream().use { recorded.store(it, "Buzin Cast applied UxPlay patches") }
     }
 }
 
+registerSubmodulePatchTask("applyUxplayPatches", "UxPlay")
+registerSubmodulePatchTask("applyOpensslCmakePatches", "openssl-cmake")
+
 tasks.configureEach {
-    if (name.startsWith("configureCMake")) dependsOn("applyUxplayPatches")
+    if (name.startsWith("configureCMake")) dependsOn("applyUxplayPatches", "applyOpensslCmakePatches")
 }
 
 dependencies {
