@@ -43,7 +43,7 @@ ExternalProject_Add(ffmpeg_ep
     DOWNLOAD_COMMAND ""
     PREFIX ${CMAKE_BINARY_DIR}/ffmpeg-ep
     INSTALL_DIR ${FFMPEG_INSTALL}
-    CONFIGURE_COMMAND <SOURCE_DIR>/configure
+    CONFIGURE_COMMAND bash <SOURCE_DIR>/configure
         --prefix=<INSTALL_DIR>
         --target-os=android --arch=${_ffmpeg_arch} ${_ffmpeg_cpu} --enable-cross-compile
         --cc=${_ffmpeg_tc}/${_ffmpeg_triple}${AIRPLAY_ANDROID_API}-clang
