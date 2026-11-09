@@ -22,8 +22,13 @@
   gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
   política e validar os binários antes da distribuição.
   **9/nov:** flag de build `-PbuzinNoDownload=true` criada, esconde o botão
-  de download via `BuildConfig.VIDEO_DOWNLOAD_ENABLED`. Ainda falta gerar e
-  validar o APK de verdade (só validei que compila).
+  de download via `BuildConfig.VIDEO_DOWNLOAD_ENABLED`. APK de release gerado
+  e assinado com sucesso. **Decisão de Henrique:** sem confirmação de
+  restrição legal real na Alemanha/Áustria (pesquisa não achou base jurídica,
+  e o console já distribui para todos os países), a versão padrão (com
+  download) é publicada para todos os mercados, incluindo DE/AT. O APK
+  sem-download fica pronto e guardado, não publicado, para o caso de a
+  restrição se confirmar depois.
 - [~] Publicar somente para Fire TV Stick, contemplando todas as gerações
   já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
   3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
