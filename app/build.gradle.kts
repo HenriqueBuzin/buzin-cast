@@ -15,7 +15,8 @@ val localProps = Properties().apply {
 
 val legacyEdition = providers.gradleProperty("buzinLegacy").orNull == "true"
 val coverageEnabled = providers.gradleProperty("buzinCoverage").orNull == "true"
-val editionBuildDirectory = "build" + (if (legacyEdition) "-legacy" else "") + (if (coverageEnabled) "-coverage" else "")
+val noDownloadEdition = providers.gradleProperty("buzinNoDownload").orNull == "true"
+val editionBuildDirectory = "build" + (if (legacyEdition) "-legacy" else "") + (if (noDownloadEdition) "-nodownload" else "") + (if (coverageEnabled) "-coverage" else "")
 layout.buildDirectory.set(file(editionBuildDirectory))
 
 val allAbis = providers.gradleProperty("buzinAbis").orNull?.split(",")
@@ -41,9 +42,10 @@ android {
         applicationId = "com.buzincast.tv"
         minSdk = if (legacyEdition) 22 else 25
         targetSdk = 37
-        versionCode = if (legacyEdition) 25 else 26
-        versionName = if (legacyEdition) "0.6.2-compat" else "0.6.2"
+        versionCode = if (legacyEdition) 31 else 32
+        versionName = if (legacyEdition) "0.6.3-compat" else if (noDownloadEdition) "0.6.3-nodownload" else "0.6.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("boolean", "VIDEO_DOWNLOAD_ENABLED", (!noDownloadEdition).toString())
 
         externalNativeBuild {
             cmake {
@@ -101,6 +103,7 @@ android {
     buildFeatures {
         compose = true
         prefab = true
+        buildConfig = true
     }
     sourceSets.getByName("debug").assets.directories.add("../dlna-domain/src/test/resources")
 }
