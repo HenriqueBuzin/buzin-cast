@@ -37,6 +37,14 @@
   reescrever toda a UI sem Compose, e nem a Amazon oferece mais emulador para
   validar). Fire OS 5 (API 22) é o piso mínimo de suporte. Fire OS 6, 7, 8, 14
   e 16 continuam cobertos pelas duas edições existentes.
+  **9/nov — dispositivos-alvo no console:** conferido em Target your app >
+  Supported devices que a categoria "Fire TV" (100 aparelhos) inclui Smart TVs
+  com Fire TV embutido (ex.: TCL) e caixas Fire TV (Gen 1/2/3) além dos Fire TV
+  Stick propriamente ditos. Decisão de Henrique: manter todos os tipos de
+  dispositivo Fire TV habilitados, não restringir só a Stick. Amazon Vega TV
+  (Fire TV Stick 4K Select, HD 2ª geração, 4K) segue desmarcado, conforme a
+  decisão de deixar Vega fora por enquanto. Availability também já está em
+  "All countries and regions where Amazon sells apps" — sem exclusão de país.
 - [ ] Build nativo (C++/FFmpeg) diretamente no Windows, fora do WSL, ainda não
   funciona — trava no CMake/ndk-build do jeito que o toolchain Windows está
   hoje. **9/nov:** o build via WSL (`/var/tmp/buzin-cast-build`) está validado
