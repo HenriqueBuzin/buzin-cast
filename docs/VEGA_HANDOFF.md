@@ -1,5 +1,27 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+Alvo de versões: Vega OS 1.0 a 2.0. Matriz, SDKs e linhas em paralelo em
+[VEGA_OS_VERSIONS.md](VEGA_OS_VERSIONS.md).
+
+## Ambiente preparado neste Mac — 9 de novembro de 2026
+
+- Mac arm64/macOS 27.2 partiu sem ferramentas Vega. Instalados Homebrew, Rosetta,
+  as dependências do guia oficial, `cmake`, `ninja`, nvm 0.41.0, Node 26.13.0,
+  Vega CLI 1.4.9 e SDK 2.0.13986 (ativo).
+- `npm ci`, lint sem avisos, TypeScript e 39 testes Jest passaram.
+  `vega project doctor` passou. `npm run build:app` gerou os VPKGs release
+  ARM64, ARMv7 e x86_64.
+- Não executado nesta preparação: `vega exec vpt validate`, VVD e
+  `tools/test_vega.py`. Paridade e receptores seguem pendentes.
+- O build falhou primeiro porque o submódulo `libplist` estava vazio. Restaurado
+  com `git submodule update --init --force` no commit fixado (`fe3dc34`).
+  `ffmpeg` e `openssl-cmake`, também vazios, foram restaurados da mesma forma
+  nos commits fixados; o Vega não os usa, mas a build Android precisa deles.
+- O instalador do Homebrew trocou o `xcode-select` para as Command Line Tools.
+- As ferramentas Vega coletam telemetria por padrão; ver a
+  [documentação](https://developer.amazon.com/docs/vega/latest/telemetry.html)
+  para desativar.
+
 ## Decisão vigente — 5 de novembro de 2026
 
 Henrique adiou a unificação depois de avaliar a interface React Native comum.

@@ -75,6 +75,7 @@ OpenSSL e a auditoria npm tem pendências nas ferramentas Amazon; não está
 pronto para publicação. A meta de cobertura global ainda não foi atingida.
 
 A [retomada](../docs/VEGA_HANDOFF.md) registra resultados, limites e próximos
-passos. Consulte também [testes](../docs/TESTING.md) e
+passos. O plano para Vega OS 1.0 a 2.0 está em
+[versões em paralelo](../docs/VEGA_OS_VERSIONS.md). Consulte também [testes](../docs/TESTING.md) e
 [dependências/licenças](../docs/DEPENDENCIES.md). Preservar os avisos em
 `assets/raw/licenses` e os termos das ferramentas Amazon.

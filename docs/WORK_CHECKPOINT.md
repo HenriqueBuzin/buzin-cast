@@ -1,5 +1,9 @@
 # Retomada — 5 de novembro de 2026
 
+**9/nov — Vega:** ambiente preparado neste Mac e alvo ampliado para Vega OS 1.0
+a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
+[VEGA_OS_VERSIONS.md](VEGA_OS_VERSIONS.md).
+
 ## Tarefas futuras registradas por Henrique
 
 - [~] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
