@@ -14,9 +14,9 @@ Alvo de versões: Vega OS 1.0 a 2.0. Matriz, SDKs e linhas em paralelo em
 - Não executado nesta preparação: `vega exec vpt validate`, VVD e
   `tools/test_vega.py`. Paridade e receptores seguem pendentes.
 - O build falhou primeiro porque o submódulo `libplist` estava vazio. Restaurado
-  com `git submodule update --init --force` no commit fixado (`fe3dc34`). Neste
-  checkout, `ffmpeg` e `openssl-cmake` continuam vazios: o Vega não os usa, mas
-  a build Android precisa deles.
+  com `git submodule update --init --force` no commit fixado (`fe3dc34`).
+  `ffmpeg` e `openssl-cmake`, também vazios, foram restaurados da mesma forma
+  nos commits fixados; o Vega não os usa, mas a build Android precisa deles.
 - O instalador do Homebrew trocou o `xcode-select` para as Command Line Tools.
 - As ferramentas Vega coletam telemetria por padrão; ver a
   [documentação](https://developer.amazon.com/docs/vega/latest/telemetry.html)
