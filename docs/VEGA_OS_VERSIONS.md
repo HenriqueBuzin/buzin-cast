@@ -60,10 +60,10 @@ a todos. A decisão de incluir mesmo assim é de produto.
 
 ## Ferramentas lado a lado
 
-Os SDKs convivem em `~/vega/sdk`; só um fica ativo globalmente:
+Os SDKs convivem em `~/vega/sdk`; só um fica ativo globalmente. Neste Mac já
+estão instalados 2.0.13986 (ativo) e 0.23.9221. Para trocar:
 
 ```sh
-vega sdk install 0.23.9221
 vega sdk use 0.23.9221
 vega sdk ls
 ```
