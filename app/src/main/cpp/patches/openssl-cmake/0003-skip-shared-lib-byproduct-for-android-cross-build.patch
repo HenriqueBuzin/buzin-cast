@@ -1,0 +1,23 @@
+diff --git a/cmake/ByproductsOpenSSL.cmake b/cmake/ByproductsOpenSSL.cmake
+index 3741371..c64cad5 100644
+--- a/cmake/ByproductsOpenSSL.cmake
++++ b/cmake/ByproductsOpenSSL.cmake
+@@ -54,8 +54,16 @@ function(GetOpenSSLByproducts OPENSSL_PREFIX_PATH OPENSSL_BYPRODUCTS_VAR OPENSSL
+         # windows .dll.a requires unknown import library type
+         add_library(${OPENSSL_BASE_NAME}_shared_lib UNKNOWN IMPORTED GLOBAL)
+         set_property(TARGET ${OPENSSL_BASE_NAME}_shared_lib PROPERTY IMPORTED_LOCATION ${OPENSSL_SHARED_LIB})
+-        
+-        list(APPEND ${OPENSSL_BYPRODUCTS_VAR} ${OPENSSL_STATIC_LIB} ${OPENSSL_SHARED_LIB})
++
++        if (CROSS_ANDROID)
++            # Our Android build passes no-shared, so this file never gets
++            # created. Declaring it as a byproduct anyway makes CMake/Ninja
++            # keep regenerating build.ninja looking for it, which collides
++            # with ninja's own open handle on that file on Windows.
++            list(APPEND ${OPENSSL_BYPRODUCTS_VAR} ${OPENSSL_STATIC_LIB})
++        else()
++            list(APPEND ${OPENSSL_BYPRODUCTS_VAR} ${OPENSSL_STATIC_LIB} ${OPENSSL_SHARED_LIB})
++        endif()
+     endforeach()
+     
+     # returns

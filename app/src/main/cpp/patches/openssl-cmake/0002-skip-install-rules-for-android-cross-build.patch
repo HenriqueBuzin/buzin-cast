@@ -1,0 +1,27 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 39ca594..411a0e5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -90,10 +90,17 @@ else()
+     target_include_directories(ssl BEFORE INTERFACE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
+     target_include_directories(crypto BEFORE INTERFACE $<BUILD_INTERFACE:${OPENSSL_INCLUDE_DIR}>)
+ 
+-    install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/bin/ TYPE BIN)
+-    install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/include/ TYPE INCLUDE)
+-    install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/lib/ TYPE LIB)
+-    if (OPENSSL_INSTALL_MAN)
+-        install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/share/ TYPE DATA)
++    if (NOT CROSS_ANDROID)
++        # These glob-watch OPENSSL_PREFIX, which the ExternalProject's own
++        # install step populates concurrently; on Windows that collides with
++        # ninja's own open handle on build.ninja and the generate step fails
++        # with "Permission denied". Not needed for the Android NDK static-link
++        # use case (we only consume the imported crypto/ssl targets directly).
++        install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/bin/ TYPE BIN)
++        install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/include/ TYPE INCLUDE)
++        install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/lib/ TYPE LIB)
++        if (OPENSSL_INSTALL_MAN)
++            install(DIRECTORY ${OPENSSL_PREFIX}/usr/local/share/ TYPE DATA)
++        endif()
+     endif()
+ endif()

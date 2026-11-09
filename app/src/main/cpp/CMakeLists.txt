@@ -15,6 +15,10 @@ set(BUILD_OPENSSL ON CACHE BOOL "" FORCE)
 # Pre-Android 7 has a global linker namespace with a system libcrypto.so.
 # Embed our maintained crypto privately so that it cannot collide with that ABI.
 set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
+# Also skip building libcrypto.so/libssl.so themselves: nothing here links
+# against them, and the shared-lib link command's huge object-file list blows
+# past Windows' command-line length limit during a native Windows build.
+set(OPENSSL_MODULES no-shared CACHE STRING "" FORCE)
 set(OPENSSL_BUILD_VERSION "3.5.9" CACHE STRING "" FORCE)
 set(CROSS_ANDROID ON CACHE BOOL "" FORCE)
 string(REGEX MATCH "[0-9]+" AIRPLAY_ANDROID_API "${ANDROID_PLATFORM}")

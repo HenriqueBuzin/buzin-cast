@@ -1,0 +1,61 @@
+diff --git a/scripts/building_env.py b/scripts/building_env.py
+index 8509d82..cbc4f3c 100644
+--- a/scripts/building_env.py
++++ b/scripts/building_env.py
+@@ -26,7 +26,7 @@
+ # - on windows: uses msys' bash for command execution (openssl's scripts need an UNIX-like environment with perl)
+ 
+ import argparse
+-import os, re
++import os, re, shutil
+ from subprocess import PIPE, Popen
+ from sys import exit
+ 
+@@ -44,7 +44,7 @@ if args.verbose:
+     print(args)
+ 
+ env = os.environ
+-env_sep = ';' if args.os == 'WIN32' else ':'
++env_sep = os.pathsep
+ 
+ def add_env(k, v):
+     global env
+@@ -79,6 +79,18 @@ elif args.os == 'LINUX_CROSS_ANDROID':
+     for k, v in pattern.findall(content):
+         add_env(k, v.replace("\\\"", "\""))
+ 
++    if os.name == 'nt':
++        # OpenSSL's Configure compares ANDROID_NDK(_ROOT) as a plain string
++        # prefix against the path MSYS perl's which("clang") returns, which
++        # is POSIX-style (/c/...), not Windows-style (C:/...). Without this
++        # the prefix never matches and it falls back to looking for gcc.
++        def _to_msys_path(p):
++            m = re.match(r'^([A-Za-z]):[/\\](.*)$', p)
++            return f'/{m.group(1).lower()}/{m.group(2)}' if m else p
++        for k in ('ANDROID_NDK', 'ANDROID_NDK_ROOT'):
++            if k in env:
++                add_env(k, _to_msys_path(env[k]))
++
+ # build command-line
+ cmd_exec, cmd_args = args.args[0], ' '.join(args.args[1:])
+ cmd_line = f'"{cmd_exec}" {cmd_args} || exit $?'
+@@ -87,9 +99,16 @@ if args.verbose:
+     print(f'Built cmd_line = "{cmd_line}"')
+ 
+ proc = None
+-if args.os == 'WIN32':
+-    # we must emulate a UNIX environment to build openssl using mingw
+-    proc = Popen(bash, env=env, cwd=args.cwd, stdin=PIPE, universal_newlines=True)
++if os.name == 'nt':
++    # On a Windows host, Configure/make are POSIX shell scripts regardless of
++    # the cross-compilation target OS, so always run them through bash.
++    # Windows always searches System32 (which has a WSL-launching bash.exe
++    # stub) before PATH, so resolve our intended bash explicitly rather than
++    # letting a bare 'bash' silently start an unrelated WSL session.
++    # --noprofile/--norc: a user's shell startup files can inject an
++    # unrelated PATH ahead of the one we built above.
++    bash_exe = shutil.which('bash', path=env.get('PATH')) or 'bash'
++    proc = Popen([bash_exe, '--noprofile', '--norc'], env=env, cwd=args.cwd, stdin=PIPE, universal_newlines=True)
+     proc.communicate(input=cmd_line)
+ else:
+     proc = Popen(cmd_line, env=env, cwd=args.cwd, shell=True)

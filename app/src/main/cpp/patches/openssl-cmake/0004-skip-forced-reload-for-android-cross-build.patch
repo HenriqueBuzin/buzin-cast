@@ -1,0 +1,30 @@
+diff --git a/cmake/BuildOpenSSL.cmake b/cmake/BuildOpenSSL.cmake
+index 8091a72..f7780a4 100644
+--- a/cmake/BuildOpenSSL.cmake
++++ b/cmake/BuildOpenSSL.cmake
+@@ -177,6 +177,16 @@ else()
+     # build OPENSSL_PATCH_COMMAND
+     include(PatchOpenSSL)
+ 
++    if (CROSS_ANDROID)
++        # Android cross build only consumes the IMPORTED library targets via
++        # BUILD_BYPRODUCTS; nothing depends on CMake re-globbing OPENSSL_PREFIX.
++        # On Windows this reload races the outer ninja process's open handle on
++        # build.ninja and fails with "Permission denied" during the install step.
++        set(OPENSSL_FORCE_RELOAD_COMMAND ${CMAKE_COMMAND} -E true)
++    else()
++        set(OPENSSL_FORCE_RELOAD_COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR})
++    endif()
++
+     # add openssl target
+     ExternalProject_Add(openssl
+         URL https://mirror.viaduck.org/openssl/openssl-${OPENSSL_BUILD_VERSION}.tar.gz
+@@ -194,7 +204,7 @@ else()
+ 
+         INSTALL_COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> -- ${PERL_PATH_FIX_INSTALL}
+         COMMAND ${BUILD_ENV_TOOL} <SOURCE_DIR> -- ${MAKE_PROGRAM} DESTDIR=${OPENSSL_PREFIX} install_sw ${INSTALL_OPENSSL_MAN}
+-        COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} ${CMAKE_BINARY_DIR}                    # force CMake-reload
++        COMMAND ${OPENSSL_FORCE_RELOAD_COMMAND}                    # force CMake-reload (skipped on Android cross build)
+ 
+         LOG_INSTALL 1
+     )
