@@ -11,8 +11,18 @@ Alvo de versões: Vega OS 1.0 a 2.0. Matriz, SDKs e linhas em paralelo em
 - `npm ci`, lint sem avisos, TypeScript e 39 testes Jest passaram.
   `vega project doctor` passou. `npm run build:app` gerou os VPKGs release
   ARM64, ARMv7 e x86_64.
-- Não executado nesta preparação: `vega exec vpt validate`, VVD e
-  `tools/test_vega.py`. Paridade e receptores seguem pendentes.
+- `vega exec vpt validate` passou nas três arquiteturas, com o aviso dlopen já
+  conhecido. `tools/test_vega.py` passou no VVD ARM64 (`passed: true`), com
+  resultado local em `build/vega-setup-checks`. Sem validação física; paridade
+  e receptores seguem pendentes.
+- SDK 0.23.9221 instalado ao lado do 2.0.13986 para a futura linha OS 1.1. O
+  2.0.13986 segue ativo. O VVD do 0.23 não foi iniciado.
+- Android: Temurin 25.0.5, plataforma 37.0, build-tools 37.0.0, NDK r30 e
+  `platform-tools` em `~/Library/Android/sdk`. `tools/install_cmake.py` não cobre
+  Mac; `local.properties` (fora do Git) aponta `cmake.dir` para o CMake 4.4.5 do
+  Homebrew, que precisa continuar nessa versão. `:receiver-core:check`,
+  `:dlna-domain:test` e `assembleDebug` passaram. A edição `-PbuzinLegacy=true`
+  não foi compilada neste Mac.
 - O build falhou primeiro porque o submódulo `libplist` estava vazio. Restaurado
   com `git submodule update --init --force` no commit fixado (`fe3dc34`).
   `ffmpeg` e `openssl-cmake`, também vazios, foram restaurados da mesma forma
