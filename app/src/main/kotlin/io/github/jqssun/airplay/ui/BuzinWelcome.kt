@@ -78,8 +78,6 @@ fun BuzinWelcome(serverName: String, running: Boolean, onToggle: (() -> Unit)? =
                         Text(stringResource(text), fontSize = 12.sp, lineHeight = 18.sp, color = muted, modifier = Modifier.weight(1f))
                     }
                 }
-            HorizontalDivider(color = Color(0xFF25333E))
-            Text("AirPlay  •  DLNA", color = mint, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
     }
     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF0D1D26), Color(0xFF080F19))))) {

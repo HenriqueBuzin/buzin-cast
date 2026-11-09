@@ -38,14 +38,14 @@ public static class BuzinBrand {
       // Fill every pixel instead of baking transparent corners into the PNG.
       using(var bg=new LinearGradientBrush(frame,C("#12364A"),C("#071621"),38))
         g.FillRectangle(bg,frame);
-      using(var orbit=new Pen(Color.FromArgb(52,53,192,216),width/640f)) {
+      using(var orbit=new Pen(Color.FromArgb(78,53,192,216),width/512f)) {
         foreach(float radius in new[]{0.27f,0.38f,0.50f})
           g.DrawEllipse(orbit,width*(0.57f-radius),height*0.49f-width*radius,width*radius*2,width*radius*2);
       }
       // Full-bleed stays untouched. Scale the central signature uniformly
       // on landscape Fire TV artwork so it stays proportional, never stretched.
-      float scale=width/600f*(width>height ? 0.86f : 1f);
-      g.TranslateTransform(width/2f-230*scale,height/2f-88*scale);
+      float scale=width/600f*(width>height ? 0.94f : 1f);
+      g.TranslateTransform(width/2f-206.5f*scale,height/2f-88*scale);
       g.ScaleTransform(scale,scale);
       using(var tile=Round(0,0,176,176,40))
       using(var mint=new LinearGradientBrush(new Rectangle(0,0,176,176),C("#91FFD6"),C("#42DFAE"),45))
