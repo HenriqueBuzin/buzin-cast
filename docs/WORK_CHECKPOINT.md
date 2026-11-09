@@ -37,6 +37,15 @@
   reescrever toda a UI sem Compose, e nem a Amazon oferece mais emulador para
   validar). Fire OS 5 (API 22) é o piso mínimo de suporte. Fire OS 6, 7, 8, 14
   e 16 continuam cobertos pelas duas edições existentes.
+- [ ] Build nativo (C++/FFmpeg) diretamente no Windows, fora do WSL, ainda não
+  funciona — trava no CMake/ndk-build do jeito que o toolchain Windows está
+  hoje. **9/nov:** o build via WSL (`/var/tmp/buzin-cast-build`) está validado
+  e funcionando (causa raiz de falhas anteriores era CRLF nos fontes do
+  FFmpeg/libplist nessa cópia, não o shell). **Observação ao retomar isso:**
+  qualquer tentativa de fazer o build nativo rodar fora do WSL não pode mexer
+  nem arriscar quebrar o ambiente WSL que já funciona — se o Windows nativo
+  não colaborar, já temos os dois caminhos (WSL funcionando + Windows como
+  alternativa a resolver depois, sem pressa).
 
 ## Candidatas corrigidas 0.6.1 — estado atual
 
