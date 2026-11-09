@@ -433,7 +433,7 @@ fun MainScreen(
                         title = videoTitle,
                         videoUrl = videoLocation,
                         downloadProgress = downloadProgress,
-                        showDownload = durationMs > 0,
+                        showDownload = io.github.jqssun.airplay.BuildConfig.VIDEO_DOWNLOAD_ENABLED && durationMs > 0,
                         onBackClick = { viewModel.stopVideoPlayback() },
                         onSpeedClick = {
                             overlayVisible = false
