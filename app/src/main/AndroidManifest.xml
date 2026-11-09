@@ -23,6 +23,11 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
+    <queries>
+        <package android:name="com.amazon.sdktestclient" />
+        <package android:name="com.amazon.venezia" />
+    </queries>
+
     <application
         android:name=".AirPlayApp"
         android:allowBackup="false"
@@ -80,6 +85,15 @@
             <intent-filter>
                 <action android:name="io.github.jqssun.airplay.SET_SETTING" />
                 <action android:name="io.github.jqssun.airplay.LIST_SETTINGS" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.amazon.device.iap.ResponseReceiver"
+            android:exported="true"
+            android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY">
+            <intent-filter>
+                <action android:name="com.amazon.inapp.purchasing.NOTIFY" />
             </intent-filter>
         </receiver>
 

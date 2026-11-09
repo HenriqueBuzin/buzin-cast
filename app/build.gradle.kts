@@ -171,6 +171,7 @@ dependencies {
     implementation(if (legacyEdition) "androidx.media3:media3-transformer:${libs.versions.legacy.media3.get()}" else libs.media3.transformer.get())
     implementation(libs.kotlinx.coroutines)
     implementation(libs.oboe)
+    implementation("com.amazon.device:amazon-appstore-sdk:3.0.9")
 
     implementation(platform(if (legacyEdition) "androidx.compose:compose-bom:${libs.versions.legacy.compose.bom.get()}" else libs.compose.bom.get()))
     implementation(libs.compose.ui)
