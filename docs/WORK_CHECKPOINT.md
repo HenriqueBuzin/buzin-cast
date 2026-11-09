@@ -28,7 +28,10 @@
   e o console já distribui para todos os países), a versão padrão (com
   download) é publicada para todos os mercados, incluindo DE/AT. O APK
   sem-download fica pronto e guardado, não publicado, para o caso de a
-  restrição se confirmar depois.
+  restrição se confirmar depois. **Lembrete de Henrique:** o version code da
+  edição sem-download precisa ser diferente do da edição padrão e da compat
+  (a Amazon não aceita APKs duplicados na mesma submissão) — corrigido para
+  33 (padrão=32, compat=31, sem-download=33) em `app/build.gradle.kts`.
 - [~] Publicar somente para Fire TV Stick, contemplando todas as gerações
   já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
   3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
