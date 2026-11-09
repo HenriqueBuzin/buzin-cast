@@ -2,21 +2,41 @@
 
 ## Tarefas futuras registradas por Henrique
 
-- [ ] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
+- [~] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
   Appstore. Não ativar DRM apenas para suprimir o aviso: definir primeiro o
   conteúdo protegido, requisitos de licença e impacto nas duas edições Fire OS.
-- [ ] Traduzir e revisar a ficha da Amazon Appstore para todos os idiomas que
+  **9/nov:** SDK Appstore (`com.amazon.device:amazon-appstore-sdk:3.0.9`)
+  integrado com verificação de licença ativa (`AppstoreBilling.kt`) e um SKU
+  de doação placeholder, nenhum produto real à venda ainda. O "Yes" de DRM na
+  tela de upload do console é independente disso e continua pendente, é ação
+  manual de Henrique.
+- [x] Traduzir e revisar a ficha da Amazon Appstore para todos os idiomas que
   a loja disponibilizar antes de ampliar a distribuição internacional.
-- [ ] Preparar edições específicas para Alemanha e Áustria sem funções de
+  **9/nov:** feito para os 13 idiomas de ficha de loja que a Amazon realmente
+  suporta (Dutch, English AU/IN/US, French, German, Italian, Japanese,
+  Polish, Portuguese BR/PT, Spanish, Swedish) — confirmado na documentação
+  oficial que esse é um conjunto separado e menor do que os 20 idiomas do
+  binário. As strings do app (`values-*/strings.xml`) foram traduzidas para
+  os 20 idiomas da lista de "binary supported languages" do console.
+- [~] Preparar edições específicas para Alemanha e Áustria sem funções de
   gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
   política e validar os binários antes da distribuição.
-- [ ] Publicar somente para Fire TV Stick, contemplando todas as gerações
+  **9/nov:** flag de build `-PbuzinNoDownload=true` criada, esconde o botão
+  de download via `BuildConfig.VIDEO_DOWNLOAD_ENABLED`. Ainda falta gerar e
+  validar o APK de verdade (só validei que compila).
+- [~] Publicar somente para Fire TV Stick, contemplando todas as gerações
   já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
   3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
   limita o escopo: acrescentar outras versões que existam ao retomar o trabalho.
   Confirmar os nomes comerciais, níveis reais de API e compatibilidade antes
   de cada disponibilização. Vega continua fora desta publicação enquanto seu
   receptor e o VPKG não forem validados.
+  **9/nov — decisão:** Fire OS 1, 2, 3 e 4 ficam de fora, sem plano de
+  suportar — ver [FEATURES.md](FEATURES.md#limites-da-promessa-de-compatibilidade)
+  para o motivo técnico (Jetpack Compose exige API 21+, abaixo disso exigiria
+  reescrever toda a UI sem Compose, e nem a Amazon oferece mais emulador para
+  validar). Fire OS 5 (API 22) é o piso mínimo de suporte. Fire OS 6, 7, 8, 14
+  e 16 continuam cobertos pelas duas edições existentes.
 
 ## Candidatas corrigidas 0.6.1 — estado atual
 
