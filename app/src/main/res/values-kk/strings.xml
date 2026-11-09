@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BuzinCast</string>
+    <string name="buzin_tagline">Экраныңызға үлкенірек сахна лайық.</string>
+    <string name="buzin_hero">Кішкентай экран.\nҰлкен мүмкіндіктер.</string>
+    <string name="buzin_hero_detail">Идеяларыңызды, фотоларыңызды және сүйікті сәттеріңізді теледидарда көрсетіңіз.</string>
+    <string name="buzin_receiver_label">ҚҰРЫЛҒЫҚЫЗДА ОСЫ АТАУДЫ ТАҒДАЦЫЗ</string>
+    <string name="buzin_rename_hint">Параметрлер → Қабылдағыш атауы бөлімінде өзгертіңіз</string>
+    <string name="buzin_connect_heading">Үш қадаммен қосылыңыз</string>
+    <string name="buzin_free">Тегін • Жарнамасыз • Уақыт шектеусіз</string>
+    <string name="buzin_ready">Қосылуға дайын</string>
+    <string name="buzin_stopped">Қосылу үшін қабылдағышты іске қосыңыз</string>
+    <string name="buzin_choose">Apple құрылғыңызда %1$s таңдаңыз</string>
+    <string name="buzin_step_wifi">iPhone, iPad немесе Mac құрылғыңызды осы теледидармен бірдей жергілікті желіге қосыңыз.</string>
+    <string name="buzin_step_mirror">Басқару орталығын ашып, Экранды айналандыру опциясын таңдаңыз.</string>
+    <string name="buzin_step_choose">Сол жақта көрсетілген қабылдағыш атауын таңдаңыз.</string>
+    <string name="buzin_help">AirPlay экранды айналандыру және дыбыс.</string>
+    <string name="buzin_about">BuzinCast туралы</string>
+    <string name="buzin_version">Нұсқа %1$s</string>
+    <string name="setting_dlna">DLNA қабылдағышы (эксперименттік)</string>
+    <string name="setting_dlna_desc">Жергілікті желіден бейне мен дыбыс қабылдайды. AirPlay PIN коды DLNA-ны қорғамайды. Басқа желіге қосылғаннан кейін қайта іске қосыңыз.</string>
+    <string name="buzin_credits">BuzinCast\nBuzin Solutions ® жасаған және қолдау көрсетеді.\n© 2026 Buzin Solutions Ltda. — BuzinCast үлестері.\n\nВеб-сайт: https://buzin.solutions\n\njqssun және қатысушылардың android-airplay-server жобасына, UxPlay және үшінші тарап құрамдастарына негізделген. GNU GPL v3 лицензиясы бойынша таратылады. Бастапқы несиелер мен лицензиялар сақталған.\n\nБастапқы код: github.com/HenriqueBuzin/buzin-cast</string>
+    <string name="tv_edit_save">Сақтау</string>
+    <string name="tv_edit_cancel">Болдырмау</string>
+    <string name="tv_edit_empty">Орнатылмаған</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">AirPlay қызметі</string>
+    <string name="notification_title">BuzinCast жұмыс істеп тұр</string>
+    <string name="notification_text">AirPlay қосылымдары қабылданады</string>
+    <string name="notification_pin_title">AirPlay PIN коды қажет</string>
+    <string name="notification_pin_text">PIN: %1$s</string>
+    <string name="stop_service">Тоқтату</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">Шолу</string>
+    <string name="tab_logs">Журналдар</string>
+    <string name="tab_settings">Параметрлер</string>
+    <string name="tab_tools">Құралдар</string>
+    <string name="setting_tv_margin">Сурет сәйкестігі</string>
+    <string name="setting_tv_margin_desc" formatted="false">Автоматты режим бейнені толықтай сәйкестендіріп, пропорциясын сақтайды. Пайыздар шеттерін кесетін теледидарлар үшін шет жиек қосады. Бірден қолданылады.</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">Сервер тоқтатылды</string>
+    <string name="waiting_for_connection">Қосылым күтіп тұр...</string>
+    <string name="waiting_for_playback">Жіберуші құрылғыда бастауды басыңыз...</string>
+    <string name="error_starting_server">Серверді іске қосу қатесі</string>
+    <string name="connected_count">%d қосылған</string>
+    <string name="error_label">Қате</string>
+    <string name="stopped_label">Тоқтатылды</string>
+    <string name="btn_start">Бастау</string>
+    <string name="btn_stop">Тоқтату</string>
+    <string name="btn_allow">Рұқсат ету</string>
+    <string name="btn_open_settings">Параметрлерді ашу</string>
+    <string name="local_network_label">Жақын құрылғыларға қатынас қажет</string>
+    <string name="local_network_desc">AirPlay құрылғылары осы құрылғыны тауып, қосыла алуы үшін жақын орналасқан құрылғыларға қатынас рұқсатын беріңіз</string>
+    <string name="unknown_track">Белгісіз</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">Суреттегі сурет</string>
+    <string name="cd_fullscreen">Толық экран</string>
+    <string name="cd_exit_fullscreen">Толық экраннан шығу</string>
+    <string name="cd_cover_art">Мұқаба суреті</string>
+    <string name="cd_play_pause">Ойнату/Кідірту</string>
+    <string name="cd_rewind">Артқа айналдыру</string>
+    <string name="cd_fast_forward">Алға жылдам айналдыру</string>
+    <string name="volume_server">Қабылдағыш дауысы</string>
+    <string name="volume_client">Жіберуші дауысы</string>
+    <string name="volume_value">%1$d%%</string>
+    <string name="cd_download">Бейнені жүктеу</string>
+    <string name="cd_cancel_download">Жүктеуден бас тарту</string>
+
+    <!-- Video download -->
+    <string name="download_saved">%1$s орнына сақталды</string>
+    <string name="download_failed">Жүктеу сәтсіз аяқталды</string>
+
+    <!-- Player gestures -->
+    <string name="gesture_seek_seconds">%1$d секунд</string>
+    <string name="seconds_short">%1$dсек</string>
+    <string name="select_playback_speed">Ойнату жылдамдығы</string>
+    <string name="cd_reset_speed">Жылдамдықты қалпына келтіру</string>
+    <string name="skip_silence">Үнсіздікті өткізіп жіберу</string>
+
+    <!-- Player controls -->
+    <string name="cd_back">Артқа</string>
+    <string name="cd_copy_url">Бейне сілтемесін көшіру</string>
+    <string name="cd_rotate">Экранды бұру</string>
+    <string name="cd_lock_controls">Басқару элементтерін бекіту</string>
+    <string name="cd_unlock_controls">Басқару элементтерін босату</string>
+    <string name="scale_best_fit">Ең жақсы сәйкестік</string>
+    <string name="scale_stretch">Созу</string>
+    <string name="scale_crop">Кесу</string>
+    <string name="scale_hundred_percent">100%</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">AirPlay PIN коды</string>
+    <string name="btn_ok">Жарайды</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">Экспорттау</string>
+    <string name="btn_clear">Тазалау</string>
+    <string name="export_logs_chooser_title">Журналдарды экспорттау</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">Сервер</string>
+    <string name="section_connection">Қосылым</string>
+    <string name="section_display">Дисплей</string>
+    <string name="section_decode">Декодтау</string>
+    <string name="section_developer">Әзірлеуші</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">Сервер атауы</string>
+    <string name="setting_server_port">Сервер порты</string>
+    <string name="setting_auto_start">Серверді автоматты іске қосу</string>
+    <string name="setting_auto_start_desc">Қолданба ашылғанда AirPlay серверін іске қосады</string>
+    <string name="setting_boot_auto_start">Қосылғанда серверді іске қосу</string>
+    <string name="setting_boot_auto_start_desc">Құрылғы қосылғанда AirPlay серверін іске қосады</string>
+    <string name="setting_run_in_background">Фонда жұмыс істеу</string>
+    <string name="setting_run_in_background_desc">Қолданбадан шыққаннан кейін де серверді жұмыс істеп тұруын сақтайды</string>
+
+    <!-- Settings: Connection -->
+    <string name="section_airplay_security">AirPlay қауіпсіздігі</string>
+    <string name="setting_require_pin">Кодты талап ету (эксперименттік)</string>
+    <string name="setting_require_pin_desc">Сәйкес келетін AirPlay құрылғыларын жұптастыру үшін теледидарда 4 таңбалы код көрсетеді. Басқа ағындату түрлеріне қатысы жоқ.</string>
+    <string name="setting_allow_new_conn">Жаңа қосылымдарға рұқсат ету</string>
+    <string name="setting_allow_new_conn_desc">Жаңа жіберуші қосылғанда ағымдағы жіберушіні ажыратады</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">Бос тұрған кездегі алдын ала қарау</string>
+    <string name="setting_idle_preview_desc">Қосылымды күту кезінде бейне аумағын көрсетеді</string>
+    <string name="setting_auto_fullscreen">Автоматты толық экранға өту</string>
+    <string name="setting_auto_fullscreen_desc">Жіберуші қосылғанда толық экранға өтеді</string>
+    <string name="setting_keep_screen_on">Экранды қосулы ұстау</string>
+    <string name="setting_keep_screen_on_desc">Жіберуші қосылған кезде ұйқы режиміне өтуді болдырмайды</string>
+    <string name="setting_advertise_video">AirPlay бейне қолдауын жариялау</string>
+    <string name="setting_advertise_video_desc">Өшірілген кезде, бейнелер тек дыбыс ағыны ретінде таратылады</string>
+    <string name="setting_advertise_mirroring">AirPlay айналандыру қолдауын жариялау</string>
+    <string name="setting_advertise_mirroring_desc">Өшірілген кезде, құрылғы айналандыру тізімінен жасырылады</string>
+    <string name="setting_advertise_audio">AirPlay дыбыс қолдауын жариялау</string>
+    <string name="setting_advertise_audio_desc">Өшірілген кезде, құрылғы тек айналандыру үшін пайдаланылады және медиаплеерлерден жасырылады</string>
+    <string name="setting_alac">ALAC кодегін жариялау</string>
+    <string name="setting_alac_desc">mDNS жазбасында ALAC ұсынады; музыка ағындату үшін қолданылады</string>
+    <string name="setting_aac">AAC кодегін жариялау</string>
+    <string name="setting_aac_desc">mDNS жазбасында AAC-ELD/AAC-LC ұсынады; экранды айналандыру дыбысы үшін қолданылады</string>
+    <string name="setting_launch_on_connect">Қосылған кезде осы қолданбаны ашу</string>
+    <string name="setting_launch_on_connect_desc">Жіберуші қосылғанда экранды көрсетеді</string>
+    <string name="setting_launch_on_connect_no_permission">Басқа қолданбалардың үстінен көрсету рұқсатын беру үшін түртіңіз</string>
+    <string name="setting_discovery">Мұнда анықталады</string>
+    <string name="setting_discovery_all_desc">Барлық қолжетімді интерфейстерде жариялайды. NsdManager қолданады.</string>
+    <string name="setting_discovery_usb_desc">Сымды қосылымды қамтамасыз ету үшін тек USB тетеринг арқылы жариялайды. Арнаулы mDNS жауап берушісін қолданады.</string>
+    <string name="chip_all_networks">Барлық желілер</string>
+    <string name="chip_usb_only">Тек USB</string>
+    <string name="setting_resolution">Ажыратымдылық</string>
+    <string name="setting_resolution_desc">Жіберушілерге жарияланатын бейне ажыратымдылығы</string>
+    <string name="setting_resolution_placeholder">[Е]x[Б]</string>
+    <string name="setting_resolution_width">Ені</string>
+    <string name="setting_resolution_height">Биіктігі</string>
+    <string name="setting_max_fps">Максималды FPS</string>
+    <string name="setting_max_fps_desc">Жіберушілерге жарияланатын максималды кадр жиілігі</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">Овырскан</string>
+    <string name="setting_overscanned_desc">Шеттерін кесетін толық экранды дисплейлер үшін пиксель шекарасын қосады</string>
+    <string name="chip_custom">Таза баптау</string>
+    <string name="chip_device_portrait">Тік</string>
+    <string name="chip_device_landscape">Жатық</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_h265">H.265 (HEVC)</string>
+    <string name="setting_h265_desc">Автоматты режим тек жұмыс істейтіні белгілі H.265 декодерлерін қолданады</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">Бейнені шектеулі SDR ретінде белгілейді; HDR көздерінің өтуіне рұқсат беру үшін өшіріңіз</string>
+    <string name="setting_sw_alac">Бағдарламалық ALAC декодерін мәжбүрлеу</string>
+    <string name="setting_sw_alac_desc">Жүйелік декодердің орнына әрқашан бағдарламалық ALAC декодерін қолданады, бұл кідірісті әсер етуі мүмкін</string>
+    <string name="setting_sw_aac">Бағдарламалық AAC декодерін мәжбүрлеу</string>
+    <string name="setting_sw_aac_desc">Жүйелік декодердің орнына әрқашан бағдарламалық AAC декодерін қолданады, бұл кідірісті әсер етуі мүмкін</string>
+    <string name="setting_sync_client_volume">Жіберуші дауысын синхрондау</string>
+    <string name="setting_sync_client_volume_desc">Қабылдағыш дауысы үшін жіберуші дауысын автоматты түрде қолданады</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">Әзірлеуші опциялары</string>
+    <string name="setting_developer_options_desc">Жетілдірілген пайдаланушылар үшін опцияларды көрсетеді</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">Android 10+ нұсқасында үлгеруі үшін бейне декодерлеріне кадрларды ішкі түрде тастауға рұқсат береді</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">Дыбыс декодері үшін нақты уақыттағы жоспарлауды сұрайды</string>
+    <string name="setting_operating_rate">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_desc">Декодерден максималды жұмыс жылдамдығын сұрайды</string>
+    <string name="chip_auto">Авто</string>
+    <string name="chip_on">Қосулы</string>
+    <string name="chip_off">Өшірулі</string>
+    <string name="setting_low_latency">Төмен кідіріс</string>
+    <string name="setting_low_latency_desc">Шығыс үшін төмен кідірісті дыбыс декодтауды қолданады; бұл көбірек қуат пен CPU жұмсайды</string>
+    <string name="setting_scheduled_output_buffer_release">Кадр қарқынын туралау</string>
+    <string name="setting_scheduled_output_buffer_release_desc">Декодталған әрбір кадрды оның көрсету уақыт белгісіне сәйкес келетін VSYNC-ке жоспарлайды</string>
+    <string name="setting_audio_delay">Дыбыс кідірісін қайта анықтау</string>
+    <string name="setting_audio_delay_desc">Жіберушіге хабарланатын арнаулы дыбыс кідірісін орнатады</string>
+    <string name="audio_delay_value">%dмс</string>
+    <string name="setting_audio_auto_buffer">Автоматты бағдарламалық дыбыс буфер өлшемі</string>
+    <string name="setting_audio_auto_buffer_desc">Желі жағдайы мен құрылғы өнімділігіне қарай бағдарламалық дыбыс буферін бейімді реттейді; жүгірткі буфердің қанша тербелісті сіңіре алатынын реттейді</string>
+    <string name="audio_adaptive_value">%1$d%% (%2$s)</string>
+    <string-array name="audio_adaptive_step_names">
+        <item>Ең төмен кідіріс</item>
+        <item>Төмен кідіріс</item>
+        <item>Теңгерімді</item>
+        <item>Жоғары тұрақтылық</item>
+        <item>Ең жоғары тұрақтылық</item>
+    </string-array>
+    <string name="setting_audio_cushion_ms">Бағдарламалық дыбыс буфері (мс)</string>
+    <string name="setting_audio_cushion_ms_desc">Желі және декодер тербелісін сіңіру үшін буфер: қысқа ұзақтық аз кідіріс дегенді білдіреді; ұзағырақ ұзақтық аз іркілісті білдіреді</string>
+    <string name="setting_oboe_buffer_frames">Аппараттық шығыс буфері (кадрлар)</string>
+    <string name="setting_oboe_buffer_frames_desc">Тек CPU жоспарлау тербелісін сіңіру үшін осы қолданба мен дыбыс құрылғысы арасындағы ағын буфері. Автоматты өлшем үшін 0 күйінде қалдырыңыз.</string>
+    <string name="setting_debug_overlay">Жөндеу қабатын көрсету</string>
+    <string name="setting_debug_overlay_desc">Бейне үстіне ағын статистикасын көрсетеді: кодек, FPS, бит жылдамдығы, тербеліс, кадрлар, жоғалтулар</string>
+    <string name="setting_benchmark_log">Жөндеу журналдауын қосу</string>
+    <string name="setting_benchmark_log_desc">Ағын статистикасын logcat-қа жазады: кодек, FPS, бит жылдамдығы, тербеліс, кадрлар, жоғалтулар</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_section_video">Бейне</string>
+    <string name="debug_section_audio">Дыбыс</string>
+    <string name="debug_section_network">Желі</string>
+    <string name="debug_video">%1$s %2$s</string>
+    <string name="debug_fps_bitrate">FPS: %1$d  Бит жылдамдығы: %2$s</string>
+    <string name="debug_frames_drops">Кадрлар: %1$d  Жоғалтулар: %2$d</string>
+    <string name="debug_jitter">Тербеліс: %1$s</string>
+    <string name="debug_audio">%1$s  Қабылдағыш: %2$d%%  Жіберуші: %3$d%%</string>
+    <string name="debug_audio_buffer">Буфер: %1$d мс (мақсат: %2$d мс)</string>
+    <string name="debug_audio_glitch">Іркіліс: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
+    <string name="debug_audio_decode">Декодтау: %1$s</string>
+    <string name="debug_clients">Жіберушілер: %1$d</string>
+    <string name="setting_fcast">FCast · эксперименттік</string>
+    <string name="setting_fcast_desc">Жергілікті желіңіздегі сәйкес келетін жіберушілерден медиа қабылдайды. PIN қажет емес. Желіні өзгерткеннен кейін қайта іске қосыңыз.</string>
+    <string name="setting_castv2">Cast V2 · эксперименттік</string>
+    <string name="setting_castv2_desc">Сәйкес келетін жіберушілерден URL медиасы. Google құрылғы сертификатын талап ететін қолданбалар қолдау көрсетілмейді. PIN қажет емес.</string>
+    <string name="buzin_about_tagline">Экранды айналандыру оңай</string>
+    <string name="buzin_maintained_by">Әзірлеген және қолдау көрсетеді</string>
+    <string name="buzin_website">Ресми веб-сайт</string>
+    <string name="buzin_source">Бастапқы код</string>
+    <string name="buzin_licenses">Ашық код және лицензиялар</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · Үшінші тарап несиелері</string>
+    <string name="buzin_close">Жабу</string>
+    <string name="buzin_back_about">Туралы бетіне оралу</string>
+    <string name="buzin_no_browser">Сілтемені ашу үшін қолжетімді браузер жоқ.</string>
+</resources>

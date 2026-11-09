@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BuzinCast</string>
+    <string name="buzin_tagline">Η οθόνη σου αξίζει μια μεγαλύτερη σκηνή.</string>
+    <string name="buzin_hero">Μικρή οθόνη.\nΜεγάλες δυνατότητες.</string>
+    <string name="buzin_hero_detail">Προβάλετε τις ιδέες, φωτογραφίες και αγαπημένες στιγμές σας στην τηλεόραση.</string>
+    <string name="buzin_receiver_label">ΕΠΙΛΕΞΤΕ ΑΥΤΟ ΤΟ ΟΝΟΜΑ ΣΤΗ ΣΥΣΚΕΥΗ ΣΑΣ</string>
+    <string name="buzin_rename_hint">Μετονομάστε το στις Ρυθμίσεις → Όνομα δέκτη</string>
+    <string name="buzin_connect_heading">Συνδεθείτε σε τρία βήματα</string>
+    <string name="buzin_free">Δωρεάν • Χωρίς διαφημίσεις • Χωρίς χρονικό όριο</string>
+    <string name="buzin_ready">Έτοιμο για σύνδεση</string>
+    <string name="buzin_stopped">Εκκινήστε τον δέκτη για σύνδεση</string>
+    <string name="buzin_choose">Επιλέξτε %1$s στη συσκευή Apple σας</string>
+    <string name="buzin_step_wifi">Συνδέστε το iPhone, iPad ή Mac σας στο ίδιο τοπικό δίκτυο με αυτή την τηλεόραση.</string>
+    <string name="buzin_step_mirror">Ανοίξτε το Κέντρο Ελέγχου και επιλέξτε Αντικατοπτρισμό Οθόνης.</string>
+    <string name="buzin_step_choose">Επιλέξτε το όνομα του δέκτη που εμφανίζεται αριστερά.</string>
+    <string name="buzin_help">Αντικατοπτρισμός οθόνης και ήχου AirPlay.</string>
+    <string name="buzin_about">Σχετικά με το BuzinCast</string>
+    <string name="buzin_version">Έκδοση %1$s</string>
+    <string name="setting_dlna">Δέκτης DLNA (πειραματικό)</string>
+    <string name="setting_dlna_desc">Λήψη βίντεο και ήχου από το τοπικό σας δίκτυο. Το PIN AirPlay δεν προστατεύει το DLNA. Κάντε επανεκκίνηση μετά τη σύνδεση σε διαφορετικό δίκτυο.</string>
+    <string name="buzin_credits">BuzinCast\nΔημιουργία και συντήρηση από την Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — συνεισφορές BuzinCast.\n\nΙστότοπος: https://buzin.solutions\n\nΒασισμένο στο android-airplay-server από τον jqssun και συνεργάτες, το UxPlay και στοιχεία τρίτων. Αδειοδοτημένο υπό GNU GPL v3. Τα αρχικά credits και άδειες διατηρούνται.\n\nΠηγαίος κώδικας: github.com/HenriqueBuzin/buzin-cast</string>
+    <string name="tv_edit_save">Αποθήκευση</string>
+    <string name="tv_edit_cancel">Ακύρωση</string>
+    <string name="tv_edit_empty">Δεν έχει οριστεί</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">Υπηρεσία AirPlay</string>
+    <string name="notification_title">Το BuzinCast εκτελείται</string>
+    <string name="notification_text">Αποδοχή συνδέσεων AirPlay</string>
+    <string name="notification_pin_title">Απαιτείται PIN AirPlay</string>
+    <string name="notification_pin_text">PIN: %1$s</string>
+    <string name="stop_service">Διακοπή</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">Επισκόπηση</string>
+    <string name="tab_logs">Αρχεία καταγραφής</string>
+    <string name="tab_settings">Ρυθμίσεις</string>
+    <string name="tab_tools">Εργαλεία</string>
+    <string name="setting_tv_margin">Προσαρμογή εικόνας</string>
+    <string name="setting_tv_margin_desc" formatted="false">Η αυτόματη λειτουργία προσαρμόζει ολόκληρη την εικόνα διατηρώντας την αναλογία διαστάσεων. Τα ποσοστά προσθέτουν περιθώριο για τηλεοράσεις που περικόπτουν τις άκρες. Εφαρμόζεται άμεσα.</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">Ο διακομιστής διακόπηκε</string>
+    <string name="waiting_for_connection">Αναμονή σύνδεσης...</string>
+    <string name="waiting_for_playback">Πατήστε έναρξη στη συσκευή αποστολής...</string>
+    <string name="error_starting_server">Σφάλμα κατά την εκκίνηση του διακομιστή</string>
+    <string name="connected_count">%d συνδεδεμένες</string>
+    <string name="error_label">Σφάλμα</string>
+    <string name="stopped_label">Διακόπηκε</string>
+    <string name="btn_start">Εκκίνηση</string>
+    <string name="btn_stop">Διακοπή</string>
+    <string name="btn_allow">Αποδοχή</string>
+    <string name="btn_open_settings">Άνοιγμα ρυθμίσεων</string>
+    <string name="local_network_label">Απαιτείται πρόσβαση σε συσκευές κοντά</string>
+    <string name="local_network_desc">Επιτρέψτε την πρόσβαση σε κοντινές συσκευές ώστε οι συσκευές AirPlay να μπορούν να βρουν και να συνδεθούν με αυτή τη συσκευή</string>
+    <string name="unknown_track">Άγνωστο</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">Εικόνα εντός εικόνας</string>
+    <string name="cd_fullscreen">Πλήρης οθόνη</string>
+    <string name="cd_exit_fullscreen">Έξοδος από πλήρη οθόνη</string>
+    <string name="cd_cover_art">Εξώφυλλο</string>
+    <string name="cd_play_pause">Αναπαραγωγή/Παύση</string>
+    <string name="cd_rewind">Γρήγορη επαναφορά</string>
+    <string name="cd_fast_forward">Γρήγορη προώθηση</string>
+    <string name="volume_server">Ένταση δέκτη</string>
+    <string name="volume_client">Ένταση αποστολέα</string>
+    <string name="volume_value">%1$d%%</string>
+    <string name="cd_download">Λήψη βίντεο</string>
+    <string name="cd_cancel_download">Ακύρωση λήψης</string>
+
+    <!-- Video download -->
+    <string name="download_saved">Αποθηκεύτηκε στο %1$s</string>
+    <string name="download_failed">Η λήψη απέτυχε</string>
+
+    <!-- Player gestures -->
+    <string name="gesture_seek_seconds">%1$d δευτερόλεπτα</string>
+    <string name="seconds_short">%1$dδ</string>
+    <string name="select_playback_speed">Ταχύτητα αναπαραγωγής</string>
+    <string name="cd_reset_speed">Επαναφορά ταχύτητας</string>
+    <string name="skip_silence">Παράλειψη σιωπής</string>
+
+    <!-- Player controls -->
+    <string name="cd_back">Πίσω</string>
+    <string name="cd_copy_url">Αντιγραφή URL βίντεο</string>
+    <string name="cd_rotate">Περιστροφή οθόνης</string>
+    <string name="cd_lock_controls">Κλείδωμα χειριστηρίων</string>
+    <string name="cd_unlock_controls">Ξεκλείδωμα χειριστηρίων</string>
+    <string name="scale_best_fit">Βέλτιστη προσαρμογή</string>
+    <string name="scale_stretch">Τέντωμα</string>
+    <string name="scale_crop">Περικοπή</string>
+    <string name="scale_hundred_percent">100%</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">PIN AirPlay</string>
+    <string name="btn_ok">ΟΚ</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">Εξαγωγή</string>
+    <string name="btn_clear">Εκκαθάριση</string>
+    <string name="export_logs_chooser_title">Εξαγωγή αρχείων καταγραφής</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">Διακομιστής</string>
+    <string name="section_connection">Σύνδεση</string>
+    <string name="section_display">Οθόνη</string>
+    <string name="section_decode">Αποκωδικοποίηση</string>
+    <string name="section_developer">Προγραμματιστής</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">Όνομα διακομιστή</string>
+    <string name="setting_server_port">Θύρα διακομιστή</string>
+    <string name="setting_auto_start">Αυτόματη εκκίνηση διακομιστή</string>
+    <string name="setting_auto_start_desc">Εκκίνηση του διακομιστή AirPlay κατά την έναρξη της εφαρμογής</string>
+    <string name="setting_boot_auto_start">Εκκίνηση διακομιστή κατά την ενεργοποίηση</string>
+    <string name="setting_boot_auto_start_desc">Εκκίνηση του διακομιστή AirPlay κατά την ενεργοποίηση της συσκευής</string>
+    <string name="setting_run_in_background">Εκτέλεση στο παρασκήνιο</string>
+    <string name="setting_run_in_background_desc">Διατήρηση του διακομιστή σε λειτουργία μετά την έξοδο από την εφαρμογή</string>
+
+    <!-- Settings: Connection -->
+    <string name="section_airplay_security">Ασφάλεια AirPlay</string>
+    <string name="setting_require_pin">Απαίτηση κωδικού (πειραματικό)</string>
+    <string name="setting_require_pin_desc">Εμφανίζει έναν 4-ψήφιο κωδικό στην τηλεόραση για σύζευξη συμβατών συσκευών AirPlay. Δεν ισχύει για άλλους τύπους ροής.</string>
+    <string name="setting_allow_new_conn">Αποδοχή νέων συνδέσεων</string>
+    <string name="setting_allow_new_conn_desc">Αποσύνδεση του τρέχοντος αποστολέα όταν συνδεθεί νέος</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">Προεπισκόπηση οθόνης αναμονής</string>
+    <string name="setting_idle_preview_desc">Εμφάνιση επιφάνειας βίντεο κατά την αναμονή σύνδεσης</string>
+    <string name="setting_auto_fullscreen">Αυτόματη μετάβαση σε πλήρη οθόνη</string>
+    <string name="setting_auto_fullscreen_desc">Μετάβαση σε πλήρη οθόνη όταν συνδεθεί αποστολέας</string>
+    <string name="setting_keep_screen_on">Διατήρηση οθόνης ενεργής</string>
+    <string name="setting_keep_screen_on_desc">Αποτροπή αδράνειας όσο είναι συνδεδεμένος ένας αποστολέας</string>
+    <string name="setting_advertise_video">Διαφήμιση υποστήριξης βίντεο AirPlay</string>
+    <string name="setting_advertise_video_desc">Όταν είναι απενεργοποιημένο, τα βίντεο μεταδίδονται μόνο ως ήχος</string>
+    <string name="setting_advertise_mirroring">Διαφήμιση υποστήριξης αντικατοπτρισμού AirPlay</string>
+    <string name="setting_advertise_mirroring_desc">Όταν είναι απενεργοποιημένο, η συσκευή είναι κρυφή από τον αντικατοπτρισμό</string>
+    <string name="setting_advertise_audio">Διαφήμιση υποστήριξης ήχου AirPlay</string>
+    <string name="setting_advertise_audio_desc">Όταν είναι απενεργοποιημένο, η συσκευή μπορεί να χρησιμοποιηθεί μόνο για αντικατοπτρισμό και θα είναι κρυφή από τους media player</string>
+    <string name="setting_alac">Διαφήμιση κωδικοποιητή ALAC</string>
+    <string name="setting_alac_desc">Προσφέρει ALAC στην εγγραφή mDNS· χρησιμοποιείται για ροή μουσικής</string>
+    <string name="setting_aac">Διαφήμιση κωδικοποιητή AAC</string>
+    <string name="setting_aac_desc">Προσφέρει AAC-ELD/AAC-LC στην εγγραφή mDNS· χρησιμοποιείται για ήχο αντικατοπτρισμού οθόνης</string>
+    <string name="setting_launch_on_connect">Άνοιγμα αυτής της εφαρμογής κατά τη σύνδεση</string>
+    <string name="setting_launch_on_connect_desc">Εμφάνιση της οθόνης όταν συνδεθεί ένας αποστολέας</string>
+    <string name="setting_launch_on_connect_no_permission">Πατήστε για να παραχωρήσετε άδεια εμφάνισης πάνω από άλλες εφαρμογές</string>
+    <string name="setting_discovery">Ανιχνεύσιμο μέσω</string>
+    <string name="setting_discovery_all_desc">Διαφήμιση σε όλες τις διαθέσιμες διεπαφές. Χρησιμοποιεί το NsdManager.</string>
+    <string name="setting_discovery_usb_desc">Διαφήμιση μόνο μέσω σύνδεσης USB για ενσύρματη σύνδεση. Χρησιμοποιεί προσαρμοσμένο mDNS responder.</string>
+    <string name="chip_all_networks">Όλα τα δίκτυα</string>
+    <string name="chip_usb_only">Μόνο USB</string>
+    <string name="setting_resolution">Ανάλυση</string>
+    <string name="setting_resolution_desc">Ανάλυση βίντεο που διαφημίζεται στους αποστολείς</string>
+    <string name="setting_resolution_placeholder">[Π]x[Υ]</string>
+    <string name="setting_resolution_width">Πλάτος</string>
+    <string name="setting_resolution_height">Ύψος</string>
+    <string name="setting_max_fps">Μέγιστα FPS</string>
+    <string name="setting_max_fps_desc">Μέγιστος ρυθμός καρέ που διαφημίζεται στους αποστολείς</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">Overscan</string>
+    <string name="setting_overscanned_desc">Προσθήκη περιθωρίου pixel για οθόνες πλήρους οθόνης με overscan</string>
+    <string name="chip_custom">Προσαρμοσμένο</string>
+    <string name="chip_device_portrait">Κατακόρυφος</string>
+    <string name="chip_device_landscape">Οριζόντιος</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_h265">H.265 (HEVC)</string>
+    <string name="setting_h265_desc">Η αυτόματη λειτουργία χρησιμοποιεί μόνο αποκωδικοποιητές H.265 που είναι γνωστό ότι λειτουργούν</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">Επισήμανση βίντεο ως περιορισμένο SDR· απενεργοποιήστε για να επιτρέψετε πηγές HDR</string>
+    <string name="setting_sw_alac">Εξαναγκασμός αποκωδικοποιητή ALAC λογισμικού</string>
+    <string name="setting_sw_alac_desc">Χρήση πάντα του αποκωδικοποιητή ALAC λογισμικού αντί του αποκωδικοποιητή συστήματος· ενδέχεται να επηρεάσει την καθυστέρηση</string>
+    <string name="setting_sw_aac">Εξαναγκασμός αποκωδικοποιητή AAC λογισμικού</string>
+    <string name="setting_sw_aac_desc">Χρήση πάντα του αποκωδικοποιητή AAC λογισμικού αντί του αποκωδικοποιητή συστήματος· ενδέχεται να επηρεάσει την καθυστέρηση</string>
+    <string name="setting_sync_client_volume">Συγχρονισμός έντασης αποστολέα</string>
+    <string name="setting_sync_client_volume_desc">Αυτόματη χρήση της έντασης του αποστολέα για την ένταση του δέκτη</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">Επιλογές προγραμματιστή</string>
+    <string name="setting_developer_options_desc">Εμφάνιση επιλογών για προχωρημένους χρήστες</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">Επιτρέπει στους αποκωδικοποιητές βίντεο να απορρίπτουν καρέ εσωτερικά για να παρακολουθούν σε Android 10+</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">Αίτημα προγραμματισμού πραγματικού χρόνου για τον αποκωδικοποιητή ήχου</string>
+    <string name="setting_operating_rate">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_desc">Αίτημα μέγιστου ρυθμού λειτουργίας από τον αποκωδικοποιητή</string>
+    <string name="chip_auto">Αυτόματο</string>
+    <string name="chip_on">Ενεργό</string>
+    <string name="chip_off">Ανενεργό</string>
+    <string name="setting_low_latency">Χαμηλή καθυστέρηση</string>
+    <string name="setting_low_latency_desc">Χρήση αποκωδικοποίησης ήχου χαμηλής καθυστέρησης για έξοδο· καταναλώνει περισσότερη ενέργεια και CPU</string>
+    <string name="setting_scheduled_output_buffer_release">Ευθυγραμμισμένος ρυθμός καρέ</string>
+    <string name="setting_scheduled_output_buffer_release_desc">Προγραμματισμός κάθε αποκωδικοποιημένου καρέ στο VSYNC που αντιστοιχεί στη χρονική σήμανση παρουσίασής του</string>
+    <string name="setting_audio_delay">Παράκαμψη καθυστέρησης ήχου</string>
+    <string name="setting_audio_delay_desc">Ορισμός προσαρμοσμένης καθυστέρησης ήχου που αναφέρεται στον αποστολέα</string>
+    <string name="audio_delay_value">%dms</string>
+    <string name="setting_audio_auto_buffer">Αυτόματο μέγεθος buffer ήχου λογισμικού</string>
+    <string name="setting_audio_auto_buffer_desc">Προσαρμόζει δυναμικά το buffer ήχου λογισμικού ανάλογα με τις συνθήκες δικτύου και την απόδοση της συσκευής· ο ρυθμιστής προσαρμόζει πόσο jitter μπορεί να απορροφήσει το buffer</string>
+    <string name="audio_adaptive_value">%1$d%% (%2$s)</string>
+    <string-array name="audio_adaptive_step_names">
+        <item>Ελάχιστη καθυστέρηση</item>
+        <item>Χαμηλή καθυστέρηση</item>
+        <item>Ισορροπημένο</item>
+        <item>Μεγαλύτερη σταθερότητα</item>
+        <item>Μέγιστη σταθερότητα</item>
+    </string-array>
+    <string name="setting_audio_cushion_ms">Buffer ήχου λογισμικού (ms)</string>
+    <string name="setting_audio_cushion_ms_desc">Buffer για απορρόφηση jitter δικτύου και αποκωδικοποίησης: μικρότερη διάρκεια σημαίνει μικρότερη καθυστέρηση· μεγαλύτερη διάρκεια σημαίνει λιγότερα προβλήματα</string>
+    <string name="setting_oboe_buffer_frames">Buffer εξόδου υλικού (καρέ)</string>
+    <string name="setting_oboe_buffer_frames_desc">Buffer ροής μεταξύ αυτής της εφαρμογής και της συσκευής ήχου για απορρόφηση μόνο του jitter προγραμματισμού CPU. Διατηρήστε το στο 0 για αυτόματο μέγεθος.</string>
+    <string name="setting_debug_overlay">Εμφάνιση επικάλυψης εντοπισμού σφαλμάτων</string>
+    <string name="setting_debug_overlay_desc">Επικάλυψη στατιστικών ροής στο βίντεο: codec, FPS, bitrate, jitter, καρέ, απορρίψεις</string>
+    <string name="setting_benchmark_log">Ενεργοποίηση καταγραφής εντοπισμού σφαλμάτων</string>
+    <string name="setting_benchmark_log_desc">Καταγραφή στατιστικών ροής στο logcat: codec, FPS, bitrate, jitter, καρέ, απορρίψεις</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_section_video">Βίντεο</string>
+    <string name="debug_section_audio">Ήχος</string>
+    <string name="debug_section_network">Δίκτυο</string>
+    <string name="debug_video">%1$s %2$s</string>
+    <string name="debug_fps_bitrate">FPS: %1$d  Bitrate: %2$s</string>
+    <string name="debug_frames_drops">Καρέ: %1$d  Απορρίψεις: %2$d</string>
+    <string name="debug_jitter">Jitter: %1$s</string>
+    <string name="debug_audio">%1$s  Δέκτης: %2$d%%  Αποστολέας: %3$d%%</string>
+    <string name="debug_audio_buffer">Buffer: %1$d ms (στόχος: %2$d ms)</string>
+    <string name="debug_audio_glitch">Πρόβλημα: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
+    <string name="debug_audio_decode">Αποκωδικοποίηση: %1$s</string>
+    <string name="debug_clients">Αποστολείς: %1$d</string>
+    <string name="setting_fcast">FCast · πειραματικό</string>
+    <string name="setting_fcast_desc">Λήψη πολυμέσων από συμβατούς αποστολείς στο τοπικό σας δίκτυο. Χωρίς PIN. Κάντε επανεκκίνηση μετά την αλλαγή δικτύου.</string>
+    <string name="setting_castv2">Cast V2 · πειραματικό</string>
+    <string name="setting_castv2_desc">Πολυμέσα μέσω URL από συμβατούς αποστολείς. Εφαρμογές που απαιτούν πιστοποίηση συσκευών Google δεν υποστηρίζονται. Χωρίς PIN.</string>
+    <string name="buzin_about_tagline">Αντικατοπτρισμός οθόνης απλοποιημένος</string>
+    <string name="buzin_maintained_by">Αναπτύχθηκε και συντηρείται από</string>
+    <string name="buzin_website">Επίσημος ιστότοπος</string>
+    <string name="buzin_source">Πηγαίος κώδικας</string>
+    <string name="buzin_licenses">Ανοιχτός κώδικας και άδειες</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · Credits τρίτων</string>
+    <string name="buzin_close">Κλείσιμο</string>
+    <string name="buzin_back_about">Πίσω στα Σχετικά</string>
+    <string name="buzin_no_browser">Δεν υπάρχει διαθέσιμο πρόγραμμα περιήγησης για να ανοίξει ο σύνδεσμος.</string>
+</resources>

@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BuzinCast</string>
+    <string name="buzin_tagline">आपकी स्क्रीन एक बड़े मंच की हकदार है।</string>
+    <string name="buzin_hero">छोटी स्क्रीन।\nबड़ी संभावनाएं।</string>
+    <string name="buzin_hero_detail">अपने विचारों, फ़ोटो और पसंदीदा पलों को अपनी टीवी पर मिरर करें।</string>
+    <string name="buzin_receiver_label">अपने डिवाइस पर यह नाम चुनें</string>
+    <string name="buzin_rename_hint">सेटिंग्स → रिसीवर का नाम में बदलें</string>
+    <string name="buzin_connect_heading">तीन चरणों में कनेक्ट करें</string>
+    <string name="buzin_free">मुफ़्त • कोई विज्ञापन नहीं • कोई समय सीमा नहीं</string>
+    <string name="buzin_ready">कनेक्ट करने के लिए तैयार</string>
+    <string name="buzin_stopped">कनेक्ट करने के लिए रिसीवर शुरू करें</string>
+    <string name="buzin_choose">अपने Apple डिवाइस पर %1$s चुनें</string>
+    <string name="buzin_step_wifi">अपने iPhone, iPad या Mac को इस टीवी वाले स्थानीय नेटवर्क से कनेक्ट करें।</string>
+    <string name="buzin_step_mirror">कंट्रोल सेंटर खोलें और स्क्रीन मिररिंग चुनें।</string>
+    <string name="buzin_step_choose">बाईं ओर दिखाया गया रिसीवर नाम चुनें।</string>
+    <string name="buzin_help">AirPlay मिररिंग और ऑडियो।</string>
+    <string name="buzin_about">BuzinCast के बारे में</string>
+    <string name="buzin_version">संस्करण %1$s</string>
+    <string name="setting_dlna">DLNA रिसीवर (प्रयोगात्मक)</string>
+    <string name="setting_dlna_desc">अपने स्थानीय नेटवर्क से वीडियो और ऑडियो प्राप्त करें। AirPlay PIN, DLNA की सुरक्षा नहीं करता। अलग नेटवर्क से कनेक्ट करने के बाद पुनः आरंभ करें।</string>
+    <string name="buzin_credits">BuzinCast\nनिर्माण और रखरखाव Buzin Solutions ® द्वारा।\n© 2026 Buzin Solutions Ltda. — BuzinCast योगदान।\n\nवेबसाइट: https://buzin.solutions\n\njqssun और सहयोगियों के android-airplay-server, UxPlay और तीसरे पक्ष के घटकों पर आधारित। GNU GPL v3 के अंतर्गत लाइसेंस प्राप्त। मूल क्रेडिट और लाइसेंस सुरक्षित हैं।\n\nसोर्स कोड: github.com/HenriqueBuzin/buzin-cast</string>
+    <string name="tv_edit_save">सहेजें</string>
+    <string name="tv_edit_cancel">रद्द करें</string>
+    <string name="tv_edit_empty">सेट नहीं है</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">AirPlay सेवा</string>
+    <string name="notification_title">BuzinCast चल रहा है</string>
+    <string name="notification_text">AirPlay कनेक्शन स्वीकार किए जा रहे हैं</string>
+    <string name="notification_pin_title">AirPlay PIN आवश्यक है</string>
+    <string name="notification_pin_text">PIN: %1$s</string>
+    <string name="stop_service">बंद करें</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">अवलोकन</string>
+    <string name="tab_logs">लॉग</string>
+    <string name="tab_settings">सेटिंग्स</string>
+    <string name="tab_tools">टूल्स</string>
+    <string name="setting_tv_margin">पिक्चर फ़िट</string>
+    <string name="setting_tv_margin_desc" formatted="false">ऑटो पूरी इमेज को फ़िट करता है और उसका आस्पेक्ट रेशियो बनाए रखता है। प्रतिशत उन टीवी के लिए मार्जिन जोड़ते हैं जो किनारों को काटते हैं। तुरंत प्रभावी होता है।</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">सर्वर बंद हो गया</string>
+    <string name="waiting_for_connection">कनेक्शन की प्रतीक्षा है...</string>
+    <string name="waiting_for_playback">भेजने वाले डिवाइस पर स्टार्ट दबाएं...</string>
+    <string name="error_starting_server">सर्वर शुरू करने में त्रुटि</string>
+    <string name="connected_count">%d कनेक्टेड</string>
+    <string name="error_label">त्रुटि</string>
+    <string name="stopped_label">बंद</string>
+    <string name="btn_start">शुरू करें</string>
+    <string name="btn_stop">बंद करें</string>
+    <string name="btn_allow">अनुमति दें</string>
+    <string name="btn_open_settings">सेटिंग्स खोलें</string>
+    <string name="local_network_label">आसपास के डिवाइस की एक्सेस आवश्यक है</string>
+    <string name="local_network_desc">आसपास के डिवाइस की एक्सेस दें ताकि AirPlay डिवाइस इस डिवाइस को ढूंढकर कनेक्ट कर सकें</string>
+    <string name="unknown_track">अज्ञात</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">पिक्चर-इन-पिक्चर</string>
+    <string name="cd_fullscreen">फुलस्क्रीन</string>
+    <string name="cd_exit_fullscreen">फुलस्क्रीन से बाहर निकलें</string>
+    <string name="cd_cover_art">कवर आर्ट</string>
+    <string name="cd_play_pause">चलाएं/रोकें</string>
+    <string name="cd_rewind">पीछे करें</string>
+    <string name="cd_fast_forward">आगे बढ़ाएं</string>
+    <string name="volume_server">रिसीवर वॉल्यूम</string>
+    <string name="volume_client">भेजने वाले का वॉल्यूम</string>
+    <string name="volume_value">%1$d%%</string>
+    <string name="cd_download">वीडियो डाउनलोड करें</string>
+    <string name="cd_cancel_download">डाउनलोड रद्द करें</string>
+
+    <!-- Video download -->
+    <string name="download_saved">%1$s में सहेजा गया</string>
+    <string name="download_failed">डाउनलोड असफल</string>
+
+    <!-- Player gestures -->
+    <string name="gesture_seek_seconds">%1$d सेकंड</string>
+    <string name="seconds_short">%1$dसे</string>
+    <string name="select_playback_speed">प्लेबैक स्पीड</string>
+    <string name="cd_reset_speed">स्पीड रीसेट करें</string>
+    <string name="skip_silence">साइलेंस स्किप करें</string>
+
+    <!-- Player controls -->
+    <string name="cd_back">पीछे</string>
+    <string name="cd_copy_url">वीडियो URL कॉपी करें</string>
+    <string name="cd_rotate">स्क्रीन घुमाएं</string>
+    <string name="cd_lock_controls">नियंत्रण लॉक करें</string>
+    <string name="cd_unlock_controls">नियंत्रण अनलॉक करें</string>
+    <string name="scale_best_fit">सर्वश्रेष्ठ फ़िट</string>
+    <string name="scale_stretch">स्ट्रेच</string>
+    <string name="scale_crop">क्रॉप</string>
+    <string name="scale_hundred_percent">100%</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">AirPlay PIN</string>
+    <string name="btn_ok">ठीक है</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">निर्यात करें</string>
+    <string name="btn_clear">साफ़ करें</string>
+    <string name="export_logs_chooser_title">लॉग निर्यात करें</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">सर्वर</string>
+    <string name="section_connection">कनेक्शन</string>
+    <string name="section_display">डिस्प्ले</string>
+    <string name="section_decode">डिकोड</string>
+    <string name="section_developer">डेवलपर</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">सर्वर नाम</string>
+    <string name="setting_server_port">सर्वर पोर्ट</string>
+    <string name="setting_auto_start">सर्वर स्वचालित रूप से शुरू करें</string>
+    <string name="setting_auto_start_desc">ऐप लॉन्च होने पर AirPlay सर्वर शुरू करें</string>
+    <string name="setting_boot_auto_start">बूट पर सर्वर शुरू करें</string>
+    <string name="setting_boot_auto_start_desc">डिवाइस शुरू होने पर AirPlay सर्वर शुरू करें</string>
+    <string name="setting_run_in_background">बैकग्राउंड में चलाएं</string>
+    <string name="setting_run_in_background_desc">ऐप छोड़ने के बाद भी सर्वर चालू रखें</string>
+
+    <!-- Settings: Connection -->
+    <string name="section_airplay_security">AirPlay सुरक्षा</string>
+    <string name="setting_require_pin">कोड मांगें (प्रयोगात्मक)</string>
+    <string name="setting_require_pin_desc">संगत AirPlay डिवाइस को पेयर करने के लिए टीवी पर 4-अंकों का कोड दिखाता है। यह अन्य प्रकार की स्ट्रीमिंग पर लागू नहीं होता।</string>
+    <string name="setting_allow_new_conn">नए कनेक्शन की अनुमति दें</string>
+    <string name="setting_allow_new_conn_desc">नया डिवाइस कनेक्ट होने पर मौजूदा भेजने वाले को हटा दें</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">आइडल स्क्रीन प्रीव्यू</string>
+    <string name="setting_idle_preview_desc">कनेक्शन की प्रतीक्षा करते समय वीडियो सरफ़ेस दिखाएं</string>
+    <string name="setting_auto_fullscreen">स्वचालित रूप से फुलस्क्रीन में जाएं</string>
+    <string name="setting_auto_fullscreen_desc">भेजने वाला कनेक्ट होने पर फुलस्क्रीन में जाएं</string>
+    <string name="setting_keep_screen_on">स्क्रीन चालू रखें</string>
+    <string name="setting_keep_screen_on_desc">भेजने वाला कनेक्टेड रहने पर स्लीप होने से रोकें</string>
+    <string name="setting_advertise_video">AirPlay वीडियो समर्थन दिखाएं</string>
+    <string name="setting_advertise_video_desc">बंद होने पर, वीडियो केवल ऑडियो स्ट्रीम के रूप में कास्ट होते हैं</string>
+    <string name="setting_advertise_mirroring">AirPlay मिररिंग समर्थन दिखाएं</string>
+    <string name="setting_advertise_mirroring_desc">बंद होने पर, डिवाइस मिररिंग से छिप जाता है</string>
+    <string name="setting_advertise_audio">AirPlay ऑडियो समर्थन दिखाएं</string>
+    <string name="setting_advertise_audio_desc">बंद होने पर, डिवाइस केवल मिररिंग के लिए इस्तेमाल हो सकता है और मीडिया प्लेयर से छिपा रहेगा</string>
+    <string name="setting_alac">ALAC कोडेक दिखाएं</string>
+    <string name="setting_alac_desc">mDNS रिकॉर्ड में ALAC ऑफ़र करें; संगीत स्ट्रीमिंग के लिए उपयोग किया जाता है</string>
+    <string name="setting_aac">AAC कोडेक दिखाएं</string>
+    <string name="setting_aac_desc">mDNS रिकॉर्ड में AAC-ELD/AAC-LC ऑफ़र करें; स्क्रीन मिररिंग ऑडियो के लिए उपयोग किया जाता है</string>
+    <string name="setting_launch_on_connect">कनेक्ट होने पर यह ऐप खोलें</string>
+    <string name="setting_launch_on_connect_desc">भेजने वाला कनेक्ट होने पर स्क्रीन दिखाएं</string>
+    <string name="setting_launch_on_connect_no_permission">अन्य ऐप्स के ऊपर दिखाने की अनुमति देने के लिए टैप करें</string>
+    <string name="setting_discovery">इन पर खोजा जा सकता है</string>
+    <string name="setting_discovery_all_desc">सभी उपयोगी इंटरफ़ेस पर प्रसारित करें। NsdManager का उपयोग करता है।</string>
+    <string name="setting_discovery_usb_desc">वायर्ड कनेक्शन लागू करने के लिए केवल USB टेदरिंग पर प्रसारित करें। कस्टम mDNS रिस्पॉन्डर का उपयोग करता है।</string>
+    <string name="chip_all_networks">सभी नेटवर्क</string>
+    <string name="chip_usb_only">केवल USB</string>
+    <string name="setting_resolution">रेज़ॉल्यूशन</string>
+    <string name="setting_resolution_desc">भेजने वालों को दिखाया गया वीडियो रेज़ॉल्यूशन</string>
+    <string name="setting_resolution_placeholder">[W]x[H]</string>
+    <string name="setting_resolution_width">चौड़ाई</string>
+    <string name="setting_resolution_height">ऊंचाई</string>
+    <string name="setting_max_fps">अधिकतम FPS</string>
+    <string name="setting_max_fps_desc">भेजने वालों को दिखाई गई अधिकतम फ्रेम दर</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">ओवरस्कैन</string>
+    <string name="setting_overscanned_desc">किनारों को काटने वाले फुलस्क्रीन डिस्प्ले के लिए पिक्सेल सीमा जोड़ें</string>
+    <string name="chip_custom">कस्टम</string>
+    <string name="chip_device_portrait">पोर्ट्रेट</string>
+    <string name="chip_device_landscape">लैंडस्केप</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_h265">H.265 (HEVC)</string>
+    <string name="setting_h265_desc">ऑटो केवल उन H.265 डिकोडर का उपयोग करता है जो काम करने के लिए जाने जाते हैं</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">वीडियो को लिमिटेड SDR के रूप में टैग करें; HDR स्रोतों को पास होने देने के लिए बंद करें</string>
+    <string name="setting_sw_alac">सॉफ़्टवेयर ALAC डिकोडर को बाध्य करें</string>
+    <string name="setting_sw_alac_desc">सिस्टम डिकोडर के बजाय हमेशा सॉफ़्टवेयर ALAC डिकोडर का उपयोग करें, इससे लेटेंसी प्रभावित हो सकती है</string>
+    <string name="setting_sw_aac">सॉफ़्टवेयर AAC डिकोडर को बाध्य करें</string>
+    <string name="setting_sw_aac_desc">सिस्टम डिकोडर के बजाय हमेशा सॉफ़्टवेयर AAC डिकोडर का उपयोग करें, इससे लेटेंसी प्रभावित हो सकती है</string>
+    <string name="setting_sync_client_volume">भेजने वाले का वॉल्यूम सिंक करें</string>
+    <string name="setting_sync_client_volume_desc">रिसीवर वॉल्यूम के लिए स्वचालित रूप से भेजने वाले का वॉल्यूम उपयोग करें</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">डेवलपर विकल्प</string>
+    <string name="setting_developer_options_desc">उन्नत उपयोगकर्ताओं के लिए विकल्प दिखाएं</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">Android 10+ पर गति बनाए रखने के लिए वीडियो डिकोडर को आंतरिक रूप से फ्रेम छोड़ने की अनुमति दें</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">ऑडियो डिकोडर के लिए रीयल-टाइम शेड्यूलिंग का अनुरोध करें</string>
+    <string name="setting_operating_rate">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_desc">डिकोडर से अधिकतम ऑपरेटिंग रेट का अनुरोध करें</string>
+    <string name="chip_auto">ऑटो</string>
+    <string name="chip_on">चालू</string>
+    <string name="chip_off">बंद</string>
+    <string name="setting_low_latency">कम लेटेंसी</string>
+    <string name="setting_low_latency_desc">आउटपुट के लिए कम-लेटेंसी ऑडियो डिकोडिंग का उपयोग करें; इससे अधिक पावर और CPU खर्च होता है</string>
+    <string name="setting_scheduled_output_buffer_release">एलाइन्ड फ्रेम पेसिंग</string>
+    <string name="setting_scheduled_output_buffer_release_desc">प्रत्येक डिकोड किए गए फ्रेम को उसके प्रेजेंटेशन टाइमस्टैम्प के अनुरूप VSYNC पर शेड्यूल करें</string>
+    <string name="setting_audio_delay">ऑडियो डिले ओवरराइड करें</string>
+    <string name="setting_audio_delay_desc">भेजने वाले को रिपोर्ट की गई कस्टम ऑडियो लेटेंसी सेट करें</string>
+    <string name="audio_delay_value">%dms</string>
+    <string name="setting_audio_auto_buffer">स्वचालित सॉफ़्टवेयर ऑडियो बफर साइज़</string>
+    <string name="setting_audio_auto_buffer_desc">नेटवर्क स्थितियों और डिवाइस प्रदर्शन के अनुसार सॉफ़्टवेयर ऑडियो बफर को अनुकूल रूप से ट्यून करता है; स्लाइडर यह समायोजित करता है कि बफर कितना जिटर सहन कर सकता है</string>
+    <string name="audio_adaptive_value">%1$d%% (%2$s)</string>
+    <string-array name="audio_adaptive_step_names">
+        <item>न्यूनतम लेटेंसी</item>
+        <item>कम लेटेंसी</item>
+        <item>संतुलित</item>
+        <item>बेहतर स्थिरता</item>
+        <item>सर्वोत्तम स्थिरता</item>
+    </string-array>
+    <string name="setting_audio_cushion_ms">सॉफ़्टवेयर ऑडियो बफर (ms)</string>
+    <string name="setting_audio_cushion_ms_desc">नेटवर्क और डिकोडर जिटर को सहने के लिए बफर: कम अवधि का मतलब है कम लेटेंसी; अधिक अवधि का मतलब है कम गड़बड़ियां</string>
+    <string name="setting_oboe_buffer_frames">हार्डवेयर आउटपुट बफर (फ्रेम)</string>
+    <string name="setting_oboe_buffer_frames_desc">केवल CPU शेड्यूलिंग जिटर को सहने के लिए इस ऐप और ऑडियो डिवाइस के बीच स्ट्रीम बफर। स्वचालित आकार के लिए 0 पर रखें।</string>
+    <string name="setting_debug_overlay">डीबग ओवरले दिखाएं</string>
+    <string name="setting_debug_overlay_desc">वीडियो पर स्ट्रीम आंकड़े दिखाएं: कोडेक, FPS, बिटरेट, जिटर, फ्रेम, ड्रॉप्स</string>
+    <string name="setting_benchmark_log">डीबग लॉगिंग सक्षम करें</string>
+    <string name="setting_benchmark_log_desc">स्ट्रीम आंकड़ों को logcat में लॉग करें: कोडेक, FPS, बिटरेट, जिटर, फ्रेम, ड्रॉप्स</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_section_video">वीडियो</string>
+    <string name="debug_section_audio">ऑडियो</string>
+    <string name="debug_section_network">नेटवर्क</string>
+    <string name="debug_video">%1$s %2$s</string>
+    <string name="debug_fps_bitrate">FPS: %1$d  बिटरेट: %2$s</string>
+    <string name="debug_frames_drops">फ्रेम: %1$d  ड्रॉप्स: %2$d</string>
+    <string name="debug_jitter">जिटर: %1$s</string>
+    <string name="debug_audio">%1$s  रिसीवर: %2$d%%  भेजने वाला: %3$d%%</string>
+    <string name="debug_audio_buffer">बफर: %1$d ms (लक्ष्य: %2$d ms)</string>
+    <string name="debug_audio_glitch">गड़बड़ी: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
+    <string name="debug_audio_decode">डिकोड: %1$s</string>
+    <string name="debug_clients">भेजने वाले: %1$d</string>
+    <string name="setting_fcast">FCast · प्रयोगात्मक</string>
+    <string name="setting_fcast_desc">अपने स्थानीय नेटवर्क पर संगत भेजने वालों से मीडिया प्राप्त करें। कोई PIN नहीं। नेटवर्क बदलने के बाद पुनः आरंभ करें।</string>
+    <string name="setting_castv2">Cast V2 · प्रयोगात्मक</string>
+    <string name="setting_castv2_desc">संगत भेजने वालों से URL मीडिया। Google डिवाइस सर्टिफिकेशन की आवश्यकता वाले ऐप्स समर्थित नहीं हैं। कोई PIN नहीं।</string>
+    <string name="buzin_about_tagline">आसान स्क्रीन मिररिंग</string>
+    <string name="buzin_maintained_by">द्वारा विकसित और रखरखाव</string>
+    <string name="buzin_website">आधिकारिक वेबसाइट</string>
+    <string name="buzin_source">सोर्स कोड</string>
+    <string name="buzin_licenses">ओपन सोर्स और लाइसेंस</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · तीसरे पक्ष के क्रेडिट</string>
+    <string name="buzin_close">बंद करें</string>
+    <string name="buzin_back_about">जानकारी पर वापस जाएं</string>
+    <string name="buzin_no_browser">लिंक खोलने के लिए कोई ब्राउज़र उपलब्ध नहीं है।</string>
+</resources>
