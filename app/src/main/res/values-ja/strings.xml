@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BuzinCast</string>
+    <string name="buzin_tagline">あなたの画面に、もっと大きな舞台を。</string>
+    <string name="buzin_hero">小さな画面に、\n大きな可能性。</string>
+    <string name="buzin_hero_detail">アイデアや写真、お気に入りの瞬間をテレビにミラーリング。</string>
+    <string name="buzin_receiver_label">デバイスでこの名前を選択してください</string>
+    <string name="buzin_rename_hint">設定 → レシーバー名で変更できます</string>
+    <string name="buzin_connect_heading">3ステップで接続</string>
+    <string name="buzin_free">無料 • 広告なし • 時間制限なし</string>
+    <string name="buzin_ready">接続準備完了</string>
+    <string name="buzin_stopped">接続するにはレシーバーを開始してください</string>
+    <string name="buzin_choose">お使いのApple デバイスで%1$sを選択</string>
+    <string name="buzin_step_wifi">iPhone、iPad、またはMacをこのテレビと同じローカルネットワークに接続します。</string>
+    <string name="buzin_step_mirror">コントロールセンターを開き、画面ミラーリングを選択します。</string>
+    <string name="buzin_step_choose">左側に表示されているレシーバー名を選択します。</string>
+    <string name="buzin_help">AirPlayのミラーリングとオーディオ。</string>
+    <string name="buzin_about">BuzinCastについて</string>
+    <string name="buzin_version">バージョン %1$s</string>
+    <string name="setting_dlna">DLNAレシーバー（試験的機能）</string>
+    <string name="setting_dlna_desc">ローカルネットワークから映像と音声を受信します。AirPlayのPINはDLNAを保護しません。別のネットワークに接続した後は再起動してください。</string>
+    <string name="buzin_credits">BuzinCast\n制作・保守：Buzin Solutions ®。\n© 2026 Buzin Solutions Ltda. — BuzinCastへの貢献。\n\nウェブサイト：https://buzin.solutions\n\njqssunおよび貢献者によるandroid-airplay-server、UxPlay、サードパーティコンポーネントを基にしています。GNU GPL v3の下でライセンスされています。元のクレジットとライセンスは保持されています。\n\nソースコード：github.com/HenriqueBuzin/buzin-cast</string>
+    <string name="tv_edit_save">保存</string>
+    <string name="tv_edit_cancel">キャンセル</string>
+    <string name="tv_edit_empty">未設定</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">AirPlayサービス</string>
+    <string name="notification_title">BuzinCastは実行中です</string>
+    <string name="notification_text">AirPlay接続を受け付けています</string>
+    <string name="notification_pin_title">AirPlay PINが必要です</string>
+    <string name="notification_pin_text">PIN：%1$s</string>
+    <string name="stop_service">停止</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">概要</string>
+    <string name="tab_logs">ログ</string>
+    <string name="tab_settings">設定</string>
+    <string name="tab_tools">ツール</string>
+    <string name="setting_tv_margin">画面サイズ調整</string>
+    <string name="setting_tv_margin_desc" formatted="false">自動設定では、アスペクト比を保ちながら画面全体に合わせます。パーセンテージは、端が切れるテレビのために余白を追加します。すぐに適用されます。</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">サーバーは停止しました</string>
+    <string name="waiting_for_connection">接続を待機しています...</string>
+    <string name="waiting_for_playback">送信元デバイスで再生を開始してください...</string>
+    <string name="error_starting_server">サーバーの起動エラー</string>
+    <string name="connected_count">%d台接続中</string>
+    <string name="error_label">エラー</string>
+    <string name="stopped_label">停止中</string>
+    <string name="btn_start">開始</string>
+    <string name="btn_stop">停止</string>
+    <string name="btn_allow">許可</string>
+    <string name="btn_open_settings">設定を開く</string>
+    <string name="local_network_label">近くのデバイスへのアクセスが必要です</string>
+    <string name="local_network_desc">AirPlayデバイスがこの端末を見つけて接続できるように、近くのデバイスへのアクセスを許可してください</string>
+    <string name="unknown_track">不明</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">ピクチャー・イン・ピクチャー</string>
+    <string name="cd_fullscreen">フルスクリーン</string>
+    <string name="cd_exit_fullscreen">フルスクリーンを終了</string>
+    <string name="cd_cover_art">カバーアート</string>
+    <string name="cd_play_pause">再生/一時停止</string>
+    <string name="cd_rewind">巻き戻し</string>
+    <string name="cd_fast_forward">早送り</string>
+    <string name="volume_server">レシーバーの音量</string>
+    <string name="volume_client">送信元の音量</string>
+    <string name="volume_value">%1$d%%</string>
+    <string name="cd_download">動画をダウンロード</string>
+    <string name="cd_cancel_download">ダウンロードをキャンセル</string>
+
+    <!-- Video download -->
+    <string name="download_saved">%1$sに保存しました</string>
+    <string name="download_failed">ダウンロードに失敗しました</string>
+
+    <!-- Player gestures -->
+    <string name="gesture_seek_seconds">%1$d秒</string>
+    <string name="seconds_short">%1$d秒</string>
+    <string name="select_playback_speed">再生速度</string>
+    <string name="cd_reset_speed">速度をリセット</string>
+    <string name="skip_silence">無音をスキップ</string>
+
+    <!-- Player controls -->
+    <string name="cd_back">戻る</string>
+    <string name="cd_copy_url">動画のURLをコピー</string>
+    <string name="cd_rotate">画面を回転</string>
+    <string name="cd_lock_controls">操作をロック</string>
+    <string name="cd_unlock_controls">操作のロックを解除</string>
+    <string name="scale_best_fit">ベストフィット</string>
+    <string name="scale_stretch">ストレッチ</string>
+    <string name="scale_crop">クロップ</string>
+    <string name="scale_hundred_percent">100%</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">AirPlay PIN</string>
+    <string name="btn_ok">OK</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">書き出し</string>
+    <string name="btn_clear">クリア</string>
+    <string name="export_logs_chooser_title">ログを書き出す</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">サーバー</string>
+    <string name="section_connection">接続</string>
+    <string name="section_display">表示</string>
+    <string name="section_decode">デコード</string>
+    <string name="section_developer">開発者</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">サーバー名</string>
+    <string name="setting_server_port">サーバーポート</string>
+    <string name="setting_auto_start">サーバーを自動的に開始</string>
+    <string name="setting_auto_start_desc">アプリ起動時にAirPlayサーバーを開始します</string>
+    <string name="setting_boot_auto_start">起動時にサーバーを開始</string>
+    <string name="setting_boot_auto_start_desc">デバイス起動時にAirPlayサーバーを開始します</string>
+    <string name="setting_run_in_background">バックグラウンドで実行</string>
+    <string name="setting_run_in_background_desc">アプリを離れてもサーバーを実行し続けます</string>
+
+    <!-- Settings: Connection -->
+    <string name="section_airplay_security">AirPlayセキュリティ</string>
+    <string name="setting_require_pin">コードを要求（試験的機能）</string>
+    <string name="setting_require_pin_desc">対応するAirPlayデバイスをペアリングするために、テレビに4桁のコードを表示します。他の種類のストリーミングには適用されません。</string>
+    <string name="setting_allow_new_conn">新しい接続を許可</string>
+    <string name="setting_allow_new_conn_desc">新しい送信元が接続したときに現在の送信元を切断します</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">アイドル時の画面プレビュー</string>
+    <string name="setting_idle_preview_desc">接続を待機している間、映像エリアを表示します</string>
+    <string name="setting_auto_fullscreen">自動的にフルスクリーンにする</string>
+    <string name="setting_auto_fullscreen_desc">送信元が接続したときにフルスクリーンにします</string>
+    <string name="setting_keep_screen_on">画面をオンのまま保持</string>
+    <string name="setting_keep_screen_on_desc">送信元が接続している間はスリープを防止します</string>
+    <string name="setting_advertise_video">AirPlay動画対応をアナウンス</string>
+    <string name="setting_advertise_video_desc">オフにすると、動画は音声のみのストリームとしてキャストされます</string>
+    <string name="setting_advertise_mirroring">AirPlayミラーリング対応をアナウンス</string>
+    <string name="setting_advertise_mirroring_desc">オフにすると、このデバイスはミラーリングの一覧から隠れます</string>
+    <string name="setting_advertise_audio">AirPlayオーディオ対応をアナウンス</string>
+    <string name="setting_advertise_audio_desc">オフにすると、このデバイスはミラーリング専用になり、メディアプレーヤーの一覧から隠れます</string>
+    <string name="setting_alac">ALACコーデックをアナウンス</string>
+    <string name="setting_alac_desc">mDNSレコードでALACを提供します。音楽ストリーミングに使用されます</string>
+    <string name="setting_aac">AACコーデックをアナウンス</string>
+    <string name="setting_aac_desc">mDNSレコードでAAC-ELD/AAC-LCを提供します。画面ミラーリングの音声に使用されます</string>
+    <string name="setting_launch_on_connect">接続時にこのアプリを開く</string>
+    <string name="setting_launch_on_connect_desc">送信元が接続したときに画面を表示します</string>
+    <string name="setting_launch_on_connect_no_permission">タップして他のアプリの上に表示する権限を許可してください</string>
+    <string name="setting_discovery">検出可能な範囲</string>
+    <string name="setting_discovery_all_desc">利用可能なすべてのインターフェースでアナウンスします。NsdManagerを使用します。</string>
+    <string name="setting_discovery_usb_desc">有線接続を強制するため、USBテザリングのみでアナウンスします。独自のmDNSレスポンダーを使用します。</string>
+    <string name="chip_all_networks">すべてのネットワーク</string>
+    <string name="chip_usb_only">USBのみ</string>
+    <string name="setting_resolution">解像度</string>
+    <string name="setting_resolution_desc">送信元にアナウンスする動画の解像度</string>
+    <string name="setting_resolution_placeholder">[幅]x[高さ]</string>
+    <string name="setting_resolution_width">幅</string>
+    <string name="setting_resolution_height">高さ</string>
+    <string name="setting_max_fps">最大FPS</string>
+    <string name="setting_max_fps_desc">送信元にアナウンスする最大フレームレート</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">オーバースキャン</string>
+    <string name="setting_overscanned_desc">端が切れるフルスクリーンディスプレイのためにピクセルの境界を追加します</string>
+    <string name="chip_custom">カスタム</string>
+    <string name="chip_device_portrait">縦向き</string>
+    <string name="chip_device_landscape">横向き</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_h265">H.265（HEVC）</string>
+    <string name="setting_h265_desc">自動モードでは、動作が確認されているH.265デコーダーのみを使用します</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">動画をリミテッドSDRとしてタグ付けします。HDRソースを通過させるには無効にしてください</string>
+    <string name="setting_sw_alac">ソフトウェアALACデコーダーを強制</string>
+    <string name="setting_sw_alac_desc">システムデコーダーの代わりに常にソフトウェアALACデコーダーを使用します。遅延に影響する場合があります</string>
+    <string name="setting_sw_aac">ソフトウェアAACデコーダーを強制</string>
+    <string name="setting_sw_aac_desc">システムデコーダーの代わりに常にソフトウェアAACデコーダーを使用します。遅延に影響する場合があります</string>
+    <string name="setting_sync_client_volume">送信元の音量を同期</string>
+    <string name="setting_sync_client_volume_desc">送信元の音量をレシーバーの音量として自動的に使用します</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">開発者向けオプション</string>
+    <string name="setting_developer_options_desc">上級者向けのオプションを表示します</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">Android 10以降で追従するため、動画デコーダーが内部的にフレームを破棄することを許可します</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">オーディオデコーダーにリアルタイムスケジューリングを要求します</string>
+    <string name="setting_operating_rate">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_desc">デコーダーに最大動作レートを要求します</string>
+    <string name="chip_auto">自動</string>
+    <string name="chip_on">オン</string>
+    <string name="chip_off">オフ</string>
+    <string name="setting_low_latency">低遅延</string>
+    <string name="setting_low_latency_desc">出力に低遅延オーディオデコードを使用します。電力とCPUをより多く消費します</string>
+    <string name="setting_scheduled_output_buffer_release">フレームペーシングの同期</string>
+    <string name="setting_scheduled_output_buffer_release_desc">デコードされた各フレームを、その提示タイムスタンプに一致するVSYNCにスケジュールします</string>
+    <string name="setting_audio_delay">オーディオ遅延を上書き</string>
+    <string name="setting_audio_delay_desc">送信元に報告するカスタムのオーディオレイテンシーを設定します</string>
+    <string name="audio_delay_value">%dms</string>
+    <string name="setting_audio_auto_buffer">ソフトウェアオーディオバッファサイズの自動調整</string>
+    <string name="setting_audio_auto_buffer_desc">ネットワーク状況とデバイス性能に応じてソフトウェアオーディオバッファを動的に調整します。スライダーでバッファが吸収できるジッターの量を調整します</string>
+    <string name="audio_adaptive_value">%1$d%%（%2$s）</string>
+    <string-array name="audio_adaptive_step_names">
+        <item>最小レイテンシー</item>
+        <item>低レイテンシー</item>
+        <item>バランス</item>
+        <item>より高い安定性</item>
+        <item>最高の安定性</item>
+    </string-array>
+    <string name="setting_audio_cushion_ms">ソフトウェアオーディオバッファ（ms）</string>
+    <string name="setting_audio_cushion_ms_desc">ネットワークとデコーダーのジッターを吸収するバッファ：短くすると遅延が小さくなり、長くするとノイズが減ります</string>
+    <string name="setting_oboe_buffer_frames">ハードウェア出力バッファ（フレーム）</string>
+    <string name="setting_oboe_buffer_frames_desc">CPUスケジューリングのジッターのみを吸収するための、このアプリとオーディオデバイス間のストリームバッファです。自動調整にするには0のままにしてください。</string>
+    <string name="setting_debug_overlay">デバッグオーバーレイを表示</string>
+    <string name="setting_debug_overlay_desc">動画上にストリームの統計情報を表示します：コーデック、FPS、ビットレート、ジッター、フレーム、ドロップ</string>
+    <string name="setting_benchmark_log">デバッグログを有効化</string>
+    <string name="setting_benchmark_log_desc">ストリームの統計情報をlogcatに記録します：コーデック、FPS、ビットレート、ジッター、フレーム、ドロップ</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_section_video">映像</string>
+    <string name="debug_section_audio">音声</string>
+    <string name="debug_section_network">ネットワーク</string>
+    <string name="debug_video">%1$s %2$s</string>
+    <string name="debug_fps_bitrate">FPS: %1$d  ビットレート: %2$s</string>
+    <string name="debug_frames_drops">フレーム: %1$d  ドロップ: %2$d</string>
+    <string name="debug_jitter">ジッター: %1$s</string>
+    <string name="debug_audio">%1$s  レシーバー: %2$d%%  送信元: %3$d%%</string>
+    <string name="debug_audio_buffer">バッファ: %1$d ms（目標: %2$d ms）</string>
+    <string name="debug_audio_glitch">グリッチ: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
+    <string name="debug_audio_decode">デコード: %1$s</string>
+    <string name="debug_clients">送信元: %1$d</string>
+    <string name="setting_fcast">FCast・試験的機能</string>
+    <string name="setting_fcast_desc">ローカルネットワーク上の対応する送信元からメディアを受信します。PINは不要です。ネットワークを変更した後は再起動してください。</string>
+    <string name="setting_castv2">Cast V2・試験的機能</string>
+    <string name="setting_castv2_desc">対応する送信元からのURLメディア。Googleデバイス認証が必要なアプリはサポートされていません。PINは不要です。</string>
+    <string name="buzin_about_tagline">シンプルな画面ミラーリング</string>
+    <string name="buzin_maintained_by">開発・保守</string>
+    <string name="buzin_website">公式ウェブサイト</string>
+    <string name="buzin_source">ソースコード</string>
+    <string name="buzin_licenses">オープンソースとライセンス</string>
+    <string name="buzin_licenses_detail">GNU GPL v3・サードパーティクレジット</string>
+    <string name="buzin_close">閉じる</string>
+    <string name="buzin_back_about">概要に戻る</string>
+    <string name="buzin_no_browser">リンクを開くためのブラウザが利用できません。</string>
+</resources>

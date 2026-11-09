@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BuzinCast</string>
+    <string name="buzin_tagline">למסך שלך מגיעה במה גדולה יותר.</string>
+    <string name="buzin_hero">מסך קטן.\nאפשרויות גדולות.</string>
+    <string name="buzin_hero_detail">שקפו את הרעיונות, התמונות והרגעים האהובים עליכם בטלוויזיה.</string>
+    <string name="buzin_receiver_label">בחרו בשם זה במכשיר שלכם</string>
+    <string name="buzin_rename_hint">שנו את השם בהגדרות ← שם המקלט</string>
+    <string name="buzin_connect_heading">התחברו בשלושה שלבים</string>
+    <string name="buzin_free">חינם • בלי פרסומות • בלי הגבלת זמן</string>
+    <string name="buzin_ready">מוכן להתחברות</string>
+    <string name="buzin_stopped">הפעילו את המקלט כדי להתחבר</string>
+    <string name="buzin_choose">בחרו %1$s במכשיר ה-Apple שלכם</string>
+    <string name="buzin_step_wifi">חברו את ה-iPhone, ה-iPad או ה-Mac שלכם לאותה רשת מקומית של הטלוויזיה הזו.</string>
+    <string name="buzin_step_mirror">פתחו את מרכז הבקרה ובחרו שידור מסך.</string>
+    <string name="buzin_step_choose">בחרו את שם המקלט המוצג בצד.</string>
+    <string name="buzin_help">שידור מסך ואודיו של AirPlay.</string>
+    <string name="buzin_about">אודות BuzinCast</string>
+    <string name="buzin_version">גרסה %1$s</string>
+    <string name="setting_dlna">מקלט DLNA (ניסיוני)</string>
+    <string name="setting_dlna_desc">קבלת וידאו ואודיו מהרשת המקומית שלכם. קוד ה-PIN של AirPlay אינו מגן על DLNA. הפעילו מחדש לאחר התחברות לרשת אחרת.</string>
+    <string name="buzin_credits">BuzinCast\nנוצר ומתוחזק על ידי Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — תרומות BuzinCast.\n\nאתר: https://buzin.solutions\n\nמבוסס על android-airplay-server מאת jqssun ושותפים, UxPlay ורכיבי צד שלישי. מורשה תחת GNU GPL v3. הקרדיטים והרישיונות המקוריים נשמרים.\n\nקוד מקור: github.com/HenriqueBuzin/buzin-cast</string>
+    <string name="tv_edit_save">שמירה</string>
+    <string name="tv_edit_cancel">ביטול</string>
+    <string name="tv_edit_empty">לא הוגדר</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">שירות AirPlay</string>
+    <string name="notification_title">BuzinCast פועל</string>
+    <string name="notification_text">מתקבלות חיבורי AirPlay</string>
+    <string name="notification_pin_title">נדרש קוד PIN של AirPlay</string>
+    <string name="notification_pin_text">PIN: %1$s</string>
+    <string name="stop_service">הפסקה</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">סקירה</string>
+    <string name="tab_logs">יומנים</string>
+    <string name="tab_settings">הגדרות</string>
+    <string name="tab_tools">כלים</string>
+    <string name="setting_tv_margin">התאמת תמונה</string>
+    <string name="setting_tv_margin_desc" formatted="false">מצב אוטומטי מתאים את כל התמונה ושומר על יחס הממדים. אחוזים מוסיפים שוליים לטלוויזיות שחותכות קצוות. נכנס לתוקף באופן מיידי.</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">השרת הופסק</string>
+    <string name="waiting_for_connection">מחכה לחיבור...</string>
+    <string name="waiting_for_playback">לחצו על הפעלה במכשיר השולח...</string>
+    <string name="error_starting_server">שגיאה בהפעלת השרת</string>
+    <string name="connected_count">%d מחוברים</string>
+    <string name="error_label">שגיאה</string>
+    <string name="stopped_label">הופסק</string>
+    <string name="btn_start">הפעלה</string>
+    <string name="btn_stop">הפסקה</string>
+    <string name="btn_allow">אפשר</string>
+    <string name="btn_open_settings">פתח הגדרות</string>
+    <string name="local_network_label">נדרשת גישה למכשירים קרובים</string>
+    <string name="local_network_desc">אפשרו גישה למכשירים קרובים כך שמכשירי AirPlay יוכלו לאתר ולהתחבר למכשיר זה</string>
+    <string name="unknown_track">לא ידוע</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">תמונה בתוך תמונה</string>
+    <string name="cd_fullscreen">מסך מלא</string>
+    <string name="cd_exit_fullscreen">יציאה ממסך מלא</string>
+    <string name="cd_cover_art">עטיפת אלבום</string>
+    <string name="cd_play_pause">הפעלה/השהיה</string>
+    <string name="cd_rewind">הרצה לאחור</string>
+    <string name="cd_fast_forward">הרצה קדימה</string>
+    <string name="volume_server">עוצמת קול המקלט</string>
+    <string name="volume_client">עוצמת קול השולח</string>
+    <string name="volume_value">%1$d%%</string>
+    <string name="cd_download">הורדת וידאו</string>
+    <string name="cd_cancel_download">ביטול הורדה</string>
+
+    <!-- Video download -->
+    <string name="download_saved">נשמר ב-%1$s</string>
+    <string name="download_failed">ההורדה נכשלה</string>
+
+    <!-- Player gestures -->
+    <string name="gesture_seek_seconds">%1$d שניות</string>
+    <string name="seconds_short">%1$dש׳</string>
+    <string name="select_playback_speed">מהירות הפעלה</string>
+    <string name="cd_reset_speed">איפוס מהירות</string>
+    <string name="skip_silence">דילוג על שתיקה</string>
+
+    <!-- Player controls -->
+    <string name="cd_back">חזרה</string>
+    <string name="cd_copy_url">העתקת כתובת הווידאו</string>
+    <string name="cd_rotate">סיבוב מסך</string>
+    <string name="cd_lock_controls">נעילת פקדים</string>
+    <string name="cd_unlock_controls">שחרור נעילת פקדים</string>
+    <string name="scale_best_fit">התאמה מיטבית</string>
+    <string name="scale_stretch">מתיחה</string>
+    <string name="scale_crop">חיתוך</string>
+    <string name="scale_hundred_percent">100%</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">קוד PIN של AirPlay</string>
+    <string name="btn_ok">אישור</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">ייצוא</string>
+    <string name="btn_clear">ניקוי</string>
+    <string name="export_logs_chooser_title">ייצוא יומנים</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">שרת</string>
+    <string name="section_connection">חיבור</string>
+    <string name="section_display">תצוגה</string>
+    <string name="section_decode">פענוח</string>
+    <string name="section_developer">מפתחים</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">שם השרת</string>
+    <string name="setting_server_port">פורט השרת</string>
+    <string name="setting_auto_start">הפעלת שרת אוטומטית</string>
+    <string name="setting_auto_start_desc">הפעלת שרת ה-AirPlay בעת הפעלת האפליקציה</string>
+    <string name="setting_boot_auto_start">הפעלת שרת באתחול</string>
+    <string name="setting_boot_auto_start_desc">הפעלת שרת ה-AirPlay כאשר המכשיר עולה</string>
+    <string name="setting_run_in_background">הפעלה ברקע</string>
+    <string name="setting_run_in_background_desc">שמירת השרת פעיל לאחר יציאה מהאפליקציה</string>
+
+    <!-- Settings: Connection -->
+    <string name="section_airplay_security">אבטחת AirPlay</string>
+    <string name="setting_require_pin">דרישת קוד (ניסיוני)</string>
+    <string name="setting_require_pin_desc">מציג קוד בן 4 ספרות בטלוויזיה לצימוד מכשירי AirPlay תואמים. לא חל על סוגי שידור אחרים.</string>
+    <string name="setting_allow_new_conn">אפשר חיבורים חדשים</string>
+    <string name="setting_allow_new_conn_desc">ניתוק השולח הנוכחי כאשר מתחבר שולח חדש</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">תצוגה מקדימה במצב המתנה</string>
+    <string name="setting_idle_preview_desc">הצגת שטח הווידאו בזמן ההמתנה לחיבור</string>
+    <string name="setting_auto_fullscreen">כניסה אוטומטית למסך מלא</string>
+    <string name="setting_auto_fullscreen_desc">כניסה למסך מלא כאשר שולח מתחבר</string>
+    <string name="setting_keep_screen_on">השארת המסך פעיל</string>
+    <string name="setting_keep_screen_on_desc">מניעת כניסה למצב שינה כל עוד שולח מחובר</string>
+    <string name="setting_advertise_video">הכרזה על תמיכת וידאו ב-AirPlay</string>
+    <string name="setting_advertise_video_desc">כאשר כבוי, וידאו משודר כזרם אודיו בלבד</string>
+    <string name="setting_advertise_mirroring">הכרזה על תמיכת שידור מסך ב-AirPlay</string>
+    <string name="setting_advertise_mirroring_desc">כאשר כבוי, המכשיר מוסתר משידור מסך</string>
+    <string name="setting_advertise_audio">הכרזה על תמיכת אודיו ב-AirPlay</string>
+    <string name="setting_advertise_audio_desc">כאשר כבוי, המכשיר יכול לשמש רק לשידור מסך ויהיה מוסתר מנגני מדיה</string>
+    <string name="setting_alac">הכרזה על קודק ALAC</string>
+    <string name="setting_alac_desc">הצעת ALAC ברשומת ה-mDNS; משמש לשידור מוזיקה</string>
+    <string name="setting_aac">הכרזה על קודק AAC</string>
+    <string name="setting_aac_desc">הצעת AAC-ELD/AAC-LC ברשומת ה-mDNS; משמש לאודיו של שידור מסך</string>
+    <string name="setting_launch_on_connect">פתיחת האפליקציה בעת חיבור</string>
+    <string name="setting_launch_on_connect_desc">הצגת המסך כאשר שולח מתחבר</string>
+    <string name="setting_launch_on_connect_no_permission">הקישו כדי לאשר הצגה מעל אפליקציות אחרות</string>
+    <string name="setting_discovery">נראה באמצעות</string>
+    <string name="setting_discovery_all_desc">הכרזה בכל הממשקים הזמינים. משתמש ב-NsdManager.</string>
+    <string name="setting_discovery_usb_desc">הכרזה רק בחיבור USB כדי לאכוף חיבור קווי. משתמש ב-mDNS responder מותאם.</string>
+    <string name="chip_all_networks">כל הרשתות</string>
+    <string name="chip_usb_only">USB בלבד</string>
+    <string name="setting_resolution">רזולוציה</string>
+    <string name="setting_resolution_desc">רזולוציית וידאו המוכרזת לשולחים</string>
+    <string name="setting_resolution_placeholder">[רוחב]x[גובה]</string>
+    <string name="setting_resolution_width">רוחב</string>
+    <string name="setting_resolution_height">גובה</string>
+    <string name="setting_max_fps">FPS מקסימלי</string>
+    <string name="setting_max_fps_desc">קצב פריימים מקסימלי המוכרז לשולחים</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">אוברסקן</string>
+    <string name="setting_overscanned_desc">הוספת שולי פיקסלים למסכים עם אוברסקן במסך מלא</string>
+    <string name="chip_custom">מותאם אישית</string>
+    <string name="chip_device_portrait">לאורך</string>
+    <string name="chip_device_landscape">לרוחב</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_h265">H.265 (HEVC)</string>
+    <string name="setting_h265_desc">המצב האוטומטי משתמש רק במפענחי H.265 הידועים כעובדים</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">סמן את הווידאו כ-SDR מוגבל; השבתה מאפשרת מעבר של מקורות HDR</string>
+    <string name="setting_sw_alac">אכיפת מפענח ALAC תוכנתי</string>
+    <string name="setting_sw_alac_desc">שימוש קבוע במפענח ALAC תוכנתי במקום מפענח המערכת; עשוי להשפיע על ההשהיה</string>
+    <string name="setting_sw_aac">אכיפת מפענח AAC תוכנתי</string>
+    <string name="setting_sw_aac_desc">שימוש קבוע במפענח AAC תוכנתי במקום מפענח המערכת; עשוי להשפיע על ההשהיה</string>
+    <string name="setting_sync_client_volume">סנכרון עוצמת קול השולח</string>
+    <string name="setting_sync_client_volume_desc">שימוש אוטומטי בעוצמת הקול של השולח לעוצמת הקול של המקלט</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">אפשרויות מפתחים</string>
+    <string name="setting_developer_options_desc">הצגת אפשרויות למשתמשים מתקדמים</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">אפשרו למפענחי וידאו להשליך פריימים באופן פנימי כדי לעמוד בקצב ב-Android 10 ואילך</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">בקשת תזמון בזמן אמת למפענח האודיו</string>
+    <string name="setting_operating_rate">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_desc">בקשת קצב פעולה מקסימלי מהמפענח</string>
+    <string name="chip_auto">אוטומטי</string>
+    <string name="chip_on">מופעל</string>
+    <string name="chip_off">כבוי</string>
+    <string name="setting_low_latency">השהיה נמוכה</string>
+    <string name="setting_low_latency_desc">שימוש בפענוח אודיו בהשהיה נמוכה לפלט; צורך יותר חשמל ומעבד</string>
+    <string name="setting_scheduled_output_buffer_release">תזמון פריימים מיושר</string>
+    <string name="setting_scheduled_output_buffer_release_desc">תזמון כל פריים מפוענח ל-VSYNC המתאים לחותמת הזמן של הצגתו</string>
+    <string name="setting_audio_delay">שינוי השהיית אודיו</string>
+    <string name="setting_audio_delay_desc">הגדרת השהיית אודיו מותאמת אישית המדווחת לשולח</string>
+    <string name="audio_delay_value">%dms</string>
+    <string name="setting_audio_auto_buffer">גודל חוצץ אודיו תוכנתי אוטומטי</string>
+    <string name="setting_audio_auto_buffer_desc">מתאים באופן דינמי את חוצץ האודיו התוכנתי בהתאם לתנאי הרשת ולביצועי המכשיר; המחוון קובע כמה ריצוד החוצץ יכול לקלוט</string>
+    <string name="audio_adaptive_value">%1$d%% (%2$s)</string>
+    <string-array name="audio_adaptive_step_names">
+        <item>השהיה מינימלית</item>
+        <item>השהיה נמוכה</item>
+        <item>מאוזן</item>
+        <item>יציבות גבוהה יותר</item>
+        <item>יציבות מקסימלית</item>
+    </string-array>
+    <string name="setting_audio_cushion_ms">חוצץ אודיו תוכנתי (ms)</string>
+    <string name="setting_audio_cushion_ms_desc">חוצץ לקליטת ריצוד רשת ופענוח: משך קצר יותר פירושו השהיה נמוכה יותר; משך ארוך יותר פירושו פחות תקלות</string>
+    <string name="setting_oboe_buffer_frames">חוצץ פלט חומרה (פריימים)</string>
+    <string name="setting_oboe_buffer_frames_desc">חוצץ זרימה בין אפליקציה זו למכשיר האודיו לקליטת ריצוד תזמון המעבד בלבד. השאירו על 0 להתאמה אוטומטית.</string>
+    <string name="setting_debug_overlay">הצגת שכבת ניפוי שגיאות</string>
+    <string name="setting_debug_overlay_desc">הצגת נתוני זרם מעל הווידאו: קודק, FPS, קצב סיביות, ריצוד, פריימים, פריימים שהוחמצו</string>
+    <string name="setting_benchmark_log">הפעלת רישום ניפוי שגיאות</string>
+    <string name="setting_benchmark_log_desc">רישום נתוני הזרם ל-logcat: קודק, FPS, קצב סיביות, ריצוד, פריימים, פריימים שהוחמצו</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_section_video">וידאו</string>
+    <string name="debug_section_audio">אודיו</string>
+    <string name="debug_section_network">רשת</string>
+    <string name="debug_video">%1$s %2$s</string>
+    <string name="debug_fps_bitrate">FPS: %1$d  קצב סיביות: %2$s</string>
+    <string name="debug_frames_drops">פריימים: %1$d  הוחמצו: %2$d</string>
+    <string name="debug_jitter">ריצוד: %1$s</string>
+    <string name="debug_audio">%1$s  מקלט: %2$d%%  שולח: %3$d%%</string>
+    <string name="debug_audio_buffer">חוצץ: %1$d ms (יעד: %2$d ms)</string>
+    <string name="debug_audio_glitch">תקלה: trim=%1$d drop=%2$d sil=%3$d ur=%4$d xrun=%5$d</string>
+    <string name="debug_audio_decode">פענוח: %1$s</string>
+    <string name="debug_clients">שולחים: %1$d</string>
+    <string name="setting_fcast">FCast · ניסיוני</string>
+    <string name="setting_fcast_desc">קבלת מדיה משולחים תואמים ברשת המקומית שלכם. בלי PIN. הפעילו מחדש לאחר שינוי רשת.</string>
+    <string name="setting_castv2">Cast V2 · ניסיוני</string>
+    <string name="setting_castv2_desc">מדיה מכתובת URL משולחים תואמים. אפליקציות הדורשות אישור מכשירי Google אינן נתמכות. בלי PIN.</string>
+    <string name="buzin_about_tagline">שידור מסך בפשטות</string>
+    <string name="buzin_maintained_by">פותח ומתוחזק על ידי</string>
+    <string name="buzin_website">אתר רשמי</string>
+    <string name="buzin_source">קוד מקור</string>
+    <string name="buzin_licenses">קוד פתוח ורישיונות</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · קרדיטים לצד שלישי</string>
+    <string name="buzin_close">סגירה</string>
+    <string name="buzin_back_about">חזרה לאודות</string>
+    <string name="buzin_no_browser">אין דפדפן זמין לפתיחת הקישור.</string>
+</resources>
