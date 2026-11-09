@@ -53,15 +53,22 @@
   (Fire TV Stick 4K Select, HD 2ª geração, 4K) segue desmarcado, conforme a
   decisão de deixar Vega fora por enquanto. Availability também já está em
   "All countries and regions where Amazon sells apps" — sem exclusão de país.
-- [ ] Build nativo (C++/FFmpeg) diretamente no Windows, fora do WSL, ainda não
+- [x] Build nativo (C++/FFmpeg) diretamente no Windows, fora do WSL, ainda não
   funciona — trava no CMake/ndk-build do jeito que o toolchain Windows está
   hoje. **9/nov:** o build via WSL (`/var/tmp/buzin-cast-build`) está validado
   e funcionando (causa raiz de falhas anteriores era CRLF nos fontes do
-  FFmpeg/libplist nessa cópia, não o shell). **Observação ao retomar isso:**
-  qualquer tentativa de fazer o build nativo rodar fora do WSL não pode mexer
-  nem arriscar quebrar o ambiente WSL que já funciona — se o Windows nativo
-  não colaborar, já temos os dois caminhos (WSL funcionando + Windows como
-  alternativa a resolver depois, sem pressa).
+  FFmpeg/libplist nessa cópia, não o shell). **9/nov (resolvido):** o bloqueio
+  final do build nativo Windows (`ninja: error: failed recompaction:
+  Permission denied` no passo de install do OpenSSL) era um comando explícito
+  de "force CMake-reload" que o próprio `BuildOpenSSL.cmake` upstream roda
+  depois do `install_sw`; no Windows essa chamada aninhada de `cmake -G Ninja`
+  colide com o processo ninja externo que já está com `build.ninja` aberto (no
+  WSL/Linux nunca deu problema porque sobrescrever um arquivo aberto funciona
+  sem erro). Corrigido pulando esse comando no build Android (patch
+  `0004-skip-forced-reload-for-android-cross-build.patch`, já que os targets
+  IMPORTED não dependem desse reload). Validado de ponta a ponta nos dois
+  ambientes: `BUILD SUCCESSFUL` tanto no build nativo Windows quanto no WSL
+  (reconfirmado após o patch). Comitado em `095ad40`.
 
 ## Candidatas corrigidas 0.6.1 — estado atual
 
