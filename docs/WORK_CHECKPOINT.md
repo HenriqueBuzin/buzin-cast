@@ -19,23 +19,44 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   **9/nov:** feito para os 13 idiomas de ficha de loja que a Amazon realmente
   suporta (Dutch, English AU/IN/US, French, German, Italian, Japanese,
   Polish, Portuguese BR/PT, Spanish, Swedish) — confirmado na documentação
-  oficial que esse é um conjunto separado e menor do que os 20 idiomas do
+  oficial que esse é um conjunto separado e menor do que os idiomas do
   binário. As strings do app (`values-*/strings.xml`) foram traduzidas para
   os 20 idiomas da lista de "binary supported languages" do console.
-- [~] Preparar edições específicas para Alemanha e Áustria sem funções de
+  **10/nov:** Cornish (`values-kw`) criado também, fechando os 21 idiomas da
+  lista — tradução de melhor esforço, já que boa parte do jargão técnico de
+  configurações (buffer, codec, bitrate, jitter, VSYNC) não tem equivalente
+  atestado em córnico e ficou como empréstimo do inglês.
+- [x] Preparar edições específicas para Alemanha e Áustria sem funções de
   gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
   política e validar os binários antes da distribuição.
   **9/nov:** flag de build `-PbuzinNoDownload=true` criada, esconde o botão
   de download via `BuildConfig.VIDEO_DOWNLOAD_ENABLED`. APK de release gerado
-  e assinado com sucesso. **Decisão de Henrique:** sem confirmação de
-  restrição legal real na Alemanha/Áustria (pesquisa não achou base jurídica,
-  e o console já distribui para todos os países), a versão padrão (com
-  download) é publicada para todos os mercados, incluindo DE/AT. O APK
-  sem-download fica pronto e guardado, não publicado, para o caso de a
-  restrição se confirmar depois. **Lembrete de Henrique:** o version code da
-  edição sem-download precisa ser diferente do da edição padrão e da compat
-  (a Amazon não aceita APKs duplicados na mesma submissão) — corrigido para
-  33 (padrão=32, compat=31, sem-download=33) em `app/build.gradle.kts`.
+  e assinado com sucesso. Decisão inicial foi publicar a versão padrão (com
+  download) para todos os mercados, incluindo DE/AT, por não ter achado base
+  jurídica para a restrição.
+  **10/nov (achado e corrigido):** a própria Amazon confirma a restrição por
+  escrito — [Fire TV FAQ](https://developer.amazon.com/docs/fire-tv/faq-general.html),
+  pergunta "Are there any other criteria for distributing apps for Amazon
+  Fire TV or Fire TV Stick in Germany and/or Austria?": não é permitido
+  distribuir apps que habilitem copiar, gravar, baixar ou armazenar
+  vídeo/áudio no aparelho, em cartão SD ou em armazenamento externo
+  conectado, na Alemanha e/ou Áustria. A flag `-PbuzinNoDownload=true`
+  só escondia o botão de download — a gravação local do AirPlay (tela
+  Ferramentas: gravar, lista de gravações, reproduzir, exportar, excluir)
+  continuava ativa. Corrigido com uma nova flag `BuildConfig.RECORDING_ENABLED`
+  (mesma condição `!noDownloadEdition`), travando tanto a UI em
+  `ToolsScreen.kt` quanto as funções do `MainViewModel.kt` por segurança
+  dupla. A retransmissão ao vivo para outro Buzin Cast e a visualização de
+  fotos via DLNA foram revisadas e mantidas — nenhuma das duas grava
+  conteúdo em armazenamento persistente, só encaminham/exibem em memória.
+  **Decisão de Henrique:** a submissão em andamento (sem essa correção)
+  exclui Alemanha e Áustria da distribuição por país direto no console; a
+  edição sem-download corrigida (de verdade, sem gravação) entra na próxima
+  atualização, depois que a submissão atual for aprovada. **Lembrete de
+  Henrique:** o version code da edição sem-download precisa ser diferente
+  do da edição padrão e da compat (a Amazon não aceita APKs duplicados na
+  mesma submissão) — corrigido para 33 (padrão=32, compat=31,
+  sem-download=33) em `app/build.gradle.kts`.
 - [~] Publicar somente para Fire TV Stick, contemplando todas as gerações
   já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
   3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
