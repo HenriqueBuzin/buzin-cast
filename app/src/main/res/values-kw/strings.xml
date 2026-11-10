@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Kernewek (Cornish). Best-effort translation for an extremely low-resource
+  revived language; many technical terms (buffer, codec, bitrate, jitter,
+  VSYNC, decoder internals) have no attested Cornish equivalent and are kept
+  as loanwords, consistent with how Cornish tech content is written in
+  practice. Native review recommended before treating this as authoritative.
+-->
+<resources>
+    <string name="app_name">BuzinCast</string>
+    <string name="buzin_tagline">Agas skrin. Spas brassa.</string>
+    <string name="buzin_hero">Skrin byghan.\nPossybylta vras.</string>
+    <string name="buzin_hero_detail">Dysqwedhewgh agas tybyansow, skeusennow ha\'gas prysyow gwella war agas pellwolok.</string>
+    <string name="buzin_receiver_label">DEWISEWGH AN HANOW MA WAR AGAS ALAT</string>
+    <string name="buzin_rename_hint">Chanjyewgh an hanow yn Settyansow → Hanow an degemerer</string>
+    <string name="buzin_connect_heading">Junyewgh yn try grad</string>
+    <string name="buzin_free">Heb kost • Heb kessedhyans fogh • Heb oll a dermyn</string>
+    <string name="buzin_ready">Parys dhe junya</string>
+    <string name="buzin_stopped">Dallethewgh an degemerer rag junya</string>
+    <string name="buzin_choose">Dewisewgh %1$s war agas alat Apple</string>
+    <string name="buzin_step_wifi">Junyewgh agas iPhone, iPad po Mac dhe\'n keth rosweyth tosel avel an pellwolok ma.</string>
+    <string name="buzin_step_mirror">Egerewgh an Kresenn Rewlans ha dewisewgh Dysqwedhyans Skrin.</string>
+    <string name="buzin_step_choose">Dewisewgh an hanow a dhegemerer dysqwedhys a\'n barth kledh.</string>
+    <string name="buzin_help">Dysqwedhyans AirPlay ha son.</string>
+    <string name="buzin_about">A-dro dhe Vuzincast</string>
+    <string name="buzin_version">Versyon %1$s</string>
+    <string name="setting_dlna">Degemerer DLNA (arbrovel)</string>
+    <string name="setting_dlna_desc">Degemerewgh video ha son dheworth agas rosweyth tosel. An PIN AirPlay ny wyth DLNA. Dalleth arta wosa junya dhe rosweyth aral.</string>
+    <string name="buzin_credits">BuzinCast\nGwrys ha gwithys gans Buzin Solutions ®.\n© 2026 Buzin Solutions Ltda. — kevrohow BuzinCast.\n\nGwiasva: https://buzin.solutions\n\nSevys war android-airplay-server gans jqssun ha kesoberoryon, UxPlay ha rannow tressa. Lysynsys yn-dann GNU GPL v3. Krysow ha lysynsys gwredhek gwithys.\n\nMammenn: github.com/HenriqueBuzin/buzin-cast</string>
+    <string name="tv_edit_save">Gwitha</string>
+    <string name="tv_edit_cancel">Nullya</string>
+    <string name="tv_edit_empty">Ny settyes</string>
+
+    <!-- Notification -->
+    <string name="notification_channel">Servys AirPlay</string>
+    <string name="notification_title">BuzinCast yw ow resek</string>
+    <string name="notification_text">Ow wul degemeres junyansow AirPlay</string>
+    <string name="notification_pin_title">PIN AirPlay Res</string>
+    <string name="notification_pin_text">PIN: %1$s</string>
+    <string name="stop_service">Hedhi</string>
+
+    <!-- Tabs -->
+    <string name="tab_overview">Mirys</string>
+    <string name="tab_logs">Kovskrifow</string>
+    <string name="tab_settings">Settyansow</string>
+    <string name="tab_tools">Towlennow</string>
+    <string name="setting_tv_margin">Desedhyans a\'n skeusen</string>
+    <string name="setting_tv_margin_desc" formatted="false">Dhe omwul desedha oll an skeusen ha gwitha hy furv. Kansrannow a geus ke rag pellwolokow a drogh an amalow. Gweythres a-dhistowgh.</string>
+
+    <!-- Overview -->
+    <string name="server_stopped">Servysor hedhys</string>
+    <string name="waiting_for_connection">Ow kortos junyans...</string>
+    <string name="waiting_for_playback">Gwaskewgh dalleth war an danvonydh...</string>
+    <string name="error_starting_server">Camm ow talleth an servysor</string>
+    <string name="connected_count">%d junyes</string>
+    <string name="error_label">Camm</string>
+    <string name="stopped_label">Hedhys</string>
+    <string name="btn_start">Dalleth</string>
+    <string name="btn_stop">Hedhi</string>
+    <string name="btn_allow">Gasa</string>
+    <string name="btn_open_settings">Egeri settyansow</string>
+    <string name="local_network_label">Mynnys acheson dhe alatow ogas</string>
+    <string name="local_network_desc">Gasewgh acheson dhe alatow ogas may hyllo alatow AirPlay kavos ha junya dhe\'n alat ma</string>
+    <string name="unknown_track">Anaswonys</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_pip">Skeusen-yn-Skeusen</string>
+    <string name="cd_fullscreen">Skrin leun</string>
+    <string name="cd_exit_fullscreen">Mos yn-mes a skrin leun</string>
+    <string name="cd_cover_art">Arlun a-dro</string>
+    <string name="cd_play_pause">Gwari/Hedhi berr</string>
+    <string name="cd_rewind">Dehweles</string>
+    <string name="cd_fast_forward">Yn-rag skon</string>
+    <string name="volume_server">Ughelder an degemerer</string>
+    <string name="volume_client">Ughelder an danvonydh</string>
+    <string name="volume_value">%1$d%%</string>
+    <string name="cd_download">Iskorra video</string>
+    <string name="cd_cancel_download">Nullya iskorrans</string>
+
+    <!-- Video download -->
+    <string name="download_saved">Gwithys yn %1$s</string>
+    <string name="download_failed">Iskorrans cam</string>
+
+    <!-- Player gestures -->
+    <string name="gesture_seek_seconds">%1$d eylen</string>
+    <string name="seconds_short">%1$ds</string>
+    <string name="select_playback_speed">Toeth gwari</string>
+    <string name="cd_reset_speed">Dastalleth toeth</string>
+    <string name="skip_silence">Tremena tawesys</string>
+
+    <!-- Player controls -->
+    <string name="cd_back">Dehweles</string>
+    <string name="cd_copy_url">Copya URL an video</string>
+    <string name="cd_rotate">Trelya an skrin</string>
+    <string name="cd_lock_controls">Prennya rewlansow</string>
+    <string name="cd_unlock_controls">Dyprennya rewlansow</string>
+    <string name="scale_best_fit">An gwella desedhyans</string>
+    <string name="scale_stretch">Astenna</string>
+    <string name="scale_crop">Treghi</string>
+    <string name="scale_hundred_percent">100%</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_pin_title">PIN AirPlay</string>
+    <string name="btn_ok">Da</string>
+
+    <!-- Logs screen -->
+    <string name="btn_export">Esporthya</string>
+    <string name="btn_clear">Glanhe</string>
+    <string name="export_logs_chooser_title">Esporthya kovskrifow</string>
+
+    <!-- Settings sections -->
+    <string name="section_server">Servysor</string>
+    <string name="section_connection">Junyans</string>
+    <string name="section_display">Dysqwedhyans</string>
+    <string name="section_decode">Dekodya</string>
+    <string name="section_developer">Dyswiader</string>
+
+    <!-- Settings: Server -->
+    <string name="setting_server_name">Hanow an servysor</string>
+    <string name="setting_server_port">Porth an servysor</string>
+    <string name="setting_auto_start">Dalleth an servysor a-dhistowgh</string>
+    <string name="setting_auto_start_desc">Dalleth an servysor AirPlay pan dhalleth an app</string>
+    <string name="setting_boot_auto_start">Dalleth an servysor pan dhalleth an alat</string>
+    <string name="setting_boot_auto_start_desc">Dalleth an servysor AirPlay pan dhalleth an alat</string>
+    <string name="setting_run_in_background">Resek a-dryv</string>
+    <string name="setting_run_in_background_desc">Gwitha an servysor ow resek wosa gasa an app</string>
+
+    <!-- Settings: Connection -->
+    <string name="section_airplay_security">Dyogelder AirPlay</string>
+    <string name="setting_require_pin">Govynna kod (arbrovel)</string>
+    <string name="setting_require_pin_desc">Dysqwedha kod a beswar nivel war an pellwolok rag junya alatow AirPlay kehaval. Ny wra gweres rag mahes aral a lifo.</string>
+    <string name="setting_allow_new_conn">Gasa junyansow nowydh</string>
+    <string name="setting_allow_new_conn_desc">Gasa an danvonydh lemmyn pan junya onan nowydh</string>
+
+    <!-- Settings: Display -->
+    <string name="setting_idle_preview">Dangnas an skrin dyweyth</string>
+    <string name="setting_idle_preview_desc">Dysqwedha an skrin video hwi ow kortos junyans</string>
+    <string name="setting_auto_fullscreen">Mos dhe skrin leun a-dhistowgh</string>
+    <string name="setting_auto_fullscreen_desc">Mos dhe skrin leun pan junya danvonydh</string>
+    <string name="setting_keep_screen_on">Gwitha an skrin ynwedhys</string>
+    <string name="setting_keep_screen_on_desc">Difenna koska hedre vo danvonydh junyes</string>
+    <string name="setting_advertise_video">Dyskwedhes gweres video AirPlay</string>
+    <string name="setting_advertise_video_desc">Pan yw diwedhys, videojow yw danvenys avel liflow son unsel</string>
+    <string name="setting_advertise_mirroring">Dyskwedhes gweres dysqwedhyans AirPlay</string>
+    <string name="setting_advertise_mirroring_desc">Pan yw diwedhys, an alat yw kudhys a\'n dysqwedhyans skrin</string>
+    <string name="setting_advertise_audio">Dyskwedhes gweres son AirPlay</string>
+    <string name="setting_advertise_audio_desc">Pan yw diwedhys, an alat a yll bos devnydhys unsel rag dysqwedhyans skrin ha fydh kudhys a woloryon media</string>
+    <string name="setting_alac">Dyskwedhes codec ALAC</string>
+    <string name="setting_alac_desc">Profya ALAC y\'n kovrenn mDNS; devnydhys rag liflow ilow</string>
+    <string name="setting_aac">Dyskwedhes codec AAC</string>
+    <string name="setting_aac_desc">Profya AAC-ELD/AAC-LC y\'n kovrenn mDNS; devnydhys rag son dysqwedhyans skrin</string>
+    <string name="setting_launch_on_connect">Egeri an app ma pan junya</string>
+    <string name="setting_launch_on_connect_desc">Dysqwedha an skrin pan junya danvonydh</string>
+    <string name="setting_launch_on_connect_no_permission">Gwaskewgh rag ri kummyas Dysqwedhyans a-ugh app erel</string>
+    <string name="setting_discovery">Kevys dres</string>
+    <string name="setting_discovery_all_desc">Dyskwedhes war oll an junyansow devnydhadow. Devnydh NsdManager.</string>
+    <string name="setting_discovery_usb_desc">Dyskwedhes unsel dres USB rag ervira junyans dre wyr. Devnydh respondyer mDNS honan.</string>
+    <string name="chip_all_networks">Oll an rosweythyow</string>
+    <string name="chip_usb_only">USB unsel</string>
+    <string name="setting_resolution">Resolution</string>
+    <string name="setting_resolution_desc">Resolution video dyskwedhys dhe\'n danvonydhyon</string>
+    <string name="setting_resolution_placeholder">[W]x[H]</string>
+    <string name="setting_resolution_width">Les</string>
+    <string name="setting_resolution_height">Ughelder</string>
+    <string name="setting_max_fps">FPS brassa</string>
+    <string name="setting_max_fps_desc">Toeth framm brassa dyskwedhys dhe\'n danvonydhyon</string>
+    <string name="setting_max_fps_placeholder">FPS</string>
+    <string name="setting_overscanned">Overscanned</string>
+    <string name="setting_overscanned_desc">Keworra ke rag dysqwedhyansow overscan skrin-leun</string>
+    <string name="chip_custom">Honan</string>
+    <string name="chip_device_portrait">Sewen</string>
+    <string name="chip_device_landscape">Treslergh</string>
+
+    <!-- Settings: Decode -->
+    <string name="setting_h265">H.265 (HEVC)</string>
+    <string name="setting_h265_desc">Auto a dhevnydh unsel decoders H.265 aswonys dhe wul yn ta</string>
+    <string name="setting_enforce_sdr">MediaFormat.KEY_COLOR_TRANSFER</string>
+    <string name="setting_enforce_sdr_desc">Merkya video avel SDR avysys; diwedhi rag gasa mammennow HDR dremena</string>
+    <string name="setting_sw_alac">Ervira decoder ALAC software</string>
+    <string name="setting_sw_alac_desc">Devnydh prest decoder ALAC software yn le a decoder an system, a yll chanjya let</string>
+    <string name="setting_sw_aac">Ervira decoder AAC software</string>
+    <string name="setting_sw_aac_desc">Devnydh prest decoder AAC software yn le a decoder an system, a yll chanjya let</string>
+    <string name="setting_sync_client_volume">Unhevelebi ughelder an danvonydh</string>
+    <string name="setting_sync_client_volume_desc">Devnydh ughelder an danvonydh rag ughelder an degemerer a-dhistowgh</string>
+
+    <!-- Settings: Developer -->
+    <string name="setting_developer_options">Dewisyansow dyswiader</string>
+    <string name="setting_developer_options_desc">Dyskwedhes dewisyansow rag devnydhoryon avonsys</string>
+    <string name="setting_key_allow_frame_drop">MediaFormat.KEY_ALLOW_FRAME_DROP</string>
+    <string name="setting_key_allow_frame_drop_desc">Gasa decoders video gasa framys a-ji rag sewya war Android 10+</string>
+    <string name="setting_realtime_decoder_priority">MediaFormat.KEY_PRIORITY</string>
+    <string name="setting_realtime_decoder_priority_desc">Govynna settyans termyn-gwir rag decoder son</string>
+    <string name="setting_operating_rate">MediaFormat.KEY_OPERATING_RATE</string>
+    <string name="setting_operating_rate_desc">Govynna an toeth gweythres brassa dheworth an decoder</string>
+    <string name="chip_auto">Auto</string>
+    <string name="chip_on">Ynwedhys</string>
+    <string name="chip_off">Diwedhys</string>
+    <string name="setting_low_latency">Let isel</string>
+    <string name="setting_low_latency_desc">Devnydh dekodya son let-isel rag an iskorrans; hemma a dhevnydh moy nerth ha CPU</string>
+    <string name="setting_scheduled_output_buffer_release">Takennans framm unhes</string>
+    <string name="setting_scheduled_output_buffer_release_desc">Settya pub framm dekodys dhe\'n VSYNC a hevel orth y dermyn dysqwedhyans</string>
+    <string name="setting_audio_delay">Chanjya let son honan</string>
+    <string name="setting_audio_delay_desc">Settya let son honan dyskwedhys dhe\'n danvonydh</string>
+    <string name="audio_delay_value">%dms</string>
+    <string name="setting_audio_auto_buffer">Myns buffer son software a-dhistowgh</string>
+    <string name="setting_audio_auto_buffer_desc">Chanjya a-dhistowgh myns an buffer son software herwydh kettep an rosweyth ha gweythres an alat; an slider a settya pygemmys jitter a yll an buffer dalgheno</string>
+    <string name="audio_adaptive_value">%1$d%% (%2$s)</string>
+    <string-array name="audio_adaptive_step_names">
+        <item>Let Isella</item>
+        <item>Let Isel</item>
+        <item>Kehevelans</item>
+        <item>Fastni Gwella</item>
+        <item>Fastni An Gwella</item>
+    </string-array>
+    <string name="setting_audio_cushion_ms">Buffer son software (ms)</string>
+    <string name="setting_audio_cushion_ms_desc">Buffer rag dalgheno jitter rosweyth ha decoder: termyn berra a styr let isella; termyn hirra a styr le camm</string>
+    <string name="setting_oboe_buffer_frames">Buffer iskorrans hardware (framys)</string>
+    <string name="setting_oboe_buffer_frames_desc">Buffer liflow ynter an app ma ha\'n alat son rag dalgheno jitter skedulyans CPU unsel. Gwitha orth 0 rag myns a-dhistowgh.</string>
+    <string name="setting_debug_overlay">Dyskwedhes gorwel dybugya</string>
+    <string name="setting_debug_overlay_desc">Gorwel statystygyon liflow war video: codec, FPS, bitrate, jitter, framys, kolledhow</string>
+    <string name="setting_benchmark_log">Ynwedhi kovskrifa dybugya</string>
+    <string name="setting_benchmark_log_desc">Kovskrifa statystygyon liflow dhe logcat: codec, FPS, bitrate, jitter, framys, kolledhow</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_section_video">Video</string>
+    <string name="debug_section_audio">Son</string>
+    <string name="debug_section_network">Rosweyth</string>
+    <string name="debug_video">%1$s %2$s</string>
+    <string name="debug_fps_bitrate">FPS: %1$d  Bitrate: %2$s</string>
+    <string name="debug_frames_drops">Framys: %1$d  Kolledhow: %2$d</string>
+    <string name="debug_jitter">Jitter: %1$s</string>
+    <string name="debug_audio">%1$s  Degemerer: %2$d%%  Danvonydh: %3$d%%</string>
+    <string name="debug_audio_buffer">Buffer: %1$d ms (amos: %2$d ms)</string>
+    <string name="debug_audio_glitch">Camm: trim=%1$d kolledh=%2$d taw=%3$d ur=%4$d xrun=%5$d</string>
+    <string name="debug_audio_decode">Dekodya: %1$s</string>
+    <string name="debug_clients">Danvonydhyon: %1$d</string>
+    <string name="setting_fcast">FCast · arbrovel</string>
+    <string name="setting_fcast_desc">Degemerewgh media dheworth danvonydhyon kehaval war agas rosweyth tosel. Heb PIN. Dalleth arta wosa chanjya rosweythyow.</string>
+    <string name="setting_castv2">Cast V2 · arbrovel</string>
+    <string name="setting_castv2_desc">Media URL dheworth danvonydhyon kehaval. Appow a vynn certyfyans alat Google nyns yw gweresys. Heb PIN.</string>
+    <string name="buzin_about_tagline">Dysqwedhyans skrin gwrys es</string>
+    <string name="buzin_maintained_by">Gwrys ha gwithys gans</string>
+    <string name="buzin_website">Gwiasva ofishyel</string>
+    <string name="buzin_source">Kod mammenn</string>
+    <string name="buzin_licenses">Fynsa kod ha lysynsys</string>
+    <string name="buzin_licenses_detail">GNU GPL v3 · Krysow rannow tressa</string>
+    <string name="buzin_close">Degea</string>
+    <string name="buzin_back_about">Dehweles dhe A-dro</string>
+    <string name="buzin_no_browser">Nyns eus peurvyajer dhe egeri an kevren.</string>
+</resources>

@@ -46,6 +46,11 @@ android {
         versionName = if (legacyEdition) "0.6.3-compat" else if (noDownloadEdition) "0.6.3-nodownload" else "0.6.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "VIDEO_DOWNLOAD_ENABLED", (!noDownloadEdition).toString())
+        // Germany/Austria do not allow apps that enable recording, copying,
+        // downloading or storing audio/video content onto the device, an SD
+        // card or external storage (Amazon Fire TV FAQ). This edition exists
+        // for that restriction, so it also disables local AirPlay recording.
+        buildConfigField("boolean", "RECORDING_ENABLED", (!noDownloadEdition).toString())
 
         externalNativeBuild {
             cmake {

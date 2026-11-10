@@ -53,13 +53,15 @@ fun ToolsScreen(viewModel: MainViewModel) {
             OutlinedButton(onClick = { context.startActivity(Intent(context,io.github.jqssun.airplay.media.CalibrationActivity::class.java)) }, modifier = Modifier.dpadFocus()) { Text("Calibrar imagem") }
             OutlinedButton(onClick = { diagnostic = io.github.jqssun.airplay.media.NetworkDiagnostics.report(context,receiverState == io.github.jqssun.airplay.service.AirPlayService.ServerState.RUNNING) }, modifier = Modifier.dpadFocus()) { Text("Diagnóstico de conexão") }
         }
-        HorizontalDivider()
-        Text("Gravar AirPlay", style = MaterialTheme.typography.titleLarge)
-        Text("Salve o espelhamento com áudio. Prepare a gravação antes de conectar.")
-        Button(onClick = viewModel::toggleRecording, enabled = !relay.receiving && !video, modifier = Modifier.dpadFocus()) {
-            Text(if (capture.armed) "■ Parar gravação" else "Preparar gravação")
+        if (io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) {
+            HorizontalDivider()
+            Text("Gravar AirPlay", style = MaterialTheme.typography.titleLarge)
+            Text("Salve o espelhamento com áudio. Prepare a gravação antes de conectar.")
+            Button(onClick = viewModel::toggleRecording, enabled = !relay.receiving && !video, modifier = Modifier.dpadFocus()) {
+                Text(if (capture.armed) "■ Parar gravação" else "Preparar gravação")
+            }
+            if (capture.message.isNotBlank()) Text(capture.message, color = MaterialTheme.colorScheme.primary)
         }
-        if (capture.message.isNotBlank()) Text(capture.message, color = MaterialTheme.colorScheme.primary)
         HorizontalDivider()
         Text("Outra TV", style = MaterialTheme.typography.titleLarge)
         Text("Retransmita o AirPlay para outro Buzin Cast na mesma rede. No destino, escolha Receber e use os dados exibidos.")
@@ -84,16 +86,18 @@ fun ToolsScreen(viewModel: MainViewModel) {
                 .onFailure { message = "Miracast não disponível neste modelo. Consulte Configurações → Tela e sons → Espelhamento." }
         }, modifier = Modifier.dpadFocus()) { Text("Abrir espelhamento nativo") }
         if (message.isNotEmpty()) Text(message)
-        HorizontalDivider()
-        Text("Gravações locais", style = MaterialTheme.typography.titleLarge)
-        OutlinedButton(onClick = viewModel::refreshRecordings, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Atualizar lista") }
-        if (recordings.isEmpty()) Text("Suas gravações aparecerão aqui.")
-        recordings.forEach { recording ->
-            Text("${recording.name} • ${recording.bytes / 1024 / 1024} MB")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { viewModel.playRecording(recording.name) }, enabled = !capture.armed && busy == 0 && !relay.receiving, modifier = Modifier.dpadFocus()) { Text("Reproduzir") }
-                OutlinedButton(onClick = { viewModel.shareRecording(recording.name) }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Exportar") }
-                TextButton(onClick = { delete = recording.name }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Excluir") }
+        if (io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) {
+            HorizontalDivider()
+            Text("Gravações locais", style = MaterialTheme.typography.titleLarge)
+            OutlinedButton(onClick = viewModel::refreshRecordings, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Atualizar lista") }
+            if (recordings.isEmpty()) Text("Suas gravações aparecerão aqui.")
+            recordings.forEach { recording ->
+                Text("${recording.name} • ${recording.bytes / 1024 / 1024} MB")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { viewModel.playRecording(recording.name) }, enabled = !capture.armed && busy == 0 && !relay.receiving, modifier = Modifier.dpadFocus()) { Text("Reproduzir") }
+                    OutlinedButton(onClick = { viewModel.shareRecording(recording.name) }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Exportar") }
+                    TextButton(onClick = { delete = recording.name }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Excluir") }
+                }
             }
         }
     }
