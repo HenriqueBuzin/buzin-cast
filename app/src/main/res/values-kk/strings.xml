@@ -12,7 +12,7 @@
     <string name="buzin_stopped">Қосылу үшін қабылдағышты іске қосыңыз</string>
     <string name="buzin_choose">Apple құрылғыңызда %1$s таңдаңыз</string>
     <string name="buzin_step_wifi">iPhone, iPad немесе Mac құрылғыңызды осы теледидармен бірдей жергілікті желіге қосыңыз.</string>
-    <string name="buzin_step_mirror">Басқару орталығын ашып, Экранды айналандыру опциясын таңдаңыз.</string>
+    <string name="buzin_step_mirror">Басқару орталығын ашып, «Экранды қайталау» пәрменін таңдаңыз.</string>
     <string name="buzin_step_choose">Сол жақта көрсетілген қабылдағыш атауын таңдаңыз.</string>
     <string name="buzin_help">AirPlay экранды айналандыру және дыбыс.</string>
     <string name="buzin_about">BuzinCast туралы</string>
@@ -231,7 +231,7 @@
     <string name="setting_fcast_desc">Жергілікті желіңіздегі сәйкес келетін жіберушілерден медиа қабылдайды. PIN қажет емес. Желіні өзгерткеннен кейін қайта іске қосыңыз.</string>
     <string name="setting_castv2">Cast V2 · эксперименттік</string>
     <string name="setting_castv2_desc">Сәйкес келетін жіберушілерден URL медиасы. Google құрылғы сертификатын талап ететін қолданбалар қолдау көрсетілмейді. PIN қажет емес.</string>
-    <string name="buzin_about_tagline">Экранды айналандыру оңай</string>
+    <string name="buzin_about_tagline">Экранды оңай қайталаңыз</string>
     <string name="buzin_maintained_by">Әзірлеген және қолдау көрсетеді</string>
     <string name="buzin_website">Ресми веб-сайт</string>
     <string name="buzin_source">Бастапқы код</string>

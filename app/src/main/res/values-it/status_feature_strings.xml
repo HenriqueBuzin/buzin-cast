@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Spazio insufficiente. Libera almeno 128 MB.</string>
+    <string name="capture_waiting_keyframe">In attesa di un fotogramma chiave. Se necessario, ricollega la duplicazione dello schermo.</string>
+    <string name="capture_recording_file">Registrazione di %1$s</string>
+    <string name="capture_space_exhausted">Registrazione interrotta: lo spazio è quasi esaurito.</string>
+    <string name="capture_failed">Impossibile registrare.</string>
+    <string name="capture_saved_file">Salvato: %1$s</string>
+    <string name="capture_no_keyframe">Nessun fotogramma chiave ricevuto. Non è stato salvato alcun file.</string>
+    <string name="capture_slow_storage">Registrazione interrotta: la velocità di scrittura non era sufficiente per il flusso.</string>
+    <string name="capture_finishing">Completamento della registrazione…</string>
+    <string name="relay_waiting_peer">In attesa di un altro BuzinCast. Il codice scade tra 5 minuti.</string>
+    <string name="relay_listener_failed">Impossibile avviare il ricevitore: %1$s</string>
+    <string name="relay_other_stream">È attivo un altro flusso</string>
+    <string name="relay_receiving_peer">Ricezione da %1$s</string>
+    <string name="relay_mirroring_took_over">Una sessione di duplicazione dello schermo ha preso il controllo della riproduzione</string>
+    <string name="relay_ended">Ritrasmissione terminata.</string>
+    <string name="relay_new_code">Ricezione terminata. Genera un nuovo codice.</string>
+    <string name="relay_receive_failed">Ricezione terminata: %1$s</string>
+    <string name="relay_connecting">Connessione in corso…</string>
+    <string name="relay_use_local_ip">Usa l’indirizzo IP locale dell’altro televisore</string>
+    <string name="relay_bad_code">Codice errato</string>
+    <string name="relay_connected">Connesso. Avvia o ricollega la duplicazione dello schermo.</string>
+    <string name="relay_send_failed">Ritrasmissione terminata: %1$s</string>
+    <string name="relay_slow_network">Rete lenta: ritrasmissione interrotta. Ricollega i ricevitori.</string>
+    <string name="diag_no_ipv4">Nessun indirizzo IPv4 locale. Collega il televisore via Wi-Fi o Ethernet.</string>
+    <string name="diag_tv_ip">Indirizzo IP del televisore: %1$s</string>
+    <string name="diag_receiver_running">Ricevitore in esecuzione.</string>
+    <string name="diag_receiver_stopped">Ricevitore arrestato. Avvialo dalla schermata di connessione.</string>
+    <string name="diag_vpn_active">È attiva una VPN. Potrebbe bloccare il rilevamento locale.</string>
+    <string name="diag_usb_only">Il rilevamento è limitato a USB. Per usare il Wi-Fi, seleziona Tutte le reti nelle impostazioni.</string>
+    <string name="diag_airplay">AirPlay: %1$s • porta %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Il ricevitore non appare sul telefono o sul Mac?\n• Collega entrambi i dispositivi alla stessa rete locale. Wi-Fi ed Ethernet possono funzionare insieme.\n• Evita le reti per ospiti e l’isolamento dei client sul router.\n• Controlla che la VPN o il firewall del mittente consenta l’accesso alla rete locale.\n• Il rilevamento usa multicast/mDNS. Mantieni attivo il ripristino automatico quando cambi rete.\nL’app può verificare la rete del mittente solo dopo la connessione. Reti diverse sono una possibile causa.\n\nImmagine tagliata? Calibra i quattro angoli. Il televisore può ritagliare il segnale HDMI anche quando l’app invia l’immagine intera.\nSottotitoli SRT/VTT: usa CC durante la riproduzione di un video tramite URL. La duplicazione dello schermo usa i sottotitoli del mittente.</string>
+    <string name="export_logs_failed">Impossibile esportare i log. Riprova.</string>
+</resources>

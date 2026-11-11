@@ -6,6 +6,7 @@ import android.view.*
 import androidx.activity.ComponentActivity
 import io.buzincast.media.DisplayFit
 import io.github.jqssun.airplay.Prefs
+import io.github.jqssun.airplay.R
 import io.github.jqssun.airplay.get
 
 /** Calibration is explicit: preview never changes playback preferences until OK. */
@@ -39,12 +40,19 @@ class CalibrationActivity : ComponentActivity() {
                 canvas.drawRect(left,top,right,bottom,paint)
                 paint.alpha = 255; paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.CENTER
                 paint.textSize = 25 * unit
-                canvas.drawText("Encaixe da imagem", width / 2f, height / 2f - 55 * unit, paint)
+                canvas.drawText(context.getString(R.string.setting_tv_margin), width / 2f, height / 2f - 55 * unit, paint)
                 paint.textSize = 36 * unit
                 canvas.drawText("$margin%", width / 2f, height / 2f, paint)
-                paint.color = Color.WHITE; paint.textSize = 15 * unit
-                canvas.drawText("← Aumentar imagem     Diminuir imagem →", width / 2f, height / 2f + 40 * unit, paint)
-                canvas.drawText("Deixe os quatro cantos visíveis. OK salva • Voltar cancela", width / 2f, height / 2f + 70 * unit, paint)
+                paint.color = Color.WHITE
+                fun drawHint(text: String, offset: Int) {
+                    paint.textSize = 15 * unit
+                    val availableWidth = (width - 32 * unit).coerceAtLeast(1f)
+                    val textWidth = paint.measureText(text)
+                    if (textWidth > availableWidth) paint.textSize *= availableWidth / textWidth
+                    canvas.drawText(text, width / 2f, height / 2f + offset * unit, paint)
+                }
+                drawHint(context.getString(R.string.calibration_adjust_hint), 40)
+                drawHint(context.getString(R.string.calibration_save_hint), 70)
             }
         }
         setContentView(preview)

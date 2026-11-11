@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Calibrer l’image</string>
+    <string name="tools_connection_diagnostics">Diagnostic de connexion</string>
+    <string name="tools_record_title">Enregistrer la recopie d’écran</string>
+    <string name="tools_record_help">Enregistrez l’écran recopié et le son. Préparez l’enregistrement avant de vous connecter.</string>
+    <string name="tools_record_stop">■ Arrêter l’enregistrement</string>
+    <string name="tools_record_prepare">Préparer l’enregistrement</string>
+    <string name="tools_other_tv">Autre téléviseur</string>
+    <string name="tools_relay_help">Relayez la recopie d’écran vers un autre téléviseur équipé de BuzinCast sur le même réseau. Sur cet appareil, choisissez Recevoir sur ce téléviseur et utilisez les données affichées.</string>
+    <string name="tools_this_tv_ip">IP de ce téléviseur : %1$s</string>
+    <string name="tools_relay_receive">Recevoir sur ce téléviseur</string>
+    <string name="tools_relay_connect">Se connecter à un autre téléviseur</string>
+    <string name="tools_relay_stop">Arrêter le relais</string>
+    <string name="tools_relay_details">Port : %1$d  •  Code : %2$s</string>
+    <string name="tools_dlna_photos">Photos via DLNA</string>
+    <string name="tools_dlna_help">Activez DLNA dans les paramètres pour recevoir des photos et créer un diaporama.</string>
+    <string name="tools_native_help">Recopie d’écran intégrée à Fire TV. Disponible sur les modèles compatibles.</string>
+    <string name="tools_native_unavailable">Miracast est indisponible sur ce modèle. Consultez Paramètres → Affichage et sons → Recopie d’écran.</string>
+    <string name="tools_native_open">Ouvrir la recopie intégrée</string>
+    <string name="tools_recordings">Enregistrements locaux</string>
+    <string name="tools_refresh">Actualiser la liste</string>
+    <string name="tools_recordings_empty">Vos enregistrements apparaîtront ici.</string>
+    <string name="tools_play">Lire</string>
+    <string name="tools_delete">Supprimer</string>
+    <string name="tools_delete_confirm">Supprimer l’enregistrement ?</string>
+    <string name="tools_relay_input_help">Saisissez les données affichées après avoir choisi Recevoir sur ce téléviseur sur l’autre appareil.</string>
+    <string name="tools_relay_keyboard_help">↑↓ pour naviguer · OK pour saisir</string>
+    <string name="tools_other_tv_ip">IP de l’autre téléviseur</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Code de connexion</string>
+    <string name="tools_connect">Connecter</string>
+</resources>

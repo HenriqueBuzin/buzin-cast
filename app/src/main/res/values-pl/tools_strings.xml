@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Kalibruj obraz</string>
+    <string name="tools_connection_diagnostics">Diagnostyka połączenia</string>
+    <string name="tools_record_title">Nagraj dublowany ekran</string>
+    <string name="tools_record_help">Zapisz dublowany ekran wraz z dźwiękiem. Przygotuj nagrywanie przed połączeniem.</string>
+    <string name="tools_record_stop">■ Zatrzymaj nagrywanie</string>
+    <string name="tools_record_prepare">Przygotuj nagrywanie</string>
+    <string name="tools_other_tv">Inny telewizor</string>
+    <string name="tools_relay_help">Przekaż dublowany ekran do innego telewizora z BuzinCast w tej samej sieci. Na tamtym telewizorze wybierz Odbieraj na tym telewizorze i użyj wyświetlonych danych.</string>
+    <string name="tools_this_tv_ip">Adres IP tego telewizora: %1$s</string>
+    <string name="tools_relay_receive">Odbieraj na tym telewizorze</string>
+    <string name="tools_relay_connect">Połącz z innym telewizorem</string>
+    <string name="tools_relay_stop">Zatrzymaj przekazywanie</string>
+    <string name="tools_relay_details">Port: %1$d  •  Kod: %2$s</string>
+    <string name="tools_dlna_photos">Zdjęcia przez DLNA</string>
+    <string name="tools_dlna_help">Włącz DLNA w ustawieniach, aby odbierać zdjęcia i tworzyć pokaz slajdów.</string>
+    <string name="tools_native_help">Wbudowane dublowanie ekranu Fire TV. Dostępne w zgodnych modelach.</string>
+    <string name="tools_native_unavailable">Miracast jest niedostępny w tym modelu. Sprawdź Ustawienia → Obraz i dźwięk → Dublowanie ekranu.</string>
+    <string name="tools_native_open">Otwórz wbudowane dublowanie</string>
+    <string name="tools_recordings">Nagrania lokalne</string>
+    <string name="tools_refresh">Odśwież listę</string>
+    <string name="tools_recordings_empty">Tutaj pojawią się twoje nagrania.</string>
+    <string name="tools_play">Odtwórz</string>
+    <string name="tools_delete">Usuń</string>
+    <string name="tools_delete_confirm">Usunąć nagranie?</string>
+    <string name="tools_relay_input_help">Wpisz dane wyświetlone po wybraniu opcji Odbieraj na tym telewizorze na drugim telewizorze.</string>
+    <string name="tools_relay_keyboard_help">↑↓ przechodzenie · OK wpisywanie</string>
+    <string name="tools_other_tv_ip">Adres IP drugiego telewizora</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Kod połączenia</string>
+    <string name="tools_connect">Połącz</string>
+</resources>

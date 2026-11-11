@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.jqssun.airplay.Prefs
 import io.github.jqssun.airplay.R
 import io.github.jqssun.airplay.appSettingsIntent
+import io.github.jqssun.airplay.media.ExperienceProfiles
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -96,12 +97,13 @@ fun SettingsScreen(viewModel: MainViewModel) {
     ) {
         SectionHeader(stringResource(R.string.section_server))
 
-        Text("Perfil de transmissão", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
-        Text("Mudar o perfil reinicia o receptor. A qualidade efetiva depende do emissor e da rede.", modifier = Modifier.padding(horizontal = 16.dp))
+        Text(stringResource(R.string.setting_streaming_profile), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp))
+        Text(stringResource(R.string.setting_streaming_profile_desc), modifier = Modifier.padding(horizontal = 16.dp))
         FlowRow(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            io.github.jqssun.airplay.media.ExperienceProfiles.names.forEach { profile ->
+            ExperienceProfiles.names.forEach { profile ->
                 FilterChip(selected = selectedProfile == profile, onClick = { viewModel.applyProfile(profile) },
-                    label = { Text(profile) }, modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp)))
+                    label = { Text(stringResource(ExperienceProfiles.labelRes(profile))) },
+                    modifier = Modifier.dpadFocus(RoundedCornerShape(8.dp)))
             }
         }
 
@@ -169,12 +171,20 @@ fun SettingsScreen(viewModel: MainViewModel) {
         SectionHeader(stringResource(R.string.section_airplay_security))
 
         val approvalEnabled by viewModel.pref(Prefs.APPROVE_CONNECTIONS).collectAsState()
-        SettingSwitch(title = "Aprovar conexões", description = "AirPlay, DLNA, FCast e Cast V2: aceitar ou recusar pelo controle. Identificação pelo protocolo e IP; autorização por 5 minutos.",
-            checked = approvalEnabled, onCheckedChange = { viewModel.set(Prefs.APPROVE_CONNECTIONS,it) })
+        SettingSwitch(
+            title = stringResource(R.string.setting_approve_connections),
+            description = stringResource(R.string.setting_approve_connections_desc),
+            checked = approvalEnabled,
+            onCheckedChange = { viewModel.set(Prefs.APPROVE_CONNECTIONS, it) },
+        )
 
         val recoveryEnabled by viewModel.pref(Prefs.NETWORK_RECOVERY).collectAsState()
-        SettingSwitch(title = "Recuperar após queda de rede", description = "Reanuncia o receptor após a rede voltar. Vídeos compatíveis tentam retomar; o emissor AirPlay pode exigir reconectar.",
-            checked = recoveryEnabled, onCheckedChange = { viewModel.set(Prefs.NETWORK_RECOVERY,it) })
+        SettingSwitch(
+            title = stringResource(R.string.setting_network_recovery),
+            description = stringResource(R.string.setting_network_recovery_desc),
+            checked = recoveryEnabled,
+            onCheckedChange = { viewModel.set(Prefs.NETWORK_RECOVERY, it) },
+        )
 
         SettingSwitch(
             title = stringResource(R.string.setting_require_pin),
@@ -228,7 +238,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
         SectionHeader(stringResource(R.string.section_display))
         val calibrationContext = LocalContext.current
         OutlinedButton(onClick = { calibrationContext.startActivity(Intent(calibrationContext,io.github.jqssun.airplay.media.CalibrationActivity::class.java)) },
-            modifier = Modifier.padding(horizontal = 16.dp).dpadFocus()) { Text("Calibrar os quatro cantos") }
+            modifier = Modifier.padding(horizontal = 16.dp).dpadFocus()) {
+            Text(stringResource(R.string.setting_calibrate_corners))
+        }
         SettingChips(
             title = stringResource(R.string.setting_tv_margin),
             description = stringResource(R.string.setting_tv_margin_desc),

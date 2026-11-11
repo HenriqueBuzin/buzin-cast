@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Calibrar imagem</string>
+    <string name="tools_connection_diagnostics">Diagnóstico de conexão</string>
+    <string name="tools_record_title">Gravar espelhamento</string>
+    <string name="tools_record_help">Salve o espelhamento com áudio. Prepare a gravação antes de conectar.</string>
+    <string name="tools_record_stop">■ Parar gravação</string>
+    <string name="tools_record_prepare">Preparar gravação</string>
+    <string name="tools_other_tv">Outra TV</string>
+    <string name="tools_relay_help">Retransmita o espelhamento para outra TV com BuzinCast na mesma rede. Na TV de destino, escolha Receber nesta TV e use os dados exibidos.</string>
+    <string name="tools_this_tv_ip">IP desta TV: %1$s</string>
+    <string name="tools_relay_receive">Receber nesta TV</string>
+    <string name="tools_relay_connect">Conectar a outra TV</string>
+    <string name="tools_relay_stop">Encerrar retransmissão</string>
+    <string name="tools_relay_details">Porta: %1$d  •  Código: %2$s</string>
+    <string name="tools_dlna_photos">Fotos via DLNA</string>
+    <string name="tools_dlna_help">Ative o DLNA em Configurações para receber fotos e criar uma apresentação.</string>
+    <string name="tools_native_help">Espelhamento nativo do Fire TV. Disponível em modelos compatíveis.</string>
+    <string name="tools_native_unavailable">Miracast não está disponível neste modelo. Consulte Configurações → Tela e sons → Espelhamento.</string>
+    <string name="tools_native_open">Abrir espelhamento nativo</string>
+    <string name="tools_recordings">Gravações locais</string>
+    <string name="tools_refresh">Atualizar lista</string>
+    <string name="tools_recordings_empty">Suas gravações aparecerão aqui.</string>
+    <string name="tools_play">Reproduzir</string>
+    <string name="tools_delete">Excluir</string>
+    <string name="tools_delete_confirm">Excluir gravação?</string>
+    <string name="tools_relay_input_help">Informe os dados exibidos após escolher Receber nesta TV na outra TV.</string>
+    <string name="tools_relay_keyboard_help">↑↓ para navegar · OK para escrever</string>
+    <string name="tools_other_tv_ip">IP da outra TV</string>
+    <string name="tools_port">Porta</string>
+    <string name="tools_pairing_code">Código de conexão</string>
+    <string name="tools_connect">Conectar</string>
+</resources>

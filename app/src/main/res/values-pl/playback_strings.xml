@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Zewnętrzne napisy</string>
+    <string name="subtitle_picker_help">Wybierz plik SRT lub VTT w kodowaniu UTF-8 o rozmiarze do 2 MB. Zewnętrzne napisy działają z filmami odbieranymi z adresu URL. Dublowanie ekranu korzysta z napisów urządzenia nadającego. Wymagany jest selektor plików.</string>
+    <string name="subtitle_picker_unavailable">Na tym urządzeniu nie ma selektora plików.</string>
+    <string name="subtitle_choose_file">Wybierz plik</string>
+    <string name="subtitle_disable">Bez napisów</string>
+    <string name="subtitle_load_failed">Nie udało się wczytać napisów.</string>
+    <string name="connection_approval_title">Zezwolić na transmisję?</string>
+    <string name="connection_approval_help">Zezwalaj tylko na połączenia z rozpoznanymi urządzeniami. Zgoda jest ważna przez 5 minut. Brak odpowiedzi przez 25 sekund spowoduje odrzucenie połączenia.</string>
+    <string name="connection_decline">Odrzuć</string>
+    <string name="record_waiting">Oczekiwanie na nagrywanie</string>
+    <string name="network_available">Sieć dostępna</string>
+    <string name="network_waiting">Brak sieci lokalnej. Oczekiwanie na połączenie…</string>
+    <string name="network_recovered">Sieć została przywrócona. Możesz ponownie połączyć się z odbiornikiem.</string>
+    <string name="network_playback_retry">Połączenie przerwane. Próba wznowienia filmu (%1$d/3)…</string>
+</resources>

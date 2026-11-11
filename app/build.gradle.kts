@@ -16,6 +16,17 @@ val localProps = Properties().apply {
 val legacyEdition = providers.gradleProperty("buzinLegacy").orNull == "true"
 val coverageEnabled = providers.gradleProperty("buzinCoverage").orNull == "true"
 val noDownloadEdition = providers.gradleProperty("buzinNoDownload").orNull == "true"
+val editionVersionCode = when {
+    legacyEdition && noDownloadEdition -> 35
+    legacyEdition -> 34
+    noDownloadEdition -> 37
+    else -> 36
+}
+val editionVersionName = buildString {
+    append("0.6.4")
+    if (legacyEdition) append("-compat")
+    if (noDownloadEdition) append("-nodownload")
+}
 val editionBuildDirectory = "build" + (if (legacyEdition) "-legacy" else "") + (if (noDownloadEdition) "-nodownload" else "") + (if (coverageEnabled) "-coverage" else "")
 layout.buildDirectory.set(file(editionBuildDirectory))
 
@@ -42,8 +53,8 @@ android {
         applicationId = "com.buzincast.tv"
         minSdk = if (legacyEdition) 22 else 25
         targetSdk = 37
-        versionCode = if (legacyEdition) 31 else if (noDownloadEdition) 33 else 32
-        versionName = if (legacyEdition) "0.6.3-compat" else if (noDownloadEdition) "0.6.3-nodownload" else "0.6.3"
+        versionCode = editionVersionCode
+        versionName = editionVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "VIDEO_DOWNLOAD_ENABLED", (!noDownloadEdition).toString())
         // Germany/Austria do not allow apps that enable recording, copying,

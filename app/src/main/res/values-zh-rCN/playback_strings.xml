@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">外部字幕</string>
+    <string name="subtitle_picker_help">请选择不超过 2 MB 的 UTF-8 编码 SRT 或 VTT 文件。外部字幕适用于通过网址接收的视频。屏幕镜像使用发送设备上的字幕。此功能需要文件选择器。</string>
+    <string name="subtitle_picker_unavailable">此设备没有可用的文件选择器。</string>
+    <string name="subtitle_choose_file">选择文件</string>
+    <string name="subtitle_disable">无字幕</string>
+    <string name="subtitle_load_failed">无法加载字幕。</string>
+    <string name="connection_approval_title">允许投屏吗？</string>
+    <string name="connection_approval_help">仅允许您认识的设备。授权有效期为 5 分钟。如果 25 秒内没有回应，连接将被拒绝。</string>
+    <string name="connection_decline">拒绝</string>
+    <string name="record_waiting">等待录制</string>
+    <string name="network_available">网络可用</string>
+    <string name="network_waiting">没有本地网络。正在等待连接…</string>
+    <string name="network_recovered">网络已恢复。您可以重新连接到接收器。</string>
+    <string name="network_playback_retry">连接中断。正在尝试继续播放视频（%1$d/3）…</string>
+</resources>

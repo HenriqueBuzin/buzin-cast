@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">جارٍ تحميل الصورة…</string>
+    <string name="photo_received">صورة مستلمة عبر DLNA</string>
+    <string name="media_previous">السابق</string>
+    <string name="media_next">التالي</string>
+    <string name="photo_slideshow">عرض الشرائح</string>
+    <string name="photo_rotate">تدوير</string>
+    <string name="photo_scale">ملاءمة / ملء</string>
+    <string name="photo_position">الصورة %1$d من %2$d • استخدم جهاز التحكم للتنقل أو التدوير أو الإغلاق.</string>
+    <string name="photo_error">تعذّر فتح الصورة.</string>
+    <string name="photo_error_size">حجم الصورة أكبر من 16 ميغابايت.</string>
+    <string name="photo_error_format">تنسيق الصورة غير صالح.</string>
+    <string name="photo_error_redirect">تعذّر فتح رابط الصورة.</string>
+</resources>

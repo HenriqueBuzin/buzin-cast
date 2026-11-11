@@ -8,10 +8,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import io.github.jqssun.airplay.R
 import io.leancast.domain.cast.OsdFormatter
 import kotlinx.coroutines.delay
 
@@ -33,19 +35,19 @@ private data class AudioControlState(val playing: Boolean, val position: Long, v
     IconButton(onClick = { if (state.playing) player.pause() else player.play() }, modifier = modifier,
         enabled = state.commands.contains(Player.COMMAND_PLAY_PAUSE)) {
         Icon(if (state.playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-            if (state.playing) "Pausar" else "Reproduzir", Modifier.size(iconSize))
+            stringResource(R.string.cd_play_pause), Modifier.size(iconSize))
     }
 }
 @Composable internal fun AudioPreviousButton(player: Player, modifier: Modifier = Modifier) {
     val state = audioState(player)
     IconButton(onClick = { player.seekToPrevious() }, modifier = modifier, enabled = state.commands.contains(Player.COMMAND_SEEK_TO_PREVIOUS)) {
-        Icon(Icons.Default.SkipPrevious, "Anterior")
+        Icon(Icons.Default.SkipPrevious, stringResource(R.string.media_previous))
     }
 }
 @Composable internal fun AudioNextButton(player: Player, modifier: Modifier = Modifier) {
     val state = audioState(player)
     IconButton(onClick = { player.seekToNext() }, modifier = modifier, enabled = state.commands.contains(Player.COMMAND_SEEK_TO_NEXT)) {
-        Icon(Icons.Default.SkipNext, "Próxima")
+        Icon(Icons.Default.SkipNext, stringResource(R.string.media_next))
     }
 }
 @Composable internal fun AudioPositionText(player: Player, modifier: Modifier = Modifier) {

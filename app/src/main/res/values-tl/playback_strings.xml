@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Mga panlabas na subtitle</string>
+    <string name="subtitle_picker_help">Pumili ng UTF-8 na SRT o VTT file na hanggang 2 MB. Gumagana ang mga panlabas na subtitle sa mga video na natatanggap mula sa URL. Ginagamit ng screen mirroring ang mga subtitle mula sa nagpapadalang device. Kailangan ng tagapili ng file.</string>
+    <string name="subtitle_picker_unavailable">Walang tagapili ng file sa device na ito.</string>
+    <string name="subtitle_choose_file">Pumili ng file</string>
+    <string name="subtitle_disable">Walang subtitle</string>
+    <string name="subtitle_load_failed">Hindi ma-load ang mga subtitle.</string>
+    <string name="connection_approval_title">Payagan ang pag-stream?</string>
+    <string name="connection_approval_help">Payagan lang ang device na kilala mo. May bisa ang pahintulot sa loob ng 5 minuto. Tatanggihan ang koneksyon kung walang sagot sa loob ng 25 segundo.</string>
+    <string name="connection_decline">Tanggihan</string>
+    <string name="record_waiting">Naghihintay na mag-record</string>
+    <string name="network_available">Available ang network</string>
+    <string name="network_waiting">Walang lokal na network. Naghihintay ng koneksyon…</string>
+    <string name="network_recovered">Bumalik na ang network. Maaari ka nang kumonekta ulit sa receiver.</string>
+    <string name="network_playback_retry">Naputol ang koneksyon. Sinusubukang ipagpatuloy ang video (%1$d/3)…</string>
+</resources>

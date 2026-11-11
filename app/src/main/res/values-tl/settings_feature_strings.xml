@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Profile ng streaming</string>
+    <string name="setting_streaming_profile_desc">Magre-restart ang receiver kapag pinalitan ang profile. Nakadepende ang aktuwal na kalidad sa nagpapadalang device at sa network.</string>
+    <string name="setting_profile_default">Default</string>
+    <string name="setting_profile_cinema">Sine</string>
+    <string name="setting_profile_presentation">Presentasyon</string>
+    <string name="setting_profile_games">Mga laro</string>
+    <string name="setting_approve_connections">Aprubahan ang mga koneksyon</string>
+    <string name="setting_approve_connections_desc">Gamitin ang remote para tanggapin o tanggihan ang mga koneksyon sa AirPlay, DLNA, FCast, at Cast V2. May bisa ang pag-apruba sa loob ng limang minuto para sa protocol at IP address na iyon.</string>
+    <string name="setting_network_recovery">Mag-recover kapag naputol ang network</string>
+    <string name="setting_network_recovery_desc">Makikita ulit ang receiver kapag bumalik ang network. Susubukan ng app na ipagpatuloy ang mga compatible na video. Maaaring kailanganing ikonekta ulit ang nagpapadalang AirPlay device.</string>
+    <string name="setting_calibrate_corners">I-calibrate ang apat na sulok</string>
+    <string name="calibration_adjust_hint">← Palakihin ang larawan • Paliitin ang larawan →</string>
+    <string name="calibration_save_hint">Tiyaking nakikita ang apat na sulok. OK para i-save • Bumalik para kanselahin</string>
+    <string name="setting_profile_unavailable">Hindi nailapat ang profile ng streaming.</string>
+</resources>

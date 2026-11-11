@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Foto wird geladen…</string>
+    <string name="photo_received">Über DLNA empfangenes Foto</string>
+    <string name="media_previous">Zurück</string>
+    <string name="media_next">Weiter</string>
+    <string name="photo_slideshow">Diashow</string>
+    <string name="photo_rotate">Drehen</string>
+    <string name="photo_scale">Einpassen / ausfüllen</string>
+    <string name="photo_position">Foto %1$d von %2$d • Verwende die Fernbedienung zum Blättern, Drehen oder Schließen.</string>
+    <string name="photo_error">Das Foto konnte nicht geöffnet werden.</string>
+    <string name="photo_error_size">Das Foto ist größer als 16 MB.</string>
+    <string name="photo_error_format">Das Fotoformat ist ungültig.</string>
+    <string name="photo_error_redirect">Der Fotolink konnte nicht geöffnet werden.</string>
+</resources>

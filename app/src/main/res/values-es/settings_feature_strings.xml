@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Perfil de transmisión</string>
+    <string name="setting_streaming_profile_desc">Al cambiar el perfil se reinicia el receptor. La calidad real depende del dispositivo emisor y de la red.</string>
+    <string name="setting_profile_default">Predeterminado</string>
+    <string name="setting_profile_cinema">Cine</string>
+    <string name="setting_profile_presentation">Presentación</string>
+    <string name="setting_profile_games">Juegos</string>
+    <string name="setting_approve_connections">Aprobar conexiones</string>
+    <string name="setting_approve_connections_desc">Usa el mando a distancia para aceptar o rechazar conexiones AirPlay, DLNA, FCast y Cast V2. La autorización dura cinco minutos para ese protocolo y esa dirección IP.</string>
+    <string name="setting_network_recovery">Recuperar tras una caída de red</string>
+    <string name="setting_network_recovery_desc">El receptor vuelve a estar visible cuando se restablece la red. La app intenta reanudar los vídeos compatibles. Puede que el emisor AirPlay tenga que volver a conectarse.</string>
+    <string name="setting_calibrate_corners">Calibrar las cuatro esquinas</string>
+    <string name="calibration_adjust_hint">← Ampliar imagen • Reducir imagen →</string>
+    <string name="calibration_save_hint">Mantén visibles las cuatro esquinas. OK guarda • Atrás cancela</string>
+    <string name="setting_profile_unavailable">No se pudo aplicar el perfil de transmisión.</string>
+</resources>

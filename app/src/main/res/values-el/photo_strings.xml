@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Φόρτωση φωτογραφίας…</string>
+    <string name="photo_received">Φωτογραφία που ελήφθη μέσω DLNA</string>
+    <string name="media_previous">Προηγούμενο</string>
+    <string name="media_next">Επόμενο</string>
+    <string name="photo_slideshow">Παρουσίαση</string>
+    <string name="photo_rotate">Περιστροφή</string>
+    <string name="photo_scale">Προσαρμογή / γέμισμα</string>
+    <string name="photo_position">Φωτογραφία %1$d από %2$d • Χρησιμοποιήστε το τηλεχειριστήριο για περιήγηση, περιστροφή ή κλείσιμο.</string>
+    <string name="photo_error">Δεν ήταν δυνατό το άνοιγμα της φωτογραφίας.</string>
+    <string name="photo_error_size">Η φωτογραφία υπερβαίνει τα 16 MB.</string>
+    <string name="photo_error_format">Η μορφή της φωτογραφίας δεν είναι έγκυρη.</string>
+    <string name="photo_error_redirect">Δεν ήταν δυνατό το άνοιγμα του συνδέσμου της φωτογραφίας.</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Phụ đề ngoài</string>
+    <string name="subtitle_picker_help">Chọn tệp SRT hoặc VTT mã hóa UTF-8, tối đa 2 MB. Phụ đề ngoài dùng cho video nhận qua URL. Khi phản chiếu màn hình, ứng dụng dùng phụ đề trên thiết bị gửi. Cần có công cụ chọn tệp.</string>
+    <string name="subtitle_picker_unavailable">Thiết bị này không có công cụ chọn tệp.</string>
+    <string name="subtitle_choose_file">Chọn tệp</string>
+    <string name="subtitle_disable">Không có phụ đề</string>
+    <string name="subtitle_load_failed">Không thể tải phụ đề.</string>
+    <string name="connection_approval_title">Cho phép truyền phát?</string>
+    <string name="connection_approval_help">Chỉ cho phép thiết bị bạn nhận ra. Quyền này có hiệu lực trong 5 phút. Kết nối sẽ bị từ chối nếu bạn không trả lời trong vòng 25 giây.</string>
+    <string name="connection_decline">Từ chối</string>
+    <string name="record_waiting">Đang chờ ghi</string>
+    <string name="network_available">Có kết nối mạng</string>
+    <string name="network_waiting">Không có mạng cục bộ. Đang chờ kết nối…</string>
+    <string name="network_recovered">Mạng đã được khôi phục. Bạn có thể kết nối lại với thiết bị nhận.</string>
+    <string name="network_playback_retry">Mất kết nối. Đang thử phát tiếp video (%1$d/3)…</string>
+</resources>

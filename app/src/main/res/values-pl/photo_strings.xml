@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Wczytywanie zdjęcia…</string>
+    <string name="photo_received">Zdjęcie odebrane przez DLNA</string>
+    <string name="media_previous">Poprzedni</string>
+    <string name="media_next">Następny</string>
+    <string name="photo_slideshow">Pokaz slajdów</string>
+    <string name="photo_rotate">Obróć</string>
+    <string name="photo_scale">Dopasuj / wypełnij</string>
+    <string name="photo_position">Zdjęcie %1$d z %2$d • Użyj pilota, aby przeglądać i obracać zdjęcia lub zamknąć podgląd.</string>
+    <string name="photo_error">Nie można otworzyć zdjęcia.</string>
+    <string name="photo_error_size">Zdjęcie przekracza 16 MB.</string>
+    <string name="photo_error_format">Format zdjęcia jest nieprawidłowy.</string>
+    <string name="photo_error_redirect">Nie można otworzyć linku do zdjęcia.</string>
+</resources>

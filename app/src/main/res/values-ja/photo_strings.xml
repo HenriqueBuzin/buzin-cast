@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">写真を読み込み中…</string>
+    <string name="photo_received">DLNA経由で受信した写真</string>
+    <string name="media_previous">前へ</string>
+    <string name="media_next">次へ</string>
+    <string name="photo_slideshow">スライドショー</string>
+    <string name="photo_rotate">回転</string>
+    <string name="photo_scale">全体表示 / 画面いっぱい</string>
+    <string name="photo_position">写真 %1$d / %2$d • リモコンで写真の切り替え、回転、終了ができます。</string>
+    <string name="photo_error">写真を開けませんでした。</string>
+    <string name="photo_error_size">写真のサイズが16 MBを超えています。</string>
+    <string name="photo_error_format">写真の形式が無効です。</string>
+    <string name="photo_error_redirect">写真のリンクを開けませんでした。</string>
+</resources>

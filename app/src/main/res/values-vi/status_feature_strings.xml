@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Không đủ dung lượng. Hãy giải phóng ít nhất 128 MB.</string>
+    <string name="capture_waiting_keyframe">Đang chờ khung hình khóa. Hãy kết nối lại tính năng phản chiếu màn hình nếu cần.</string>
+    <string name="capture_recording_file">Đang ghi %1$s</string>
+    <string name="capture_space_exhausted">Đã dừng ghi: bộ nhớ sắp đầy.</string>
+    <string name="capture_failed">Không thể ghi.</string>
+    <string name="capture_saved_file">Đã lưu: %1$s</string>
+    <string name="capture_no_keyframe">Không nhận được khung hình khóa. Không có tệp nào được lưu.</string>
+    <string name="capture_slow_storage">Đã dừng ghi: bộ nhớ không theo kịp tốc độ truyền.</string>
+    <string name="capture_finishing">Đang hoàn tất bản ghi…</string>
+    <string name="relay_waiting_peer">Đang chờ thiết bị BuzinCast khác. Mã hết hạn sau 5 phút.</string>
+    <string name="relay_listener_failed">Không thể khởi động thiết bị nhận: %1$s</string>
+    <string name="relay_other_stream">Có một luồng khác đang hoạt động</string>
+    <string name="relay_receiving_peer">Đang nhận từ %1$s</string>
+    <string name="relay_mirroring_took_over">Phiên phản chiếu màn hình đã tiếp quản việc phát</string>
+    <string name="relay_ended">Đã kết thúc chuyển tiếp.</string>
+    <string name="relay_new_code">Đã kết thúc nhận. Hãy tạo mã mới.</string>
+    <string name="relay_receive_failed">Đã kết thúc nhận: %1$s</string>
+    <string name="relay_connecting">Đang kết nối…</string>
+    <string name="relay_use_local_ip">Hãy dùng địa chỉ IP cục bộ của TV kia</string>
+    <string name="relay_bad_code">Mã không đúng</string>
+    <string name="relay_connected">Đã kết nối. Hãy bắt đầu hoặc kết nối lại tính năng phản chiếu màn hình.</string>
+    <string name="relay_send_failed">Đã kết thúc chuyển tiếp: %1$s</string>
+    <string name="relay_slow_network">Mạng chậm: đã kết thúc chuyển tiếp. Hãy kết nối lại các thiết bị nhận.</string>
+    <string name="diag_no_ipv4">Không có địa chỉ IPv4 cục bộ. Hãy kết nối TV qua Wi-Fi hoặc Ethernet.</string>
+    <string name="diag_tv_ip">Địa chỉ IP của TV: %1$s</string>
+    <string name="diag_receiver_running">Thiết bị nhận đang chạy.</string>
+    <string name="diag_receiver_stopped">Thiết bị nhận đã dừng. Hãy khởi động ở màn hình kết nối.</string>
+    <string name="diag_vpn_active">VPN đang hoạt động và có thể chặn việc tìm thiết bị trong mạng cục bộ.</string>
+    <string name="diag_usb_only">Chỉ có thể tìm thiết bị qua USB. Để dùng Wi-Fi, hãy chọn Tất cả mạng trong Cài đặt.</string>
+    <string name="diag_airplay">AirPlay: %1$s • cổng %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Không thấy thiết bị nhận trên điện thoại hoặc máy Mac?\n• Kết nối cả hai thiết bị với cùng một mạng cục bộ. Có thể dùng Wi-Fi và Ethernet cùng lúc.\n• Tránh mạng dành cho khách và chế độ cách ly thiết bị trên bộ định tuyến.\n• Kiểm tra xem VPN hoặc tường lửa của thiết bị gửi có cho phép truy cập mạng cục bộ không.\n• Việc tìm thiết bị dùng multicast/mDNS. Hãy bật tự động khôi phục khi đổi mạng.\nỨng dụng chỉ có thể kiểm tra mạng của thiết bị gửi sau khi kết nối. Hai thiết bị dùng hai mạng khác nhau có thể là một nguyên nhân.\n\nHình ảnh bị cắt? Hãy cân chỉnh bốn góc. TV có thể cắt hình HDMI dù ứng dụng gửi toàn bộ khung hình.\nPhụ đề SRT/VTT: dùng nút CC khi phát video qua URL. Tính năng phản chiếu màn hình dùng phụ đề của thiết bị gửi.</string>
+    <string name="export_logs_failed">Không thể xuất nhật ký. Hãy thử lại.</string>
+</resources>

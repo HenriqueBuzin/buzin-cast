@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Espaço insuficiente. Libere pelo menos 128 MB.</string>
+    <string name="capture_waiting_keyframe">Aguardando um quadro-chave. Se necessário, reconecte o espelhamento.</string>
+    <string name="capture_recording_file">Gravando %1$s</string>
+    <string name="capture_space_exhausted">Gravação encerrada: pouco espaço disponível.</string>
+    <string name="capture_failed">Não foi possível gravar.</string>
+    <string name="capture_saved_file">Salvo: %1$s</string>
+    <string name="capture_no_keyframe">Nenhum quadro-chave recebido. Nenhum arquivo foi salvo.</string>
+    <string name="capture_slow_storage">Gravação encerrada: o armazenamento não acompanhou a transmissão.</string>
+    <string name="capture_finishing">Finalizando a gravação…</string>
+    <string name="relay_waiting_peer">Aguardando outro BuzinCast. O código expira em 5 minutos.</string>
+    <string name="relay_listener_failed">Não foi possível iniciar o receptor: %1$s</string>
+    <string name="relay_other_stream">Outra transmissão está ativa</string>
+    <string name="relay_receiving_peer">Recebendo de %1$s</string>
+    <string name="relay_mirroring_took_over">Uma sessão de espelhamento assumiu a reprodução</string>
+    <string name="relay_ended">Retransmissão encerrada.</string>
+    <string name="relay_new_code">Recepção encerrada. Gere um novo código.</string>
+    <string name="relay_receive_failed">Recepção encerrada: %1$s</string>
+    <string name="relay_connecting">Conectando…</string>
+    <string name="relay_use_local_ip">Use o endereço IP local da outra TV</string>
+    <string name="relay_bad_code">Código incorreto</string>
+    <string name="relay_connected">Conectado. Inicie ou reconecte o espelhamento.</string>
+    <string name="relay_send_failed">Retransmissão encerrada: %1$s</string>
+    <string name="relay_slow_network">Rede lenta: retransmissão encerrada. Reconecte os receptores.</string>
+    <string name="diag_no_ipv4">Sem endereço IPv4 local. Conecte a TV por Wi-Fi ou cabo.</string>
+    <string name="diag_tv_ip">IP da TV: %1$s</string>
+    <string name="diag_receiver_running">Receptor iniciado.</string>
+    <string name="diag_receiver_stopped">Receptor parado. Inicie na tela de conexão.</string>
+    <string name="diag_vpn_active">Há uma VPN ativa. Ela pode impedir a descoberta local.</string>
+    <string name="diag_usb_only">A descoberta está limitada a USB. Para Wi-Fi, selecione Todas as redes nas Configurações.</string>
+    <string name="diag_airplay">AirPlay: %1$s • porta %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">O receptor não aparece no celular ou Mac?\n• Conecte os dois dispositivos à mesma rede local. Wi-Fi e cabo podem funcionar juntos.\n• Evite redes de convidados e o isolamento de clientes no roteador.\n• Verifique se a VPN ou o firewall do emissor permite acesso à rede local.\n• A descoberta usa multicast/mDNS. Mantenha a recuperação automática ligada ao trocar de rede.\nO app não pode verificar a rede do emissor até ele se conectar. Redes diferentes são uma das possíveis causas.\n\nImagem cortada? Calibre os quatro cantos. A TV pode recortar o sinal HDMI mesmo que o app envie o quadro inteiro.\nLegendas SRT/VTT: use CC durante a reprodução de vídeo por URL. O espelhamento usa as legendas do emissor.</string>
+    <string name="export_logs_failed">Não foi possível exportar os logs. Tente novamente.</string>
+</resources>

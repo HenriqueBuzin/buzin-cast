@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Sottotitoli esterni</string>
+    <string name="subtitle_picker_help">Scegli un file SRT o VTT in UTF-8 di massimo 2 MB. I sottotitoli esterni funzionano con i video ricevuti tramite URL. La duplicazione dello schermo usa i sottotitoli del dispositivo trasmittente. È necessario un selettore di file.</string>
+    <string name="subtitle_picker_unavailable">Su questo dispositivo non è disponibile un selettore di file.</string>
+    <string name="subtitle_choose_file">Scegli file</string>
+    <string name="subtitle_disable">Nessun sottotitolo</string>
+    <string name="subtitle_load_failed">Impossibile caricare i sottotitoli.</string>
+    <string name="connection_approval_title">Consentire la trasmissione?</string>
+    <string name="connection_approval_help">Consenti la connessione solo a un dispositivo che riconosci. L’autorizzazione dura 5 minuti. Senza risposta entro 25 secondi, la connessione viene rifiutata.</string>
+    <string name="connection_decline">Rifiuta</string>
+    <string name="record_waiting">In attesa di registrare</string>
+    <string name="network_available">Rete disponibile</string>
+    <string name="network_waiting">Nessuna rete locale. In attesa di connessione…</string>
+    <string name="network_recovered">Rete ripristinata. Puoi riconnetterti al ricevitore.</string>
+    <string name="network_playback_retry">Connessione interrotta. Tentativo di ripresa del video (%1$d/3)…</string>
+</resources>

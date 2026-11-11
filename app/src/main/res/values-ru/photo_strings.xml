@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Загрузка фото…</string>
+    <string name="photo_received">Фото получено по DLNA</string>
+    <string name="media_previous">Назад</string>
+    <string name="media_next">Далее</string>
+    <string name="photo_slideshow">Слайд-шоу</string>
+    <string name="photo_rotate">Повернуть</string>
+    <string name="photo_scale">Вписать / заполнить</string>
+    <string name="photo_position">Фото %1$d из %2$d • Используйте пульт, чтобы листать или поворачивать фото либо закрыть просмотр.</string>
+    <string name="photo_error">Не удалось открыть фото.</string>
+    <string name="photo_error_size">Размер фото превышает 16 МБ.</string>
+    <string name="photo_error_format">Недопустимый формат фото.</string>
+    <string name="photo_error_redirect">Не удалось открыть ссылку на фото.</string>
+</resources>

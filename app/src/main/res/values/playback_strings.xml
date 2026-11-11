@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">External subtitles</string>
+    <string name="subtitle_picker_help">Choose a UTF-8 SRT or VTT file up to 2 MB. External subtitles work with video received by URL. Screen mirroring uses subtitles from the sending device. A file picker is required.</string>
+    <string name="subtitle_picker_unavailable">This device has no available file picker.</string>
+    <string name="subtitle_choose_file">Choose file</string>
+    <string name="subtitle_disable">No subtitles</string>
+    <string name="subtitle_load_failed">Could not load subtitles.</string>
+    <string name="connection_approval_title">Allow this stream?</string>
+    <string name="connection_approval_help">Only allow a device you recognize. Approval lasts 5 minutes. If you do not respond within 25 seconds, the connection is declined.</string>
+    <string name="connection_decline">Decline</string>
+    <string name="record_waiting">Waiting to record</string>
+    <string name="network_available">Network available</string>
+    <string name="network_waiting">No local network. Waiting for a connection…</string>
+    <string name="network_recovered">Network restored. You can reconnect to the receiver.</string>
+    <string name="network_playback_retry">Connection interrupted. Resuming video (%1$d/3)…</string>
+</resources>

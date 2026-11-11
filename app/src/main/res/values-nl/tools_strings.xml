@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Beeld kalibreren</string>
+    <string name="tools_connection_diagnostics">Verbindingsdiagnose</string>
+    <string name="tools_record_title">Schermspiegeling opnemen</string>
+    <string name="tools_record_help">Sla het gespiegelde beeld met geluid op. Bereid de opname voor voordat je verbinding maakt.</string>
+    <string name="tools_record_stop">■ Opname stoppen</string>
+    <string name="tools_record_prepare">Opname voorbereiden</string>
+    <string name="tools_other_tv">Andere tv</string>
+    <string name="tools_relay_help">Stuur de schermspiegeling door naar een andere tv met BuzinCast op hetzelfde netwerk. Kies daar Ontvangen op deze tv en gebruik de getoonde gegevens.</string>
+    <string name="tools_this_tv_ip">IP-adres van deze tv: %1$s</string>
+    <string name="tools_relay_receive">Ontvangen op deze tv</string>
+    <string name="tools_relay_connect">Verbinden met een andere tv</string>
+    <string name="tools_relay_stop">Doorsturen stoppen</string>
+    <string name="tools_relay_details">Poort: %1$d  •  Code: %2$s</string>
+    <string name="tools_dlna_photos">Foto’s via DLNA</string>
+    <string name="tools_dlna_help">Schakel DLNA in bij Instellingen om foto’s te ontvangen en een diavoorstelling te maken.</string>
+    <string name="tools_native_help">Ingebouwde schermspiegeling van Fire TV. Beschikbaar op compatibele modellen.</string>
+    <string name="tools_native_unavailable">Miracast is niet beschikbaar op dit model. Kijk bij Instellingen → Scherm en geluid → Schermspiegeling.</string>
+    <string name="tools_native_open">Ingebouwde schermspiegeling openen</string>
+    <string name="tools_recordings">Lokale opnamen</string>
+    <string name="tools_refresh">Lijst vernieuwen</string>
+    <string name="tools_recordings_empty">Je opnamen verschijnen hier.</string>
+    <string name="tools_play">Afspelen</string>
+    <string name="tools_delete">Verwijderen</string>
+    <string name="tools_delete_confirm">Opname verwijderen?</string>
+    <string name="tools_relay_input_help">Voer de gegevens in die verschijnen nadat je op de andere tv Ontvangen op deze tv hebt gekozen.</string>
+    <string name="tools_relay_keyboard_help">↑↓ om te navigeren · OK om te typen</string>
+    <string name="tools_other_tv_ip">IP-adres van de andere tv</string>
+    <string name="tools_port">Poort</string>
+    <string name="tools_pairing_code">Verbindingscode</string>
+    <string name="tools_connect">Verbinden</string>
+</resources>

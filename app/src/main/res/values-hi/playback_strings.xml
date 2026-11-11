@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">बाहरी सबटाइटल</string>
+    <string name="subtitle_picker_help">2 एमबी तक की UTF-8 SRT या VTT फ़ाइल चुनें। बाहरी सबटाइटल URL से प्राप्त वीडियो के साथ काम करते हैं। स्क्रीन मिररिंग में भेजने वाले डिवाइस के सबटाइटल दिखते हैं। फ़ाइल चुनने की सुविधा ज़रूरी है।</string>
+    <string name="subtitle_picker_unavailable">इस डिवाइस पर फ़ाइल चुनने की सुविधा उपलब्ध नहीं है।</string>
+    <string name="subtitle_choose_file">फ़ाइल चुनें</string>
+    <string name="subtitle_disable">सबटाइटल नहीं</string>
+    <string name="subtitle_load_failed">सबटाइटल लोड नहीं हो सके।</string>
+    <string name="connection_approval_title">स्ट्रीम की अनुमति दें?</string>
+    <string name="connection_approval_help">सिर्फ़ उस डिवाइस को अनुमति दें जिसे आप पहचानते हैं। अनुमति 5 मिनट तक रहती है। 25 सेकंड में जवाब न मिलने पर कनेक्शन अस्वीकार हो जाएगा।</string>
+    <string name="connection_decline">अस्वीकार करें</string>
+    <string name="record_waiting">रिकॉर्डिंग का इंतज़ार</string>
+    <string name="network_available">नेटवर्क उपलब्ध है</string>
+    <string name="network_waiting">स्थानीय नेटवर्क उपलब्ध नहीं है। कनेक्शन का इंतज़ार…</string>
+    <string name="network_recovered">नेटवर्क फिर से उपलब्ध है। आप रिसीवर से दोबारा कनेक्ट कर सकते हैं।</string>
+    <string name="network_playback_retry">कनेक्शन टूट गया। वीडियो फिर से शुरू करने की कोशिश (%1$d/3)…</string>
+</resources>

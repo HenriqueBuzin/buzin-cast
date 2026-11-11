@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Onvoldoende ruimte. Maak minstens 128 MB vrij.</string>
+    <string name="capture_waiting_keyframe">Wachten op een sleutelbeeld. Verbind de schermspiegeling zo nodig opnieuw.</string>
+    <string name="capture_recording_file">Opname van %1$s</string>
+    <string name="capture_space_exhausted">Opname gestopt: de opslag is bijna vol.</string>
+    <string name="capture_failed">Opnemen is mislukt.</string>
+    <string name="capture_saved_file">Opgeslagen: %1$s</string>
+    <string name="capture_no_keyframe">Geen sleutelbeeld ontvangen. Er is geen bestand opgeslagen.</string>
+    <string name="capture_slow_storage">Opname gestopt: de opslag kon de stream niet bijhouden.</string>
+    <string name="capture_finishing">Opname wordt voltooid…</string>
+    <string name="relay_waiting_peer">Wachten op een andere BuzinCast. De code verloopt over 5 minuten.</string>
+    <string name="relay_listener_failed">Kon de ontvanger niet starten: %1$s</string>
+    <string name="relay_other_stream">Er is een andere stream actief</string>
+    <string name="relay_receiving_peer">Ontvangst van %1$s</string>
+    <string name="relay_mirroring_took_over">Een schermspiegelingssessie heeft het afspelen overgenomen</string>
+    <string name="relay_ended">Doorsturen beëindigd.</string>
+    <string name="relay_new_code">Ontvangst beëindigd. Genereer een nieuwe code.</string>
+    <string name="relay_receive_failed">Ontvangst beëindigd: %1$s</string>
+    <string name="relay_connecting">Verbinding maken…</string>
+    <string name="relay_use_local_ip">Gebruik het lokale IP-adres van de andere tv</string>
+    <string name="relay_bad_code">Onjuiste code</string>
+    <string name="relay_connected">Verbonden. Start schermspiegeling of maak opnieuw verbinding.</string>
+    <string name="relay_send_failed">Doorsturen beëindigd: %1$s</string>
+    <string name="relay_slow_network">Netwerk te traag: doorsturen beëindigd. Verbind de ontvangers opnieuw.</string>
+    <string name="diag_no_ipv4">Geen lokaal IPv4-adres. Verbind de tv via wifi of ethernet.</string>
+    <string name="diag_tv_ip">IP-adres van de tv: %1$s</string>
+    <string name="diag_receiver_running">Ontvanger actief.</string>
+    <string name="diag_receiver_stopped">Ontvanger gestopt. Start deze op het verbindingsscherm.</string>
+    <string name="diag_vpn_active">Er is een VPN actief. Die kan lokale detectie blokkeren.</string>
+    <string name="diag_usb_only">Detectie is beperkt tot USB. Kies voor wifi Alle netwerken in de instellingen.</string>
+    <string name="diag_airplay">AirPlay: %1$s • poort %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Zie je de ontvanger niet op je telefoon of Mac?\n• Verbind beide apparaten met hetzelfde lokale netwerk. Wifi en ethernet kunnen samen werken.\n• Vermijd gastnetwerken en clientisolatie op de router.\n• Controleer of de VPN of firewall van de zender toegang tot het lokale netwerk toestaat.\n• Detectie gebruikt multicast/mDNS. Laat automatisch herstel ingeschakeld bij het wisselen van netwerk.\nDe app kan het netwerk van de zender pas controleren na verbinding. Verschillende netwerken zijn een mogelijke oorzaak.\n\nBeeld afgesneden? Kalibreer de vier hoeken. De tv kan het HDMI-beeld bijsnijden, ook als de app het volledige beeld verstuurt.\nSRT/VTT-ondertitels: gebruik CC bij het afspelen van video via een URL. Schermspiegeling gebruikt de ondertitels van de zender.</string>
+    <string name="export_logs_failed">Kan logboeken niet exporteren. Probeer het opnieuw.</string>
+</resources>

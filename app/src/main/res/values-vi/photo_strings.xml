@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Đang tải ảnh…</string>
+    <string name="photo_received">Ảnh nhận qua DLNA</string>
+    <string name="media_previous">Trước</string>
+    <string name="media_next">Tiếp theo</string>
+    <string name="photo_slideshow">Trình chiếu</string>
+    <string name="photo_rotate">Xoay</string>
+    <string name="photo_scale">Vừa khung / lấp đầy</string>
+    <string name="photo_position">Ảnh %1$d trên %2$d • Dùng điều khiển để duyệt, xoay hoặc đóng.</string>
+    <string name="photo_error">Không thể mở ảnh.</string>
+    <string name="photo_error_size">Ảnh lớn hơn 16 MB.</string>
+    <string name="photo_error_format">Định dạng ảnh không hợp lệ.</string>
+    <string name="photo_error_redirect">Không thể mở liên kết ảnh.</string>
+</resources>

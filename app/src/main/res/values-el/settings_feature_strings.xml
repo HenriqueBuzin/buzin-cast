@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Προφίλ μετάδοσης</string>
+    <string name="setting_streaming_profile_desc">Η αλλαγή προφίλ επανεκκινεί τον δέκτη. Η πραγματική ποιότητα εξαρτάται από τη συσκευή αποστολής και το δίκτυο.</string>
+    <string name="setting_profile_default">Προεπιλογή</string>
+    <string name="setting_profile_cinema">Κινηματογράφος</string>
+    <string name="setting_profile_presentation">Παρουσίαση</string>
+    <string name="setting_profile_games">Παιχνίδια</string>
+    <string name="setting_approve_connections">Έγκριση συνδέσεων</string>
+    <string name="setting_approve_connections_desc">Χρησιμοποιήστε το τηλεχειριστήριο για να αποδεχτείτε ή να απορρίψετε συνδέσεις AirPlay, DLNA, FCast και Cast V2. Η έγκριση ισχύει για το πρωτόκολλο και τη διεύθυνση IP για πέντε λεπτά.</string>
+    <string name="setting_network_recovery">Επαναφορά μετά από διακοπή δικτύου</string>
+    <string name="setting_network_recovery_desc">Ο δέκτης είναι ξανά ανιχνεύσιμος όταν επανέλθει το δίκτυο. Η εφαρμογή προσπαθεί να συνεχίσει την αναπαραγωγή συμβατών βίντεο. Η συσκευή αποστολής AirPlay μπορεί να χρειαστεί επανασύνδεση.</string>
+    <string name="setting_calibrate_corners">Ρύθμιση των τεσσάρων γωνιών</string>
+    <string name="calibration_adjust_hint">← Μεγέθυνση εικόνας • Σμίκρυνση εικόνας →</string>
+    <string name="calibration_save_hint">Κρατήστε ορατές και τις τέσσερις γωνίες. OK για αποθήκευση • Πίσω για ακύρωση</string>
+    <string name="setting_profile_unavailable">Δεν ήταν δυνατή η εφαρμογή του προφίλ μετάδοσης.</string>
+</resources>

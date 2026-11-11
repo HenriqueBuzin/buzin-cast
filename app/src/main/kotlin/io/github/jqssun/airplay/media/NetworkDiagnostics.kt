@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import io.github.jqssun.airplay.Prefs
+import io.github.jqssun.airplay.R
 import io.github.jqssun.airplay.get
 import io.leancast.app.Net
 
@@ -15,22 +16,18 @@ object NetworkDiagnostics {
         val ip = Net.lanIpv4()
         val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
         return buildString {
-            appendLine(if (ip == null) "Sem endereço IPv4 local. Conecte a TV ao Wi-Fi ou cabo." else "IP da TV: $ip")
-            appendLine(if (running) "Receptor iniciado." else "Receptor parado. Inicie em Conectar.")
-            if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) appendLine("VPN ativa. Ela pode impedir a descoberta local.")
-            if (prefs[Prefs.USB_ONLY]) appendLine("Descoberta limitada a USB. Para Wi-Fi, selecione Todas as redes nas Configurações.")
-            appendLine("AirPlay: ${prefs[Prefs.SERVER_NAME]} • porta ${prefs[Prefs.SERVER_PORT]}")
-            appendLine("DLNA: ${if (prefs[Prefs.DLNA_ENABLED]) "ativado" else "desativado"} • FCast: ${if (prefs[Prefs.FCAST_ENABLED]) "ativado" else "desativado"}")
+            appendLine(if (ip == null) context.getString(R.string.diag_no_ipv4) else context.getString(R.string.diag_tv_ip, ip))
+            appendLine(context.getString(if (running) R.string.diag_receiver_running else R.string.diag_receiver_stopped))
+            if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) {
+                appendLine(context.getString(R.string.diag_vpn_active))
+            }
+            if (prefs[Prefs.USB_ONLY]) appendLine(context.getString(R.string.diag_usb_only))
+            appendLine(context.getString(R.string.diag_airplay, prefs[Prefs.SERVER_NAME], prefs[Prefs.SERVER_PORT]))
+            val dlna = context.getString(if (prefs[Prefs.DLNA_ENABLED]) R.string.chip_on else R.string.chip_off)
+            val fcast = context.getString(if (prefs[Prefs.FCAST_ENABLED]) R.string.chip_on else R.string.chip_off)
+            appendLine(context.getString(R.string.diag_media_protocols, dlna, fcast))
             appendLine()
-            appendLine("Não aparece no celular ou Mac?")
-            appendLine("• Conecte ambos à mesma rede local. Wi-Fi e cabo podem funcionar juntos.")
-            appendLine("• Evite rede de convidados e isolamento entre clientes do roteador.")
-            appendLine("• Confira se a VPN ou o firewall do emissor permite a rede local.")
-            appendLine("• Descoberta depende de multicast/mDNS. Após trocar de rede, deixe a recuperação automática ligada.")
-            appendLine("Não é possível confirmar a rede do emissor sem uma conexão dele; redes diferentes são uma hipótese, não um diagnóstico detectado.")
-            appendLine()
-            appendLine("Imagem cortada? Use Calibrar os quatro cantos. O painel pode recortar HDMI mesmo quando o app envia o quadro inteiro.")
-            appendLine("Legendas SRT/VTT: use CC durante um vídeo por URL. Espelhamento usa as legendas do emissor.")
+            appendLine(context.getString(R.string.diag_help))
         }
     }
 }

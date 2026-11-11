@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Profil transmisji</string>
+    <string name="setting_streaming_profile_desc">Zmiana profilu powoduje ponowne uruchomienie odbiornika. Rzeczywista jakość zależy od urządzenia nadawczego i sieci.</string>
+    <string name="setting_profile_default">Domyślny</string>
+    <string name="setting_profile_cinema">Kino</string>
+    <string name="setting_profile_presentation">Prezentacja</string>
+    <string name="setting_profile_games">Gry</string>
+    <string name="setting_approve_connections">Zatwierdzaj połączenia</string>
+    <string name="setting_approve_connections_desc">Użyj pilota, aby zaakceptować lub odrzucić połączenia AirPlay, DLNA, FCast i Cast V2. Zgoda jest ważna przez pięć minut dla danego protokołu i adresu IP.</string>
+    <string name="setting_network_recovery">Wznów działanie po awarii sieci</string>
+    <string name="setting_network_recovery_desc">Po przywróceniu sieci odbiornik znów będzie wykrywalny. Aplikacja spróbuje wznowić odtwarzanie zgodnych filmów. Urządzenie nadające przez AirPlay może wymagać ponownego połączenia.</string>
+    <string name="setting_calibrate_corners">Skalibruj cztery rogi</string>
+    <string name="calibration_adjust_hint">← Powiększ obraz • Pomniejsz obraz →</string>
+    <string name="calibration_save_hint">Wszystkie cztery rogi powinny być widoczne. OK zapisuje • Wstecz anuluje</string>
+    <string name="setting_profile_unavailable">Nie udało się zastosować profilu transmisji.</string>
+</resources>

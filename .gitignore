@@ -18,5 +18,7 @@
 __pycache__/
 
 /app/build-legacy/
+/app/build-legacy-nodownload/
+/app/build-nodownload/
 /app/build-coverage/
 /app/build-legacy-coverage/

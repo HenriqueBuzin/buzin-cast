@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Streamingprofiel</string>
+    <string name="setting_streaming_profile_desc">Als je van profiel wisselt, start de ontvanger opnieuw. De werkelijke kwaliteit hangt af van het zendende apparaat en het netwerk.</string>
+    <string name="setting_profile_default">Standaard</string>
+    <string name="setting_profile_cinema">Bioscoop</string>
+    <string name="setting_profile_presentation">Presentatie</string>
+    <string name="setting_profile_games">Games</string>
+    <string name="setting_approve_connections">Verbindingen goedkeuren</string>
+    <string name="setting_approve_connections_desc">Gebruik de afstandsbediening om AirPlay-, DLNA-, FCast- en Cast V2-verbindingen te accepteren of te weigeren. De goedkeuring geldt vijf minuten voor dat protocol en IP-adres.</string>
+    <string name="setting_network_recovery">Herstellen na een netwerkstoring</string>
+    <string name="setting_network_recovery_desc">De ontvanger is weer vindbaar zodra het netwerk terug is. De app probeert compatibele video’s te hervatten. Het AirPlay-apparaat moet mogelijk opnieuw verbinding maken.</string>
+    <string name="setting_calibrate_corners">Alle vier de hoeken kalibreren</string>
+    <string name="calibration_adjust_hint">← Beeld vergroten • Beeld verkleinen →</string>
+    <string name="calibration_save_hint">Zorg dat alle vier de hoeken zichtbaar zijn. OK om op te slaan • Terug om te annuleren</string>
+    <string name="setting_profile_unavailable">Kan het streamingprofiel niet toepassen.</string>
+</resources>

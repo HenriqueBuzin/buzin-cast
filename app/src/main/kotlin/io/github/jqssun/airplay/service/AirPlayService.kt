@@ -33,6 +33,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.media.app.NotificationCompat as MediaNotificationCompat
 import io.github.jqssun.airplay.MainActivity
+import io.github.jqssun.airplay.BuildConfig
 import io.github.jqssun.airplay.media.*
 import io.buzincast.media.MirrorPacket
 import io.buzincast.core.*
@@ -130,7 +131,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         relayToken?.let { sessions.transition(it, SessionPhase.PLAYING) }
         _videoAspect.value = w.toFloat() / h; _videoResolution.value = "${w}x${h}"; _mirroringActive.value = true
     } }
-    val relay by lazy { MirrorRelay(::updateCaptureTap,
+    val relay by lazy { MirrorRelay(this, ::updateCaptureTap,
         incoming = { packet -> relayPlayback.accept(packet) },
         ended = { _mainHandler.post {
             relayToken?.let(sessions::finish); relayToken = null
@@ -299,9 +300,9 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     override fun onCreate() {
         super.onCreate()
         networkRecovery = NetworkRecovery(this) { available ->
-            _networkMessage.value = if (available) "Rede disponível" else "Sem rede local. Aguardando conexão…"
+            _networkMessage.value = getString(if (available) R.string.network_available else R.string.network_waiting)
             if (available && prefs[Prefs.NETWORK_RECOVERY] && _serverState.value == ServerState.RUNNING && !prefs[Prefs.USB_ONLY]) {
-                _networkMessage.value = "Rede recuperada. Receptor disponível para reconectar."
+                _networkMessage.value = getString(R.string.network_recovered)
                 _restartServer()
             }
         }.also { it.start() }
@@ -740,6 +741,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     fun stopVideoPlayback() { _mainHandler.post { _endVideoPlayback("Video stopped (local)") } }
 
     fun downloadVideo() {
+        if (!BuildConfig.VIDEO_DOWNLOAD_ENABLED) return
         _videoLocation.value?.let { videoDownloader.start(it) }
     }
 
@@ -1296,9 +1298,9 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
             .setOngoing(true)
 
         if (capture.state.value.armed) {
-            builder.setContentTitle("Buzin Cast • Gravação")
+            builder.setContentTitle(getString(R.string.tools_record_title))
                 .setContentText(capture.state.value.message)
-                .addAction(android.R.drawable.ic_media_pause, "Parar gravação", _mediaAction(ACTION_STOP_CAPTURE))
+                .addAction(android.R.drawable.ic_media_pause, getString(R.string.tools_record_stop), _mediaAction(ACTION_STOP_CAPTURE))
         } else if (isAudio) {
             builder.setContentTitle(info.title).setContentText(info.artist).setSubText(info.album)
             info.coverArt?.let { builder.setLargeIcon(it) }

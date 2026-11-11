@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Nedostatek místa. Uvolněte alespoň 128 MB.</string>
+    <string name="capture_waiting_keyframe">Čekání na klíčový snímek. V případě potřeby znovu připojte zrcadlení obrazovky.</string>
+    <string name="capture_recording_file">Nahrává se %1$s</string>
+    <string name="capture_space_exhausted">Nahrávání zastaveno: dochází místo v úložišti.</string>
+    <string name="capture_failed">Nahrávání se nezdařilo.</string>
+    <string name="capture_saved_file">Uloženo: %1$s</string>
+    <string name="capture_no_keyframe">Nebyl přijat klíčový snímek. Žádný soubor nebyl uložen.</string>
+    <string name="capture_slow_storage">Nahrávání zastaveno: úložiště nestíhalo zapisovat přenos.</string>
+    <string name="capture_finishing">Dokončuje se nahrávání…</string>
+    <string name="relay_waiting_peer">Čekání na další BuzinCast. Platnost kódu vyprší za 5 minut.</string>
+    <string name="relay_listener_failed">Přijímač se nepodařilo spustit: %1$s</string>
+    <string name="relay_other_stream">Probíhá jiný přenos</string>
+    <string name="relay_receiving_peer">Příjem z %1$s</string>
+    <string name="relay_mirroring_took_over">Přehrávání převzala relace zrcadlení obrazovky</string>
+    <string name="relay_ended">Přeposílání ukončeno.</string>
+    <string name="relay_new_code">Příjem ukončen. Vygenerujte nový kód.</string>
+    <string name="relay_receive_failed">Příjem ukončen: %1$s</string>
+    <string name="relay_connecting">Připojování…</string>
+    <string name="relay_use_local_ip">Použijte místní IP adresu druhého televizoru</string>
+    <string name="relay_bad_code">Nesprávný kód</string>
+    <string name="relay_connected">Připojeno. Spusťte zrcadlení obrazovky nebo jej znovu připojte.</string>
+    <string name="relay_send_failed">Přeposílání ukončeno: %1$s</string>
+    <string name="relay_slow_network">Pomalá síť: přeposílání bylo ukončeno. Připojte přijímače znovu.</string>
+    <string name="diag_no_ipv4">Chybí místní adresa IPv4. Připojte televizor přes Wi-Fi nebo Ethernet.</string>
+    <string name="diag_tv_ip">IP adresa televizoru: %1$s</string>
+    <string name="diag_receiver_running">Přijímač běží.</string>
+    <string name="diag_receiver_stopped">Přijímač je zastavený. Spusťte ho na obrazovce připojení.</string>
+    <string name="diag_vpn_active">Je aktivní VPN. Může blokovat místní zjišťování.</string>
+    <string name="diag_usb_only">Zjišťování funguje pouze přes USB. Pro Wi-Fi vyberte v nastavení možnost Všechny sítě.</string>
+    <string name="diag_airplay">AirPlay: %1$s • port %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Nevidíte přijímač na telefonu nebo Macu?\n• Připojte obě zařízení ke stejné místní síti. Wi-Fi a Ethernet lze používat společně.\n• Vyhněte se sítím pro hosty a izolaci klientů na routeru.\n• Zkontrolujte, zda VPN nebo firewall odesílatele povoluje přístup k místní síti.\n• Zjišťování používá multicast/mDNS. Při změně sítě ponechte automatické obnovení zapnuté.\nAplikace může síť odesílatele zkontrolovat až po připojení. Jednou z možných příčin jsou různé sítě.\n\nOříznutý obraz? Kalibrujte čtyři rohy. Televizor může oříznout obraz HDMI, i když aplikace odesílá celý snímek.\nTitulky SRT/VTT: při přehrávání videa z URL použijte CC. Zrcadlení obrazovky používá titulky odesílatele.</string>
+    <string name="export_logs_failed">Protokoly se nepodařilo exportovat. Zkuste to znovu.</string>
+</resources>

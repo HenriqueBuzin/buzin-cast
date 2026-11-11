@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Сыртқы субтитрлер</string>
+    <string name="subtitle_picker_help">Көлемі 2 МБ-тан аспайтын UTF-8 пішіміндегі SRT немесе VTT файлын таңдаңыз. Сыртқы субтитрлер URL арқылы алынған бейнелермен жұмыс істейді. Экранды қайталағанда жіберуші құрылғының субтитрлері қолданылады. Файл таңдау құралы қажет.</string>
+    <string name="subtitle_picker_unavailable">Бұл құрылғыда файл таңдау құралы жоқ.</string>
+    <string name="subtitle_choose_file">Файлды таңдау</string>
+    <string name="subtitle_disable">Субтитрсіз</string>
+    <string name="subtitle_load_failed">Субтитрлерді жүктеу мүмкін болмады.</string>
+    <string name="connection_approval_title">Трансляцияға рұқсат беру керек пе?</string>
+    <string name="connection_approval_help">Тек өзіңіз танитын құрылғыға рұқсат беріңіз. Рұқсат 5 минут жарамды. 25 секунд ішінде жауап болмаса, қосылым қабылданбайды.</string>
+    <string name="connection_decline">Бас тарту</string>
+    <string name="record_waiting">Жазбаның басталуын күту</string>
+    <string name="network_available">Желі қолжетімді</string>
+    <string name="network_waiting">Жергілікті желі жоқ. Қосылым күтілуде…</string>
+    <string name="network_recovered">Желі қалпына келді. Қабылдағышқа қайта қосыла аласыз.</string>
+    <string name="network_playback_retry">Қосылым үзілді. Бейнені жалғастыру әрекеті (%1$d/3)…</string>
+</resources>

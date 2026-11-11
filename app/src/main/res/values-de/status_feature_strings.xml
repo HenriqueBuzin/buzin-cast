@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Nicht genug Speicherplatz. Gib mindestens 128 MB frei.</string>
+    <string name="capture_waiting_keyframe">Warte auf ein Schlüsselbild. Starte die Bildschirmspiegelung bei Bedarf erneut.</string>
+    <string name="capture_recording_file">Aufnahme läuft: %1$s</string>
+    <string name="capture_space_exhausted">Aufnahme beendet: Der Speicher ist fast voll.</string>
+    <string name="capture_failed">Die Aufnahme ist fehlgeschlagen.</string>
+    <string name="capture_saved_file">Gespeichert: %1$s</string>
+    <string name="capture_no_keyframe">Kein Schlüsselbild empfangen. Es wurde keine Datei gespeichert.</string>
+    <string name="capture_slow_storage">Aufnahme beendet: Der Speicher war zu langsam für den Stream.</string>
+    <string name="capture_finishing">Aufnahme wird abgeschlossen…</string>
+    <string name="relay_waiting_peer">Warte auf ein anderes BuzinCast-Gerät. Der Code läuft nach 5 Minuten ab.</string>
+    <string name="relay_listener_failed">Der Empfänger konnte nicht gestartet werden: %1$s</string>
+    <string name="relay_other_stream">Eine andere Übertragung läuft bereits</string>
+    <string name="relay_receiving_peer">Empfang von %1$s</string>
+    <string name="relay_mirroring_took_over">Eine Bildschirmspiegelung hat die Wiedergabe übernommen</string>
+    <string name="relay_ended">Weiterleitung beendet.</string>
+    <string name="relay_new_code">Empfang beendet. Erstelle einen neuen Code.</string>
+    <string name="relay_receive_failed">Empfang beendet: %1$s</string>
+    <string name="relay_connecting">Verbindung wird hergestellt…</string>
+    <string name="relay_use_local_ip">Verwende die lokale IP-Adresse des anderen Fernsehers</string>
+    <string name="relay_bad_code">Falscher Code</string>
+    <string name="relay_connected">Verbunden. Starte die Bildschirmspiegelung oder verbinde sie erneut.</string>
+    <string name="relay_send_failed">Weiterleitung beendet: %1$s</string>
+    <string name="relay_slow_network">Netzwerk zu langsam: Weiterleitung beendet. Verbinde die Empfänger erneut.</string>
+    <string name="diag_no_ipv4">Keine lokale IPv4-Adresse. Verbinde den Fernseher per WLAN oder Netzwerkkabel.</string>
+    <string name="diag_tv_ip">IP-Adresse des Fernsehers: %1$s</string>
+    <string name="diag_receiver_running">Empfänger läuft.</string>
+    <string name="diag_receiver_stopped">Empfänger gestoppt. Starte ihn auf dem Verbindungsbildschirm.</string>
+    <string name="diag_vpn_active">Ein VPN ist aktiv. Es kann die lokale Erkennung blockieren.</string>
+    <string name="diag_usb_only">Erkennung ist auf USB beschränkt. Wähle für WLAN in den Einstellungen „Alle Netzwerke“.</string>
+    <string name="diag_airplay">AirPlay: %1$s • Port %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Empfänger wird auf dem Smartphone oder Mac nicht angezeigt?\n• Verbinde beide Geräte mit demselben lokalen Netzwerk. WLAN und Netzwerkkabel können zusammen verwendet werden.\n• Vermeide Gastnetzwerke und die Client-Isolierung am Router.\n• Prüfe, ob VPN und Firewall des Senders den Zugriff auf das lokale Netzwerk zulassen.\n• Die Erkennung verwendet Multicast/mDNS. Lass die automatische Wiederherstellung beim Netzwerkwechsel aktiviert.\nDie App kann das Netzwerk des Senders erst nach der Verbindung prüfen. Unterschiedliche Netzwerke sind eine mögliche Ursache.\n\nBild abgeschnitten? Kalibriere die vier Ecken. Der Fernseher kann das HDMI-Bild abschneiden, obwohl die App das ganze Bild ausgibt.\nSRT/VTT-Untertitel: Verwende CC bei der Videowiedergabe per URL. Bei der Bildschirmspiegelung kommen die Untertitel vom Sender.</string>
+    <string name="export_logs_failed">Protokolle konnten nicht exportiert werden. Versuche es erneut.</string>
+</resources>

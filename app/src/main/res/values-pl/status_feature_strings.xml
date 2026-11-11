@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Za mało miejsca. Zwolnij co najmniej 128 MB.</string>
+    <string name="capture_waiting_keyframe">Oczekiwanie na klatkę kluczową. W razie potrzeby połącz ponownie funkcję dublowania ekranu.</string>
+    <string name="capture_recording_file">Nagrywanie pliku %1$s</string>
+    <string name="capture_space_exhausted">Nagrywanie zatrzymane: kończy się miejsce na dane.</string>
+    <string name="capture_failed">Nie udało się nagrać.</string>
+    <string name="capture_saved_file">Zapisano: %1$s</string>
+    <string name="capture_no_keyframe">Nie odebrano klatki kluczowej. Nie zapisano pliku.</string>
+    <string name="capture_slow_storage">Nagrywanie zatrzymane: zapis nie nadążał za transmisją.</string>
+    <string name="capture_finishing">Kończenie nagrywania…</string>
+    <string name="relay_waiting_peer">Oczekiwanie na drugi BuzinCast. Kod wygaśnie za 5 minut.</string>
+    <string name="relay_listener_failed">Nie udało się uruchomić odbiornika: %1$s</string>
+    <string name="relay_other_stream">Trwa inna transmisja</string>
+    <string name="relay_receiving_peer">Odbieranie od %1$s</string>
+    <string name="relay_mirroring_took_over">Sesja dublowania ekranu przejęła odtwarzanie</string>
+    <string name="relay_ended">Przekazywanie zakończone.</string>
+    <string name="relay_new_code">Odbiór zakończony. Wygeneruj nowy kod.</string>
+    <string name="relay_receive_failed">Odbiór zakończony: %1$s</string>
+    <string name="relay_connecting">Łączenie…</string>
+    <string name="relay_use_local_ip">Użyj lokalnego adresu IP drugiego telewizora</string>
+    <string name="relay_bad_code">Nieprawidłowy kod</string>
+    <string name="relay_connected">Połączono. Uruchom dublowanie ekranu lub połącz ponownie.</string>
+    <string name="relay_send_failed">Przekazywanie zakończone: %1$s</string>
+    <string name="relay_slow_network">Za wolna sieć: przekazywanie zakończone. Połącz odbiorniki ponownie.</string>
+    <string name="diag_no_ipv4">Brak lokalnego adresu IPv4. Połącz telewizor przez Wi-Fi lub Ethernet.</string>
+    <string name="diag_tv_ip">Adres IP telewizora: %1$s</string>
+    <string name="diag_receiver_running">Odbiornik działa.</string>
+    <string name="diag_receiver_stopped">Odbiornik zatrzymany. Uruchom go na ekranie połączenia.</string>
+    <string name="diag_vpn_active">Sieć VPN jest aktywna. Może blokować wykrywanie lokalne.</string>
+    <string name="diag_usb_only">Wykrywanie działa tylko przez USB. Aby użyć Wi-Fi, wybierz Wszystkie sieci w ustawieniach.</string>
+    <string name="diag_airplay">AirPlay: %1$s • port %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Nie widzisz odbiornika na telefonie lub Macu?\n• Połącz oba urządzenia z tą samą siecią lokalną. Wi-Fi i Ethernet mogą działać razem.\n• Unikaj sieci gościnnych i izolacji klientów w routerze.\n• Sprawdź, czy VPN lub zapora nadawcy zezwala na dostęp do sieci lokalnej.\n• Wykrywanie używa multicastu/mDNS. Przy zmianie sieci pozostaw włączone automatyczne przywracanie połączenia.\nAplikacja może sprawdzić sieć nadawcy dopiero po połączeniu. Różne sieci to jedna z możliwych przyczyn.\n\nObraz jest przycięty? Skalibruj cztery rogi. Telewizor może przyciąć obraz HDMI, nawet gdy aplikacja wysyła całą klatkę.\nNapisy SRT/VTT: użyj CC podczas odtwarzania wideo z adresu URL. Dublowanie ekranu używa napisów nadawcy.</string>
+    <string name="export_logs_failed">Nie udało się wyeksportować dzienników. Spróbuj ponownie.</string>
+</resources>

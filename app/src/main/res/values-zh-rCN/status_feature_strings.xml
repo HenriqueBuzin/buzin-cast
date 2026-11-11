@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">存储空间不足。请至少腾出 128 MB。</string>
+    <string name="capture_waiting_keyframe">正在等待关键帧。如有需要，请重新连接屏幕镜像。</string>
+    <string name="capture_recording_file">正在录制 %1$s</string>
+    <string name="capture_space_exhausted">录制已停止：存储空间即将用完。</string>
+    <string name="capture_failed">无法录制。</string>
+    <string name="capture_saved_file">已保存：%1$s</string>
+    <string name="capture_no_keyframe">未收到关键帧，未保存任何文件。</string>
+    <string name="capture_slow_storage">录制已停止：写入速度跟不上串流速度。</string>
+    <string name="capture_finishing">正在完成录制…</string>
+    <string name="relay_waiting_peer">正在等待另一台运行 BuzinCast 的设备。代码将在 5 分钟后失效。</string>
+    <string name="relay_listener_failed">无法启动接收器：%1$s</string>
+    <string name="relay_other_stream">已有其他串流正在播放</string>
+    <string name="relay_receiving_peer">正在接收来自 %1$s 的内容</string>
+    <string name="relay_mirroring_took_over">屏幕镜像会话已接管播放</string>
+    <string name="relay_ended">转发已结束。</string>
+    <string name="relay_new_code">接收已结束。请生成新的代码。</string>
+    <string name="relay_receive_failed">接收已结束：%1$s</string>
+    <string name="relay_connecting">正在连接…</string>
+    <string name="relay_use_local_ip">请使用另一台电视的本地 IP 地址</string>
+    <string name="relay_bad_code">代码不正确</string>
+    <string name="relay_connected">已连接。请启动或重新连接屏幕镜像。</string>
+    <string name="relay_send_failed">转发已结束：%1$s</string>
+    <string name="relay_slow_network">网络较慢，转发已结束。请重新连接接收器。</string>
+    <string name="diag_no_ipv4">没有本地 IPv4 地址。请通过 Wi-Fi 或以太网连接电视。</string>
+    <string name="diag_tv_ip">电视 IP 地址：%1$s</string>
+    <string name="diag_receiver_running">接收器正在运行。</string>
+    <string name="diag_receiver_stopped">接收器已停止。请在连接界面启动接收器。</string>
+    <string name="diag_vpn_active">VPN 已开启，可能会阻止本地发现。</string>
+    <string name="diag_usb_only">仅能通过 USB 发现设备。若要使用 Wi-Fi，请在设置中选择所有网络。</string>
+    <string name="diag_airplay">AirPlay：%1$s • 端口 %2$d</string>
+    <string name="diag_media_protocols">DLNA：%1$s • FCast：%2$s</string>
+    <string name="diag_help">在手机或 Mac 上找不到接收器？\n• 请将两台设备连接到同一个本地网络。Wi-Fi 和以太网可以同时使用。\n• 请避免使用访客网络，也不要开启路由器上的客户端隔离。\n• 检查发送设备上的 VPN 或防火墙是否允许访问本地网络。\n• 设备发现使用组播/mDNS。切换网络时请保持自动恢复开启。\n只有建立连接后，应用才能检查发送设备的网络。两台设备处于不同的网络可能是原因之一。\n\n画面被裁切了？请校准四角。即使应用发送了完整画面，电视仍可能裁切 HDMI 画面。\nSRT/VTT 字幕：通过网址播放视频时，请使用 CC。屏幕镜像使用发送设备的字幕。</string>
+    <string name="export_logs_failed">无法导出日志。请重试。</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Sous-titres externes</string>
+    <string name="subtitle_picker_help">Choisissez un fichier SRT ou VTT encodé en UTF-8, de 2 Mo maximum. Les sous-titres externes fonctionnent avec les vidéos reçues par URL. La recopie d’écran utilise les sous-titres de l’appareil émetteur. Un sélecteur de fichiers est nécessaire.</string>
+    <string name="subtitle_picker_unavailable">Aucun sélecteur de fichiers n’est disponible sur cet appareil.</string>
+    <string name="subtitle_choose_file">Choisir un fichier</string>
+    <string name="subtitle_disable">Aucun sous-titre</string>
+    <string name="subtitle_load_failed">Impossible de charger les sous-titres.</string>
+    <string name="connection_approval_title">Autoriser la diffusion ?</string>
+    <string name="connection_approval_help">Autorisez uniquement un appareil que vous reconnaissez. L’autorisation dure 5 minutes. Sans réponse sous 25 secondes, la connexion est refusée.</string>
+    <string name="connection_decline">Refuser</string>
+    <string name="record_waiting">En attente d’enregistrement</string>
+    <string name="network_available">Réseau disponible</string>
+    <string name="network_waiting">Pas de réseau local. En attente de connexion…</string>
+    <string name="network_recovered">Réseau rétabli. Vous pouvez vous reconnecter au récepteur.</string>
+    <string name="network_playback_retry">Connexion interrompue. Tentative de reprise de la vidéo (%1$d/3)…</string>
+</resources>

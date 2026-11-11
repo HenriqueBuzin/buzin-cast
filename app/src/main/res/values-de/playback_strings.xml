@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Externe Untertitel</string>
+    <string name="subtitle_picker_help">Wähle eine UTF-8-Datei im SRT- oder VTT-Format mit höchstens 2 MB. Externe Untertitel funktionieren bei Videos, die per URL empfangen werden. Bei der Bildschirmspiegelung gelten die Untertitel des sendenden Geräts. Eine Dateiauswahl ist erforderlich.</string>
+    <string name="subtitle_picker_unavailable">Auf diesem Gerät ist keine Dateiauswahl verfügbar.</string>
+    <string name="subtitle_choose_file">Datei auswählen</string>
+    <string name="subtitle_disable">Keine Untertitel</string>
+    <string name="subtitle_load_failed">Die Untertitel konnten nicht geladen werden.</string>
+    <string name="connection_approval_title">Übertragung zulassen?</string>
+    <string name="connection_approval_help">Lasse nur Geräte zu, die du kennst. Die Freigabe gilt 5 Minuten. Ohne Antwort wird die Verbindung nach 25 Sekunden abgelehnt.</string>
+    <string name="connection_decline">Ablehnen</string>
+    <string name="record_waiting">Warte auf Aufnahme</string>
+    <string name="network_available">Netzwerk verfügbar</string>
+    <string name="network_waiting">Kein lokales Netzwerk. Warte auf Verbindung…</string>
+    <string name="network_recovered">Netzwerk wieder verfügbar. Du kannst dich erneut mit dem Empfänger verbinden.</string>
+    <string name="network_playback_retry">Verbindung unterbrochen. Video wird fortgesetzt (%1$d/3)…</string>
+</resources>

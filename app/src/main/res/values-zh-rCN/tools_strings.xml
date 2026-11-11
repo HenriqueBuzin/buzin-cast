@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">校准画面</string>
+    <string name="tools_connection_diagnostics">连接诊断</string>
+    <string name="tools_record_title">录制屏幕镜像</string>
+    <string name="tools_record_help">保存镜像画面和声音。请在连接前准备录制。</string>
+    <string name="tools_record_stop">■ 停止录制</string>
+    <string name="tools_record_prepare">准备录制</string>
+    <string name="tools_other_tv">另一台电视</string>
+    <string name="tools_relay_help">将屏幕镜像转发到同一网络中运行 BuzinCast 的另一台电视。在对方电视上选择“在此电视上接收”，然后使用显示的信息。</string>
+    <string name="tools_this_tv_ip">此电视的 IP 地址：%1$s</string>
+    <string name="tools_relay_receive">在此电视上接收</string>
+    <string name="tools_relay_connect">连接到另一台电视</string>
+    <string name="tools_relay_stop">停止转发</string>
+    <string name="tools_relay_details">端口：%1$d  •  代码：%2$s</string>
+    <string name="tools_dlna_photos">通过 DLNA 接收照片</string>
+    <string name="tools_dlna_help">在设置中启用 DLNA，即可接收照片并创建幻灯片。</string>
+    <string name="tools_native_help">Fire TV 内置的屏幕镜像功能。仅兼容的机型可用。</string>
+    <string name="tools_native_unavailable">此机型不支持 Miracast。请查看“设置 → 显示与声音 → 屏幕镜像”。</string>
+    <string name="tools_native_open">打开内置屏幕镜像</string>
+    <string name="tools_recordings">本地录像</string>
+    <string name="tools_refresh">刷新列表</string>
+    <string name="tools_recordings_empty">录制的文件将在此处显示。</string>
+    <string name="tools_play">播放</string>
+    <string name="tools_delete">删除</string>
+    <string name="tools_delete_confirm">要删除这段录像吗？</string>
+    <string name="tools_relay_input_help">请在另一台电视上选择“在此电视上接收”，然后输入显示的信息。</string>
+    <string name="tools_relay_keyboard_help">按 ↑↓ 移动 · 按 OK 输入</string>
+    <string name="tools_other_tv_ip">另一台电视的 IP 地址</string>
+    <string name="tools_port">端口</string>
+    <string name="tools_pairing_code">连接代码</string>
+    <string name="tools_connect">连接</string>
+</resources>

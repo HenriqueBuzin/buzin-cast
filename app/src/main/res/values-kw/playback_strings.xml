@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Istitlow a-ves</string>
+    <string name="subtitle_picker_help">Dewisewgh restren SRT po VTT yn UTF-8, bys dhe 2 MB. Yma an istitlow a-ves rag video degemerys dre URL. Dhe dhyskwedhes an skrin, an app a dhevnydh an istitlow a’n alat danvoner. Res yw dewisva restrennow.</string>
+    <string name="subtitle_picker_unavailable">Nyns eus dewisva restrennow war an alat ma.</string>
+    <string name="subtitle_choose_file">Dewis restren</string>
+    <string name="subtitle_disable">Heb istitlow</string>
+    <string name="subtitle_load_failed">Ny yllir karga an istitlow.</string>
+    <string name="connection_approval_title">Gasa an lif?</string>
+    <string name="connection_approval_help">Gasowgh junya alat a aswonowgh yn unig. An kumyas a bes 5 mynysen. Heb gorthyp yn 25 eylen, an junyans a vydh nagys.</string>
+    <string name="connection_decline">Naha</string>
+    <string name="record_waiting">Ow kortos rekordya</string>
+    <string name="network_available">Rosweyth kavadow</string>
+    <string name="network_waiting">Heb rosweyth leel. Ow kortos junyans…</string>
+    <string name="network_recovered">An rosweyth yw arta. Hwi a yll junya arta dhe’n degemerer.</string>
+    <string name="network_playback_retry">Junyans terrys. Owth assaya dalleth arta an video (%1$d/3)…</string>
+</resources>

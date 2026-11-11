@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Bild kalibrieren</string>
+    <string name="tools_connection_diagnostics">Verbindungsdiagnose</string>
+    <string name="tools_record_title">Spiegelung aufnehmen</string>
+    <string name="tools_record_help">Speichere die Bildschirmspiegelung mit Ton. Bereite die Aufnahme vor dem Verbinden vor.</string>
+    <string name="tools_record_stop">■ Aufnahme stoppen</string>
+    <string name="tools_record_prepare">Aufnahme vorbereiten</string>
+    <string name="tools_other_tv">Anderer Fernseher</string>
+    <string name="tools_relay_help">Leite die Spiegelung an einen anderen Fernseher mit BuzinCast im selben Netzwerk weiter. Wähle dort Auf diesem Fernseher empfangen und nutze die angezeigten Daten.</string>
+    <string name="tools_this_tv_ip">IP dieses Fernsehers: %1$s</string>
+    <string name="tools_relay_receive">Auf diesem Fernseher empfangen</string>
+    <string name="tools_relay_connect">Mit anderem Fernseher verbinden</string>
+    <string name="tools_relay_stop">Weiterleitung beenden</string>
+    <string name="tools_relay_details">Port: %1$d  •  Code: %2$s</string>
+    <string name="tools_dlna_photos">Fotos über DLNA</string>
+    <string name="tools_dlna_help">Aktiviere DLNA in den Einstellungen, um Fotos zu empfangen und eine Diashow zu erstellen.</string>
+    <string name="tools_native_help">Integrierte Bildschirmspiegelung von Fire TV. Auf kompatiblen Modellen verfügbar.</string>
+    <string name="tools_native_unavailable">Miracast ist auf diesem Modell nicht verfügbar. Prüfe Einstellungen → Töne und Bildschirm → Bildschirm duplizieren.</string>
+    <string name="tools_native_open">Integrierte Spiegelung öffnen</string>
+    <string name="tools_recordings">Lokale Aufnahmen</string>
+    <string name="tools_refresh">Liste aktualisieren</string>
+    <string name="tools_recordings_empty">Deine Aufnahmen erscheinen hier.</string>
+    <string name="tools_play">Wiedergeben</string>
+    <string name="tools_delete">Löschen</string>
+    <string name="tools_delete_confirm">Aufnahme löschen?</string>
+    <string name="tools_relay_input_help">Gib die Daten ein, die auf dem anderen Fernseher nach Auswahl von Auf diesem Fernseher empfangen angezeigt werden.</string>
+    <string name="tools_relay_keyboard_help">↑↓ zum Navigieren · OK zum Schreiben</string>
+    <string name="tools_other_tv_ip">IP des anderen Fernsehers</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Verbindungscode</string>
+    <string name="tools_connect">Verbinden</string>
+</resources>

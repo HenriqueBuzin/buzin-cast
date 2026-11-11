@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Кескінді калибрлеу</string>
+    <string name="tools_connection_diagnostics">Қосылым диагностикасы</string>
+    <string name="tools_record_title">Экран көшірмесін жазу</string>
+    <string name="tools_record_help">Экран көшірмесін дыбыспен бірге сақтаңыз. Қосылмас бұрын жазуды дайындаңыз.</string>
+    <string name="tools_record_stop">■ Жазуды тоқтату</string>
+    <string name="tools_record_prepare">Жазуды дайындау</string>
+    <string name="tools_other_tv">Басқа теледидар</string>
+    <string name="tools_relay_help">Экран көшірмесін осы желіде BuzinCast іске қосылған басқа теледидарға жіберіңіз. Сол теледидарда Осы теледидарда қабылдау тармағын таңдап, көрсетілген деректерді пайдаланыңыз.</string>
+    <string name="tools_this_tv_ip">Осы теледидардың IP мекенжайы: %1$s</string>
+    <string name="tools_relay_receive">Осы теледидарда қабылдау</string>
+    <string name="tools_relay_connect">Басқа теледидарға қосылу</string>
+    <string name="tools_relay_stop">Қайта таратуды тоқтату</string>
+    <string name="tools_relay_details">Порт: %1$d  •  Код: %2$s</string>
+    <string name="tools_dlna_photos">DLNA арқылы алынған фотолар</string>
+    <string name="tools_dlna_help">Фотоларды қабылдап, слайдшоу жасау үшін Баптаулар бөлімінде DLNA қызметін қосыңыз.</string>
+    <string name="tools_native_help">Fire TV жүйесіндегі кірістірілген экранды қайталау мүмкіндігі. Үйлесімді үлгілерде қолжетімді.</string>
+    <string name="tools_native_unavailable">Бұл үлгіде Miracast қолжетімсіз. Баптаулар → Дисплей және дыбыс → Экранды қайталау тармағын тексеріңіз.</string>
+    <string name="tools_native_open">Кірістірілген экранды қайталауды ашу</string>
+    <string name="tools_recordings">Жергілікті жазбалар</string>
+    <string name="tools_refresh">Тізімді жаңарту</string>
+    <string name="tools_recordings_empty">Жазбаларыңыз осы жерде көрсетіледі.</string>
+    <string name="tools_play">Ойнату</string>
+    <string name="tools_delete">Жою</string>
+    <string name="tools_delete_confirm">Жазба жойылсын ба?</string>
+    <string name="tools_relay_input_help">Басқа теледидарда Осы теледидарда қабылдау тармағын таңдағаннан кейін көрсетілетін деректерді енгізіңіз.</string>
+    <string name="tools_relay_keyboard_help">↑↓ жылжу үшін · OK теру үшін</string>
+    <string name="tools_other_tv_ip">Басқа теледидардың IP мекенжайы</string>
+    <string name="tools_port">Порт</string>
+    <string name="tools_pairing_code">Қосылу коды</string>
+    <string name="tools_connect">Қосылу</string>
+</resources>

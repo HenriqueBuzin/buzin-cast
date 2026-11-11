@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Externí titulky</string>
+    <string name="subtitle_picker_help">Vyberte soubor SRT nebo VTT v kódování UTF-8 o velikosti nejvýše 2 MB. Externí titulky fungují u videí přijímaných z adresy URL. Zrcadlení obrazovky používá titulky odesílajícího zařízení. Je vyžadován výběr souborů.</string>
+    <string name="subtitle_picker_unavailable">V tomto zařízení není výběr souborů dostupný.</string>
+    <string name="subtitle_choose_file">Vybrat soubor</string>
+    <string name="subtitle_disable">Bez titulků</string>
+    <string name="subtitle_load_failed">Titulky se nepodařilo načíst.</string>
+    <string name="connection_approval_title">Povolit přenos?</string>
+    <string name="connection_approval_help">Povolte připojení jen zařízení, které znáte. Povolení platí 5 minut. Pokud do 25 sekund neodpovíte, připojení se zamítne.</string>
+    <string name="connection_decline">Odmítnout</string>
+    <string name="record_waiting">Čeká se na nahrávání</string>
+    <string name="network_available">Síť je dostupná</string>
+    <string name="network_waiting">Místní síť není dostupná. Čeká se na připojení…</string>
+    <string name="network_recovered">Síť byla obnovena. K přijímači se můžete znovu připojit.</string>
+    <string name="network_playback_retry">Připojení bylo přerušeno. Pokus o obnovení videa (%1$d/3)…</string>
+</resources>

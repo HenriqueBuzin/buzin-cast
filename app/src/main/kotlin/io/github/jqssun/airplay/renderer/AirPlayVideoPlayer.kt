@@ -71,7 +71,7 @@ class AirPlayVideoPlayer(private val context: Context) {
             Log.w(TAG, "playback error", error)
             val delay = recovery.nextDelay(error.errorCode, recoveryEnabled())
             if (delay != null) {
-                onRecovery?.invoke(token, "Conexão interrompida. Tentando retomar vídeo (${recovery.attempt}/3)…")
+                onRecovery?.invoke(token, context.getString(io.github.jqssun.airplay.R.string.network_playback_retry, recovery.attempt))
                 mainHandler.postDelayed(retry, delay)
                 return
             }

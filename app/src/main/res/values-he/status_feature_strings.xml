@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">אין מספיק מקום. פנו לפחות 128 מ״ב.</string>
+    <string name="capture_waiting_keyframe">ממתין לפריים מפתח. חברו מחדש את שיקוף המסך לפי הצורך.</string>
+    <string name="capture_recording_file">מקליט את %1$s</string>
+    <string name="capture_space_exhausted">ההקלטה הופסקה כי האחסון כמעט מלא.</string>
+    <string name="capture_failed">לא ניתן היה להקליט.</string>
+    <string name="capture_saved_file">נשמר: %1$s</string>
+    <string name="capture_no_keyframe">לא התקבל פריים מפתח. לא נשמר קובץ.</string>
+    <string name="capture_slow_storage">ההקלטה הופסקה כי האחסון לא עמד בקצב השידור.</string>
+    <string name="capture_finishing">מסיים את ההקלטה…</string>
+    <string name="relay_waiting_peer">ממתין ל-BuzinCast נוסף. הקוד פג בעוד 5 דקות.</string>
+    <string name="relay_listener_failed">לא ניתן להפעיל את המקלט: %1$s</string>
+    <string name="relay_other_stream">שידור אחר פעיל</string>
+    <string name="relay_receiving_peer">מקבל שידור מ-%1$s</string>
+    <string name="relay_mirroring_took_over">שיקוף מסך החליף את ההפעלה</string>
+    <string name="relay_ended">השידור החוזר הסתיים.</string>
+    <string name="relay_new_code">הקליטה הסתיימה. צרו קוד חדש.</string>
+    <string name="relay_receive_failed">הקליטה הסתיימה: %1$s</string>
+    <string name="relay_connecting">מתחבר…</string>
+    <string name="relay_use_local_ip">השתמשו בכתובת ה-IP המקומית של הטלוויזיה השנייה</string>
+    <string name="relay_bad_code">הקוד שגוי</string>
+    <string name="relay_connected">החיבור נוצר. הפעילו או חברו מחדש את שיקוף המסך.</string>
+    <string name="relay_send_failed">השידור החוזר הסתיים: %1$s</string>
+    <string name="relay_slow_network">הרשת איטית והשידור החוזר הסתיים. חברו שוב את המקלטים.</string>
+    <string name="diag_no_ipv4">אין כתובת IPv4 מקומית. חברו את הטלוויזיה ב-Wi-Fi או בכבל Ethernet.</string>
+    <string name="diag_tv_ip">כתובת ה-IP של הטלוויזיה: %1$s</string>
+    <string name="diag_receiver_running">המקלט פועל.</string>
+    <string name="diag_receiver_stopped">המקלט כבוי. הפעילו אותו במסך החיבור.</string>
+    <string name="diag_vpn_active">VPN פעיל ועשוי לחסום את גילוי המכשירים ברשת המקומית.</string>
+    <string name="diag_usb_only">גילוי המכשירים מוגבל ל-USB. עבור Wi-Fi בחרו את כל הרשתות בהגדרות.</string>
+    <string name="diag_airplay">AirPlay: %1$s • יציאה %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">אם המקלט לא מופיע, חברו את שני המכשירים לאותה רשת מקומית. הימנעו מרשת אורחים ומבידוד מכשירים. בדקו את הגדרות ה-VPN וחומת האש ואת התמיכה ב-multicast/mDNS. הפעילו התאוששות אוטומטית כשאתם מחליפים רשת. אם התמונה חתוכה, כיילו את ארבע הפינות. לכתוביות SRT/VTT בסרטון מכתובת URL, השתמשו ב-CC.</string>
+    <string name="export_logs_failed">לא ניתן היה לייצא את היומנים. נסה שוב.</string>
+</resources>

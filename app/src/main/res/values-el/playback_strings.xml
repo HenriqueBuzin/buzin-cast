@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Εξωτερικοί υπότιτλοι</string>
+    <string name="subtitle_picker_help">Επιλέξτε αρχείο SRT ή VTT σε UTF-8, έως 2 MB. Οι εξωτερικοί υπότιτλοι λειτουργούν με βίντεο που λαμβάνονται μέσω URL. Ο κατοπτρισμός χρησιμοποιεί τους υπότιτλους της συσκευής αποστολής. Απαιτείται επιλογέας αρχείων.</string>
+    <string name="subtitle_picker_unavailable">Δεν υπάρχει διαθέσιμος επιλογέας αρχείων σε αυτή τη συσκευή.</string>
+    <string name="subtitle_choose_file">Επιλογή αρχείου</string>
+    <string name="subtitle_disable">Χωρίς υπότιτλους</string>
+    <string name="subtitle_load_failed">Δεν ήταν δυνατή η φόρτωση των υπότιτλων.</string>
+    <string name="connection_approval_title">Να επιτραπεί η μετάδοση;</string>
+    <string name="connection_approval_help">Επιτρέψτε τη σύνδεση μόνο σε συσκευή που αναγνωρίζετε. Η έγκριση ισχύει για 5 λεπτά. Χωρίς απάντηση εντός 25 δευτερολέπτων, η σύνδεση απορρίπτεται.</string>
+    <string name="connection_decline">Απόρριψη</string>
+    <string name="record_waiting">Αναμονή για εγγραφή</string>
+    <string name="network_available">Το δίκτυο είναι διαθέσιμο</string>
+    <string name="network_waiting">Δεν υπάρχει τοπικό δίκτυο. Αναμονή για σύνδεση…</string>
+    <string name="network_recovered">Το δίκτυο αποκαταστάθηκε. Μπορείτε να συνδεθείτε ξανά στον δέκτη.</string>
+    <string name="network_playback_retry">Η σύνδεση διακόπηκε. Προσπάθεια συνέχισης του βίντεο (%1$d/3)…</string>
+</resources>

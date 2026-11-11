@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Načítání fotky…</string>
+    <string name="photo_received">Fotka přijatá přes DLNA</string>
+    <string name="media_previous">Předchozí</string>
+    <string name="media_next">Další</string>
+    <string name="photo_slideshow">Prezentace</string>
+    <string name="photo_rotate">Otočit</string>
+    <string name="photo_scale">Přizpůsobit / vyplnit</string>
+    <string name="photo_position">Fotka %1$d z %2$d • K procházení, otočení nebo zavření použijte dálkové ovládání.</string>
+    <string name="photo_error">Fotku se nepodařilo otevřít.</string>
+    <string name="photo_error_size">Fotka je větší než 16 MB.</string>
+    <string name="photo_error_format">Formát fotky není platný.</string>
+    <string name="photo_error_redirect">Odkaz na fotku se nepodařilo otevřít.</string>
+</resources>

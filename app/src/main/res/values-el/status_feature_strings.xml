@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Δεν υπάρχει αρκετός χώρος. Ελευθερώστε τουλάχιστον 128 MB.</string>
+    <string name="capture_waiting_keyframe">Αναμονή για καρέ-κλειδί. Αν χρειάζεται, συνδέστε ξανά τον κατοπτρισμό.</string>
+    <string name="capture_recording_file">Εγγραφή του %1$s</string>
+    <string name="capture_space_exhausted">Η εγγραφή σταμάτησε επειδή ο χώρος αποθήκευσης σχεδόν εξαντλήθηκε.</string>
+    <string name="capture_failed">Η εγγραφή απέτυχε.</string>
+    <string name="capture_saved_file">Αποθηκεύτηκε: %1$s</string>
+    <string name="capture_no_keyframe">Δεν λήφθηκε καρέ-κλειδί. Δεν αποθηκεύτηκε αρχείο.</string>
+    <string name="capture_slow_storage">Η εγγραφή σταμάτησε επειδή ο αποθηκευτικός χώρος δεν προλάβαινε τη ροή.</string>
+    <string name="capture_finishing">Ολοκλήρωση εγγραφής…</string>
+    <string name="relay_waiting_peer">Αναμονή για άλλο BuzinCast. Ο κωδικός λήγει σε 5 λεπτά.</string>
+    <string name="relay_listener_failed">Δεν ήταν δυνατή η εκκίνηση του δέκτη: %1$s</string>
+    <string name="relay_other_stream">Μια άλλη μετάδοση είναι ενεργή</string>
+    <string name="relay_receiving_peer">Λήψη από %1$s</string>
+    <string name="relay_mirroring_took_over">Ο κατοπτρισμός οθόνης ανέλαβε την αναπαραγωγή</string>
+    <string name="relay_ended">Η αναμετάδοση έληξε.</string>
+    <string name="relay_new_code">Η λήψη έληξε. Δημιουργήστε νέο κωδικό.</string>
+    <string name="relay_receive_failed">Η λήψη έληξε: %1$s</string>
+    <string name="relay_connecting">Σύνδεση…</string>
+    <string name="relay_use_local_ip">Χρησιμοποιήστε την τοπική διεύθυνση IP της άλλης τηλεόρασης</string>
+    <string name="relay_bad_code">Λανθασμένος κωδικός</string>
+    <string name="relay_connected">Συνδέθηκε. Ξεκινήστε ή επανασυνδέστε τον κατοπτρισμό.</string>
+    <string name="relay_send_failed">Η αναμετάδοση έληξε: %1$s</string>
+    <string name="relay_slow_network">Αργό δίκτυο. Η αναμετάδοση έληξε. Συνδέστε ξανά τους δέκτες.</string>
+    <string name="diag_no_ipv4">Δεν υπάρχει τοπική διεύθυνση IPv4. Συνδέστε την τηλεόραση μέσω Wi-Fi ή Ethernet.</string>
+    <string name="diag_tv_ip">Διεύθυνση IP τηλεόρασης: %1$s</string>
+    <string name="diag_receiver_running">Ο δέκτης λειτουργεί.</string>
+    <string name="diag_receiver_stopped">Ο δέκτης έχει σταματήσει. Ξεκινήστε τον από την οθόνη σύνδεσης.</string>
+    <string name="diag_vpn_active">Το VPN είναι ενεργό και μπορεί να εμποδίσει τον τοπικό εντοπισμό.</string>
+    <string name="diag_usb_only">Ο εντοπισμός περιορίζεται στο USB. Για Wi-Fi, επιλέξτε Όλα τα δίκτυα στις Ρυθμίσεις.</string>
+    <string name="diag_airplay">AirPlay: %1$s • θύρα %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Αν δεν εμφανίζεται ο δέκτης, συνδέστε και τις δύο συσκευές στο ίδιο τοπικό δίκτυο. Αποφύγετε τα δίκτυα επισκεπτών και την απομόνωση συσκευών. Ελέγξτε το VPN, το τείχος προστασίας και την υποστήριξη multicast/mDNS. Ενεργοποιήστε την αυτόματη επαναφορά όταν αλλάζετε δίκτυο. Αν η εικόνα κόβεται, ρυθμίστε τις τέσσερις γωνίες. Για υπότιτλους SRT/VTT σε βίντεο από URL, επιλέξτε CC.</string>
+    <string name="export_logs_failed">Δεν ήταν δυνατή η εξαγωγή των αρχείων καταγραφής. Δοκιμάστε ξανά.</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">ملف البث</string>
+    <string name="setting_streaming_profile_desc">يؤدي تغيير الملف إلى إعادة تشغيل جهاز الاستقبال. تعتمد الجودة الفعلية على جهاز الإرسال والشبكة.</string>
+    <string name="setting_profile_default">افتراضي</string>
+    <string name="setting_profile_cinema">سينما</string>
+    <string name="setting_profile_presentation">عرض تقديمي</string>
+    <string name="setting_profile_games">ألعاب</string>
+    <string name="setting_approve_connections">الموافقة على الاتصالات</string>
+    <string name="setting_approve_connections_desc">استخدم جهاز التحكم لقبول اتصالات AirPlay وDLNA وFCast وCast V2 أو رفضها. تسري الموافقة على البروتوكول وعنوان IP لمدة خمس دقائق.</string>
+    <string name="setting_network_recovery">الاستعادة بعد انقطاع الشبكة</string>
+    <string name="setting_network_recovery_desc">يصبح جهاز الاستقبال قابلاً للاكتشاف مجددًا عند عودة الشبكة. تحاول مقاطع الفيديو المتوافقة استئناف التشغيل. قد يحتاج جهاز إرسال AirPlay إلى إعادة الاتصال.</string>
+    <string name="setting_calibrate_corners">معايرة الزوايا الأربع</string>
+    <string name="calibration_adjust_hint">← تكبير الصورة • تصغير الصورة →</string>
+    <string name="calibration_save_hint">أبقِ الزوايا الأربع مرئية. زر OK للحفظ • زر الرجوع للإلغاء</string>
+    <string name="setting_profile_unavailable">تعذّر تطبيق ملف البث.</string>
+</resources>

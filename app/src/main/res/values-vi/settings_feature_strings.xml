@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Cấu hình truyền phát</string>
+    <string name="setting_streaming_profile_desc">Khi đổi cấu hình, bộ thu sẽ khởi động lại. Chất lượng thực tế phụ thuộc vào thiết bị gửi và mạng.</string>
+    <string name="setting_profile_default">Mặc định</string>
+    <string name="setting_profile_cinema">Điện ảnh</string>
+    <string name="setting_profile_presentation">Trình chiếu</string>
+    <string name="setting_profile_games">Trò chơi</string>
+    <string name="setting_approve_connections">Phê duyệt kết nối</string>
+    <string name="setting_approve_connections_desc">Dùng điều khiển từ xa để chấp nhận hoặc từ chối kết nối AirPlay, DLNA, FCast và Cast V2. Phê duyệt có hiệu lực trong năm phút đối với giao thức và địa chỉ IP tương ứng.</string>
+    <string name="setting_network_recovery">Khôi phục sau khi mất mạng</string>
+    <string name="setting_network_recovery_desc">Có thể tìm thấy bộ thu trở lại khi mạng được khôi phục. Ứng dụng sẽ thử phát tiếp các video tương thích. Thiết bị gửi AirPlay có thể cần kết nối lại.</string>
+    <string name="setting_calibrate_corners">Căn chỉnh bốn góc</string>
+    <string name="calibration_adjust_hint">← Phóng to hình ảnh • Thu nhỏ hình ảnh →</string>
+    <string name="calibration_save_hint">Hãy để cả bốn góc hiển thị. OK để lưu • Quay lại để hủy</string>
+    <string name="setting_profile_unavailable">Không thể áp dụng cấu hình truyền phát.</string>
+</resources>

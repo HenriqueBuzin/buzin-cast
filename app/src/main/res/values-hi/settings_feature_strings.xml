@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">स्ट्रीमिंग प्रोफ़ाइल</string>
+    <string name="setting_streaming_profile_desc">प्रोफ़ाइल बदलने पर रिसीवर फिर से शुरू होता है। वास्तविक गुणवत्ता भेजने वाले डिवाइस और नेटवर्क पर निर्भर करती है।</string>
+    <string name="setting_profile_default">डिफ़ॉल्ट</string>
+    <string name="setting_profile_cinema">सिनेमा</string>
+    <string name="setting_profile_presentation">प्रस्तुति</string>
+    <string name="setting_profile_games">गेम</string>
+    <string name="setting_approve_connections">कनेक्शन की मंज़ूरी</string>
+    <string name="setting_approve_connections_desc">रिमोट से AirPlay, DLNA, FCast और Cast V2 कनेक्शन स्वीकार या अस्वीकार करें। उस प्रोटोकॉल और IP पते के लिए मंज़ूरी पाँच मिनट तक रहती है।</string>
+    <string name="setting_network_recovery">नेटवर्क बाधित होने पर रिकवरी</string>
+    <string name="setting_network_recovery_desc">नेटवर्क लौटने पर रिसीवर फिर से खोजा जा सकता है। ऐप संगत वीडियो फिर से चलाने की कोशिश करता है। AirPlay भेजने वाले डिवाइस को फिर से कनेक्ट करना पड़ सकता है।</string>
+    <string name="setting_calibrate_corners">चारों कोनों को कैलिब्रेट करें</string>
+    <string name="calibration_adjust_hint">← चित्र बड़ा करें • चित्र छोटा करें →</string>
+    <string name="calibration_save_hint">चारों कोने दिखाई देने दें। सेव करने के लिए OK • रद्द करने के लिए वापस</string>
+    <string name="setting_profile_unavailable">स्ट्रीमिंग प्रोफ़ाइल लागू नहीं हो सकी।</string>
+</resources>

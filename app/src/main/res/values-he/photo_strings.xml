@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">טוען תמונה…</string>
+    <string name="photo_received">תמונה שהתקבלה דרך DLNA</string>
+    <string name="media_previous">הקודם</string>
+    <string name="media_next">הבא</string>
+    <string name="photo_slideshow">מצגת</string>
+    <string name="photo_rotate">סיבוב</string>
+    <string name="photo_scale">התאמה / מילוי</string>
+    <string name="photo_position">תמונה %1$d מתוך %2$d • השתמשו בשלט כדי לעבור בין התמונות, לסובב או לסגור.</string>
+    <string name="photo_error">לא ניתן לפתוח את התמונה.</string>
+    <string name="photo_error_size">גודל התמונה עולה על 16 מ״ב.</string>
+    <string name="photo_error_format">פורמט התמונה אינו תקין.</string>
+    <string name="photo_error_redirect">לא ניתן לפתוח את הקישור לתמונה.</string>
+</resources>

@@ -1,7 +1,9 @@
 # Vega OS 1.0 a 2.0 — versões em paralelo
 
 Levantamento de 9 de novembro de 2026, no Mac arm64 / macOS 27.2, com Vega CLI
-1.4.9. Alvo definido por Henrique: **Vega OS 1.0, 1.1, 1.2 e 2.0**.
+1.4.9. Alvo definido por Henrique: **Vega OS desde 1.0 até a versão mais
+recente**, somente em Fire TV Stick, com edições com e sem download e
+gravação. Compilação e validação em macOS ou Ubuntu nativo.
 
 Este arquivo descreve o plano. Hoje só existe a linha `vega/`, com mínimo 2.0.
 Nenhum build para OS 1.x foi feito ou testado.

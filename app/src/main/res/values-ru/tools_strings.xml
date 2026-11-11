@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Калибровка изображения</string>
+    <string name="tools_connection_diagnostics">Диагностика подключения</string>
+    <string name="tools_record_title">Запись повтора экрана</string>
+    <string name="tools_record_help">Сохраните изображение и звук. Подготовьте запись перед подключением.</string>
+    <string name="tools_record_stop">■ Остановить запись</string>
+    <string name="tools_record_prepare">Подготовить запись</string>
+    <string name="tools_other_tv">Другой телевизор</string>
+    <string name="tools_relay_help">Передайте повтор экрана на другой телевизор с BuzinCast в той же сети. На нём выберите Принимать на этом телевизоре и воспользуйтесь данными на экране.</string>
+    <string name="tools_this_tv_ip">IP-адрес этого телевизора: %1$s</string>
+    <string name="tools_relay_receive">Принимать на этом телевизоре</string>
+    <string name="tools_relay_connect">Подключиться к другому телевизору</string>
+    <string name="tools_relay_stop">Остановить ретрансляцию</string>
+    <string name="tools_relay_details">Порт: %1$d  •  Код: %2$s</string>
+    <string name="tools_dlna_photos">Фото по DLNA</string>
+    <string name="tools_dlna_help">Включите DLNA в настройках, чтобы принимать фотографии и создавать слайд-шоу.</string>
+    <string name="tools_native_help">Встроенный повтор экрана Fire TV. Доступен на совместимых моделях.</string>
+    <string name="tools_native_unavailable">Miracast недоступен на этой модели. Проверьте Настройки → Экран и звук → Повтор экрана.</string>
+    <string name="tools_native_open">Открыть встроенный повтор экрана</string>
+    <string name="tools_recordings">Локальные записи</string>
+    <string name="tools_refresh">Обновить список</string>
+    <string name="tools_recordings_empty">Здесь появятся ваши записи.</string>
+    <string name="tools_play">Воспроизвести</string>
+    <string name="tools_delete">Удалить</string>
+    <string name="tools_delete_confirm">Удалить запись?</string>
+    <string name="tools_relay_input_help">Введите данные, которые отображаются на другом телевизоре после выбора пункта Принимать на этом телевизоре.</string>
+    <string name="tools_relay_keyboard_help">↑↓ для перемещения · OK для ввода</string>
+    <string name="tools_other_tv_ip">IP-адрес другого телевизора</string>
+    <string name="tools_port">Порт</string>
+    <string name="tools_pairing_code">Код подключения</string>
+    <string name="tools_connect">Подключиться</string>
+</resources>

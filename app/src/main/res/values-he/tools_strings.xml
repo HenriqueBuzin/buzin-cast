@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">כיול התמונה</string>
+    <string name="tools_connection_diagnostics">אבחון חיבור</string>
+    <string name="tools_record_title">הקלטת שיקוף מסך</string>
+    <string name="tools_record_help">שמרו את המסך המשוקף ואת השמע. הכינו את ההקלטה לפני ההתחברות.</string>
+    <string name="tools_record_stop">■ עצירת הקלטה</string>
+    <string name="tools_record_prepare">הכנת הקלטה</string>
+    <string name="tools_other_tv">טלוויזיה אחרת</string>
+    <string name="tools_relay_help">העבירו את שיקוף המסך לטלוויזיה אחרת עם BuzinCast באותה רשת. בחרו שם קבלה בטלוויזיה זו והשתמשו בפרטים המוצגים.</string>
+    <string name="tools_this_tv_ip">כתובת IP של טלוויזיה זו: %1$s</string>
+    <string name="tools_relay_receive">קבלה בטלוויזיה זו</string>
+    <string name="tools_relay_connect">התחברות לטלוויזיה אחרת</string>
+    <string name="tools_relay_stop">הפסקת העברה</string>
+    <string name="tools_relay_details">יציאה: %1$d  •  קוד: %2$s</string>
+    <string name="tools_dlna_photos">תמונות באמצעות DLNA</string>
+    <string name="tools_dlna_help">הפעילו DLNA בהגדרות כדי לקבל תמונות וליצור מצגת.</string>
+    <string name="tools_native_help">שיקוף המסך המובנה של Fire TV. זמין בדגמים תואמים.</string>
+    <string name="tools_native_unavailable">Miracast אינו זמין בדגם זה. בדקו בהגדרות ← תצוגה וצלילים ← שיקוף מסך.</string>
+    <string name="tools_native_open">פתיחת השיקוף המובנה</string>
+    <string name="tools_recordings">הקלטות מקומיות</string>
+    <string name="tools_refresh">רענון הרשימה</string>
+    <string name="tools_recordings_empty">ההקלטות שלכם יופיעו כאן.</string>
+    <string name="tools_play">הפעלה</string>
+    <string name="tools_delete">מחיקה</string>
+    <string name="tools_delete_confirm">למחוק את ההקלטה?</string>
+    <string name="tools_relay_input_help">הזינו את הפרטים שמופיעים לאחר בחירה באפשרות קבלה בטלוויזיה זו בטלוויזיה האחרת.</string>
+    <string name="tools_relay_keyboard_help">↑↓ לניווט · OK להקלדה</string>
+    <string name="tools_other_tv_ip">כתובת IP של הטלוויזיה האחרת</string>
+    <string name="tools_port">יציאה</string>
+    <string name="tools_pairing_code">קוד חיבור</string>
+    <string name="tools_connect">התחברות</string>
+</resources>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">पर्याप्त जगह नहीं है। कम से कम 128 एमबी खाली करें।</string>
+    <string name="capture_waiting_keyframe">कीफ़्रेम का इंतज़ार है। ज़रूरत हो तो स्क्रीन मिररिंग फिर से कनेक्ट करें।</string>
+    <string name="capture_recording_file">%1$s रिकॉर्ड हो रहा है</string>
+    <string name="capture_space_exhausted">स्टोरेज लगभग भर गया है, इसलिए रिकॉर्डिंग बंद हुई।</string>
+    <string name="capture_failed">रिकॉर्ड नहीं कर सके।</string>
+    <string name="capture_saved_file">सेव किया गया: %1$s</string>
+    <string name="capture_no_keyframe">कोई कीफ़्रेम नहीं मिला। कोई फ़ाइल सेव नहीं हुई।</string>
+    <string name="capture_slow_storage">स्टोरेज स्ट्रीम की रफ़्तार नहीं संभाल सका, इसलिए रिकॉर्डिंग बंद हुई।</string>
+    <string name="capture_finishing">रिकॉर्डिंग पूरी हो रही है…</string>
+    <string name="relay_waiting_peer">दूसरे BuzinCast का इंतज़ार है। कोड 5 मिनट में समाप्त होगा।</string>
+    <string name="relay_listener_failed">रिसीवर शुरू नहीं हो सका: %1$s</string>
+    <string name="relay_other_stream">एक और स्ट्रीम चल रही है</string>
+    <string name="relay_receiving_peer">%1$s से मिल रहा है</string>
+    <string name="relay_mirroring_took_over">स्क्रीन मिररिंग ने प्लेबैक संभाल लिया</string>
+    <string name="relay_ended">रिले समाप्त हुआ।</string>
+    <string name="relay_new_code">रिसेप्शन समाप्त हुआ। नया कोड बनाएँ।</string>
+    <string name="relay_receive_failed">रिसेप्शन समाप्त हुआ: %1$s</string>
+    <string name="relay_connecting">कनेक्ट हो रहा है…</string>
+    <string name="relay_use_local_ip">दूसरे टीवी का स्थानीय IP पता इस्तेमाल करें</string>
+    <string name="relay_bad_code">गलत कोड</string>
+    <string name="relay_connected">कनेक्ट हो गया। स्क्रीन मिररिंग शुरू करें या फिर से कनेक्ट करें।</string>
+    <string name="relay_send_failed">रिले समाप्त हुआ: %1$s</string>
+    <string name="relay_slow_network">नेटवर्क धीमा है। रिले बंद हुआ। रिसीवर दोबारा कनेक्ट करें।</string>
+    <string name="diag_no_ipv4">स्थानीय IPv4 पता नहीं है। टीवी को Wi-Fi या Ethernet से जोड़ें।</string>
+    <string name="diag_tv_ip">टीवी का IP पता: %1$s</string>
+    <string name="diag_receiver_running">रिसीवर चालू है।</string>
+    <string name="diag_receiver_stopped">रिसीवर बंद है। कनेक्शन स्क्रीन से चालू करें।</string>
+    <string name="diag_vpn_active">VPN चालू है और स्थानीय खोज को रोक सकता है।</string>
+    <string name="diag_usb_only">खोज केवल USB पर है। Wi-Fi के लिए सेटिंग में सभी नेटवर्क चुनें।</string>
+    <string name="diag_airplay">AirPlay: %1$s • पोर्ट %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">रिसीवर दिखाई न दे तो दोनों डिवाइस एक ही स्थानीय नेटवर्क से जोड़ें। गेस्ट नेटवर्क और डिवाइस आइसोलेशन से बचें। VPN, फ़ायरवॉल और multicast/mDNS सेटिंग जाँचें। नेटवर्क बदलते समय ऑटो रिकवरी चालू रखें। तस्वीर कट रही हो तो चारों कोने कैलिब्रेट करें। URL से चल रहे वीडियो में SRT/VTT सबटाइटल के लिए CC इस्तेमाल करें।</string>
+    <string name="export_logs_failed">लॉग एक्सपोर्ट नहीं हो सके। फिर से कोशिश करें।</string>
+</resources>

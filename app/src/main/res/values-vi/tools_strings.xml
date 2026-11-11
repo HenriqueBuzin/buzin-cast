@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Căn chỉnh hình ảnh</string>
+    <string name="tools_connection_diagnostics">Chẩn đoán kết nối</string>
+    <string name="tools_record_title">Ghi lại màn hình phản chiếu</string>
+    <string name="tools_record_help">Lưu hình ảnh phản chiếu và âm thanh. Hãy chuẩn bị ghi trước khi kết nối.</string>
+    <string name="tools_record_stop">■ Dừng ghi</string>
+    <string name="tools_record_prepare">Chuẩn bị ghi</string>
+    <string name="tools_other_tv">TV khác</string>
+    <string name="tools_relay_help">Chuyển tiếp hình ảnh phản chiếu đến TV khác đang chạy BuzinCast trên cùng mạng. Trên TV đó, chọn Nhận trên TV này và dùng thông tin hiển thị.</string>
+    <string name="tools_this_tv_ip">Địa chỉ IP của TV này: %1$s</string>
+    <string name="tools_relay_receive">Nhận trên TV này</string>
+    <string name="tools_relay_connect">Kết nối với TV khác</string>
+    <string name="tools_relay_stop">Dừng chuyển tiếp</string>
+    <string name="tools_relay_details">Cổng: %1$d  •  Mã: %2$s</string>
+    <string name="tools_dlna_photos">Ảnh qua DLNA</string>
+    <string name="tools_dlna_help">Bật DLNA trong phần Cài đặt để nhận ảnh và tạo trình chiếu.</string>
+    <string name="tools_native_help">Tính năng phản chiếu màn hình tích hợp của Fire TV. Có trên các mẫu tương thích.</string>
+    <string name="tools_native_unavailable">Mẫu này không hỗ trợ Miracast. Hãy kiểm tra Cài đặt → Màn hình và âm thanh → Phản chiếu màn hình.</string>
+    <string name="tools_native_open">Mở tính năng phản chiếu tích hợp</string>
+    <string name="tools_recordings">Bản ghi trên thiết bị</string>
+    <string name="tools_refresh">Làm mới danh sách</string>
+    <string name="tools_recordings_empty">Các bản ghi của bạn sẽ xuất hiện ở đây.</string>
+    <string name="tools_play">Phát</string>
+    <string name="tools_delete">Xóa</string>
+    <string name="tools_delete_confirm">Xóa bản ghi?</string>
+    <string name="tools_relay_input_help">Nhập thông tin hiển thị sau khi chọn Nhận trên TV này ở TV bên kia.</string>
+    <string name="tools_relay_keyboard_help">↑↓ để di chuyển · OK để nhập</string>
+    <string name="tools_other_tv_ip">Địa chỉ IP của TV bên kia</string>
+    <string name="tools_port">Cổng</string>
+    <string name="tools_pairing_code">Mã kết nối</string>
+    <string name="tools_connect">Kết nối</string>
+</resources>

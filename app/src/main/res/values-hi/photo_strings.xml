@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">फ़ोटो लोड हो रही है…</string>
+    <string name="photo_received">DLNA से मिली फ़ोटो</string>
+    <string name="media_previous">पिछला</string>
+    <string name="media_next">अगला</string>
+    <string name="photo_slideshow">स्लाइड शो</string>
+    <string name="photo_rotate">घुमाएँ</string>
+    <string name="photo_scale">फ़िट करें / भरें</string>
+    <string name="photo_position">फ़ोटो %1$d / %2$d • आगे-पीछे जाने, घुमाने या बंद करने के लिए रिमोट का इस्तेमाल करें।</string>
+    <string name="photo_error">फ़ोटो नहीं खोली जा सकी।</string>
+    <string name="photo_error_size">फ़ोटो 16 MB से बड़ी है।</string>
+    <string name="photo_error_format">फ़ोटो का फ़ॉर्मैट मान्य नहीं है।</string>
+    <string name="photo_error_redirect">फ़ोटो का लिंक नहीं खोला जा सका।</string>
+</resources>

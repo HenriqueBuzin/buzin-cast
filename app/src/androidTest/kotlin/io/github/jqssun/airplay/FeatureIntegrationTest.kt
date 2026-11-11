@@ -110,7 +110,9 @@ class FeatureIntegrationTest {
     }
     @Test fun diagnosticsAndPhysicalDisplayWorkOnLegacyAndModernAndroid() {
         val report = io.github.jqssun.airplay.media.NetworkDiagnostics.report(context, true)
-        assertTrue(report.contains("Receptor iniciado.")); assertTrue(report.contains("AirPlay:"))
+        assertTrue(report.contains(context.getString(R.string.diag_receiver_running)))
+        val prefs = context.getSharedPreferences(Prefs.NAME, android.content.Context.MODE_PRIVATE)
+        assertTrue(report.contains(context.getString(R.string.diag_airplay, Prefs.SERVER_NAME.read(prefs), Prefs.SERVER_PORT.read(prefs))))
         val size = context.realDisplaySize()
         assertTrue(size.first > 0 && size.second > 0)
     }

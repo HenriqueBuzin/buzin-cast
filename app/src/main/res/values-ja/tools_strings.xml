@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">画面を調整</string>
+    <string name="tools_connection_diagnostics">接続診断</string>
+    <string name="tools_record_title">画面ミラーリングを録画</string>
+    <string name="tools_record_help">ミラーリング中の画面と音声を保存します。接続する前に録画を準備してください。</string>
+    <string name="tools_record_stop">■ 録画を停止</string>
+    <string name="tools_record_prepare">録画を準備</string>
+    <string name="tools_other_tv">別のテレビ</string>
+    <string name="tools_relay_help">同じネットワーク上でBuzinCastを使用している別のテレビにミラーリングを中継できます。受信側で「このテレビで受信」を選択し、表示された情報を使用してください。</string>
+    <string name="tools_this_tv_ip">このテレビのIPアドレス：%1$s</string>
+    <string name="tools_relay_receive">このテレビで受信</string>
+    <string name="tools_relay_connect">別のテレビに接続</string>
+    <string name="tools_relay_stop">中継を停止</string>
+    <string name="tools_relay_details">ポート：%1$d  •  コード：%2$s</string>
+    <string name="tools_dlna_photos">DLNA経由の写真</string>
+    <string name="tools_dlna_help">設定でDLNAを有効にすると、写真を受信してスライドショーを作成できます。</string>
+    <string name="tools_native_help">Fire TVに内蔵された画面ミラーリング機能です。対応モデルで使用できます。</string>
+    <string name="tools_native_unavailable">このモデルではMiracastを利用できません。設定 → ディスプレイとサウンド → ディスプレイミラーリングを確認してください。</string>
+    <string name="tools_native_open">内蔵ミラーリングを開く</string>
+    <string name="tools_recordings">ローカル録画</string>
+    <string name="tools_refresh">一覧を更新</string>
+    <string name="tools_recordings_empty">録画したファイルはここに表示されます。</string>
+    <string name="tools_play">再生</string>
+    <string name="tools_delete">削除</string>
+    <string name="tools_delete_confirm">録画を削除しますか？</string>
+    <string name="tools_relay_input_help">別のテレビで「このテレビで受信」を選択し、表示された情報を入力してください。</string>
+    <string name="tools_relay_keyboard_help">↑↓で移動 · OKで入力</string>
+    <string name="tools_other_tv_ip">別のテレビのIPアドレス</string>
+    <string name="tools_port">ポート</string>
+    <string name="tools_pairing_code">接続コード</string>
+    <string name="tools_connect">接続</string>
+</resources>

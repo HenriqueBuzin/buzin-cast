@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">פרופיל שידור</string>
+    <string name="setting_streaming_profile_desc">שינוי הפרופיל מפעיל מחדש את המקלט. האיכות בפועל תלויה במכשיר המשדר וברשת.</string>
+    <string name="setting_profile_default">ברירת מחדל</string>
+    <string name="setting_profile_cinema">קולנוע</string>
+    <string name="setting_profile_presentation">מצגת</string>
+    <string name="setting_profile_games">משחקים</string>
+    <string name="setting_approve_connections">אישור חיבורים</string>
+    <string name="setting_approve_connections_desc">השתמשו בשלט כדי לאשר או לדחות חיבורי AirPlay, DLNA, FCast ו-Cast V2. האישור תקף לחמש דקות עבור הפרוטוקול וכתובת ה-IP.</string>
+    <string name="setting_network_recovery">התאוששות לאחר ניתוק הרשת</string>
+    <string name="setting_network_recovery_desc">כשהרשת חוזרת, שוב ניתן לגלות את המקלט. האפליקציה מנסה לחדש את ההפעלה של סרטונים תואמים. ייתכן שמכשיר AirPlay יצטרך להתחבר מחדש.</string>
+    <string name="setting_calibrate_corners">כיול ארבע הפינות</string>
+    <string name="calibration_adjust_hint">← הגדלת התמונה • הקטנת התמונה →</string>
+    <string name="calibration_save_hint">השאירו את כל ארבע הפינות גלויות. אישור שומר • חזרה מבטלת</string>
+    <string name="setting_profile_unavailable">לא ניתן להחיל את פרופיל השידור.</string>
+</resources>

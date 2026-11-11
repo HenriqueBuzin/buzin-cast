@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">I-calibrate ang larawan</string>
+    <string name="tools_connection_diagnostics">Pagsusuri sa koneksyon</string>
+    <string name="tools_record_title">I-record ang screen mirroring</string>
+    <string name="tools_record_help">I-save ang naka-mirror na screen at audio. Ihanda ang recording bago kumonekta.</string>
+    <string name="tools_record_stop">■ Ihinto ang pag-record</string>
+    <string name="tools_record_prepare">Ihanda ang recording</string>
+    <string name="tools_other_tv">Ibang TV</string>
+    <string name="tools_relay_help">Ipasa ang screen mirroring sa ibang TV na may BuzinCast sa parehong network. Piliin doon ang Tumanggap sa TV na ito at gamitin ang ipinapakitang mga detalye.</string>
+    <string name="tools_this_tv_ip">IP ng TV na ito: %1$s</string>
+    <string name="tools_relay_receive">Tumanggap sa TV na ito</string>
+    <string name="tools_relay_connect">Kumonekta sa ibang TV</string>
+    <string name="tools_relay_stop">Ihinto ang relay</string>
+    <string name="tools_relay_details">Port: %1$d  •  Code: %2$s</string>
+    <string name="tools_dlna_photos">Mga larawan sa DLNA</string>
+    <string name="tools_dlna_help">I-on ang DLNA sa Mga Setting para tumanggap ng mga larawan at gumawa ng slideshow.</string>
+    <string name="tools_native_help">Built-in na screen mirroring ng Fire TV. Available sa mga tugmang modelo.</string>
+    <string name="tools_native_unavailable">Hindi available ang Miracast sa modelong ito. Tingnan ang Mga Setting → Display at Tunog → Screen Mirroring.</string>
+    <string name="tools_native_open">Buksan ang built-in na mirroring</string>
+    <string name="tools_recordings">Mga lokal na recording</string>
+    <string name="tools_refresh">I-refresh ang listahan</string>
+    <string name="tools_recordings_empty">Lalabas dito ang iyong mga recording.</string>
+    <string name="tools_play">I-play</string>
+    <string name="tools_delete">Burahin</string>
+    <string name="tools_delete_confirm">Burahin ang recording?</string>
+    <string name="tools_relay_input_help">Ilagay ang mga detalyeng lumabas matapos piliin ang Tumanggap sa TV na ito sa kabilang TV.</string>
+    <string name="tools_relay_keyboard_help">↑↓ para gumalaw · OK para mag-type</string>
+    <string name="tools_other_tv_ip">IP ng kabilang TV</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Code ng koneksyon</string>
+    <string name="tools_connect">Kumonekta</string>
+</resources>

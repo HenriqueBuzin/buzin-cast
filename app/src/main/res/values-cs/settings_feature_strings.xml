@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Profil přenosu</string>
+    <string name="setting_streaming_profile_desc">Změna profilu restartuje přijímač. Skutečná kvalita závisí na vysílajícím zařízení a síti.</string>
+    <string name="setting_profile_default">Výchozí</string>
+    <string name="setting_profile_cinema">Kino</string>
+    <string name="setting_profile_presentation">Prezentace</string>
+    <string name="setting_profile_games">Hry</string>
+    <string name="setting_approve_connections">Schvalovat připojení</string>
+    <string name="setting_approve_connections_desc">Pomocí ovladače přijměte nebo odmítněte připojení přes AirPlay, DLNA, FCast a Cast V2. Schválení platí pět minut pro daný protokol a IP adresu.</string>
+    <string name="setting_network_recovery">Obnovení po výpadku sítě</string>
+    <string name="setting_network_recovery_desc">Po obnovení sítě bude přijímač opět viditelný. Přehrávání kompatibilních videí se pokusí obnovit. Zařízení vysílající přes AirPlay se možná bude muset znovu připojit.</string>
+    <string name="setting_calibrate_corners">Kalibrovat všechny čtyři rohy</string>
+    <string name="calibration_adjust_hint">← Zvětšit obraz • Zmenšit obraz →</string>
+    <string name="calibration_save_hint">Nechte všechny čtyři rohy viditelné. OK uloží • Zpět zruší</string>
+    <string name="setting_profile_unavailable">Profil přenosu se nepodařilo použít.</string>
+</resources>

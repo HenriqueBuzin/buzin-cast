@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Внешние субтитры</string>
+    <string name="subtitle_picker_help">Выберите файл SRT или VTT в кодировке UTF-8 размером до 2 МБ. Внешние субтитры работают с видео, полученным по URL. При повторе экрана используются субтитры отправляющего устройства. Нужна функция выбора файлов.</string>
+    <string name="subtitle_picker_unavailable">На этом устройстве недоступен выбор файлов.</string>
+    <string name="subtitle_choose_file">Выбрать файл</string>
+    <string name="subtitle_disable">Без субтитров</string>
+    <string name="subtitle_load_failed">Не удалось загрузить субтитры.</string>
+    <string name="connection_approval_title">Разрешить трансляцию?</string>
+    <string name="connection_approval_help">Разрешайте подключение только знакомым устройствам. Разрешение действует 5 минут. Если не ответить в течение 25 секунд, подключение будет отклонено.</string>
+    <string name="connection_decline">Отклонить</string>
+    <string name="record_waiting">Ожидание записи</string>
+    <string name="network_available">Сеть доступна</string>
+    <string name="network_waiting">Локальная сеть недоступна. Ожидание подключения…</string>
+    <string name="network_recovered">Сеть восстановлена. Можно снова подключиться к приёмнику.</string>
+    <string name="network_playback_retry">Соединение прервано. Попытка возобновить видео (%1$d/3)…</string>
+</resources>

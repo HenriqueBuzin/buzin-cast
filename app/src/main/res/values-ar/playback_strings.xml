@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">ترجمات خارجية</string>
+    <string name="subtitle_picker_help">اختر ملف SRT أو VTT بترميز UTF-8 وبحجم لا يتجاوز 2 ميغابايت. تعمل الترجمات الخارجية مع الفيديو المستلم عبر رابط URL. ويستخدم انعكاس الشاشة ترجمات الجهاز المرسل. يلزم توفر أداة لاختيار الملفات.</string>
+    <string name="subtitle_picker_unavailable">لا تتوفر أداة لاختيار الملفات على هذا الجهاز.</string>
+    <string name="subtitle_choose_file">اختيار ملف</string>
+    <string name="subtitle_disable">بلا ترجمة</string>
+    <string name="subtitle_load_failed">تعذر تحميل الترجمة.</string>
+    <string name="connection_approval_title">هل تريد السماح بالبث؟</string>
+    <string name="connection_approval_help">اسمح بالاتصال فقط لجهاز تعرفه. تستمر الموافقة 5 دقائق. يُرفض الاتصال إذا لم تستجب خلال 25 ثانية.</string>
+    <string name="connection_decline">رفض</string>
+    <string name="record_waiting">في انتظار بدء التسجيل</string>
+    <string name="network_available">الشبكة متاحة</string>
+    <string name="network_waiting">لا توجد شبكة محلية. جارٍ انتظار الاتصال…</string>
+    <string name="network_recovered">عادت الشبكة. يمكنك إعادة الاتصال بالمستقبل.</string>
+    <string name="network_playback_retry">انقطع الاتصال. جارٍ محاولة استئناف الفيديو (%1$d/3)…</string>
+</resources>

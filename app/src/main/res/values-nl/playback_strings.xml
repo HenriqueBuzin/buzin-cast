@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Externe ondertitels</string>
+    <string name="subtitle_picker_help">Kies een UTF-8-bestand in SRT- of VTT-formaat van maximaal 2 MB. Externe ondertitels werken bij video’s die via een URL worden ontvangen. Bij schermspiegeling worden de ondertitels van het zendende apparaat gebruikt. Een bestandskiezer is vereist.</string>
+    <string name="subtitle_picker_unavailable">Op dit apparaat is geen bestandskiezer beschikbaar.</string>
+    <string name="subtitle_choose_file">Bestand kiezen</string>
+    <string name="subtitle_disable">Geen ondertitels</string>
+    <string name="subtitle_load_failed">De ondertitels konden niet worden geladen.</string>
+    <string name="connection_approval_title">Stream toestaan?</string>
+    <string name="connection_approval_help">Sta alleen een apparaat toe dat je herkent. De toestemming geldt 5 minuten. Zonder antwoord binnen 25 seconden wordt de verbinding geweigerd.</string>
+    <string name="connection_decline">Weigeren</string>
+    <string name="record_waiting">Wachten op opname</string>
+    <string name="network_available">Netwerk beschikbaar</string>
+    <string name="network_waiting">Geen lokaal netwerk. Wachten op verbinding…</string>
+    <string name="network_recovered">Netwerk hersteld. Je kunt opnieuw verbinding maken met de ontvanger.</string>
+    <string name="network_playback_retry">Verbinding onderbroken. Video wordt hervat (%1$d/3)…</string>
+</resources>

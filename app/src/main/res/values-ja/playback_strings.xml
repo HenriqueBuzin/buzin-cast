@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">外部字幕</string>
+    <string name="subtitle_picker_help">2 MB以下のUTF-8形式のSRTまたはVTTファイルを選択してください。外部字幕はURL経由で受信した動画で使用できます。画面ミラーリングでは送信側端末の字幕が表示されます。ファイル選択機能が必要です。</string>
+    <string name="subtitle_picker_unavailable">この端末ではファイルを選択できません。</string>
+    <string name="subtitle_choose_file">ファイルを選択</string>
+    <string name="subtitle_disable">字幕なし</string>
+    <string name="subtitle_load_failed">字幕を読み込めませんでした。</string>
+    <string name="connection_approval_title">配信を許可しますか？</string>
+    <string name="connection_approval_help">心当たりのある端末のみ許可してください。許可は5分間有効です。25秒以内に応答がない場合は接続を拒否します。</string>
+    <string name="connection_decline">拒否</string>
+    <string name="record_waiting">録画開始を待機中</string>
+    <string name="network_available">ネットワークに接続できます</string>
+    <string name="network_waiting">ローカルネットワークに接続されていません。接続を待機中…</string>
+    <string name="network_recovered">ネットワークが復旧しました。受信機に再接続できます。</string>
+    <string name="network_playback_retry">接続が切断されました。動画の再開を試みています（%1$d/3）…</string>
+</resources>

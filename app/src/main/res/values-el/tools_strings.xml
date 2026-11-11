@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Βαθμονόμηση εικόνας</string>
+    <string name="tools_connection_diagnostics">Διαγνωστικός έλεγχος σύνδεσης</string>
+    <string name="tools_record_title">Εγγραφή κατοπτρισμού</string>
+    <string name="tools_record_help">Αποθηκεύστε την κατοπτρισμένη οθόνη και τον ήχο. Προετοιμάστε την εγγραφή πριν συνδεθείτε.</string>
+    <string name="tools_record_stop">■ Διακοπή εγγραφής</string>
+    <string name="tools_record_prepare">Προετοιμασία εγγραφής</string>
+    <string name="tools_other_tv">Άλλη τηλεόραση</string>
+    <string name="tools_relay_help">Αναμεταδώστε τον κατοπτρισμό σε άλλη τηλεόραση με BuzinCast στο ίδιο δίκτυο. Εκεί επιλέξτε Λήψη σε αυτή την τηλεόραση και χρησιμοποιήστε τα στοιχεία που εμφανίζονται.</string>
+    <string name="tools_this_tv_ip">IP αυτής της τηλεόρασης: %1$s</string>
+    <string name="tools_relay_receive">Λήψη σε αυτή την τηλεόραση</string>
+    <string name="tools_relay_connect">Σύνδεση με άλλη τηλεόραση</string>
+    <string name="tools_relay_stop">Διακοπή αναμετάδοσης</string>
+    <string name="tools_relay_details">Θύρα: %1$d  •  Κωδικός: %2$s</string>
+    <string name="tools_dlna_photos">Φωτογραφίες μέσω DLNA</string>
+    <string name="tools_dlna_help">Ενεργοποιήστε το DLNA στις Ρυθμίσεις για να λαμβάνετε φωτογραφίες και να δημιουργείτε παρουσιάσεις.</string>
+    <string name="tools_native_help">Ενσωματωμένος κατοπτρισμός οθόνης του Fire TV. Διαθέσιμος σε συμβατά μοντέλα.</string>
+    <string name="tools_native_unavailable">Το Miracast δεν είναι διαθέσιμο σε αυτό το μοντέλο. Ελέγξτε Ρυθμίσεις → Οθόνη και ήχοι → Κατοπτρισμός οθόνης.</string>
+    <string name="tools_native_open">Άνοιγμα ενσωματωμένου κατοπτρισμού</string>
+    <string name="tools_recordings">Τοπικές εγγραφές</string>
+    <string name="tools_refresh">Ανανέωση λίστας</string>
+    <string name="tools_recordings_empty">Οι εγγραφές σας θα εμφανίζονται εδώ.</string>
+    <string name="tools_play">Αναπαραγωγή</string>
+    <string name="tools_delete">Διαγραφή</string>
+    <string name="tools_delete_confirm">Να διαγραφεί η εγγραφή;</string>
+    <string name="tools_relay_input_help">Εισαγάγετε τα στοιχεία που εμφανίζονται όταν επιλέγετε Λήψη σε αυτή την τηλεόραση στην άλλη τηλεόραση.</string>
+    <string name="tools_relay_keyboard_help">↑↓ για μετακίνηση · OK για πληκτρολόγηση</string>
+    <string name="tools_other_tv_ip">IP της άλλης τηλεόρασης</string>
+    <string name="tools_port">Θύρα</string>
+    <string name="tools_pairing_code">Κωδικός σύνδεσης</string>
+    <string name="tools_connect">Σύνδεση</string>
+</resources>

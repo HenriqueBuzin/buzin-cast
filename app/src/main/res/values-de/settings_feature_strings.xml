@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Streaming-Profil</string>
+    <string name="setting_streaming_profile_desc">Beim Profilwechsel startet der Empfänger neu. Die tatsächliche Qualität hängt vom sendenden Gerät und vom Netzwerk ab.</string>
+    <string name="setting_profile_default">Standard</string>
+    <string name="setting_profile_cinema">Kino</string>
+    <string name="setting_profile_presentation">Präsentation</string>
+    <string name="setting_profile_games">Spiele</string>
+    <string name="setting_approve_connections">Verbindungen genehmigen</string>
+    <string name="setting_approve_connections_desc">Mit der Fernbedienung kannst du Verbindungen über AirPlay, DLNA, FCast und Cast V2 annehmen oder ablehnen. Die Freigabe gilt fünf Minuten lang für das Protokoll und die IP-Adresse.</string>
+    <string name="setting_network_recovery">Nach einem Netzwerkausfall wiederherstellen</string>
+    <string name="setting_network_recovery_desc">Sobald das Netzwerk zurück ist, ist der Empfänger wieder auffindbar. Bei kompatiblen Videos versucht die App, die Wiedergabe fortzusetzen. Das AirPlay-Gerät muss sich möglicherweise neu verbinden.</string>
+    <string name="setting_calibrate_corners">Alle vier Ecken kalibrieren</string>
+    <string name="calibration_adjust_hint">← Bild vergrößern • Bild verkleinern →</string>
+    <string name="calibration_save_hint">Alle vier Ecken sichtbar lassen. OK speichert • Zurück bricht ab</string>
+    <string name="setting_profile_unavailable">Das Streaming-Profil konnte nicht angewendet werden.</string>
+</resources>

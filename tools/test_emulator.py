@@ -171,37 +171,50 @@ class Suite:
 
     def relay_form(self):
         self.start("tools")
-        self.wait(lambda: "Conectar a outra TV" in self.texts(self.ui()),"Tools not available")
-        self.activate("Conectar a outra TV")
+        connect_labels = ("Connect to another TV", "Conectar a outra TV")
+        self.wait(lambda: any(label in self.texts(self.ui()) for label in connect_labels),"Tools not available")
+        self.activate(*connect_labels)
         self.wait(lambda: sum(n.get("class")=="android.widget.EditText" for n in self.ui().iter())==3,"Relay form did not open")
         # Composing the fields precedes the dialog's initial focus effect on
         # slower API 28 emulators. Send each key only after that focus lands.
-        self.wait(lambda: "IP" in self.focused(), "Relay form did not focus the address")
+        def has_focus(*labels):
+            focused = self.focused().casefold()
+            return any(label.casefold() in focused for label in labels)
+
+        port_labels = ("Port", "Porta")
+        code_labels = ("Connection code", "Código de conexão")
+        self.wait(lambda: has_focus("IP"), "Relay form did not focus the address")
         assert not self.keyboard()
-        for key,label in [(20,"Porta"),(20,"Código"),(19,"Porta"),(19,"IP")]:
+        for key,labels in [(20,port_labels),(20,code_labels),(19,port_labels),(19,("IP",))]:
             self.key(key)
-            self.wait(lambda: label in self.focused(), f"Relay focus did not move to {label} after key {key}")
+            self.wait(lambda: has_focus(*labels), f"Relay focus did not move to {labels} after key {key}")
             assert not self.keyboard()
         self.key(23);self.wait(self.keyboard,"OK did not enable form input")
         self.key(4);self.wait(lambda:not self.keyboard(),"Back did not hide IME")
         self.key(20)
-        self.wait(lambda: "Porta" in self.focused(), "Relay focus did not return to port after closing the keyboard")
+        self.wait(lambda: has_focus(*port_labels), "Relay focus did not return to port after closing the keyboard")
         assert not self.keyboard()
         self.shot("relay-one-form")
 
     def profiles(self):
-        names = ["Cinema", "Apresentação", "Jogos", "Padrão"]
+        labels = {
+            "Cinema": ("Cinema",),
+            "Apresentação": ("Presentation", "Apresentação"),
+            "Jogos": ("Games", "Jogos"),
+            "Padrão": ("Default", "Padrão"),
+        }
+        profile_by_label = {label: profile for profile, options in labels.items() for label in options}
         def selected():
-            return {c.get("text") for n in self.ui().iter()
+            return {profile_by_label[c.get("text")] for n in self.ui().iter()
                     if n.get("selected")=="true" or n.get("checked")=="true"
-                    for c in n.iter() if c.get("text") in names}
+                    for c in n.iter() if c.get("text") in profile_by_label}
         def saved():
             xml=self.adb("shell","run-as",PKG,"cat","shared_prefs/settings.xml")
             return next((n.text for n in ET.fromstring(xml) if n.get("name")=="experience_profile"), "Padrão")
         self.start("settings")
         assert selected()=={saved()}, "Settings did not show the saved or default profile"
-        for name in names:
-            self.activate(name)
+        for name, options in labels.items():
+            self.activate(*options)
             self.wait(lambda: saved()==name,"Profile did not apply: "+name)
             self.wait(lambda: selected()=={name},"Profile selection was not highlighted: "+name)
             self.start("settings")
@@ -318,7 +331,7 @@ class Suite:
                 self.shot("rendered-caption-"+kind)
             self.key(127)
             self.activate("CC")
-            self.activate("Sem legenda")
+            self.activate("No subtitles", "Sem legenda")
             self.wait(lambda:not self.debug().get("caption"),"Removing captions left stale text")
             self.key(127)
             self.activate("Lock controls","Bloquear controles",description=True)

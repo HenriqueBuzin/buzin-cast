@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Nilo-load ang larawan…</string>
+    <string name="photo_received">Larawang natanggap sa DLNA</string>
+    <string name="media_previous">Nakaraan</string>
+    <string name="media_next">Susunod</string>
+    <string name="photo_slideshow">Slideshow</string>
+    <string name="photo_rotate">Paikutin</string>
+    <string name="photo_scale">Iangkop / punan</string>
+    <string name="photo_position">Larawan %1$d sa %2$d • Gamitin ang remote para mag-browse, magpaikot, o magsara.</string>
+    <string name="photo_error">Hindi mabuksan ang larawan.</string>
+    <string name="photo_error_size">Mas malaki sa 16 MB ang larawan.</string>
+    <string name="photo_error_format">Hindi valid ang format ng larawan.</string>
+    <string name="photo_error_redirect">Hindi mabuksan ang link ng larawan.</string>
+</resources>

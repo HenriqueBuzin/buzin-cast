@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Недостаточно места. Освободите не менее 128 МБ.</string>
+    <string name="capture_waiting_keyframe">Ожидание ключевого кадра. При необходимости заново подключите повтор экрана.</string>
+    <string name="capture_recording_file">Записывается %1$s</string>
+    <string name="capture_space_exhausted">Запись остановлена: заканчивается место в хранилище.</string>
+    <string name="capture_failed">Не удалось записать.</string>
+    <string name="capture_saved_file">Сохранено: %1$s</string>
+    <string name="capture_no_keyframe">Ключевой кадр не получен. Файл не сохранён.</string>
+    <string name="capture_slow_storage">Запись остановлена: хранилище не успевало записывать поток.</string>
+    <string name="capture_finishing">Завершение записи…</string>
+    <string name="relay_waiting_peer">Ожидание другого устройства с BuzinCast. Код действует 5 минут.</string>
+    <string name="relay_listener_failed">Не удалось запустить приёмник: %1$s</string>
+    <string name="relay_other_stream">Уже идёт другая трансляция</string>
+    <string name="relay_receiving_peer">Приём от %1$s</string>
+    <string name="relay_mirroring_took_over">Воспроизведение переключилось на сеанс повтора экрана</string>
+    <string name="relay_ended">Ретрансляция завершена.</string>
+    <string name="relay_new_code">Приём завершён. Создайте новый код.</string>
+    <string name="relay_receive_failed">Приём завершён: %1$s</string>
+    <string name="relay_connecting">Подключение…</string>
+    <string name="relay_use_local_ip">Используйте локальный IP-адрес другого телевизора</string>
+    <string name="relay_bad_code">Неверный код</string>
+    <string name="relay_connected">Подключено. Запустите или повторно подключите повтор экрана.</string>
+    <string name="relay_send_failed">Ретрансляция завершена: %1$s</string>
+    <string name="relay_slow_network">Медленная сеть: ретрансляция завершена. Подключите приёмники заново.</string>
+    <string name="diag_no_ipv4">Нет локального адреса IPv4. Подключите телевизор по Wi-Fi или Ethernet.</string>
+    <string name="diag_tv_ip">IP-адрес телевизора: %1$s</string>
+    <string name="diag_receiver_running">Приёмник запущен.</string>
+    <string name="diag_receiver_stopped">Приёмник остановлен. Запустите его на экране подключения.</string>
+    <string name="diag_vpn_active">Активна VPN. Она может блокировать обнаружение в локальной сети.</string>
+    <string name="diag_usb_only">Обнаружение ограничено USB. Для Wi-Fi выберите «Все сети» в настройках.</string>
+    <string name="diag_airplay">AirPlay: %1$s • порт %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Приёмник не отображается на телефоне или Mac?\n• Подключите оба устройства к одной локальной сети. Wi-Fi и Ethernet можно использовать одновременно.\n• Избегайте гостевых сетей и изоляции клиентов на маршрутизаторе.\n• Проверьте, разрешают ли VPN или брандмауэр отправителя доступ к локальной сети.\n• Обнаружение использует многоадресную рассылку/mDNS. При смене сети оставьте автоматическое восстановление включённым.\nПриложение проверяет сеть отправителя только после подключения. Одна из возможных причин — разные сети.\n\nИзображение обрезано? Откалибруйте четыре угла. Телевизор может обрезать изображение HDMI, даже если приложение передаёт весь кадр.\nСубтитры SRT/VTT: используйте CC при воспроизведении видео по URL. При повторе экрана используются субтитры отправителя.</string>
+    <string name="export_logs_failed">Не удалось экспортировать журналы. Попробуйте снова.</string>
+</resources>

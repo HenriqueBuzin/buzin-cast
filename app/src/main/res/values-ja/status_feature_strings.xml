@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">空き容量が不足しています。128 MB 以上の空き容量を確保してください。</string>
+    <string name="capture_waiting_keyframe">キーフレームを待機しています。必要に応じて画面ミラーリングに再接続してください。</string>
+    <string name="capture_recording_file">録画中: %1$s</string>
+    <string name="capture_space_exhausted">空き容量が少なくなったため、録画を停止しました。</string>
+    <string name="capture_failed">録画できませんでした。</string>
+    <string name="capture_saved_file">保存済み: %1$s</string>
+    <string name="capture_no_keyframe">キーフレームを受信できなかったため、ファイルは保存されませんでした。</string>
+    <string name="capture_slow_storage">ストレージへの書き込みが配信に追いつかなかったため、録画を停止しました。</string>
+    <string name="capture_finishing">録画を終了しています…</string>
+    <string name="relay_waiting_peer">別の BuzinCast を待っています。コードは 5 分で期限切れになります。</string>
+    <string name="relay_listener_failed">受信機を起動できませんでした: %1$s</string>
+    <string name="relay_other_stream">別の配信が進行中です</string>
+    <string name="relay_receiving_peer">%1$s から受信中</string>
+    <string name="relay_mirroring_took_over">別の画面ミラーリングセッションに再生が切り替わりました</string>
+    <string name="relay_ended">中継が終了しました。</string>
+    <string name="relay_new_code">受信が終了しました。新しいコードを生成してください。</string>
+    <string name="relay_receive_failed">受信が終了しました: %1$s</string>
+    <string name="relay_connecting">接続中…</string>
+    <string name="relay_use_local_ip">もう一方のテレビのローカル IP アドレスを使用してください</string>
+    <string name="relay_bad_code">コードが正しくありません</string>
+    <string name="relay_connected">接続しました。画面ミラーリングを開始するか、再接続してください。</string>
+    <string name="relay_send_failed">中継が終了しました: %1$s</string>
+    <string name="relay_slow_network">ネットワークが遅いため、中継を終了しました。受信機を再接続してください。</string>
+    <string name="diag_no_ipv4">ローカル IPv4 アドレスがありません。テレビを Wi-Fi または有線 LAN に接続してください。</string>
+    <string name="diag_tv_ip">テレビの IP アドレス: %1$s</string>
+    <string name="diag_receiver_running">受信機が動作しています。</string>
+    <string name="diag_receiver_stopped">受信機が停止しています。接続画面で起動してください。</string>
+    <string name="diag_vpn_active">VPN が有効です。ローカルネットワークでの検出を妨げることがあります。</string>
+    <string name="diag_usb_only">検出は USB に限られています。Wi-Fi を使うには設定で「すべてのネットワーク」を選んでください。</string>
+    <string name="diag_airplay">AirPlay: %1$s • ポート %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">スマートフォンや Mac に受信機が表示されませんか？\n• 両方の機器を同じローカルネットワークに接続してください。Wi-Fi と有線 LAN は併用できます。\n• ゲスト用ネットワークとルーターの端末間通信を遮断する設定を避けてください。\n• 送信側の VPN やファイアウォールがローカルネットワークへのアクセスを許可していることを確認してください。\n• 検出にはマルチキャスト/mDNS を使用します。ネットワークを切り替える際は自動復旧を有効にしておいてください。\nアプリが送信側のネットワークを確認できるのは接続後です。別々のネットワークに接続されていることも原因の一つです。\n\n映像が切れていますか？ 四隅を調整してください。アプリがフレーム全体を送信していても、テレビが HDMI 映像を切り取る場合があります。\nSRT/VTT 字幕: URL から動画を再生する際は CC を使用してください。画面ミラーリングでは送信側の字幕が表示されます。</string>
+    <string name="export_logs_failed">ログをエクスポートできませんでした。もう一度お試しください。</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Профиль трансляции</string>
+    <string name="setting_streaming_profile_desc">При смене профиля приёмник перезапускается. Фактическое качество зависит от передающего устройства и сети.</string>
+    <string name="setting_profile_default">По умолчанию</string>
+    <string name="setting_profile_cinema">Кино</string>
+    <string name="setting_profile_presentation">Презентация</string>
+    <string name="setting_profile_games">Игры</string>
+    <string name="setting_approve_connections">Подтверждать подключения</string>
+    <string name="setting_approve_connections_desc">Принимайте или отклоняйте подключения AirPlay, DLNA, FCast и Cast V2 с помощью пульта. Разрешение действует пять минут для этого протокола и IP-адреса.</string>
+    <string name="setting_network_recovery">Восстановление после сбоя сети</string>
+    <string name="setting_network_recovery_desc">Приёмник снова станет доступен для обнаружения после восстановления сети. Приложение попытается возобновить воспроизведение совместимых видео. Устройству AirPlay может потребоваться повторное подключение.</string>
+    <string name="setting_calibrate_corners">Откалибровать четыре угла</string>
+    <string name="calibration_adjust_hint">← Увеличить изображение • Уменьшить изображение →</string>
+    <string name="calibration_save_hint">Все четыре угла должны быть видны. ОК — сохранить • Назад — отменить</string>
+    <string name="setting_profile_unavailable">Не удалось применить профиль трансляции.</string>
+</resources>

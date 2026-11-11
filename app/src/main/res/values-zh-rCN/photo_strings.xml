@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">正在加载照片…</string>
+    <string name="photo_received">通过 DLNA 接收的照片</string>
+    <string name="media_previous">上一项</string>
+    <string name="media_next">下一项</string>
+    <string name="photo_slideshow">幻灯片放映</string>
+    <string name="photo_rotate">旋转</string>
+    <string name="photo_scale">适应 / 填充</string>
+    <string name="photo_position">第 %1$d 张，共 %2$d 张 • 使用遥控器浏览、旋转或关闭。</string>
+    <string name="photo_error">无法打开照片。</string>
+    <string name="photo_error_size">照片大小超过 16 MB。</string>
+    <string name="photo_error_format">照片格式无效。</string>
+    <string name="photo_error_redirect">无法打开照片链接。</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">串流配置</string>
+    <string name="setting_streaming_profile_desc">更改配置会重启接收器。实际质量取决于发送设备和网络。</string>
+    <string name="setting_profile_default">默认</string>
+    <string name="setting_profile_cinema">影院</string>
+    <string name="setting_profile_presentation">演示</string>
+    <string name="setting_profile_games">游戏</string>
+    <string name="setting_approve_connections">批准连接</string>
+    <string name="setting_approve_connections_desc">使用遥控器接受或拒绝 AirPlay、DLNA、FCast 和 Cast V2 连接。批准对相应协议和 IP 地址有效，有效期为五分钟。</string>
+    <string name="setting_network_recovery">网络中断后恢复</string>
+    <string name="setting_network_recovery_desc">网络恢复后，可以再次发现接收器。应用会尝试继续播放兼容的视频。AirPlay 发送设备可能需要重新连接。</string>
+    <string name="setting_calibrate_corners">校准四个角</string>
+    <string name="calibration_adjust_hint">← 放大画面 • 缩小画面 →</string>
+    <string name="calibration_save_hint">请确保四个角都可见。按确定键保存 • 按返回键取消</string>
+    <string name="setting_profile_unavailable">无法应用串流配置。</string>
+</resources>

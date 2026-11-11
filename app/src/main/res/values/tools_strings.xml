@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Calibrate picture</string>
+    <string name="tools_connection_diagnostics">Connection diagnostics</string>
+    <string name="tools_record_title">Record mirroring</string>
+    <string name="tools_record_help">Save the mirrored screen and audio. Prepare the recording before you connect.</string>
+    <string name="tools_record_stop">■ Stop recording</string>
+    <string name="tools_record_prepare">Prepare recording</string>
+    <string name="tools_other_tv">Another TV</string>
+    <string name="tools_relay_help">Relay mirroring to another TV running BuzinCast on the same network. On that TV, choose Receive on this TV and use the details shown.</string>
+    <string name="tools_this_tv_ip">This TV’s IP: %1$s</string>
+    <string name="tools_relay_receive">Receive on this TV</string>
+    <string name="tools_relay_connect">Connect to another TV</string>
+    <string name="tools_relay_stop">Stop relay</string>
+    <string name="tools_relay_details">Port: %1$d  •  Code: %2$s</string>
+    <string name="tools_dlna_photos">Photos via DLNA</string>
+    <string name="tools_dlna_help">Enable DLNA in Settings to receive photos and create a slideshow.</string>
+    <string name="tools_native_help">Built-in Fire TV screen mirroring. Available on compatible models.</string>
+    <string name="tools_native_unavailable">Miracast is unavailable on this model. Check Settings → Display &amp; Sounds → Display Mirroring.</string>
+    <string name="tools_native_open">Open built-in mirroring</string>
+    <string name="tools_recordings">Local recordings</string>
+    <string name="tools_refresh">Refresh list</string>
+    <string name="tools_recordings_empty">Your recordings will appear here.</string>
+    <string name="tools_play">Play</string>
+    <string name="tools_delete">Delete</string>
+    <string name="tools_delete_confirm">Delete recording?</string>
+    <string name="tools_relay_input_help">Enter the details shown after choosing Receive on this TV on the other TV.</string>
+    <string name="tools_relay_keyboard_help">↑↓ to move · OK to type</string>
+    <string name="tools_other_tv_ip">Other TV’s IP</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Connection code</string>
+    <string name="tools_connect">Connect</string>
+</resources>

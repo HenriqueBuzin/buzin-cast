@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Not enough space. Free at least 128 MB.</string>
+    <string name="capture_waiting_keyframe">Waiting for a keyframe. Reconnect screen mirroring if needed.</string>
+    <string name="capture_recording_file">Recording %1$s</string>
+    <string name="capture_space_exhausted">Recording stopped: storage is nearly full.</string>
+    <string name="capture_failed">Could not record.</string>
+    <string name="capture_saved_file">Saved: %1$s</string>
+    <string name="capture_no_keyframe">No keyframe received. No file was saved.</string>
+    <string name="capture_slow_storage">Recording stopped: storage could not keep up with the stream.</string>
+    <string name="capture_finishing">Finishing recording…</string>
+    <string name="relay_waiting_peer">Waiting for another BuzinCast. The code expires in 5 minutes.</string>
+    <string name="relay_listener_failed">Could not start the receiver: %1$s</string>
+    <string name="relay_other_stream">Another stream is active</string>
+    <string name="relay_receiving_peer">Receiving from %1$s</string>
+    <string name="relay_mirroring_took_over">A screen mirroring session took over playback</string>
+    <string name="relay_ended">Relay ended.</string>
+    <string name="relay_new_code">Reception ended. Generate a new code.</string>
+    <string name="relay_receive_failed">Reception ended: %1$s</string>
+    <string name="relay_connecting">Connecting…</string>
+    <string name="relay_use_local_ip">Use the local IP address of the other TV</string>
+    <string name="relay_bad_code">Incorrect code</string>
+    <string name="relay_connected">Connected. Start or reconnect screen mirroring.</string>
+    <string name="relay_send_failed">Relay ended: %1$s</string>
+    <string name="relay_slow_network">Slow network: relay ended. Reconnect the receivers.</string>
+    <string name="diag_no_ipv4">No local IPv4 address. Connect the TV by Wi-Fi or Ethernet.</string>
+    <string name="diag_tv_ip">TV IP address: %1$s</string>
+    <string name="diag_receiver_running">Receiver running.</string>
+    <string name="diag_receiver_stopped">Receiver stopped. Start it on the connection screen.</string>
+    <string name="diag_vpn_active">A VPN is active. It may block local discovery.</string>
+    <string name="diag_usb_only">Discovery is limited to USB. For Wi-Fi, select All networks in Settings.</string>
+    <string name="diag_airplay">AirPlay: %1$s • port %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Receiver missing on your phone or Mac?\n• Connect both devices to the same local network. Wi-Fi and Ethernet can work together.\n• Avoid guest networks and client isolation on your router.\n• Check whether the sender VPN or firewall allows local network access.\n• Discovery uses multicast/mDNS. Keep automatic recovery enabled when switching networks.\nThe app cannot check the sender network until it connects. Different networks are one possible cause.\n\nPicture cropped? Calibrate the four corners. The TV can crop the HDMI image even when the app sends the whole frame.\nSRT/VTT subtitles: use CC during URL video playback. Screen mirroring uses subtitles from the sender.</string>
+    <string name="export_logs_failed">Could not export logs. Try again.</string>
+</resources>

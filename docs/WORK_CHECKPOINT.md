@@ -26,6 +26,10 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   lista — tradução de melhor esforço, já que boa parte do jargão técnico de
   configurações (buffer, codec, bitrate, jitter, VSYNC) não tem equivalente
   atestado em córnico e ficou como empréstimo do inglês.
+  **11/nov:** 103 chaves de texto cobrem fotos, legendas, perfis, calibração,
+  ferramentas, gravação, retransmissão, diagnóstico e avisos de conexão e
+  exportação de logs. Conferidas as chaves e os parâmetros nos 21 idiomas.
+  A revisão por falante fluente de córnico continua pendente.
 - [x] Preparar edições específicas para Alemanha e Áustria sem funções de
   gravação, cópia, download ou armazenamento de vídeo/áudio. Revisar a
   política e validar os binários antes da distribuição.
@@ -57,6 +61,15 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   do da edição padrão e da compat (a Amazon não aceita APKs duplicados na
   mesma submissão) — corrigido para 33 (padrão=32, compat=31,
   sem-download=33) em `app/build.gradle.kts`.
+  **10/nov:** Live App Testing criado no console (Test 1, "0.6.3 Live Test")
+  para servir de base da próxima atualização (6.4): vai reunir Cornish e a
+  reinclusão de Alemanha/Áustria (com a edição sem-download corrigida de
+  verdade). Confirmado por Henrique: o resto das pendências (DRM manual,
+  Fire TV Stick-only, etc.) fica fora do escopo desta 6.4, para depois.
+  **11/nov:** a 0.6.4 tem quatro códigos exclusivos: compat com download
+  e gravação (34), compat sem os dois recursos (35), principal com os
+  recursos (36) e principal sem os recursos (37). As edições compat usam
+  API 22 e as principais usam API 25.
 - [~] Publicar somente para Fire TV Stick, contemplando todas as gerações
   já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
   3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
@@ -64,12 +77,15 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   Confirmar os nomes comerciais, níveis reais de API e compatibilidade antes
   de cada disponibilização. Vega continua fora desta publicação enquanto seu
   receptor e o VPKG não forem validados.
-  **9/nov — decisão:** Fire OS 1, 2, 3 e 4 ficam de fora, sem plano de
-  suportar — ver [FEATURES.md](FEATURES.md#limites-da-promessa-de-compatibilidade)
-  para o motivo técnico (Jetpack Compose exige API 21+, abaixo disso exigiria
-  reescrever toda a UI sem Compose, e nem a Amazon oferece mais emulador para
-  validar). Fire OS 5 (API 22) é o piso mínimo de suporte. Fire OS 6, 7, 8, 14
-  e 16 continuam cobertos pelas duas edições existentes.
+  **Meta revisada por Henrique:** cobrir Fire OS e Vega OS desde a versão 1.0
+  até a mais recente, cada um com e sem download e gravação, somente em
+  Fire TV Stick. Confirmar primeiro quais firmwares antigos realmente
+  existiram em Sticks, se a loja ainda os atende e como testá-los. Compilar
+  os APKs Fire OS neste Windows e deixar os VPKGs para macOS ou Ubuntu nativo.
+  Fire OS 5
+  (API 22) é o piso dos APKs atuais. Uma edição abaixo de API 21 exigiria
+  substituir Compose, revisar dependências nativas e de mídia e validar no
+  firmware antigo. Ver [limites de compatibilidade](FEATURES.md#limites-da-promessa-de-compatibilidade).
   **9/nov — dispositivos-alvo no console:** conferido em Target your app >
   Supported devices que a categoria "Fire TV" (100 aparelhos) inclui Smart TVs
   com Fire TV embutido (ex.: TCL) e caixas Fire TV (Gen 1/2/3) além dos Fire TV
@@ -78,6 +94,13 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   (Fire TV Stick 4K Select, HD 2ª geração, 4K) segue desmarcado, conforme a
   decisão de deixar Vega fora por enquanto. Availability também já está em
   "All countries and regions where Amazon sells apps" — sem exclusão de país.
+  **10/nov — lembrete de Henrique:** mesmo que não se consiga o SDK/ambiente
+  para testar de verdade nos outros tipos de aparelho, não esquecer de
+  reavaliar publicar somente para Fire TV Stick (aparelho) como forma de
+  reduzir a superfície sem cobertura de teste. Fica para depois da 6.4 —
+  não é parte do escopo da 6.4 (que é só Cornish + correção da edição
+  sem-download/gravação para Alemanha e Áustria), fica para uma atualização
+  seguinte.
 - [x] Build nativo (C++/FFmpeg) diretamente no Windows, fora do WSL, ainda não
   funciona — trava no CMake/ndk-build do jeito que o toolchain Windows está
   hoje. **9/nov:** o build via WSL (`/var/tmp/buzin-cast-build`) está validado

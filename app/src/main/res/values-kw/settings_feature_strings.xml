@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Best-effort Cornish translation. Native review is recommended. -->
+<resources>
+    <string name="setting_streaming_profile">Profil an liv</string>
+    <string name="setting_streaming_profile_desc">Chanjya an profil a dhastart an degemerer. An kwalita a dhos diwar an danvonydh ha’n rosweyth.</string>
+    <string name="setting_profile_default">Defowt</string>
+    <string name="setting_profile_cinema">Sinema</string>
+    <string name="setting_profile_presentation">Presentyans</string>
+    <string name="setting_profile_games">Gwariow</string>
+    <string name="setting_approve_connections">Apruvya junyansow</string>
+    <string name="setting_approve_connections_desc">Usyewgh an rewler pell rag degemeres po nagha junyansow AirPlay, DLNA, FCast ha Cast V2. An apruvyans yw da rag pymp mynysen rag an protokol ha’n trigva IP.</string>
+    <string name="setting_network_recovery">Daskavos wosa torr an rosweyth</string>
+    <string name="setting_network_recovery_desc">Pan dheu an rosweyth arta, y hyllir kavos an degemerer arta. An app a assay pesya gans gwari an videojow kehaval. Martesen res yw dhe’n danvonydh AirPlay junya arta.</string>
+    <string name="setting_calibrate_corners">Desedha an peswar korn</string>
+    <string name="calibration_adjust_hint">← Gwul an skeusen brassa • Gwul an skeusen byghanha →</string>
+    <string name="calibration_save_hint">Gwithowgh an peswar korn gweladow. OK rag gwitha • Dehweles rag nullya</string>
+    <string name="setting_profile_unavailable">Ny veu an profil usys.</string>
+</resources>

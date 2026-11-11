@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">مساحة التخزين غير كافية. حرّر 128 ميغابايت على الأقل.</string>
+    <string name="capture_waiting_keyframe">في انتظار إطار مفتاحي. أعد توصيل انعكاس الشاشة إذا لزم الأمر.</string>
+    <string name="capture_recording_file">جارٍ تسجيل %1$s</string>
+    <string name="capture_space_exhausted">توقف التسجيل لأن مساحة التخزين شارفت على النفاد.</string>
+    <string name="capture_failed">تعذر التسجيل.</string>
+    <string name="capture_saved_file">تم الحفظ: %1$s</string>
+    <string name="capture_no_keyframe">لم يصل إطار مفتاحي. لم يُحفظ أي ملف.</string>
+    <string name="capture_slow_storage">توقف التسجيل لأن التخزين لم يواكب البث.</string>
+    <string name="capture_finishing">جارٍ إنهاء التسجيل…</string>
+    <string name="relay_waiting_peer">في انتظار جهاز آخر يشغّل BuzinCast. تنتهي صلاحية الرمز خلال 5 دقائق.</string>
+    <string name="relay_listener_failed">تعذر بدء تشغيل المستقبل: %1$s</string>
+    <string name="relay_other_stream">يوجد بث آخر نشط</string>
+    <string name="relay_receiving_peer">جارٍ الاستقبال من %1$s</string>
+    <string name="relay_mirroring_took_over">تولت جلسة انعكاس الشاشة تشغيل المحتوى</string>
+    <string name="relay_ended">انتهت إعادة البث.</string>
+    <string name="relay_new_code">انتهى الاستقبال. أنشئ رمزًا جديدًا.</string>
+    <string name="relay_receive_failed">انتهى الاستقبال: %1$s</string>
+    <string name="relay_connecting">جارٍ الاتصال…</string>
+    <string name="relay_use_local_ip">استخدم عنوان IP المحلي للتلفاز الآخر</string>
+    <string name="relay_bad_code">الرمز غير صحيح</string>
+    <string name="relay_connected">تم الاتصال. ابدأ انعكاس الشاشة أو أعد توصيله.</string>
+    <string name="relay_send_failed">انتهت إعادة البث: %1$s</string>
+    <string name="relay_slow_network">الشبكة بطيئة. انتهت إعادة البث. أعد توصيل المستقبلين.</string>
+    <string name="diag_no_ipv4">لا يوجد عنوان IPv4 محلي. صِل التلفاز عبر Wi-Fi أو Ethernet.</string>
+    <string name="diag_tv_ip">عنوان IP للتلفاز: %1$s</string>
+    <string name="diag_receiver_running">المستقبل قيد التشغيل.</string>
+    <string name="diag_receiver_stopped">المستقبل متوقف. شغّله من شاشة الاتصال.</string>
+    <string name="diag_vpn_active">هناك VPN نشط وقد يمنع الاكتشاف المحلي.</string>
+    <string name="diag_usb_only">الاكتشاف محدود باتصال USB. لاستخدام Wi-Fi، اختر كل الشبكات من الإعدادات.</string>
+    <string name="diag_airplay">AirPlay: %1$s • المنفذ %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">إذا لم يظهر المستقبل، صِل الجهازين بالشبكة المحلية نفسها. تجنّب شبكة الضيوف وعزل الأجهزة. تحقّق من إعدادات VPN وجدار الحماية ودعم multicast/mDNS. فعّل الاسترداد التلقائي عند تبديل الشبكات. إذا كانت الصورة مقصوصة، عاير الزوايا الأربع. استخدم CC مع فيديو URL لإظهار ترجمات SRT/VTT. يعتمد انعكاس الشاشة على ترجمات جهاز الإرسال.</string>
+    <string name="export_logs_failed">تعذّر تصدير السجلات. حاول مرة أخرى.</string>
+</resources>

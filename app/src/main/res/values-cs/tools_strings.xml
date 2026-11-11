@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Kalibrovat obraz</string>
+    <string name="tools_connection_diagnostics">Diagnostika připojení</string>
+    <string name="tools_record_title">Nahrát zrcadlení</string>
+    <string name="tools_record_help">Uložte zrcadlenou obrazovku se zvukem. Připravte nahrávání před připojením.</string>
+    <string name="tools_record_stop">■ Zastavit nahrávání</string>
+    <string name="tools_record_prepare">Připravit nahrávání</string>
+    <string name="tools_other_tv">Jiná televize</string>
+    <string name="tools_relay_help">Předejte zrcadlení jiné televizi s aplikací BuzinCast ve stejné síti. Na druhé televizi zvolte Přijímat na této televizi a použijte zobrazené údaje.</string>
+    <string name="tools_this_tv_ip">IP této televize: %1$s</string>
+    <string name="tools_relay_receive">Přijímat na této televizi</string>
+    <string name="tools_relay_connect">Připojit se k jiné televizi</string>
+    <string name="tools_relay_stop">Ukončit předávání</string>
+    <string name="tools_relay_details">Port: %1$d  •  Kód: %2$s</string>
+    <string name="tools_dlna_photos">Fotky přes DLNA</string>
+    <string name="tools_dlna_help">Zapněte DLNA v nastavení, abyste mohli přijímat fotky a vytvořit prezentaci.</string>
+    <string name="tools_native_help">Vestavěné zrcadlení obrazovky Fire TV. Dostupné na kompatibilních modelech.</string>
+    <string name="tools_native_unavailable">Miracast není na tomto modelu dostupný. Zkontrolujte Nastavení → Obraz a zvuk → Zrcadlení obrazovky.</string>
+    <string name="tools_native_open">Otevřít vestavěné zrcadlení</string>
+    <string name="tools_recordings">Místní nahrávky</string>
+    <string name="tools_refresh">Obnovit seznam</string>
+    <string name="tools_recordings_empty">Zde se zobrazí vaše nahrávky.</string>
+    <string name="tools_play">Přehrát</string>
+    <string name="tools_delete">Smazat</string>
+    <string name="tools_delete_confirm">Smazat nahrávku?</string>
+    <string name="tools_relay_input_help">Zadejte údaje zobrazené po výběru možnosti Přijímat na této televizi na druhé televizi.</string>
+    <string name="tools_relay_keyboard_help">↑↓ pro pohyb · OK pro psaní</string>
+    <string name="tools_other_tv_ip">IP jiné televize</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Kód připojení</string>
+    <string name="tools_connect">Připojit</string>
+</resources>

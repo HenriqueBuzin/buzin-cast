@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">चित्र का अंशांकन करें</string>
+    <string name="tools_connection_diagnostics">कनेक्शन की जाँच</string>
+    <string name="tools_record_title">स्क्रीन मिररिंग रिकॉर्ड करें</string>
+    <string name="tools_record_help">मिरर की गई स्क्रीन और ऑडियो सहेजें। कनेक्ट करने से पहले रिकॉर्डिंग तैयार करें।</string>
+    <string name="tools_record_stop">■ रिकॉर्डिंग रोकें</string>
+    <string name="tools_record_prepare">रिकॉर्डिंग तैयार करें</string>
+    <string name="tools_other_tv">दूसरा टीवी</string>
+    <string name="tools_relay_help">उसी नेटवर्क पर BuzinCast चलाने वाले दूसरे टीवी पर मिररिंग भेजें। उस टीवी पर इस टीवी पर प्राप्त करें चुनें और दिखाई गई जानकारी का इस्तेमाल करें।</string>
+    <string name="tools_this_tv_ip">इस टीवी का IP: %1$s</string>
+    <string name="tools_relay_receive">इस टीवी पर प्राप्त करें</string>
+    <string name="tools_relay_connect">दूसरे टीवी से कनेक्ट करें</string>
+    <string name="tools_relay_stop">रीले बंद करें</string>
+    <string name="tools_relay_details">पोर्ट: %1$d  •  कोड: %2$s</string>
+    <string name="tools_dlna_photos">DLNA से फ़ोटो</string>
+    <string name="tools_dlna_help">फ़ोटो पाने और स्लाइड शो बनाने के लिए सेटिंग में DLNA चालू करें।</string>
+    <string name="tools_native_help">Fire TV की बिल्ट-इन स्क्रीन मिररिंग। संगत मॉडल पर उपलब्ध है।</string>
+    <string name="tools_native_unavailable">इस मॉडल पर Miracast उपलब्ध नहीं है। सेटिंग → डिस्प्ले और ध्वनि → स्क्रीन मिररिंग देखें।</string>
+    <string name="tools_native_open">बिल्ट-इन मिररिंग खोलें</string>
+    <string name="tools_recordings">स्थानीय रिकॉर्डिंग</string>
+    <string name="tools_refresh">सूची रीफ़्रेश करें</string>
+    <string name="tools_recordings_empty">आपकी रिकॉर्डिंग यहाँ दिखाई देंगी।</string>
+    <string name="tools_play">चलाएँ</string>
+    <string name="tools_delete">हटाएँ</string>
+    <string name="tools_delete_confirm">रिकॉर्डिंग हटाएँ?</string>
+    <string name="tools_relay_input_help">दूसरे टीवी पर इस टीवी पर प्राप्त करें चुनने के बाद दिखाई गई जानकारी दर्ज करें।</string>
+    <string name="tools_relay_keyboard_help">↑↓ से जाएँ · टाइप करने के लिए OK</string>
+    <string name="tools_other_tv_ip">दूसरे टीवी का IP</string>
+    <string name="tools_port">पोर्ट</string>
+    <string name="tools_pairing_code">कनेक्शन कोड</string>
+    <string name="tools_connect">कनेक्ट करें</string>
+</resources>

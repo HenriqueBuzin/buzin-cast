@@ -84,23 +84,35 @@ fun MainScreen(
 ) {
     var tab by remember { mutableStateOf(AppDestination.OVERVIEW) }
     var subtitleMenu by remember { mutableStateOf(false) }
-    var subtitleFailure by remember { mutableStateOf("") }
+    var subtitlePickerUnavailable by remember { mutableStateOf(false) }
     val subtitlePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) viewModel.subtitle(uri) }
-    if (subtitleMenu) AlertDialog(onDismissRequest = { subtitleMenu = false }, title = { Text("Legendas externas") },
-        text = { Text("Selecione um arquivo SRT ou VTT UTF-8, até 2 MB. Disponível para vídeos recebidos por URL; não altera o espelhamento. É necessário um seletor de arquivos instalado. $subtitleFailure") },
+    if (subtitleMenu) AlertDialog(onDismissRequest = { subtitleMenu = false },
+        title = { Text(stringResource(R.string.subtitle_external)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.subtitle_picker_help))
+                if (subtitlePickerUnavailable) Text(stringResource(R.string.subtitle_picker_unavailable))
+            }
+        },
         confirmButton = { TextButton(onClick = {
-            runCatching { subtitlePicker.launch(arrayOf("*/*")); subtitleMenu = false }
-                .onFailure { subtitleFailure = "Seletor de arquivos indisponível neste aparelho." }
-        }, modifier = Modifier.dpadFocus()) { Text("Escolher arquivo") } },
-        dismissButton = { TextButton(onClick = { viewModel.subtitle(null); subtitleMenu = false }, modifier = Modifier.dpadFocus()) { Text("Sem legenda") } })
+            runCatching { subtitlePicker.launch(arrayOf("*/*")) }
+                .onSuccess { subtitlePickerUnavailable = false; subtitleMenu = false }
+                .onFailure { subtitlePickerUnavailable = true }
+        }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.subtitle_choose_file)) } },
+        dismissButton = { TextButton(onClick = { viewModel.subtitle(null); subtitleMenu = false }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.subtitle_disable)) } })
     val approval by viewModel.pendingApproval.collectAsState()
     approval?.let { request ->
         AlertDialog(onDismissRequest = { viewModel.answerApproval(request.id,false) },
-            title = { Text("Permitir transmissão?") },
-            text = { Text("${request.protocol} • ${request.peer}\nAutorize apenas um dispositivo que você reconheça. A permissão vale por 5 minutos; sem resposta, a conexão é recusada em 25 segundos.") },
-            confirmButton = { TextButton(onClick = { viewModel.answerApproval(request.id,true) }, modifier = Modifier.dpadFocus()) { Text("Aceitar") } },
-            dismissButton = { TextButton(onClick = { viewModel.answerApproval(request.id,false) }, modifier = Modifier.dpadFocus()) { Text("Recusar") } })
+            title = { Text(stringResource(R.string.connection_approval_title)) },
+            text = {
+                Column {
+                    Text("${request.protocol} • ${request.peer}")
+                    Text(stringResource(R.string.connection_approval_help))
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.answerApproval(request.id,true) }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.btn_allow)) } },
+            dismissButton = { TextButton(onClick = { viewModel.answerApproval(request.id,false) }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.connection_decline)) } })
     }
     val developerOptions by viewModel.pref(Prefs.DEVELOPER_OPTIONS).collectAsState()
     val visibleTabs = listOf(AppDestination.OVERVIEW, AppDestination.TOOLS, AppDestination.SETTINGS) + if (developerOptions) listOf(AppDestination.LOGS) else emptyList()
@@ -848,7 +860,7 @@ private fun FullscreenVideo(
     ) {
         video()
         if (captureStatus.armed) {
-            Text(if (captureStatus.recording) "● REC" else "● Aguardando gravação", color = Color.Red,
+            Text(if (captureStatus.recording) "● REC" else "● ${stringResource(R.string.record_waiting)}", color = Color.Red,
                 modifier = Modifier.align(Alignment.TopStart).padding(16.dp))
         }
         androidx.compose.animation.AnimatedVisibility(
@@ -859,7 +871,7 @@ private fun FullscreenVideo(
                 val capture by viewModel.captureState.collectAsState()
                 if (capture.armed) {
                     TextButton(onClick = viewModel::toggleRecording, modifier = Modifier.dpadFocus()) {
-                        Text("■ Parar gravação", color = Color.Red)
+                        Text(stringResource(R.string.tools_record_stop), color = Color.Red)
                     }
                 }
                 if (!tv) {

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">معايرة الصورة</string>
+    <string name="tools_connection_diagnostics">تشخيص الاتصال</string>
+    <string name="tools_record_title">تسجيل انعكاس الشاشة</string>
+    <string name="tools_record_help">احفظ انعكاس الشاشة مع الصوت. جهّز التسجيل قبل الاتصال.</string>
+    <string name="tools_record_stop">■ إيقاف التسجيل</string>
+    <string name="tools_record_prepare">تجهيز التسجيل</string>
+    <string name="tools_other_tv">تلفزيون آخر</string>
+    <string name="tools_relay_help">أعد بث انعكاس الشاشة إلى تلفزيون آخر يشغّل BuzinCast على الشبكة نفسها. اختر الاستقبال على هذا التلفزيون في الجهاز الآخر واستخدم البيانات المعروضة.</string>
+    <string name="tools_this_tv_ip">عنوان IP لهذا التلفزيون: %1$s</string>
+    <string name="tools_relay_receive">الاستقبال على هذا التلفزيون</string>
+    <string name="tools_relay_connect">الاتصال بتلفزيون آخر</string>
+    <string name="tools_relay_stop">إيقاف إعادة البث</string>
+    <string name="tools_relay_details">المنفذ: %1$d  •  الرمز: %2$s</string>
+    <string name="tools_dlna_photos">الصور عبر DLNA</string>
+    <string name="tools_dlna_help">فعّل DLNA في الإعدادات لاستقبال الصور وإنشاء عرض شرائح.</string>
+    <string name="tools_native_help">انعكاس الشاشة المدمج في Fire TV. متاح على الطرازات المتوافقة.</string>
+    <string name="tools_native_unavailable">‏Miracast غير متاح على هذا الطراز. راجع الإعدادات ← العرض والأصوات ← انعكاس الشاشة.</string>
+    <string name="tools_native_open">فتح انعكاس الشاشة المدمج</string>
+    <string name="tools_recordings">التسجيلات المحلية</string>
+    <string name="tools_refresh">تحديث القائمة</string>
+    <string name="tools_recordings_empty">ستظهر تسجيلاتك هنا.</string>
+    <string name="tools_play">تشغيل</string>
+    <string name="tools_delete">حذف</string>
+    <string name="tools_delete_confirm">هل تريد حذف التسجيل؟</string>
+    <string name="tools_relay_input_help">أدخل البيانات الظاهرة بعد اختيار الاستقبال على هذا التلفزيون في التلفزيون الآخر.</string>
+    <string name="tools_relay_keyboard_help">↑↓ للتنقل · OK للكتابة</string>
+    <string name="tools_other_tv_ip">عنوان IP للتلفزيون الآخر</string>
+    <string name="tools_port">المنفذ</string>
+    <string name="tools_pairing_code">رمز الاتصال</string>
+    <string name="tools_connect">اتصال</string>
+</resources>

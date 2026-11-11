@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Foto laden…</string>
+    <string name="photo_received">Foto ontvangen via DLNA</string>
+    <string name="media_previous">Vorige</string>
+    <string name="media_next">Volgende</string>
+    <string name="photo_slideshow">Diavoorstelling</string>
+    <string name="photo_rotate">Draaien</string>
+    <string name="photo_scale">Aanpassen / vullen</string>
+    <string name="photo_position">Foto %1$d van %2$d • Gebruik de afstandsbediening om te bladeren, te draaien of te sluiten.</string>
+    <string name="photo_error">De foto kan niet worden geopend.</string>
+    <string name="photo_error_size">De foto is groter dan 16 MB.</string>
+    <string name="photo_error_format">Het fotoformaat is ongeldig.</string>
+    <string name="photo_error_redirect">De fotolink kan niet worden geopend.</string>
+</resources>

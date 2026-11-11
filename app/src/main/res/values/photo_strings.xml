@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Loading photo…</string>
+    <string name="photo_received">Photo received via DLNA</string>
+    <string name="media_previous">Previous</string>
+    <string name="media_next">Next</string>
+    <string name="photo_slideshow">Slideshow</string>
+    <string name="photo_rotate">Rotate</string>
+    <string name="photo_scale">Fit / fill</string>
+    <string name="photo_position">Photo %1$d of %2$d • Use the remote to navigate, rotate, or close.</string>
+    <string name="photo_error">Couldn’t open the photo.</string>
+    <string name="photo_error_size">The photo is larger than 16 MB.</string>
+    <string name="photo_error_format">The photo format is invalid.</string>
+    <string name="photo_error_redirect">Couldn’t follow the photo link.</string>
+</resources>

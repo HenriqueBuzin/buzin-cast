@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Espace insuffisant. Libérez au moins 128 Mo.</string>
+    <string name="capture_waiting_keyframe">En attente d’une image clé. Relancez la recopie d’écran si nécessaire.</string>
+    <string name="capture_recording_file">Enregistrement de %1$s</string>
+    <string name="capture_space_exhausted">Enregistrement arrêté : l’espace de stockage est presque plein.</string>
+    <string name="capture_failed">Impossible d’enregistrer.</string>
+    <string name="capture_saved_file">Enregistré : %1$s</string>
+    <string name="capture_no_keyframe">Aucune image clé reçue. Aucun fichier n’a été enregistré.</string>
+    <string name="capture_slow_storage">Enregistrement arrêté : le stockage n’a pas suivi le débit du flux.</string>
+    <string name="capture_finishing">Finalisation de l’enregistrement…</string>
+    <string name="relay_waiting_peer">En attente d’un autre BuzinCast. Le code expire dans 5 minutes.</string>
+    <string name="relay_listener_failed">Impossible de démarrer le récepteur : %1$s</string>
+    <string name="relay_other_stream">Un autre flux est en cours</string>
+    <string name="relay_receiving_peer">Réception depuis %1$s</string>
+    <string name="relay_mirroring_took_over">Une session de recopie d’écran a pris le contrôle de la lecture</string>
+    <string name="relay_ended">Relais terminé.</string>
+    <string name="relay_new_code">Réception terminée. Générez un nouveau code.</string>
+    <string name="relay_receive_failed">Réception terminée : %1$s</string>
+    <string name="relay_connecting">Connexion…</string>
+    <string name="relay_use_local_ip">Utilisez l’adresse IP locale de l’autre téléviseur</string>
+    <string name="relay_bad_code">Code incorrect</string>
+    <string name="relay_connected">Connecté. Démarrez ou relancez la recopie d’écran.</string>
+    <string name="relay_send_failed">Relais terminé : %1$s</string>
+    <string name="relay_slow_network">Réseau lent : relais interrompu. Reconnectez les récepteurs.</string>
+    <string name="diag_no_ipv4">Pas d’adresse IPv4 locale. Connectez le téléviseur au Wi-Fi ou par Ethernet.</string>
+    <string name="diag_tv_ip">Adresse IP du téléviseur : %1$s</string>
+    <string name="diag_receiver_running">Récepteur en cours d’exécution.</string>
+    <string name="diag_receiver_stopped">Récepteur arrêté. Démarrez-le sur l’écran de connexion.</string>
+    <string name="diag_vpn_active">Un VPN est actif. Il peut empêcher la détection locale.</string>
+    <string name="diag_usb_only">La détection est limitée à l’USB. Pour utiliser le Wi-Fi, choisissez Tous les réseaux dans les réglages.</string>
+    <string name="diag_airplay">AirPlay : %1$s • port %2$d</string>
+    <string name="diag_media_protocols">DLNA : %1$s • FCast : %2$s</string>
+    <string name="diag_help">Le récepteur n’apparaît pas sur votre téléphone ou Mac ?\n• Connectez les deux appareils au même réseau local. Le Wi-Fi et Ethernet peuvent fonctionner ensemble.\n• Évitez les réseaux invités et l’isolation des clients sur le routeur.\n• Vérifiez que le VPN ou le pare-feu de l’émetteur autorise l’accès au réseau local.\n• La détection utilise la multidiffusion/mDNS. Laissez la récupération automatique activée lors d’un changement de réseau.\nL’application ne peut vérifier le réseau de l’émetteur qu’une fois celui-ci connecté. Deux réseaux différents sont une cause possible.\n\nL’image est rognée ? Calibrez les quatre coins. Le téléviseur peut rogner le signal HDMI même si l’application envoie l’image complète.\nSous-titres SRT/VTT : utilisez CC pendant la lecture d’une vidéo par URL. La recopie d’écran utilise les sous-titres de l’émetteur.</string>
+    <string name="export_logs_failed">Impossible d’exporter les journaux. Réessayez.</string>
+</resources>

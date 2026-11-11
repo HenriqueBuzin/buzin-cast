@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">스트리밍 프로필</string>
+    <string name="setting_streaming_profile_desc">프로필을 변경하면 수신기가 다시 시작됩니다. 실제 품질은 송신 기기와 네트워크에 따라 달라집니다.</string>
+    <string name="setting_profile_default">기본</string>
+    <string name="setting_profile_cinema">영화</string>
+    <string name="setting_profile_presentation">프레젠테이션</string>
+    <string name="setting_profile_games">게임</string>
+    <string name="setting_approve_connections">연결 승인</string>
+    <string name="setting_approve_connections_desc">리모컨으로 AirPlay, DLNA, FCast, Cast V2 연결을 수락하거나 거부할 수 있습니다. 승인은 해당 프로토콜과 IP 주소에 대해 5분간 유효합니다.</string>
+    <string name="setting_network_recovery">네트워크 끊김 후 복구</string>
+    <string name="setting_network_recovery_desc">네트워크가 복구되면 수신기를 다시 찾을 수 있습니다. 앱에서 호환되는 동영상의 재생을 다시 시작하려고 시도합니다. AirPlay 송신 기기를 다시 연결해야 할 수도 있습니다.</string>
+    <string name="setting_calibrate_corners">네 모서리 보정</string>
+    <string name="calibration_adjust_hint">← 화면 확대 • 화면 축소 →</string>
+    <string name="calibration_save_hint">네 모서리가 모두 보이게 조정하세요. OK로 저장 • 뒤로 가기로 취소</string>
+    <string name="setting_profile_unavailable">스트리밍 프로필을 적용할 수 없습니다.</string>
+</resources>

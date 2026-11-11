@@ -1,6 +1,8 @@
 package io.github.jqssun.airplay.media
 
+import android.content.Context
 import io.buzincast.media.*
+import io.github.jqssun.airplay.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.*
@@ -11,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** One authenticated peer per session, opt-in. Packet transport is Buzin-specific. */
 class MirrorRelay(
+    private val context: Context,
     private val changed: () -> Unit,
     private val incoming: (MirrorPacket) -> Unit,
     private val ended: () -> Unit,
@@ -36,8 +39,12 @@ class MirrorRelay(
         try {
             server = ServerSocket(0).apply { soTimeout = 1000 }
             mutable.value = State(listening = true, code = pairing, port = server!!.localPort,
-                message = "Aguardando outro Buzin Cast. O código expira em 5 minutos.")
-        } catch (e: Exception) { mutable.value = State(message = "Falha ao abrir receptor: ${e.message}"); alive.set(false); return }
+                message = context.getString(R.string.relay_waiting_peer))
+        } catch (e: Exception) {
+            mutable.value = State(message = context.getString(R.string.relay_listener_failed, e.localizedMessage.orEmpty()))
+            alive.set(false)
+            return
+        }
         val listener = server!!
         Thread({
             var authenticated = false
@@ -50,7 +57,7 @@ class MirrorRelay(
                     socket = peer
                     try {
                         peer.soTimeout = 8000
-                        check(canReceive()) { "Outra transmissão está ativa" }
+                        check(canReceive()) { context.getString(R.string.relay_other_stream) }
                         val input = DataInputStream(peer.getInputStream()); val output = DataOutputStream(peer.getOutputStream())
                         val magic = ByteArray(8).also(input::readFully); require(magic.contentEquals(SecureMirrorChannel.MAGIC))
                         val salt = ByteArray(16).also(random::nextBytes); output.write(salt); output.flush()
@@ -58,7 +65,7 @@ class MirrorRelay(
                         require(channel.receive().contentEquals("hello".toByteArray()))
                         check(canReceive())
                         channel.send("ready".toByteArray()); authenticated = true
-                        mutable.value = State(receiving = true, message = "Recebendo de ${peer.inetAddress.hostAddress}")
+                        mutable.value = State(receiving = true, message = context.getString(R.string.relay_receiving_peer, peer.inetAddress.hostAddress))
                         changed()
                         peer.soTimeout = 15000
                         while (alive.get() && current == generation) {
@@ -66,7 +73,7 @@ class MirrorRelay(
                             if (bytes.isEmpty()) continue // authenticated keepalive while waiting for AirPlay
                             val packet = MirrorPacketCodec.decode(bytes)
                             if (packet == MirrorPacket.End) break
-                            check(canReceive()) { "Uma sessão AirPlay assumiu a reprodução" }
+                            check(canReceive()) { context.getString(R.string.relay_mirroring_took_over) }
                             incoming(packet)
                         }
                         break
@@ -74,8 +81,12 @@ class MirrorRelay(
                         if (authenticated) throw e
                     } finally { runCatching { peer.close() } }
                 }
-                if (current == generation) mutable.value = State(message = if (authenticated) "Retransmissão encerrada." else "Recepção encerrada. Gere um novo código.")
-            } catch (e: Exception) { if (current == generation) mutable.value = State(message = "Recepção encerrada: ${e.message}") }
+                if (current == generation) {
+                    mutable.value = State(message = context.getString(if (authenticated) R.string.relay_ended else R.string.relay_new_code))
+                }
+            } catch (e: Exception) {
+                if (current == generation) mutable.value = State(message = context.getString(R.string.relay_receive_failed, e.localizedMessage.orEmpty()))
+            }
             finally {
                 runCatching { listener.close() }
                 if (current == generation) { alive.set(false); changed(); if (authenticated) ended() }
@@ -88,12 +99,12 @@ class MirrorRelay(
         require(port in 1..65535 && host.isNotBlank())
         val current = ++generation
         alive.set(true); queue.clear()
-        mutable.value = State(message = "Conectando…")
+        mutable.value = State(message = context.getString(R.string.relay_connecting))
         Thread({
             var peerToClose: Socket? = null
             try {
                 val address = InetAddress.getByName(host)
-                require(address.isSiteLocalAddress && !address.isLoopbackAddress) { "Use o endereço IP local da outra TV" }
+                require(address.isSiteLocalAddress && !address.isLoopbackAddress) { context.getString(R.string.relay_use_local_ip) }
                 val peer = Socket(); peerToClose = peer; socket = peer
                 peer.connect(InetSocketAddress(address, port), 5000); peer.soTimeout = 8000
                 peer.tcpNoDelay = true
@@ -101,9 +112,10 @@ class MirrorRelay(
                 output.write(SecureMirrorChannel.MAGIC); output.flush()
                 val salt = ByteArray(16).also(input::readFully)
                 val channel = SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(code, salt))
-                channel.send("hello".toByteArray()); require(channel.receive().contentEquals("ready".toByteArray())) { "Código incorreto" }
+                channel.send("hello".toByteArray())
+                require(channel.receive().contentEquals("ready".toByteArray())) { context.getString(R.string.relay_bad_code) }
                 if (!alive.get() || current != generation) return@Thread
-                mutable.value = State(sending = true, message = "Conectado. Inicie ou reconecte o espelhamento AirPlay.")
+                mutable.value = State(sending = true, message = context.getString(R.string.relay_connected))
                 changed()
                 while (alive.get() && current == generation) {
                     val packet = queue.poll(1000, java.util.concurrent.TimeUnit.MILLISECONDS)
@@ -111,11 +123,14 @@ class MirrorRelay(
                     channel.send(MirrorPacketCodec.encode(packet))
                     if (packet == MirrorPacket.End) break
                 }
-            } catch (e: Exception) { if (current == generation) mutable.value = State(message = "Retransmissão encerrada: ${e.message}") }
+            } catch (e: Exception) {
+                if (current == generation) mutable.value = State(message = context.getString(R.string.relay_send_failed, e.localizedMessage.orEmpty()))
+            }
             finally {
                 runCatching { peerToClose?.close() }
                 if (current == generation) {
-                    alive.set(false); runCatching { socket?.close() }; mutable.value = State(message = mutable.value.message.takeIf { !mutable.value.sending } ?: "Retransmissão encerrada.")
+                    alive.set(false); runCatching { socket?.close() }
+                    mutable.value = State(message = mutable.value.message.takeIf { !mutable.value.sending } ?: context.getString(R.string.relay_ended))
                     queue.clear(); changed()
                 }
             }
@@ -124,7 +139,7 @@ class MirrorRelay(
 
     fun offer(packet: MirrorPacket) {
         if (mutable.value.sending && !queue.offer(packet)) {
-            stop(); mutable.value = State(message = "Rede lenta: retransmissão encerrada. Reconecte os receptores.")
+            stop(); mutable.value = State(message = context.getString(R.string.relay_slow_network))
         }
     }
     @Synchronized fun stop() {

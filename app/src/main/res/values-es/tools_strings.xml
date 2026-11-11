@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_calibrate">Calibrar imagen</string>
+    <string name="tools_connection_diagnostics">Diagnóstico de conexión</string>
+    <string name="tools_record_title">Grabar duplicación de pantalla</string>
+    <string name="tools_record_help">Guarda la pantalla duplicada y el audio. Prepara la grabación antes de conectarte.</string>
+    <string name="tools_record_stop">■ Detener grabación</string>
+    <string name="tools_record_prepare">Preparar grabación</string>
+    <string name="tools_other_tv">Otro televisor</string>
+    <string name="tools_relay_help">Retransmite la pantalla duplicada a otro televisor con BuzinCast en la misma red. En ese televisor, elige Recibir en este televisor y usa los datos que aparecen.</string>
+    <string name="tools_this_tv_ip">IP de este televisor: %1$s</string>
+    <string name="tools_relay_receive">Recibir en este televisor</string>
+    <string name="tools_relay_connect">Conectar con otro televisor</string>
+    <string name="tools_relay_stop">Detener retransmisión</string>
+    <string name="tools_relay_details">Puerto: %1$d  •  Código: %2$s</string>
+    <string name="tools_dlna_photos">Fotos por DLNA</string>
+    <string name="tools_dlna_help">Activa DLNA en Ajustes para recibir fotos y crear una presentación.</string>
+    <string name="tools_native_help">Duplicación de pantalla integrada de Fire TV. Disponible en modelos compatibles.</string>
+    <string name="tools_native_unavailable">Miracast no está disponible en este modelo. Consulta Ajustes → Pantalla y sonido → Duplicación de pantalla.</string>
+    <string name="tools_native_open">Abrir duplicación integrada</string>
+    <string name="tools_recordings">Grabaciones locales</string>
+    <string name="tools_refresh">Actualizar lista</string>
+    <string name="tools_recordings_empty">Tus grabaciones aparecerán aquí.</string>
+    <string name="tools_play">Reproducir</string>
+    <string name="tools_delete">Eliminar</string>
+    <string name="tools_delete_confirm">¿Eliminar la grabación?</string>
+    <string name="tools_relay_input_help">Introduce los datos que aparecen tras elegir Recibir en este televisor en el otro televisor.</string>
+    <string name="tools_relay_keyboard_help">↑↓ para navegar · OK para escribir</string>
+    <string name="tools_other_tv_ip">IP del otro televisor</string>
+    <string name="tools_port">Puerto</string>
+    <string name="tools_pairing_code">Código de conexión</string>
+    <string name="tools_connect">Conectar</string>
+</resources>

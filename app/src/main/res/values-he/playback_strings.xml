@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">כתוביות חיצוניות</string>
+    <string name="subtitle_picker_help">בחרו קובץ SRT או VTT בקידוד UTF-8 בגודל של עד 2 מ״ב. כתוביות חיצוניות פועלות בסרטונים שמתקבלים דרך כתובת URL. שיקוף המסך משתמש בכתוביות של המכשיר המשדר. נדרש בורר קבצים.</string>
+    <string name="subtitle_picker_unavailable">אין בורר קבצים זמין במכשיר הזה.</string>
+    <string name="subtitle_choose_file">בחירת קובץ</string>
+    <string name="subtitle_disable">ללא כתוביות</string>
+    <string name="subtitle_load_failed">לא ניתן לטעון את הכתוביות.</string>
+    <string name="connection_approval_title">לאפשר את השידור?</string>
+    <string name="connection_approval_help">אשרו רק מכשיר שאתם מזהים. האישור תקף ל-5 דקות. אם לא תתקבל תשובה תוך 25 שניות, החיבור יידחה.</string>
+    <string name="connection_decline">דחייה</string>
+    <string name="record_waiting">ממתין להקלטה</string>
+    <string name="network_available">הרשת זמינה</string>
+    <string name="network_waiting">אין רשת מקומית. ממתין לחיבור…</string>
+    <string name="network_recovered">הרשת חזרה לפעול. אפשר להתחבר שוב למקלט.</string>
+    <string name="network_playback_retry">החיבור נותק. מנסה לחדש את הווידאו (%1$d/3)…</string>
+</resources>

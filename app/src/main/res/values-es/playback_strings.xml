@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Subtítulos externos</string>
+    <string name="subtitle_picker_help">Elige un archivo SRT o VTT en UTF-8 de hasta 2 MB. Los subtítulos externos funcionan con vídeos recibidos por URL. La duplicación usa los subtítulos del dispositivo emisor. Se requiere un selector de archivos.</string>
+    <string name="subtitle_picker_unavailable">No hay un selector de archivos disponible en este dispositivo.</string>
+    <string name="subtitle_choose_file">Elegir archivo</string>
+    <string name="subtitle_disable">Sin subtítulos</string>
+    <string name="subtitle_load_failed">No se pudieron cargar los subtítulos.</string>
+    <string name="connection_approval_title">¿Permitir la transmisión?</string>
+    <string name="connection_approval_help">Permite solo dispositivos que reconozcas. El permiso dura 5 minutos. Si no respondes en 25 segundos, se rechaza la conexión.</string>
+    <string name="connection_decline">Rechazar</string>
+    <string name="record_waiting">En espera de grabación</string>
+    <string name="network_available">Red disponible</string>
+    <string name="network_waiting">No hay red local. Esperando conexión…</string>
+    <string name="network_recovered">Se recuperó la red. Ya puedes volver a conectar con el receptor.</string>
+    <string name="network_playback_retry">Conexión interrumpida. Intentando reanudar el vídeo (%1$d/3)…</string>
+</resources>

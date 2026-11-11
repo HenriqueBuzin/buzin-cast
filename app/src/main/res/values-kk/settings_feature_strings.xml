@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Тарату профилі</string>
+    <string name="setting_streaming_profile_desc">Профильді өзгерткенде қабылдағыш қайта іске қосылады. Нақты сапа жіберуші құрылғыға және желіге байланысты.</string>
+    <string name="setting_profile_default">Әдепкі</string>
+    <string name="setting_profile_cinema">Кино</string>
+    <string name="setting_profile_presentation">Тұсаукесер</string>
+    <string name="setting_profile_games">Ойындар</string>
+    <string name="setting_approve_connections">Қосылымдарды мақұлдау</string>
+    <string name="setting_approve_connections_desc">AirPlay, DLNA, FCast және Cast V2 қосылымдарын қашықтан басқару пультімен қабылдаңыз немесе қабылдамаңыз. Рұқсат осы протокол мен IP мекенжайы үшін бес минут жарамды.</string>
+    <string name="setting_network_recovery">Желі үзілгеннен кейін қалпына келтіру</string>
+    <string name="setting_network_recovery_desc">Желі қалпына келгенде қабылдағыш қайта көрінеді. Қолданба үйлесімді бейнелерді ойнатуды жалғастыруға тырысады. AirPlay жіберуші құрылғысын қайта қосу қажет болуы мүмкін.</string>
+    <string name="setting_calibrate_corners">Төрт бұрышты реттеу</string>
+    <string name="calibration_adjust_hint">← Кескінді үлкейту • Кескінді кішірейту →</string>
+    <string name="calibration_save_hint">Төрт бұрыш та көрініп тұрсын. OK сақтайды • Артқа батырмасы болдырмайды</string>
+    <string name="setting_profile_unavailable">Тарату профилін қолдану мүмкін болмады.</string>
+</resources>

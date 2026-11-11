@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Draft Cornish wording; native review pending. -->
+    <string name="photo_loading">Ow karga skeusen…</string>
+    <string name="photo_received">Skeusen degemerys dre DLNA</string>
+    <string name="media_previous">Kyns</string>
+    <string name="media_next">Nessa</string>
+    <string name="photo_slideshow">Displegyans skeusennow</string>
+    <string name="photo_rotate">Treylya</string>
+    <string name="photo_scale">Desedha / leunya</string>
+    <string name="photo_position">Skeusen %1$d a %2$d • Devnydhyewgh an rewler rag gwaya, treylya po degea.</string>
+    <string name="photo_error">Ny allas ygeri an skeusen.</string>
+    <string name="photo_error_size">An skeusen yw moy ages 16 MB.</string>
+    <string name="photo_error_format">Furv an skeusen yw anewn.</string>
+    <string name="photo_error_redirect">Ny allas ygeri kevren an skeusen.</string>
+</resources>

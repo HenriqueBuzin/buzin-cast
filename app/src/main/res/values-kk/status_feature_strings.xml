@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Бос орын жеткіліксіз. Кемінде 128 МБ босатыңыз.</string>
+    <string name="capture_waiting_keyframe">Тірек кадр күтілуде. Қажет болса, экранды қайталауды қайта қосыңыз.</string>
+    <string name="capture_recording_file">%1$s жазылуда</string>
+    <string name="capture_space_exhausted">Жад толуға жақын болғандықтан жазба тоқтады.</string>
+    <string name="capture_failed">Жазу мүмкін болмады.</string>
+    <string name="capture_saved_file">Сақталды: %1$s</string>
+    <string name="capture_no_keyframe">Тірек кадр алынбады. Файл сақталмады.</string>
+    <string name="capture_slow_storage">Жад ағын жылдамдығына ілесе алмады, жазба тоқтады.</string>
+    <string name="capture_finishing">Жазба аяқталуда…</string>
+    <string name="relay_waiting_peer">Басқа BuzinCast күтілуде. Код 5 минуттан кейін жарамсыз болады.</string>
+    <string name="relay_listener_failed">Қабылдағышты іске қосу мүмкін болмады: %1$s</string>
+    <string name="relay_other_stream">Басқа трансляция жүріп жатыр</string>
+    <string name="relay_receiving_peer">%1$s мекенжайынан қабылдануда</string>
+    <string name="relay_mirroring_took_over">Ойнатуды экранды қайталау сеансы жалғастырды</string>
+    <string name="relay_ended">Қайта тарату аяқталды.</string>
+    <string name="relay_new_code">Қабылдау аяқталды. Жаңа код жасаңыз.</string>
+    <string name="relay_receive_failed">Қабылдау аяқталды: %1$s</string>
+    <string name="relay_connecting">Қосылуда…</string>
+    <string name="relay_use_local_ip">Екінші теледидардың жергілікті IP мекенжайын пайдаланыңыз</string>
+    <string name="relay_bad_code">Код қате</string>
+    <string name="relay_connected">Қосылды. Экранды қайталауды бастаңыз немесе қайта қосыңыз.</string>
+    <string name="relay_send_failed">Қайта тарату аяқталды: %1$s</string>
+    <string name="relay_slow_network">Желі баяу. Қайта тарату аяқталды. Қабылдағыштарды қайта қосыңыз.</string>
+    <string name="diag_no_ipv4">Жергілікті IPv4 мекенжайы жоқ. Теледидарды Wi-Fi не Ethernet арқылы қосыңыз.</string>
+    <string name="diag_tv_ip">Теледидардың IP мекенжайы: %1$s</string>
+    <string name="diag_receiver_running">Қабылдағыш жұмыс істеп тұр.</string>
+    <string name="diag_receiver_stopped">Қабылдағыш тоқтаған. Оны қосылу экранынан іске қосыңыз.</string>
+    <string name="diag_vpn_active">VPN қосулы және жергілікті іздеуге кедергі келтіруі мүмкін.</string>
+    <string name="diag_usb_only">Іздеу USB арқылы ғана жүреді. Wi-Fi үшін параметрлерден Барлық желілерді таңдаңыз.</string>
+    <string name="diag_airplay">AirPlay: %1$s • порт %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Қабылдағыш көрінбесе, екі құрылғыны бір жергілікті желіге қосыңыз. Қонақ желісі мен құрылғыларды оқшаулаудан аулақ болыңыз. VPN, брандмауэр және multicast/mDNS параметрлерін тексеріңіз. Желі ауысқанда автоматты қалпына келтіруді қосулы ұстаңыз. Кескін қиылса, төрт бұрышты баптаңыз. URL бейнесіндегі SRT/VTT субтитрлері үшін CC түймесін қолданыңыз.</string>
+    <string name="export_logs_failed">Журналдарды экспорттау мүмкін болмады. Қайталап көріңіз.</string>
+</resources>

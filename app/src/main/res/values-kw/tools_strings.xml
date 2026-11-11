@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Draft Cornish wording; technical terms and grammar need a fluent review. -->
+    <string name="tools_calibrate">Desedha an skeusen</string>
+    <string name="tools_connection_diagnostics">Hwithrans an junyans</string>
+    <string name="tools_record_title">Rekordya dysqwedhyans skrin</string>
+    <string name="tools_record_help">Gwitha an skrin ha’n son. Parusyewgh an rekordyans kyns junya.</string>
+    <string name="tools_record_stop">■ Hedhi an rekordyans</string>
+    <string name="tools_record_prepare">Parusya rekordyans</string>
+    <string name="tools_other_tv">Pellwolok aral</string>
+    <string name="tools_relay_help">Dasdanvenewgh an dysqwedhyans skrin dhe bellwolok aral gans BuzinCast war an keth rosweyth. War an bellwolok na, dewisewgh Degemeres war an bellwolok ma ha devnydhyewgh an kedhlow diskwedhys.</string>
+    <string name="tools_this_tv_ip">IP an bellwolok ma: %1$s</string>
+    <string name="tools_relay_receive">Degemeres war an bellwolok ma</string>
+    <string name="tools_relay_connect">Junya dhe bellwolok aral</string>
+    <string name="tools_relay_stop">Hedhi an dasdanvenans</string>
+    <string name="tools_relay_details">Porth: %1$d  •  Kod: %2$s</string>
+    <string name="tools_dlna_photos">Skeusennow dre DLNA</string>
+    <string name="tools_dlna_help">Gweredhekewgh DLNA yn Settyansow rag degemeres skeusennow ha gul displegyans.</string>
+    <string name="tools_native_help">Dysqwedhyans skrin y’n Fire TV. Kavadow war esamplys kehaval.</string>
+    <string name="tools_native_unavailable">Nyns yw Miracast kavadow war an esampel ma. Gwrewgh mires orth Settyansow → Dysqwedhyans ha sonyow → Dysqwedhyans skrin.</string>
+    <string name="tools_native_open">Egeri an dysqwedhyans skrin y’n Fire TV</string>
+    <string name="tools_recordings">Rekordyansow tosel</string>
+    <string name="tools_refresh">Nowedha an rol</string>
+    <string name="tools_recordings_empty">Agas rekordyansow a vydh diskwedhys omma.</string>
+    <string name="tools_play">Gwari</string>
+    <string name="tools_delete">Dilea</string>
+    <string name="tools_delete_confirm">Dilea an rekordyans?</string>
+    <string name="tools_relay_input_help">Entrewgh an kedhlow diskwedhys wosa dewis Degemeres war an bellwolok ma war an bellwolok aral.</string>
+    <string name="tools_relay_keyboard_help">↑↓ rag gwaya · OK rag skrifa</string>
+    <string name="tools_other_tv_ip">IP an bellwolok aral</string>
+    <string name="tools_port">Porth</string>
+    <string name="tools_pairing_code">Kod junyans</string>
+    <string name="tools_connect">Junya</string>
+</resources>

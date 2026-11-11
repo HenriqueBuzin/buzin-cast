@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Kulang ang espasyo. Magbakante ng hindi bababa sa 128 MB.</string>
+    <string name="capture_waiting_keyframe">Naghihintay ng keyframe. Ikonekta muli ang screen mirroring kung kailangan.</string>
+    <string name="capture_recording_file">Nire-record ang %1$s</string>
+    <string name="capture_space_exhausted">Huminto ang recording dahil halos puno na ang storage.</string>
+    <string name="capture_failed">Hindi nakapag-record.</string>
+    <string name="capture_saved_file">Na-save: %1$s</string>
+    <string name="capture_no_keyframe">Walang natanggap na keyframe. Walang na-save na file.</string>
+    <string name="capture_slow_storage">Huminto ang recording dahil hindi nakasabay ang storage sa stream.</string>
+    <string name="capture_finishing">Tinatapos ang recording…</string>
+    <string name="relay_waiting_peer">Naghihintay ng isa pang BuzinCast. Mag-e-expire ang code sa loob ng 5 minuto.</string>
+    <string name="relay_listener_failed">Hindi masimulan ang receiver: %1$s</string>
+    <string name="relay_other_stream">May isa pang aktibong stream</string>
+    <string name="relay_receiving_peer">Tumatanggap mula sa %1$s</string>
+    <string name="relay_mirroring_took_over">Pinalitan ng screen mirroring ang kasalukuyang playback</string>
+    <string name="relay_ended">Natapos ang relay.</string>
+    <string name="relay_new_code">Natapos ang pagtanggap. Gumawa ng bagong code.</string>
+    <string name="relay_receive_failed">Natapos ang pagtanggap: %1$s</string>
+    <string name="relay_connecting">Kumokonekta…</string>
+    <string name="relay_use_local_ip">Gamitin ang lokal na IP address ng kabilang TV</string>
+    <string name="relay_bad_code">Mali ang code</string>
+    <string name="relay_connected">Konektado. Simulan o ikonekta muli ang screen mirroring.</string>
+    <string name="relay_send_failed">Natapos ang relay: %1$s</string>
+    <string name="relay_slow_network">Mabagal ang network kaya natapos ang relay. Ikonekta muli ang mga receiver.</string>
+    <string name="diag_no_ipv4">Walang lokal na IPv4 address. Ikonekta ang TV sa Wi-Fi o Ethernet.</string>
+    <string name="diag_tv_ip">IP address ng TV: %1$s</string>
+    <string name="diag_receiver_running">Gumagana ang receiver.</string>
+    <string name="diag_receiver_stopped">Nakahinto ang receiver. Simulan ito sa screen ng koneksyon.</string>
+    <string name="diag_vpn_active">Aktibo ang VPN at maaari nitong harangan ang lokal na paghahanap.</string>
+    <string name="diag_usb_only">Sa USB lang naghahanap ng device. Para sa Wi-Fi, piliin ang lahat ng network sa Mga Setting.</string>
+    <string name="diag_airplay">AirPlay: %1$s • port %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Kung hindi makita ang receiver, ikonekta ang dalawang device sa parehong lokal na network. Iwasan ang guest network at device isolation. Suriin ang VPN, firewall, at multicast/mDNS. Panatilihing naka-on ang awtomatikong pagbawi kapag nagpapalit ng network. Kung putol ang larawan, i-calibrate ang apat na sulok. Para sa mga SRT/VTT subtitle sa video mula sa URL, gamitin ang CC.</string>
+    <string name="export_logs_failed">Hindi ma-export ang mga log. Subukan ulit.</string>
+</resources>

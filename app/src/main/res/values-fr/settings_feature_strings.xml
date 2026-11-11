@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Profil de diffusion</string>
+    <string name="setting_streaming_profile_desc">Le changement de profil redémarre le récepteur. La qualité réelle dépend de l’appareil émetteur et du réseau.</string>
+    <string name="setting_profile_default">Par défaut</string>
+    <string name="setting_profile_cinema">Cinéma</string>
+    <string name="setting_profile_presentation">Présentation</string>
+    <string name="setting_profile_games">Jeux</string>
+    <string name="setting_approve_connections">Approuver les connexions</string>
+    <string name="setting_approve_connections_desc">Utilisez la télécommande pour accepter ou refuser les connexions AirPlay, DLNA, FCast et Cast V2. L’autorisation vaut cinq minutes pour le protocole et l’adresse IP concernés.</string>
+    <string name="setting_network_recovery">Rétablir la connexion après une coupure réseau</string>
+    <string name="setting_network_recovery_desc">Le récepteur redevient détectable quand le réseau revient. L’application tente de reprendre la lecture des vidéos compatibles. L’émetteur AirPlay peut devoir se reconnecter.</string>
+    <string name="setting_calibrate_corners">Calibrer les quatre coins</string>
+    <string name="calibration_adjust_hint">← Agrandir l’image • Réduire l’image →</string>
+    <string name="calibration_save_hint">Laissez les quatre coins visibles. OK enregistre • Retour annule</string>
+    <string name="setting_profile_unavailable">Impossible d’appliquer le profil de diffusion.</string>
+</resources>

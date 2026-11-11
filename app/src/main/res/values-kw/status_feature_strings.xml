@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_need_space">Nyns eus spas lowr. Dieubewgh 128 MB dhe’n lyha.</string>
+    <string name="capture_waiting_keyframe">Ow kortos fram-alhwedh. Junyewgh arta an dysqwedhyans skrin mar pe edhom.</string>
+    <string name="capture_recording_file">Ow rekordya %1$s</string>
+    <string name="capture_space_exhausted">Hedhys yw an rekordyans. Yma an gwithva ogas leun.</string>
+    <string name="capture_failed">Ny yllir rekordya.</string>
+    <string name="capture_saved_file">Gwithys: %1$s</string>
+    <string name="capture_no_keyframe">Ny veu degemerys fram-alhwedh. Restren vyth ny veu gwithys.</string>
+    <string name="capture_slow_storage">Hedhys yw an rekordyans. Re uskis yw an lif rag an gwithva.</string>
+    <string name="capture_finishing">Owth oberi an rekordyans dhe benn…</string>
+    <string name="relay_waiting_peer">Ow kortos BuzinCast aral. An kod a dheu dhe benn yn 5 mynysen.</string>
+    <string name="relay_listener_failed">Ny yllir dalleth an degemerer: %1$s</string>
+    <string name="relay_other_stream">Yma lif aral ow resek</string>
+    <string name="relay_receiving_peer">Ow tegemeres dhyworth %1$s</string>
+    <string name="relay_mirroring_took_over">An dysqwedhyans skrin a gemeras an gwari</string>
+    <string name="relay_ended">Deu yw an dasdanvon dhe benn.</string>
+    <string name="relay_new_code">Deu yw an degemeryans dhe benn. Gwrewgh kod nowydh.</string>
+    <string name="relay_receive_failed">Deu yw an degemeryans dhe benn: %1$s</string>
+    <string name="relay_connecting">Ow junya…</string>
+    <string name="relay_use_local_ip">Devnydhyewgh trigva IP leel an bellwolok aral</string>
+    <string name="relay_bad_code">Kod kamm</string>
+    <string name="relay_connected">Junyes. Dallethewgh po junyewgh arta an dysqwedhyans skrin.</string>
+    <string name="relay_send_failed">Deu yw an dasdanvon dhe benn: %1$s</string>
+    <string name="relay_slow_network">Rosweyth lent. Deu yw an dasdanvon dhe benn. Junyewgh an degemeroryon arta.</string>
+    <string name="diag_no_ipv4">Nyns eus trigva IPv4 leel. Junyewgh an bellwolok dre Wi-Fi po Ethernet.</string>
+    <string name="diag_tv_ip">Trigva IP an bellwolok: %1$s</string>
+    <string name="diag_receiver_running">An degemerer yw ow resek.</string>
+    <string name="diag_receiver_stopped">Hedhys yw an degemerer. Dallethewgh ev war skrin junyans.</string>
+    <string name="diag_vpn_active">Yma VPN ow resek. Ev a yll lettya kavos alatow leel.</string>
+    <string name="diag_usb_only">An kavos yw dre USB hepken. Rag Wi-Fi, dewisewgh oll rosweythyow yn Settyansow.</string>
+    <string name="diag_airplay">AirPlay: %1$s • porth %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Mars ny welowgh an degemerer, junyewgh an dhew alat dhe’n keth rosweyth leel. Nag usyewgh rosweyth gest. Gwiriowgh settyansow VPN, firewall ha multicast/mDNS. Mar yw an skeusen tregys, dasparowgh an peswar korn. Rag istitlow SRT/VTT yn video dre URL, devnydhyewgh CC.</string>
+    <string name="export_logs_failed">Ny yllir esperthi an kovnotennow. Assay arta.</string>
+</resources>

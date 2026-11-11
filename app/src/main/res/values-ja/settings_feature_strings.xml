@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">配信プロファイル</string>
+    <string name="setting_streaming_profile_desc">プロファイルを変更すると受信機が再起動します。実際の品質は送信機器とネットワークによって異なります。</string>
+    <string name="setting_profile_default">標準</string>
+    <string name="setting_profile_cinema">映画</string>
+    <string name="setting_profile_presentation">プレゼンテーション</string>
+    <string name="setting_profile_games">ゲーム</string>
+    <string name="setting_approve_connections">接続を承認</string>
+    <string name="setting_approve_connections_desc">AirPlay、DLNA、FCast、Cast V2 の接続はリモコンで許可または拒否できます。承認は対象のプロトコルと IP アドレスに対して5分間有効です。</string>
+    <string name="setting_network_recovery">ネットワーク切断後に復旧</string>
+    <string name="setting_network_recovery_desc">ネットワークが復旧すると受信機が再び検出可能になります。対応する動画の再生再開を試みます。AirPlay の送信機器では再接続が必要な場合があります。</string>
+    <string name="setting_calibrate_corners">四隅を調整</string>
+    <string name="calibration_adjust_hint">← 画像を拡大 • 画像を縮小 →</string>
+    <string name="calibration_save_hint">四隅がすべて見えるように調整してください。OKで保存 • 戻るでキャンセル</string>
+    <string name="setting_profile_unavailable">配信プロファイルを適用できませんでした。</string>
+</resources>

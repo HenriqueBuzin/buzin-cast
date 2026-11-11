@@ -14,12 +14,14 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.github.jqssun.airplay.R
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 
 @Composable
@@ -33,7 +35,7 @@ fun ToolsScreen(viewModel: MainViewModel) {
     var address by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
+    var mirroringUnavailable by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf<String?>(null) }
     var connectDialog by remember { mutableStateOf(false) }
     var restoreConnectFocus by remember { mutableStateOf(false) }
@@ -48,55 +50,55 @@ fun ToolsScreen(viewModel: MainViewModel) {
     val video by viewModel.videoPlaybackActive.collectAsState()
     LaunchedEffect(capture.armed) { viewModel.refreshRecordings() }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Ferramentas", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.tab_tools), style = MaterialTheme.typography.headlineSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { context.startActivity(Intent(context,io.github.jqssun.airplay.media.CalibrationActivity::class.java)) }, modifier = Modifier.dpadFocus()) { Text("Calibrar imagem") }
-            OutlinedButton(onClick = { diagnostic = io.github.jqssun.airplay.media.NetworkDiagnostics.report(context,receiverState == io.github.jqssun.airplay.service.AirPlayService.ServerState.RUNNING) }, modifier = Modifier.dpadFocus()) { Text("Diagnóstico de conexão") }
+            OutlinedButton(onClick = { context.startActivity(Intent(context,io.github.jqssun.airplay.media.CalibrationActivity::class.java)) }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_calibrate)) }
+            OutlinedButton(onClick = { diagnostic = io.github.jqssun.airplay.media.NetworkDiagnostics.report(context,receiverState == io.github.jqssun.airplay.service.AirPlayService.ServerState.RUNNING) }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_connection_diagnostics)) }
         }
         if (io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) {
             HorizontalDivider()
-            Text("Gravar AirPlay", style = MaterialTheme.typography.titleLarge)
-            Text("Salve o espelhamento com áudio. Prepare a gravação antes de conectar.")
+            Text(stringResource(R.string.tools_record_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.tools_record_help))
             Button(onClick = viewModel::toggleRecording, enabled = !relay.receiving && !video, modifier = Modifier.dpadFocus()) {
-                Text(if (capture.armed) "■ Parar gravação" else "Preparar gravação")
+                Text(stringResource(if (capture.armed) R.string.tools_record_stop else R.string.tools_record_prepare))
             }
             if (capture.message.isNotBlank()) Text(capture.message, color = MaterialTheme.colorScheme.primary)
         }
         HorizontalDivider()
-        Text("Outra TV", style = MaterialTheme.typography.titleLarge)
-        Text("Retransmita o AirPlay para outro Buzin Cast na mesma rede. No destino, escolha Receber e use os dados exibidos.")
-        Text("IP desta TV: ${viewModel.localAddress()}")
+        Text(stringResource(R.string.tools_other_tv), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.tools_relay_help))
+        Text(stringResource(R.string.tools_this_tv_ip, viewModel.localAddress()))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = viewModel::listenRelay, enabled = busy == 0 && !video && !capture.armed && !relay.sending, modifier = Modifier.dpadFocus()) { Text("Receber nesta TV") }
+            Button(onClick = viewModel::listenRelay, enabled = busy == 0 && !video && !capture.armed && !relay.sending, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_relay_receive)) }
             OutlinedButton(onClick = { connectDialog = true },
                 enabled = !relay.receiving && !relay.sending && !relay.listening,
-                modifier = Modifier.focusRequester(connectFocus).dpadFocus()) { Text("Conectar a outra TV") }
-            if (relay.listening || relay.sending || relay.receiving) OutlinedButton(onClick = viewModel::stopRelay, modifier = Modifier.dpadFocus()) { Text("Encerrar retransmissão") }
+                modifier = Modifier.focusRequester(connectFocus).dpadFocus()) { Text(stringResource(R.string.tools_relay_connect)) }
+            if (relay.listening || relay.sending || relay.receiving) OutlinedButton(onClick = viewModel::stopRelay, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_relay_stop)) }
         }
-        if (relay.listening) Text("Porta: ${relay.port}  •  Código: ${relay.code.chunked(4).joinToString("-")}", style = MaterialTheme.typography.titleLarge)
+        if (relay.listening) Text(stringResource(R.string.tools_relay_details, relay.port, relay.code.chunked(4).joinToString("-")), style = MaterialTheme.typography.titleLarge)
         if (relay.message.isNotBlank()) Text(relay.message)
         HorizontalDivider()
-        Text("Fotos via DLNA", style = MaterialTheme.typography.titleLarge)
-        Text("Ative DLNA nas Configurações para receber fotos e criar uma apresentação.")
+        Text(stringResource(R.string.tools_dlna_photos), style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.tools_dlna_help))
         HorizontalDivider()
         Text("Miracast", style = MaterialTheme.typography.titleLarge)
-        Text("Espelhamento do Fire TV. Disponível em modelos compatíveis.")
+        Text(stringResource(R.string.tools_native_help))
         OutlinedButton(onClick = {
             runCatching { context.startActivity(Intent().setComponent(ComponentName("com.amazon.cast.sink", "com.amazon.cast.sink.DisplayMirroringSinkActivity"))) }
-                .onFailure { message = "Miracast não disponível neste modelo. Consulte Configurações → Tela e sons → Espelhamento." }
-        }, modifier = Modifier.dpadFocus()) { Text("Abrir espelhamento nativo") }
-        if (message.isNotEmpty()) Text(message)
+                .onFailure { mirroringUnavailable = true }
+        }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_native_open)) }
+        if (mirroringUnavailable) Text(stringResource(R.string.tools_native_unavailable))
         if (io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) {
             HorizontalDivider()
-            Text("Gravações locais", style = MaterialTheme.typography.titleLarge)
-            OutlinedButton(onClick = viewModel::refreshRecordings, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Atualizar lista") }
-            if (recordings.isEmpty()) Text("Suas gravações aparecerão aqui.")
+            Text(stringResource(R.string.tools_recordings), style = MaterialTheme.typography.titleLarge)
+            OutlinedButton(onClick = viewModel::refreshRecordings, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_refresh)) }
+            if (recordings.isEmpty()) Text(stringResource(R.string.tools_recordings_empty))
             recordings.forEach { recording ->
                 Text("${recording.name} • ${recording.bytes / 1024 / 1024} MB")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { viewModel.playRecording(recording.name) }, enabled = !capture.armed && busy == 0 && !relay.receiving, modifier = Modifier.dpadFocus()) { Text("Reproduzir") }
-                    OutlinedButton(onClick = { viewModel.shareRecording(recording.name) }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Exportar") }
-                    TextButton(onClick = { delete = recording.name }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text("Excluir") }
+                    OutlinedButton(onClick = { viewModel.playRecording(recording.name) }, enabled = !capture.armed && busy == 0 && !relay.receiving, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_play)) }
+                    OutlinedButton(onClick = { viewModel.shareRecording(recording.name) }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.btn_export)) }
+                    TextButton(onClick = { delete = recording.name }, enabled = !capture.armed, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_delete)) }
                 }
             }
         }
@@ -104,7 +106,7 @@ fun ToolsScreen(viewModel: MainViewModel) {
     diagnostic?.let { report ->
         val scroll = rememberScrollState()
         val scope = rememberCoroutineScope()
-        AlertDialog(onDismissRequest = { diagnostic = null }, title = { Text("Diagnóstico de conexão · ↑↓") },
+        AlertDialog(onDismissRequest = { diagnostic = null }, title = { Text("${stringResource(R.string.tools_connection_diagnostics)} · ↑↓") },
             modifier = Modifier.onPreviewKeyEvent { event ->
                 val key = event.nativeKeyEvent
                 val direction = when (key.keyCode) {
@@ -120,7 +122,7 @@ fun ToolsScreen(viewModel: MainViewModel) {
                 }
             },
             text = { Text(report,Modifier.verticalScroll(scroll)) },
-            confirmButton = { TextButton(onClick = { diagnostic = null },modifier = Modifier.dpadFocus()) { Text("Fechar") } })
+            confirmButton = { TextButton(onClick = { diagnostic = null },modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.buzin_close)) } })
     }
     if (connectDialog) {
         RelayConnectDialog(address, port, code,
@@ -131,9 +133,9 @@ fun ToolsScreen(viewModel: MainViewModel) {
                 viewModel.connectRelay(host, receiverPort.toInt(), pairingCode)
             })
     }
-    delete?.let { name -> AlertDialog(onDismissRequest = { delete = null }, title = { Text("Excluir gravação?") }, text = { Text(name) },
-        confirmButton = { TextButton(onClick = { viewModel.deleteRecording(name); delete = null }) { Text("Excluir") } },
-        dismissButton = { TextButton(onClick = { delete = null }) { Text("Cancelar") } }) }
+    delete?.let { name -> AlertDialog(onDismissRequest = { delete = null }, title = { Text(stringResource(R.string.tools_delete_confirm)) }, text = { Text(name) },
+        confirmButton = { TextButton(onClick = { viewModel.deleteRecording(name); delete = null }) { Text(stringResource(R.string.tools_delete)) } },
+        dismissButton = { TextButton(onClick = { delete = null }) { Text(stringResource(R.string.tv_edit_cancel)) } }) }
 }
 
 @Composable
@@ -155,43 +157,43 @@ private fun RelayConnectDialog(
     fun connect() { if (valid) { keyboard?.hide(); onConnect(address.trim(), port, code) } }
     AlertDialog(
         onDismissRequest = ::dismiss,
-        title = { Text("Conectar a outra TV") },
+        title = { Text(stringResource(R.string.tools_relay_connect)) },
         text = {
             Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Informe os dados exibidos em Receber na outra TV.", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.tools_relay_input_help), style = MaterialTheme.typography.bodyMedium)
                 if (tv) {
-                    Text("↑↓ para navegar · OK para escrever", style = MaterialTheme.typography.bodySmall)
-                    TvFormTextField("IP da outra TV", address, { address = it.take(64) },
+                    Text(stringResource(R.string.tools_relay_keyboard_help), style = MaterialTheme.typography.bodySmall)
+                    TvFormTextField(stringResource(R.string.tools_other_tv_ip), address, { address = it.take(64) },
                         Modifier.fillMaxWidth().focusRequester(addressFocus).focusProperties { down = portFocus },
                         onNext = { portFocus.requestFocus() })
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TvFormTextField("Porta", port, { port = it.filter(Char::isDigit).take(5) },
+                    TvFormTextField(stringResource(R.string.tools_port), port, { port = it.filter(Char::isDigit).take(5) },
                         Modifier.weight(0.34f).focusRequester(portFocus).focusProperties { up = addressFocus; down = codeFocus; right = codeFocus },
                         keyboardType = KeyboardType.Number,
                         onNext = { codeFocus.requestFocus() })
-                    TvFormTextField("Código de conexão", code, { code = it.take(14) },
+                    TvFormTextField(stringResource(R.string.tools_pairing_code), code, { code = it.take(14) },
                         Modifier.weight(0.66f).focusRequester(codeFocus).focusProperties { up = portFocus; left = portFocus },
                         imeAction = ImeAction.Done,
                         onDone = { connect() })
                     }
                 } else {
-                OutlinedTextField(value = address, onValueChange = { address = it.take(64) }, label = { Text("IP da outra TV") }, singleLine = true,
+                OutlinedTextField(value = address, onValueChange = { address = it.take(64) }, label = { Text(stringResource(R.string.tools_other_tv_ip)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().focusRequester(addressFocus),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { portFocus.requestFocus() }))
-                OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, label = { Text("Porta") }, singleLine = true,
+                OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, label = { Text(stringResource(R.string.tools_port)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().focusRequester(portFocus),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { codeFocus.requestFocus() }))
-                OutlinedTextField(value = code, onValueChange = { code = it.take(14) }, label = { Text("Código de conexão") }, singleLine = true,
+                OutlinedTextField(value = code, onValueChange = { code = it.take(14) }, label = { Text(stringResource(R.string.tools_pairing_code)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().focusRequester(codeFocus),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { connect() }))
                 }
             }
         },
-        confirmButton = { TextButton(onClick = ::connect, enabled = valid, modifier = Modifier.dpadFocus()) { Text("Conectar") } },
-        dismissButton = { TextButton(onClick = ::dismiss, modifier = Modifier.dpadFocus()) { Text("Cancelar") } },
+        confirmButton = { TextButton(onClick = ::connect, enabled = valid, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_connect)) } },
+        dismissButton = { TextButton(onClick = ::dismiss, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tv_edit_cancel)) } },
     )
     LaunchedEffect(Unit) { addressFocus.requestFocusUntilLanded(); if (!tv) keyboard?.show() }
 }

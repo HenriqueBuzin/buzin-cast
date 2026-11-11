@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Carregando foto…</string>
+    <string name="photo_received">Foto recebida por DLNA</string>
+    <string name="media_previous">Anterior</string>
+    <string name="media_next">Próxima</string>
+    <string name="photo_slideshow">Apresentação</string>
+    <string name="photo_rotate">Girar</string>
+    <string name="photo_scale">Ajustar / preencher</string>
+    <string name="photo_position">Foto %1$d de %2$d • Use o controle para navegar, girar ou fechar.</string>
+    <string name="photo_error">Não foi possível abrir a foto.</string>
+    <string name="photo_error_size">A foto excede 16 MB.</string>
+    <string name="photo_error_format">O formato da foto é inválido.</string>
+    <string name="photo_error_redirect">Não foi possível seguir o link da foto.</string>
+</resources>

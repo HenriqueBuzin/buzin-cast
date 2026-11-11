@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subtitle_external">Legendas externas</string>
+    <string name="subtitle_picker_help">Selecione um arquivo SRT ou VTT em UTF-8, de até 2 MB. Legendas externas funcionam com vídeos recebidos por URL. O espelhamento usa as legendas do dispositivo de origem. É necessário um seletor de arquivos.</string>
+    <string name="subtitle_picker_unavailable">O seletor de arquivos não está disponível neste aparelho.</string>
+    <string name="subtitle_choose_file">Escolher arquivo</string>
+    <string name="subtitle_disable">Sem legenda</string>
+    <string name="subtitle_load_failed">Não foi possível carregar a legenda.</string>
+    <string name="connection_approval_title">Permitir transmissão?</string>
+    <string name="connection_approval_help">Autorize apenas um dispositivo que você reconheça. A permissão vale por 5 minutos. Se ninguém responder em 25 segundos, a conexão será recusada.</string>
+    <string name="connection_decline">Recusar</string>
+    <string name="record_waiting">Aguardando gravação</string>
+    <string name="network_available">Rede disponível</string>
+    <string name="network_waiting">Sem rede local. Aguardando conexão…</string>
+    <string name="network_recovered">Rede recuperada. Você já pode reconectar ao receptor.</string>
+    <string name="network_playback_retry">Conexão interrompida. Tentando retomar o vídeo (%1$d/3)…</string>
+</resources>

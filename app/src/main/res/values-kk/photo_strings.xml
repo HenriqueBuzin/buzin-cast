@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Фото жүктелуде…</string>
+    <string name="photo_received">DLNA арқылы алынған фото</string>
+    <string name="media_previous">Алдыңғы</string>
+    <string name="media_next">Келесі</string>
+    <string name="photo_slideshow">Слайдшоу</string>
+    <string name="photo_rotate">Бұру</string>
+    <string name="photo_scale">Сыйдыру / толтыру</string>
+    <string name="photo_position">%2$d фотоның %1$d-фотосы • Өту, бұру немесе жабу үшін қашықтан басқару құралын пайдаланыңыз.</string>
+    <string name="photo_error">Фотоны ашу мүмкін болмады.</string>
+    <string name="photo_error_size">Фото көлемі 16 МБ-тан асады.</string>
+    <string name="photo_error_format">Фото пішімі жарамсыз.</string>
+    <string name="photo_error_redirect">Фотоның сілтемесін ашу мүмкін болмады.</string>
+</resources>

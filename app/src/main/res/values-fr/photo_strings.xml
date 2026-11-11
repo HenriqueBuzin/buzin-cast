@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="photo_loading">Chargement de la photo…</string>
+    <string name="photo_received">Photo reçue via DLNA</string>
+    <string name="media_previous">Précédent</string>
+    <string name="media_next">Suivant</string>
+    <string name="photo_slideshow">Diaporama</string>
+    <string name="photo_rotate">Pivoter</string>
+    <string name="photo_scale">Ajuster / remplir</string>
+    <string name="photo_position">Photo %1$d sur %2$d • Utilisez la télécommande pour parcourir les photos, les faire pivoter ou fermer.</string>
+    <string name="photo_error">Impossible d’ouvrir la photo.</string>
+    <string name="photo_error_size">La photo dépasse 16 Mo.</string>
+    <string name="photo_error_format">Le format de la photo n’est pas valide.</string>
+    <string name="photo_error_redirect">Impossible d’ouvrir le lien de la photo.</string>
+</resources>

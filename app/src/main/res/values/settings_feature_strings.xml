@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_streaming_profile">Streaming profile</string>
+    <string name="setting_streaming_profile_desc">Changing the profile restarts the receiver. Actual quality depends on the sender and the network.</string>
+    <string name="setting_profile_default">Default</string>
+    <string name="setting_profile_cinema">Cinema</string>
+    <string name="setting_profile_presentation">Presentation</string>
+    <string name="setting_profile_games">Games</string>
+    <string name="setting_approve_connections">Approve connections</string>
+    <string name="setting_approve_connections_desc">Use the remote to accept or reject AirPlay, DLNA, FCast, and Cast V2 connections. Approval applies to the protocol and IP address for five minutes.</string>
+    <string name="setting_network_recovery">Recover after a network outage</string>
+    <string name="setting_network_recovery_desc">Makes the receiver discoverable again when the network returns. Compatible videos try to resume. The AirPlay sender may need to reconnect.</string>
+    <string name="setting_calibrate_corners">Calibrate the four corners</string>
+    <string name="calibration_adjust_hint">← Enlarge picture • Shrink picture →</string>
+    <string name="calibration_save_hint">Keep all four corners visible. OK saves • Back cancels</string>
+    <string name="setting_profile_unavailable">Could not apply the streaming profile.</string>
+</resources>
