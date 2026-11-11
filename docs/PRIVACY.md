@@ -10,9 +10,11 @@ O Buzin Cast é disponibilizado pela **BUZIN SOLUTIONS LTDA**, com criação e
 manutenção de **Henrique Buzin**. Contato de privacidade e suporte:
 **contato@buzin.solutions**.
 
-Esta política descreve as edições Buzin Cast para Fire OS, identificadas pelo
-pacote `com.buzincast.tv`. O aplicativo é gratuito, sem anúncios, assinatura,
-compras no aplicativo ou exigência de conta Buzin Cast.
+Esta política descreve as edições Buzin Cast para Fire OS. O pacote
+`com.buzincast.tv` é a edição principal. O pacote `com.buzincast.tv.deat`
+é a edição para Alemanha e Áustria, com download e gravação desativados.
+O aplicativo é gratuito, sem anúncios, assinatura, compras no aplicativo
+ou exigência de conta Buzin Cast.
 
 ### Transmissões e rede local
 
@@ -47,9 +49,9 @@ As políticas dos respectivos provedores também se aplicam.
 
 - **Configurações:** nome do receptor, preferências de imagem e áudio,
   protocolos habilitados e escolhas de segurança ficam armazenados na TV.
-- **Gravações:** o app permite preparar uma gravação de espelhamento. Quando
-  o usuário ativa essa função, vídeo e áudio recebidos são salvos localmente
-  em arquivos MKV. Não são enviados automaticamente à BUZIN SOLUTIONS.
+- **Gravações:** nas edições com essa função, vídeo e áudio recebidos podem
+  ser salvos localmente em arquivos MKV quando o usuário ativa a gravação.
+  Esses arquivos não são enviados automaticamente à BUZIN SOLUTIONS.
 - **Arquivos temporários:** reprodução por URL, capas e importação de legendas
   podem usar cache no aparelho. Arquivos de legenda selecionados pelo usuário
   são lidos para a função solicitada.
@@ -111,9 +113,11 @@ Buzin Cast is published by **BUZIN SOLUTIONS LTDA**, created and maintained
 by **Henrique Buzin**. Privacy and support contact:
 **contato@buzin.solutions**.
 
-This policy covers the Fire OS editions of Buzin Cast, package
-`com.buzincast.tv`. The app is free, with no ads, subscriptions, in-app
-purchases or required Buzin Cast account.
+This policy covers the Fire OS editions of Buzin Cast. Package
+`com.buzincast.tv` is the main edition. Package `com.buzincast.tv.deat`
+is the Germany and Austria edition, with downloads and recording disabled.
+The app is free, with no ads, subscriptions, in-app purchases or required
+Buzin Cast account.
 
 ### Streaming and the local network
 
@@ -144,10 +148,10 @@ not by a Buzin analytics service. Their own privacy policies also apply.
 ### Local storage
 
 Receiver settings, image/audio preferences, enabled protocols and security
-choices are stored on the TV. If the user enables mirroring recording,
-received video and audio are saved locally as MKV files, without automatic
-upload to BUZIN SOLUTIONS. Media playback, artwork and user-selected subtitle
-imports may use local cache files.
+choices are stored on the TV. In editions with mirroring recording, received
+video and audio can be saved locally as MKV files when the user starts
+recording, without automatic upload to BUZIN SOLUTIONS. Media playback,
+artwork and user-selected subtitle imports may use local cache files.
 
 The app keeps bounded local technical logs for diagnostics. These can contain
 timestamps, errors, connection details, device names, metadata or URLs.
