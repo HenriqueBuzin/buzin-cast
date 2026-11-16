@@ -17,6 +17,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class LegacyDacpTest {
+    @Test public void progressBeforeThePauseAcknowledgementDoesNotCancelThePause() throws Exception {
+        try(Peer peer=new Peer();LegacyDacp control=new LegacyDacp(name->peer.endpoint(),()->{})) {
+            control.update("ID","token");ready(control);peer.hold=true;
+            CountDownLatch completed=new CountDownLatch(1);AtomicReference<Exception> failure=new AtomicReference<>();
+            control.command(LegacyDacp.Command.PAUSE,error->{failure.set(error);completed.countDown();});
+            assertTrue(peer.received.await(2,TimeUnit.SECONDS));control.senderPlaying(true);peer.release.countDown();
+            assertTrue(completed.await(2,TimeUnit.SECONDS));assertNull(failure.get());assertFalse(control.state().playing);
+        }
+    }
     @Test public void aLateAcknowledgementCannotUndoNativeSenderTeardown() throws Exception {
         try(Peer peer=new Peer();LegacyDacp control=new LegacyDacp(name->peer.endpoint(),()->{})) {
             control.update("ID","token");ready(control);peer.hold=true;

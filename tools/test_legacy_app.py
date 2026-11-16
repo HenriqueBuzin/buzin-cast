@@ -24,8 +24,10 @@ def main():
     parser.add_argument('--locales',nargs='+',help='Omit to capture every app locale.')
     parser.add_argument('--lifecycle-checks',action='store_true',help='Check Home/Back, background opt-out and boot opt-in/out; reboots only the selected emulator twice.')
     parser.add_argument('--lifecycle-only',action='store_true',help='Run only service lifecycle/recovery checks; defaults to English, reboots only this emulator twice.')
+    parser.add_argument('--about-only',action='store_true',help='Capture and verify only Home/About, saving their real accessibility tree for layout review.')
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-ui-checks'))
     args=parser.parse_args()
+    if args.about_only and (args.lifecycle_only or args.lifecycle_checks):parser.error('Choose About-only or lifecycle checks.')
     if not 1 <= args.adb_server_port <= 65535: parser.error('Invalid ADB server port.')
     if not args.serial.startswith('emulator-'): parser.error('Only an isolated emulator is accepted.')
     root=Path(__file__).resolve().parents[1]
@@ -41,7 +43,9 @@ def main():
     forwards=[]
 
     def adb(*command):
-        return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=60).decode('utf-8','replace')
+        result=subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=60).decode('utf-8','replace')
+        if command[:2]==('shell','input') and 'usage: input' in result.lower():raise AssertionError('Unsupported API17 input invocation')
+        return result
 
     def labels(locale):
         result={}
@@ -89,7 +93,8 @@ def main():
             scrolls=[node for node in tree.iter() if node.get('class')=='android.widget.ScrollView' and node.get('scrollable')=='true']
             if len(scrolls)!=1:break
             x1,y1,x2,y2=map(int,re.findall(r'\d+',scrolls[0].get('bounds')))
-            adb('shell','input','swipe',(x1+x2)//2,y2-30,(x1+x2)//2,y1+80,350)
+            # API17 input swipe accepts four coordinates, without a duration.
+            adb('shell','input','swipe',(x1+x2)//2,y2-30,(x1+x2)//2,y1+80)
         raise AssertionError('Expected one visible clickable control: '+label)
 
     def capture(path):
@@ -347,6 +352,8 @@ def main():
             if len(close)!=1:raise AssertionError('About must focus Close')
             picture=args.output/(locale+'-about.png');capture(picture);selected_border(picture,home_tree,strings['tab_overview'])
             check_modal_corners(picture,tree)
+            (args.output/(locale+'-about.xml')).write_text(ET.tostring(tree,encoding='unicode'),encoding='utf-8')
+            if args.about_only:report['locales'][locale]='pass';continue
             adb('shell','input','keyevent','4');tap(strings['tab_settings'])
             tree=expect(strings['setting_server_name'],strings['setting_server_port'])
             nav=[n for n in tree.iter() if n.get('text')==strings['tab_settings'] and n.get('selected')=='true' and n.get('focused')=='true']

@@ -23,7 +23,7 @@ import javax.jmdns.ServiceInfo;
 
 /** A LAN sender fixture in the test APK; no product-side testing commands. */
 final class LegacyControlScenario {
-    static Activity run(Instrumentation runner) throws Exception {
+    static Activity run(Instrumentation runner,boolean metadata) throws Exception {
         if(Build.VERSION.SDK_INT!=17 || !(Build.HARDWARE.contains("goldfish") || Build.HARDWARE.contains("ranchu")))
             throw new AssertionError("Controls checks require the isolated API17 emulator");
         Activity activity=runner.startActivitySync(new Intent().setClassName(runner.getTargetContext(),"io.buzincast.legacy.LegacyActivity")
@@ -40,6 +40,7 @@ final class LegacyControlScenario {
             first.identify();
             try {await(runner,()->find(activity,"sender-0").isShown());}
             catch(AssertionError error) {throw new AssertionError(error.getMessage()+"; "+controlDiagnostic(runner,activity),error);}
+            if(metadata)LegacyMetadataScenario.check(runner,activity);
             touch(runner,activity,"sender-1");first.expect(0,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
             touch(runner,activity,"sender-1");first.expect(1,"play");await(runner,()->text(activity,"sender-1").equals("Ⅱ"));
             touch(runner,activity,"sender-0");first.expect(2,"previtem");
@@ -57,6 +58,7 @@ final class LegacyControlScenario {
             first.code=500;touch(runner,activity,"sender-1");first.expect(15,"play");SystemClock.sleep(200);
             if(!textOnUi(runner,activity,"sender-1").equals("▶"))throw new AssertionError("Failed command changed the playback state");
             second.identify();await(runner,()->find(activity,"sender-0").isShown() && text(activity,"sender-1").equals("Ⅱ"));
+            if(metadata)LegacyMetadataScenario.cleared(runner,activity);
             touch(runner,activity,"sender-2");second.expect(0,"nextitem");
             if(first.size()!=16)throw new AssertionError("Replacement command reached the old sender");
             touch(runner,activity,"receiver-toggle");

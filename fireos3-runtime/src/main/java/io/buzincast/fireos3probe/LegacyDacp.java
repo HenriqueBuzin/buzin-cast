@@ -77,7 +77,8 @@ public final class LegacyDacp implements java.io.Closeable {
         for(int i=0;i<value.length();i++)if(value.charAt(i)<33 || value.charAt(i)>126)return false;
         return true;
     }
-    void senderStopped() {synchronized(this) {playbackRevision++;playing=false;}changed.run();}
+    void senderPlaying(boolean value) {synchronized(this) {if(!value)playbackRevision++;playing=value;}changed.run();}
+    void senderStopped() {senderPlaying(false);}
     public void command(Command command,Completion completion) {
         final Endpoint target;final String secret;final long owner,playbackOwner;
         synchronized(this) {target=endpoint;secret=token;owner=generation;playbackOwner=playbackRevision;}

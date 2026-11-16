@@ -27,7 +27,9 @@ def main():
     if not 1<=args.adb_server_port<=65535:parser.error('Invalid ADB server port.')
 
     def adb(*command,timeout=60):
-        return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
+        result=subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
+        if command[:2]==('shell','input') and 'usage: input' in result.lower():raise AssertionError('Unsupported API17 input invocation')
+        return result
 
     if adb('shell','getprop','ro.build.version.sdk').strip()!='17' or adb('shell','getprop','ro.kernel.qemu').strip()!='1':
         parser.error('Use the isolated Android API17 emulator.')
@@ -75,7 +77,7 @@ def main():
             scrolls=[n for n in tree.iter() if n.get('class')=='android.widget.ScrollView' and n.get('scrollable')=='true']
             if len(scrolls)!=1:break
             x1,y1,x2,y2=map(int,re.findall(r'\d+',scrolls[0].get('bounds')))
-            adb('shell','input','swipe',(x1+x2)//2,y2-30,(x1+x2)//2,y1+60,350)
+            adb('shell','input','swipe',(x1+x2)//2,y2-30,(x1+x2)//2,y1+60)
         raise AssertionError('No clickable control '+text)
 
     def launch():

@@ -17,6 +17,12 @@ final class VideoFrameQueue {
     private final Runnable reset;
     interface Controls {void identity(String id,String token);void stopped();}
     private volatile Controls controls;
+    interface Media {void metadata(byte[] bytes);void artwork(byte[] bytes);void progress(long start,long current,long end);}
+    private volatile Media media;
+    void media(Media media) {this.media=media;}
+    @SuppressWarnings("unused") public void onMetadata(byte[] bytes) {Media target=media;if(target!=null)target.metadata(bytes);}
+    @SuppressWarnings("unused") public void onArtwork(byte[] bytes) {Media target=media;if(target!=null)target.artwork(bytes);}
+    @SuppressWarnings("unused") public void onProgress(long start,long current,long end) {Media target=media;if(target!=null)target.progress(start,current,end);}
     void controls(Controls controls) {this.controls=controls;}
     @SuppressWarnings("unused") public void onDacpId(String id,String token) {
         Controls target=controls;if(target!=null)target.identity(id,token);
@@ -91,6 +97,7 @@ final class VideoFrameQueue {
     synchronized void close() {
         closed = true;
         controls=null;
+        media=null;
         frames.clear();
         bytes = 0;
         notifyAll();

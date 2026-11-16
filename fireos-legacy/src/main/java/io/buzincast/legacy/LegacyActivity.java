@@ -2,6 +2,9 @@ package io.buzincast.legacy;
 
 import android.app.Activity;
 import io.buzincast.fireos3probe.LegacyDacp;
+import io.buzincast.fireos3probe.LegacyMedia;
+import android.graphics.Bitmap;
+import android.widget.ImageView;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
@@ -47,6 +50,15 @@ import static io.buzincast.legacy.LegacyUi.*;
 public final class LegacyActivity extends Activity {
     private LegacyDacp.State controlState=LegacyDacp.inactive();
     private LinearLayout senderControls;
+    private LegacyMedia.State mediaState=LegacyMedia.inactive();
+    private LinearLayout mediaPanel,connectionSteps;
+    private TextView trackTitle,trackArtist,trackAlbum,trackTime;
+    private ImageView trackArtwork;
+    private View emptyArtwork;
+    private Bitmap shownArtwork;
+    private final Runnable mediaTick=()-> {
+        if(this.foreground && this.service!=null) {mediaState=this.service.mediaState();refreshMediaUi();}
+    };
     private LegacyPreferences prefs;
     private FrameLayout root,pane;
     private LinearLayout shell,sidebar;
@@ -64,7 +76,7 @@ public final class LegacyActivity extends Activity {
             service=((LegacyReceiverService.LocalBinder)binder).service();startIfNeeded();
         }
         @Override public void onServiceDisconnected(ComponentName component) {
-            service=null;running=busy=video=false;controlState=LegacyDacp.inactive();shell.setVisibility(View.VISIBLE);refreshReceiverUi();updateAwake();
+            service=null;running=busy=video=false;controlState=LegacyDacp.inactive();mediaState=LegacyMedia.inactive();shell.setVisibility(View.VISIBLE);refreshReceiverUi();updateAwake();
         }
     };
     private LegacyCalibrationView calibration;
@@ -104,7 +116,7 @@ public final class LegacyActivity extends Activity {
         super.onResume();foreground=true;LegacyReceiverService.dispatch(this,LegacyReceiverService.OPEN);startIfNeeded();
     }
     @Override protected void onStop() {
-        foreground=false;if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
+        foreground=false;root.removeCallbacks(mediaTick);if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
     }
     @Override protected void onDestroy() {
         if(service!=null)service.detach(serviceOwner);
@@ -170,6 +182,7 @@ public final class LegacyActivity extends Activity {
             receiverState=state;desired=state.desired;running=state.running;busy=state.busy;shownName=state.name;
             networkWaiting=state.networkWaiting;
             controlState=state.controls;
+            mediaState=state.media;
             error=state.failure==null?null:getString(R.string.error_starting_server);
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
@@ -192,6 +205,7 @@ public final class LegacyActivity extends Activity {
     }
     // Runtime callbacks must not replace controls between ACTION_DOWN and UP.
     private void refreshReceiverUi() {
+        refreshMediaUi();
         if(senderControls!=null) {
             if(!controlState.ready && senderControls.hasFocus()) {View nav=shell.findViewWithTag("nav-overview");if(nav!=null)nav.requestFocus();}
             senderControls.setVisibility(controlState.ready?View.VISIBLE:View.GONE);
@@ -204,6 +218,22 @@ public final class LegacyActivity extends Activity {
             if(toggleFilled!=!desired) {toggleFilled=!desired;focus(receiverToggle,toggleFilled);receiverToggle.setTextColor(toggleFilled?0xff082b27:WHITE);}
         }
         if(diagnosticView!=null)diagnosticView.setText(diagnosticText(true));
+    }
+    private static String clock(long millis) {long seconds=Math.max(0,millis)/1000;return String.format(Locale.US,"%d:%02d",seconds/60,seconds%60);}
+    private void refreshMediaUi() {
+        if(root!=null)root.removeCallbacks(mediaTick);
+        if(mediaPanel==null)return;
+        mediaPanel.setVisibility(mediaState.active?View.VISIBLE:View.GONE);
+        connectionSteps.setVisibility(mediaState.active?View.GONE:View.VISIBLE);
+        trackTitle.setText(mediaState.track.title.isEmpty()?getString(R.string.waiting_for_playback):mediaState.track.title);
+        trackArtist.setText(mediaState.track.artist);trackAlbum.setText(mediaState.track.album);
+        trackTime.setText("\u202a"+clock(mediaState.positionMs)+" / "+clock(mediaState.durationMs)+"\u202c");
+        emptyArtwork.setVisibility(mediaState.artwork==null?View.VISIBLE:View.GONE);
+        if(shownArtwork!=mediaState.artwork) {
+            shownArtwork=mediaState.artwork;
+            if(shownArtwork==null)trackArtwork.setImageDrawable(null);else trackArtwork.setImageBitmap(shownArtwork);
+        }
+        if(foreground && mediaState.active && mediaState.playing && mediaState.durationMs>0)root.postDelayed(mediaTick,500);
     }
     private void updateAwake() {
         if (calibration!=null || (video && prefs.keepScreenOn())) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -232,6 +262,7 @@ public final class LegacyActivity extends Activity {
         if(pane==null)return;
         receiverStatus=receiverLabel=diagnosticView=null;receiverToggle=null;
         senderControls=null;
+        root.removeCallbacks(mediaTick);mediaPanel=connectionSteps=null;shownArtwork=null;
         View previous=getCurrentFocus();if(previous!=null && previous.getTag() instanceof String)lastFocus=(String)previous.getTag();
         sidebar.removeAllViews();
         nav("overview",R.string.tab_overview);nav("tools",R.string.tab_tools);nav("settings",R.string.tab_settings);
@@ -265,7 +296,9 @@ public final class LegacyActivity extends Activity {
         LinearLayout.LayoutParams statusSize=new LinearLayout.LayoutParams(0,-2,1);statusSize.leftMargin=dp(this,14);header.addView(status,statusSize);addSpaced(page,header,-2);
         LinearLayout columns=new LinearLayout(this);columns.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout identity=column(this),steps=column(this);identity.setPadding(0,dp(this,24),dp(this,28),0);steps.setPadding(dp(this,22),dp(this,22),dp(this,22),dp(this,22));
-        columns.addView(identity,new LinearLayout.LayoutParams(0,-2,1.1f));columns.addView(steps,new LinearLayout.LayoutParams(0,-2,1));
+        FrameLayout right=new FrameLayout(this);
+        columns.addView(identity,new LinearLayout.LayoutParams(0,-2,1.1f));columns.addView(right,new LinearLayout.LayoutParams(0,-2,1));
+        right.addView(steps,new FrameLayout.LayoutParams(-1,-2));connectionSteps=steps;
         addSpaced(identity,text(this,getString(R.string.buzin_hero),32,WHITE,true),-2);
         addSpaced(identity,text(this,getString(R.string.buzin_hero_detail),13,MUTED,false),-2);
         LinearLayout name=column(this);name.setBackground(shape(this,0xff14282d,0xff28554e,1,18));name.setPadding(dp(this,16),dp(this,16),dp(this,16),dp(this,16));
@@ -279,6 +312,17 @@ public final class LegacyActivity extends Activity {
         steps.setBackground(shape(this,PANEL,0xff25333e,1,22));addSpaced(steps,text(this,getString(R.string.buzin_connect_heading),18,WHITE,true),-2);
         int[] lines={R.string.buzin_step_wifi,R.string.buzin_step_mirror,R.string.buzin_step_choose};
         for(int i=0;i<lines.length;i++)addSpaced(steps,text(this,String.format(Locale.getDefault(),"%02d  ",i+1)+getString(lines[i]),13,MUTED,false),-2);
+        mediaPanel=column(this);mediaPanel.setTag("now-playing");mediaPanel.setPadding(dp(this,20),dp(this,18),dp(this,20),dp(this,18));
+        mediaPanel.setBackground(shape(this,PANEL,0xff25333e,1,22));
+        FrameLayout cover=new FrameLayout(this);trackArtwork=new ImageView(this);trackArtwork.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        trackArtwork.setTag("track-artwork");cover.addView(trackArtwork,new FrameLayout.LayoutParams(-1,-1));
+        emptyArtwork=new BrandMark(this);cover.addView(emptyArtwork,new FrameLayout.LayoutParams(-1,-1));
+        mediaPanel.addView(cover,new LinearLayout.LayoutParams(dp(this,112),dp(this,112)));
+        trackTitle=text(this,"",20,WHITE,true);trackTitle.setMaxLines(2);trackTitle.setTag("track-title");addSpaced(mediaPanel,trackTitle,-2);
+        trackArtist=text(this,"",14,MINT,false);trackArtist.setMaxLines(1);trackArtist.setTag("track-artist");mediaPanel.addView(trackArtist);
+        trackAlbum=text(this,"",13,MUTED,false);trackAlbum.setMaxLines(1);trackAlbum.setTag("track-album");mediaPanel.addView(trackAlbum);
+        trackTime=text(this,"",12,MUTED,false);trackTime.setTag("track-time");mediaPanel.addView(trackTime);
+        right.addView(mediaPanel,new FrameLayout.LayoutParams(-1,-2));refreshMediaUi();
         page.addView(columns);
         senderControls=column(this);senderControls.setVisibility(controlState.ready?View.VISIBLE:View.GONE);
         LinearLayout transport=new LinearLayout(this);
@@ -290,7 +334,7 @@ public final class LegacyActivity extends Activity {
                 (controlState.playing?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY):commands[index]));
             control.setTag("sender-"+i);
             if(i==1) {control.setText(controlState.playing?"Ⅱ":"▶");control.setContentDescription(getString(R.string.cd_play_pause));}
-            if(i>=3) {String label=getString(R.string.volume_client)+(i==3?" âˆ’":" +");control.setText(label);control.setContentDescription(label);}
+            if(i>=3) {String label=getString(R.string.volume_client)+(i==3?" \u2212":" +");control.setText(label);control.setContentDescription(label);}
             LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(this,54),1);size.setMarginEnd(dp(this,8));transport.addView(control,size);
         }
         senderControls.addView(transport);page.addView(senderControls);
@@ -321,7 +365,7 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
     }
     private void toggle(LinearLayout body,int title,int detail,String key,boolean value) {
-        LinearLayout row=row(this,getString(title)+" Â· "+getString(value?R.string.chip_on:R.string.chip_off),getString(detail),()-> {
+        LinearLayout row=row(this,getString(title)+" \u00b7 "+getString(value?R.string.chip_on:R.string.chip_off),getString(detail),()-> {
             prefs.bool(key,!value);updateAwake();render();
             LegacyReceiverService.dispatch(this,LegacyReceiverService.CONFIGURE);
         });row.setTag(key);addSpaced(body,row,-2);
@@ -393,11 +437,11 @@ public final class LegacyActivity extends Activity {
         LinearLayout names=column(this);names.setPaddingRelative(dp(this,12),0,0,0);names.addView(text(this,getString(R.string.app_name),22,WHITE,true));
         names.addView(text(this,getString(R.string.buzin_about_tagline),12,MUTED,false));names.addView(text(this,getString(R.string.buzin_version,"\u202a"+BuildConfig.VERSION_NAME+"\u202c"),11,MINT,true));heading.addView(names);card.addView(heading);
         divider(card);LinearLayout company=column(this);company.setPadding(dp(this,16),dp(this,12),dp(this,16),dp(this,12));company.addView(text(this,getString(R.string.buzin_maintained_by),11,MUTED,false));
-        SpannableString brand=new SpannableString("Buzin Solutions\u2009Â®");brand.setSpan(new SuperscriptSpan(),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);brand.setSpan(new RelativeSizeSpan(.7f),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);company.addView(text(this,brand,14,WHITE,true));card.addView(company);
+        SpannableString brand=new SpannableString("Buzin Solutions\u2009\u00ae");brand.setSpan(new SuperscriptSpan(),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);brand.setSpan(new RelativeSizeSpan(.7f),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);company.addView(text(this,brand,14,WHITE,true));card.addView(company);
         aboutLink(card,R.string.buzin_website,"buzin.solutions",()->open("https://buzin.solutions"));
-        aboutLink(card,R.string.buzin_source,"GitHub Â· HenriqueBuzin/buzin-cast",()->open("https://github.com/HenriqueBuzin/buzin-cast"));
+        aboutLink(card,R.string.buzin_source,"GitHub \u00b7 HenriqueBuzin/buzin-cast",()->open("https://github.com/HenriqueBuzin/buzin-cast"));
         aboutLink(card,R.string.buzin_licenses,getString(R.string.buzin_licenses_detail),()->message(R.string.buzin_licenses,getString(R.string.buzin_credits)));
-        TextView footer=text(this,"Â© "+Calendar.getInstance().get(Calendar.YEAR)+" Buzin Solutions LTDA",10,MUTED,false);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(this,10),0,dp(this,10));outer.addView(footer);
+        TextView footer=text(this,"\u00a9 "+Calendar.getInstance().get(Calendar.YEAR)+" Buzin Solutions LTDA",10,MUTED,false);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(this,10),0,dp(this,10));outer.addView(footer);
         Button close=button(this,R.string.buzin_close,true,dialog::dismiss);outer.addView(close,new LinearLayout.LayoutParams(-1,dp(this,48)));show(dialog);close.requestFocus();
     }
     private void aboutLink(LinearLayout card,int title,String detail,Runnable click) {divider(card);LinearLayout row=row(this,getString(title),detail,click);focus(row,false,0,0);LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(-1,-2);size.setMargins(dp(this,4),dp(this,5),dp(this,4),dp(this,5));card.addView(row,size);}

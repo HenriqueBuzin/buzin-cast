@@ -22,6 +22,55 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Faixa/capa/progresso API17:** callbacks de metadados, imagem e contadores
+  RTP chegam ao estado da sessão e à interface nativa. Título, artista, álbum,
+  capa e relógio substituem as instruções de conexão durante a reprodução.
+  O parser DMAP é atômico: pacote truncado ou inválido preserva a faixa válida
+  anterior. Limites: 64 KiB por pacote, 8 KiB por texto, 256 registros e oito
+  níveis de contêiner. A capa é decodificada fora da UI, com limite de 4 MiB
+  codificados, 64 megapixels de origem e amostragem para até 512 pixels por eixo.
+  A fila mantém só o último evento pendente de cada tipo; uma troca de
+  transmissor invalida trabalho antigo, limpa a capa e zera o progresso.
+  Bitmaps já publicados não são reciclados enquanto a UI ainda pode usá-los.
+  O relógio trata rollover unsigned de 32 bits, limites da faixa, pausa e
+  relatórios degenerados. Um progresso recebido antes do ACK de Pausar não
+  cancela esse ACK; um encerramento nativo posterior continua vencendo uma
+  resposta atrasada de Reproduzir. A notificação recebe título/artista, sem
+  gravar esses dados em logs. O ticker da tela para ao sair da Activity.
+  O anúncio RAOP inclui `md=0,1,2`, com os três bits de metadados no anúncio
+  principal. Áudio continua comprimido (`cn=1,2,3`), sem anunciar PCM bruto.
+  `tools/test_legacy_gestures.py --metadata` executa também o roteiro de
+  controles. Os pacotes de faixa/capa/progresso são **sintéticos**, injetados
+  nos callbacks C em um worker nativo; isso não é um emissor RTP completo.
+  O ensaio verifica os pixels/proporção da capa, UTF-8, avanço e pausa do
+  relógio, descarte de dados inválidos e limpeza na troca de transmissor.
+  A imagem `metadata-ui.png` é um render da hierarquia real de Views no
+  emulador, sem captura da Surface de vídeo. A transferência Base64 é só do
+  APK de teste: o adbd API17 não implementa `exec-out` e seu PTY altera bytes
+  binários. Não foi acrescentado comando externo de teste ao aplicativo.
+  Metadados/capa no cliente de mídia do sistema e interoperabilidade com
+  emissores reais continuam sendo etapas separadas.
+  A geral passou em `outputs/legacy-metadata-general-final-checked`; a regional
+  em `outputs/legacy-metadata-regional-final`. A [prévia nativa](images/fireos3-native-metadata.png)
+  foi inspecionada visualmente. Os 60 testes JVM do alvo antigo, builds ARMv7/x86
+  e lint passaram nas duas edições. A regressão nativa passou em
+  `outputs/legacy-metadata-native-regression`, incluindo DNS-SD com os bits
+  e `md` novos, áudio, vídeo, relógio e troca de display. Gestos da regional
+  passaram em `outputs/legacy-metadata-regional-gestures`.
+  `outputs/legacy-metadata-general-ui-verified` passou em inglês/árabe, com
+  Sobre, foco/bordas, opções avançadas, perfis, nome/porta e calibração.
+  A revisão também corrigiu literais Java corrompidos (menos, separadores,
+  copyright e marca registrada). A interface do Sobre foi inspecionada nos
+  dois idiomas. A conferência focada `--about-only --locales ar` passou em
+  `outputs/legacy-metadata-about-rtl-check`, com XML para inspeção dos limites
+  dos textos. O gesto de rolagem dos scripts API17 foi corrigido: essa versão
+  de `input swipe` aceita quatro coordenadas, sem duração. O wrapper passou
+  a rejeitar a mensagem de uso do comando em vez de aceitar um gesto ignorado.
+  As primeiras falhas estão preservadas em `outputs/legacy-metadata-first-build.log`,
+  `outputs/legacy-metadata-general-first`, `outputs/legacy-metadata-general-verified`
+  e `outputs/legacy-metadata-general-ui`. Todos os roteiros finais removeram
+  os APKs temporários; nenhuma TV física foi usada.
+
 - **Controles do transmissor API17:** os callbacks de identificação DACP e
   fim do áudio chegam do UxPlay ao runtime. O controlador usa a descoberta
   JmDNS da própria sessão e aceita um endpoint IPv4 da mesma rede local.

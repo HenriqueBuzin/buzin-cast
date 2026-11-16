@@ -21,4 +21,5 @@ final class NativeReceiver {
     static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
     static native boolean replayReceiverAudio(long handle, ByteBuffer input, int length, int codec, int spf,
                                               long timeNs, float volume, boolean flush,boolean nativeThread);
+    static native boolean replayReceiverMedia(long handle,ByteBuffer input,int length,int kind,long start,long current,long end);
 }

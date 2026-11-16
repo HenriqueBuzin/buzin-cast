@@ -21,6 +21,7 @@ import java.util.List;
 import io.buzincast.fireos3probe.LegacyReceiverSession;
 import io.buzincast.fireos3probe.LegacyNetwork;
 import io.buzincast.fireos3probe.LegacyDacp;
+import io.buzincast.fireos3probe.LegacyMedia;
 
 /** Main-thread owner of the receiver. Native/codec work stays in runtime workers. */
 public final class LegacyReceiverService extends Service {
@@ -35,6 +36,7 @@ public final class LegacyReceiverService extends Service {
         final Exception failure;
         final List<String> events;
         final LegacyDacp.State controls;
+        final LegacyMedia.State media;
         State(LegacyReceiverService service) {
             desired=service.desired;running=service.running;busy=service.busy;video=service.video;
             networkWaiting=service.wanted() && service.reconnect.initialized() && !service.reconnect.online();
@@ -42,6 +44,7 @@ public final class LegacyReceiverService extends Service {
             address=service.session==null?null:service.session.localAddress();
             port=service.session==null?0:service.session.listeningPort();
             controls=service.session==null || service.stopping?LegacyDacp.inactive():service.session.controls();
+            media=service.mediaState();
             events=new ArrayList<>(service.events);
         }
     }
@@ -67,6 +70,8 @@ public final class LegacyReceiverService extends Service {
     private String name;
     private Exception failure;
     private Exception controlFailure;
+    private Exception mediaFailure;
+    LegacyMedia.State mediaState() {return session==null || stopping?LegacyMedia.inactive():session.media();}
 
     static void dispatch(Context context,String action) {
         Intent intent=new Intent(context,LegacyReceiverService.class).setAction(action);
@@ -192,6 +197,12 @@ public final class LegacyReceiverService extends Service {
                 if(current!=null && current!=controlFailure)record("DACP: "+current.getClass().getSimpleName());
                 controlFailure=current;publish();
             });}
+            @Override public void mediaChanged() {post(()-> {
+                if(stopping)return;
+                Exception current=mediaState().failure;
+                if(current!=null && current!=mediaFailure)record("Metadata: "+current.getClass().getSimpleName());
+                mediaFailure=current;publish();
+            });}
         },prefs.options(),selectedNetwork);
         bindSurface();session.start();
     }
@@ -206,6 +217,11 @@ public final class LegacyReceiverService extends Service {
     private String notificationBody() {
         if(wanted() && reconnect.initialized() && !reconnect.online())return getString(R.string.network_waiting);
         if(failure!=null)return getString(R.string.error_starting_server);
+        LegacyMedia.State media=mediaState();
+        if(media.active) {
+            String title=media.track.title.isEmpty()?getString(R.string.waiting_for_playback):media.track.title;
+            return media.track.artist.isEmpty()?title:title+" · "+media.track.artist;
+        }
         return getString(busy || !reconnect.initialized()?R.string.waiting_for_connection:R.string.notification_text);
     }
     private Notification notification() {

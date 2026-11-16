@@ -19,6 +19,7 @@ public final class LegacyReceiverSession {
         default void videoStopped() {}
         default void videoSize(int width,int height) {}
         default void controlsChanged() {}
+        default void mediaChanged() {}
     }
     private final Context context;
     private final String identity;
@@ -29,6 +30,7 @@ public final class LegacyReceiverSession {
     private final ReceiverOptions options;
     private LegacyNetwork requestedNetwork;
     private volatile LegacyDacp controls;
+    private final LegacyMedia media;
     private final AtomicBoolean videoActive = new AtomicBoolean();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
@@ -60,7 +62,16 @@ public final class LegacyReceiverSession {
     LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, boolean muted, ReceiverOptions options) {
         this.context = context.getApplicationContext();
         this.identity = identity; this.listener = listener; this.options=options;
+        media=new LegacyMedia(listener::mediaChanged);
         queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); });
+        queue.media(new VideoFrameQueue.Media() {
+            @Override public void metadata(byte[] bytes) {media.metadata(bytes);}
+            @Override public void artwork(byte[] bytes) {media.artwork(bytes);}
+            @Override public void progress(long start,long current,long end) {
+                if(LegacyTrackTimeline.validProgress(start,current,end)) {LegacyDacp target=controls;if(target!=null)target.senderPlaying(true);}
+                media.progress(start,current,end);
+            }
+        });
         audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options);
         videoPlayer = new LegacyAvcPlayer(surface, queue, new LegacyAvcPlayer.Listener() {
             @Override public void decodedFrame() {
@@ -97,9 +108,9 @@ public final class LegacyReceiverSession {
                 try {if(!discoveryReady.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new IOException("Discovery is not ready");}
                 catch(InterruptedException interrupted) {Thread.currentThread().interrupt();throw new IOException("Discovery cancelled",interrupted);}
                 return discovery.resolveControl(service,network);
-            },listener::controlsChanged);
+            },()-> {LegacyDacp target=controls;if(target!=null)media.playing(target.state().playing);listener.controlsChanged();});
             queue.controls(new VideoFrameQueue.Controls() {
-                @Override public void identity(String id,String token) {LegacyDacp target=controls;if(target!=null)target.update(id,token);}
+                @Override public void identity(String id,String token) {media.sender(id,token);LegacyDacp target=controls;if(target!=null)target.update(id,token);}
                 @Override public void stopped() {LegacyDacp target=controls;if(target!=null)target.senderStopped();}
             });
             WifiManager wifi = (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
@@ -142,6 +153,7 @@ public final class LegacyReceiverSession {
             Thread.interrupted();
             discoveryReady.countDown();
             LegacyDacp previous=controls;controls=null;if(previous!=null)previous.close();
+            media.close();
             try { discovery.close(); } catch (IOException error) { if (failure == null) failure = error; }
             synchronized (nativeLock) {
                 if (handle != 0) { NativeReceiver.stopReceiver(handle); handle = 0; }
@@ -185,10 +197,19 @@ public final class LegacyReceiverSession {
         }
     }
     double senderVolume() { return audioQueue.volumeDb(); }
+    // Synthetic metadata fixture, parallel to the separate probe's A/V fixtures.
+    void replayMedia(byte[] bytes,int kind,long start,long current,long end) {
+        ByteBuffer input=ByteBuffer.allocateDirect(bytes.length);input.put(bytes);
+        synchronized(nativeLock) {
+            if(handle==0 || stopping.get() || !NativeReceiver.replayReceiverMedia(handle,input,bytes.length,kind,start,current,end))
+                throw new IllegalStateException("Metadata fixture rejected");
+        }
+    }
     public boolean isClosed() { return closed.getCount()==0; }
     public int listeningPort() { return port; }
     public String localAddress() { return network == null ? null : network.address.getHostAddress(); }
     public LegacyDacp.State controls() {LegacyDacp current=controls;return current==null?LegacyDacp.inactive():current.state();}
+    public LegacyMedia.State media() {return media.state();}
     public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
         LegacyDacp current=controls;
         if(current==null) {if(completion!=null)completion.complete(new IOException("Receiver is stopped"));}

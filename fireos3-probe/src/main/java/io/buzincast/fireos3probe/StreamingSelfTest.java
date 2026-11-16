@@ -203,13 +203,14 @@ final class StreamingSelfTest {
                     } else if (record instanceof DNSRecord.Text && record.getName().endsWith("._raop._tcp.local.")) {
                         ServiceInfo info = record.getServiceInfo(false);
                         audioProperties |= "1,2,3".equals(info.getPropertyString("cn")) &&
-                                "44100".equals(info.getPropertyString("sr")) && info.getPropertyString("md") == null;
+                                "44100".equals(info.getPropertyString("sr")) && "0,1,2".equals(info.getPropertyString("md"));
                     } else if (record instanceof DNSRecord.Text && record.getName().endsWith("._airplay._tcp.local.")) {
                         ServiceInfo info = record.getServiceInfo(false);
                         String features = info.getPropertyString("features"), key = info.getPropertyString("pk");
                         if (features != null && key != null && key.length() == 64) {
                             long bits = Long.parseLong(features.split(",")[0].substring(2), 16);
-                            properties |= (bits & (1L<<7)) != 0 && (bits & (1L<<9)) != 0 && (bits & (1L|(1L<<4)|(1L<<18))) == 0;
+                            long metadata=(1L<<15)|(1L<<16)|(1L<<17);
+                            properties |= (bits & (1L<<7)) != 0 && (bits & (1L<<9)) != 0 && (bits & metadata)==metadata && (bits & (1L|(1L<<4)|(1L<<18))) == 0;
                         }
                     } else if (record instanceof DNSRecord.Pointer) {
                         pointer |= ((DNSRecord.Pointer)record).getAlias().endsWith("._airplay._tcp.local.");

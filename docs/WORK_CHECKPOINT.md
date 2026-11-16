@@ -1,5 +1,34 @@
 # Retomada — 16 de novembro de 2026
 
+## Alvo antigo — metadados da reprodução
+
+Título, artista, álbum, capa e progresso agora chegam pelos callbacks nativos
+à interface API17. A capa mantém a proporção e é reduzida fora da UI; a fila
+coalesce atualizações e invalida trabalho antigo ao trocar de transmissor.
+O relógio trata rollover, pausa e limites. Dados inválidos preservam a última
+faixa/capa válida. O anúncio inclui os três tipos de metadados; as capacidades
+de áudio comprimido e as restrições existentes continuam separadas.
+
+O teste `tools/test_legacy_gestures.py --metadata` combina controles reais de
+RTSP/DNS-SD/HTTP com pacotes **sintéticos** de metadados, capa e progresso
+entregues pelo worker C. Passou nas duas edições em
+`outputs/legacy-metadata-general-final-checked` e `outputs/legacy-metadata-regional-final`.
+Os 60 testes JVM do alvo antigo, builds ARMv7/x86 e lint passaram nas duas.
+Regressão de áudio/vídeo, descoberta e display passou em
+`outputs/legacy-metadata-native-regression`; gestos regionais também passaram.
+A interface completa passou em inglês/árabe em
+`outputs/legacy-metadata-general-ui-verified`, incluindo o Sobre e perfis.
+Corrigidos os literais Java corrompidos e a sintaxe de rolagem dos scripts no
+Android antigo. O modo `--about-only` salva também a hierarquia XML para revisão.
+[Prévia renderizada das Views nativas](images/fireos3-native-metadata.png),
+inspecionada visualmente; não é captura de vídeo/Surface nem de uma TV física.
+APKs temporários removidos após os testes. Detalhes em [TESTING.md](TESTING.md).
+
+A meta completa continua ativa: faltam integração com o cliente de mídia do
+sistema antigo e alternância áudio/espelhamento, os demais protocolos/player,
+gravação/download, segurança/licenciamento de produção e validação física.
+Os APKs 0.6.7-legacy-preview continuam debug, com IDs separados da publicação.
+
 ## Alvo antigo — comandos ao transmissor
 
 O receptor API17 recebe a identificação DACP do UxPlay, resolve o transmissor

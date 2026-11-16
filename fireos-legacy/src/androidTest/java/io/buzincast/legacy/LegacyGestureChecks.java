@@ -19,18 +19,20 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls;
+    private boolean controls,metadata;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
-        controls=arguments!=null && "controls".equals(arguments.getString("checks"));
+        metadata=arguments!=null && "metadata".equals(arguments.getString("checks"));
+        controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
     }
     @Override public void onStart() {
         Bundle result=new Bundle();int status=Activity.RESULT_OK;
         try {
             if(controls) {
-                activity=LegacyControlScenario.run(this);result.putString("status","pass");
+                activity=LegacyControlScenario.run(this,metadata);result.putString("status","pass");
                 result.putString("controls","native_rtsp_mdns_http_touch_media_keys_and_sender_replacement");
+                if(metadata)result.putString("metadata","synthetic_native_worker_packets_artwork_progress_pause_ui_and_sender_cleanup");
             } else {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));

@@ -17,6 +17,7 @@ const char *android_dnssd_get_airplay_txt_val(dnssd_t *dnssd, int index);
 
 void android_dnssd_set_codecs(dnssd_t *dnssd, int alac, int aac);
 void android_dnssd_set_compressed_audio_only(dnssd_t *dnssd);
+void android_dnssd_enable_metadata(dnssd_t *dnssd);
 const char *android_dnssd_get_raop_servname(dnssd_t *dnssd);
 
 #ifdef __cplusplus
