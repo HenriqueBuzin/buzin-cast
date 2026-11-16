@@ -46,8 +46,29 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
   fila Java, MediaCodec e Surface. Dois ciclos completos e duas reproduções
   por atividade passaram na API 17 x86, com quadro colorido conferido.
   Isso **não** representa uma sessão real de espelhamento, áudio ou paridade
-  com o app principal. A prova continua isolada, somente loopback, sem
-  descoberta na LAN e sem APK de produção para Fire OS 3.
+  com o app principal. A prova mantém um pacote de teste isolado, sem APK
+  de produção para Fire OS 3.
+- **16/nov — protótipo 0.2:** acrescentados descoberta mDNS/DNS-SD com
+  JmDNS 3.6.5, identidade local aleatória persistente (não usa o MAC real),
+  TXT e chave pública extraídos do mesmo receptor nativo que possui a porta.
+  A biblioteca recebe somente a adaptação UTF-8 necessária para API 17; APIs
+  Java adicionais usam desugaring/MultiDex. O `NsdServiceInfo.setAttribute`
+  da aplicação atual só existe a partir da
+  [API 21](https://developer.android.com/reference/android/net/nsd/NsdServiceInfo#setAttribute(java.lang.String,java.lang.String)).
+- `Start experimental video receiver` inicia um receptor persistente de vídeo
+  H.264 em uma interface IPv4 privada com multicast. Admissão nativa limitada
+  à sub-rede selecionada e loopback; IPv6 de LAN ainda não implementado. Áudio,
+  fotos, HLS e H.265 não são anunciados. O player Java configura MediaCodec
+  a partir do SPS/PPS Annex-B recebido, acompanha mudanças de configuração e
+  descarta a sessão anterior após reset. Sem `libmediandk`.
+- `Run streaming stack checks` consulta de fato o grupo multicast usando um
+  socket UDP separado, confere PTR/SRV/TXT, porta, chave pública e capacidades;
+  faz `OPTIONS` e `/info` no receptor RTSP; injeta vídeo sintético pela thread
+  nativa na fila/decodificador persistente e exige atualização da Surface.
+  Também confere que a porta TCP fecha ao parar. Dois ciclos completos na
+  API 17 passaram, incluindo iniciar/parar o modo persistente entre autotestes.
+  Os 16 testes unitários e o lint do protótipo passaram; ARMv7 e x86 compilados.
+  **Não houve teste com emissor Apple real nem Stick físico com Fire OS 3.**
 
 ```powershell
 python tools/test_focus_navigation.py --adb <adb> --serial emulator-5558 --apk app/build/outputs/apk/debug/app-debug.apk
@@ -58,6 +79,9 @@ Os dois scripts recusam aparelhos físicos. O teste API 17 captura pelo console
 do emulador quando o `screencap` antigo retorna um framebuffer preto, e rejeita
 uma imagem sem o quadro sintético colorido. Use um emulador com área suficiente
 para a prévia (por exemplo, 1280×720). Relatórios e prints ficam em `outputs`.
+O teste API 17 faz dois ciclos por padrão (`--cycles 1` permite um ciclo curto),
+para e desinstala somente o pacote de teste no fim. `--keep-installed` mantém
+o APK parado para investigação manual. Nenhum deles publica na Amazon.
 O teste do menu também confere a borda em pixels; sem ela não declara sucesso.
 Ele suspende a animação decorativa no emulador durante o teste e restaura a
 configuração no fim. Se uma instalação anterior tiver assinatura diferente,
@@ -86,9 +110,10 @@ Vega OS é desenvolvido em outro ambiente.
    pelo receptor e parar. Dois ciclos passaram no emulador x86 API 17
    com a resposta RTSP 200, incluindo `SETUP` e `RECORD` no cabeçalho
    `Public`. A ponte do callback de vídeo agora também passa pelo receptor
-   ativo e uma thread nativa, conforme a prova sintética acima. Próximo marco:
-   descoberta na rede, sessão real com emissor e adaptação de áudio/player
-   para API 17.
+   ativo e uma thread nativa. O protótipo 0.2 agora tem descoberta multicast e
+   player persistente Annex-B/MediaCodec, conforme os autotestes acima.
+   Próximo marco: áudio compatível e sessão real com emissor; depois ampliar
+   os controles e verificar temporização, reconexão e mudança de rede.
    Depois portar as telas, configurações e funções restantes e validar
    com emissores reais em um AFTM com Fire OS 3.
 2. **Fire OS 5 (API 22, AFTM atualizado e AFTT).** Validar os dois

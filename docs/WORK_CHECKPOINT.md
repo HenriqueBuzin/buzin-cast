@@ -103,7 +103,8 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   Os envios Amazon 0.6.6/0.6.5 permanecem intactos; não publicar o protótipo.
   A prova API 17 encaminha vídeo da thread nativa para uma fila Java limitada
   e MediaCodec. Teste sintético com imagem passou em dois ciclos no emulador;
-  descoberta, sessão real, áudio e paridade funcional ainda pendentes.
+  A etapa seguinte já acrescentou descoberta e player persistente (ver abaixo);
+  sessão real, áudio e paridade funcional ainda pendentes.
   Ver comandos e limites em `docs/TESTING.md`.
   Toque e borda persistente implementados e conferidos na fixture de TV da
   API 28: menu, perfil, controle após toque, conteúdo e Sobre. Relatório e
@@ -114,6 +115,19 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   Núcleo: 25 testes e gate de cobertura passaram após corrigir a substituição
   de logs no Windows. Android usa explicitamente rename POSIX; o backend JVM
   usa movimentação atômica e não introduz NIO no caminho Android antigo.
+  **Avanço seguinte — Fire OS 3:** protótipo isolado 0.2/código 2 com JmDNS
+  3.6.5, adaptação UTF-8 para API 17, desugaring/MultiDex e anúncios ligados
+  ao TXT/porta/chave pública do receptor nativo. Modo persistente H.264 com
+  MediaCodec Java configurado pelo SPS/PPS do fluxo, sem áudio/HLS/fotos/H.265.
+  Somente IPv4 privado com multicast; admissão na sub-rede ou loopback.
+  Dois ciclos passaram na API 17: mDNS por socket multicast separado,
+  RTSP OPTIONS e /info, vídeo sintético pela ponte real, parar/reiniciar e
+  fechar a porta TCP. Dezesseis testes unitários e lint passaram; ARMv7/x86
+  compilados. Relatório em `outputs/fireos3-streaming-checks/report.json`.
+  O script aceita `--cycles` e remove o pacote de teste ao terminar, salvo
+  `--keep-installed`. TVs físicas e fichas Amazon não foram alteradas.
+  Próximo marco: áudio compatível, sessão com emissor real e migração das
+  funções/telas restantes; não declarar paridade ou publicar este protótipo.
 
 - [x] **0.6.7 em desenvolvimento:** borda acompanha também o item tocado e o
   destino ativo do menu mantém a borda, inclusive atrás do Sobre. O foco do

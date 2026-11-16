@@ -64,9 +64,15 @@ A biblioteca ARM foi compilada para API 17. O emulador
 instalado no Windows rejeitou a imagem ARM da API 17; a execução ARM
 continua pendente em um ambiente compatível ou no Stick físico.
 
-O receptor completo ainda precisa de um caminho de decodificação compatível.
-O build de produção vincula `libmediandk`, que começa na API 21. Para a
-API 17, é preciso adaptar essa parte para `MediaCodec` Java ou um
-decodificador de software compatível, e verificar as demais dependências
-antes de portar as telas completas. A meta é paridade de funções entre
-gerações, com as variantes regionais de download e gravação.
+O protótipo 0.2 já tem uma ponte de vídeo persistente: callback nativo,
+fila limitada, SPS/PPS Annex-B e `MediaCodec` Java com Surface. Acrescenta
+mDNS/DNS-SD com TXT e porta reais do receptor, limitado a uma interface
+IPv4 privada. Áudio, HLS, fotos e H.265 ainda não são anunciados.
+Dois ciclos de autoteste passaram na API 17, incluindo consulta multicast,
+RTSP e vídeo sintético. Isso não é uma sessão real com um emissor Apple.
+
+O build de produção atual vincula `libmediandk`, que começa na API 21;
+o protótipo não vincula essa biblioteca. Ainda faltam áudio, demais protocolos,
+telas completas e paridade funcional, além de validação com emissor real e
+Stick antigo. A meta permanece a mesma aplicação por geração, com variantes
+regionais de download e gravação. Consulte o progresso em [TESTING.md](TESTING.md).

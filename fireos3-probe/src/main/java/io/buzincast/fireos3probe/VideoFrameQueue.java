@@ -10,11 +10,13 @@ final class VideoFrameQueue {
     private int bytes;
     private boolean closed;
     private String failure;
+    private int generation;
 
     static final class Frame {
         final byte[] data;
         final long timeNs;
-        Frame(byte[] data, long timeNs) { this.data = data; this.timeNs = timeNs; }
+        final int generation;
+        Frame(byte[] data, long timeNs, int generation) { this.data = data; this.timeNs = timeNs; this.generation = generation; }
     }
 
     // JNI owns a fresh byte[] per invocation. Do not block a network worker.
@@ -26,12 +28,24 @@ final class VideoFrameQueue {
         } else if (frames.size() >= MAX_FRAMES || data.length > MAX_BYTES - bytes) {
             failure = "Receiver video queue exceeded its budget";
         } else {
-            frames.addLast(new Frame(data, timeNs));
+            frames.addLast(new Frame(data, timeNs, generation));
             bytes += data.length;
         }
         if (failure != null) { frames.clear(); bytes = 0; }
         notifyAll();
     }
+
+    @SuppressWarnings("unused")
+    public synchronized void onVideoReset() {
+        if (closed) return;
+        frames.clear();
+        bytes = 0;
+        failure = null;
+        generation++;
+        notifyAll();
+    }
+
+    synchronized int generation() { return generation; }
 
     synchronized Frame take(long timeoutMs) throws InterruptedException {
         long remaining = timeoutMs;

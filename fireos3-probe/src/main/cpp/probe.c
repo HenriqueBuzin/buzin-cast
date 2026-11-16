@@ -4,8 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <arpa/inet.h>
 #include "llhttp.h"
 #include "raop.h"
+#include "android_dnssd_shim.h"
 
 static int message_complete(llhttp_t *parser) {
     int *complete = parser->data;
@@ -15,17 +18,52 @@ static int message_complete(llhttp_t *parser) {
 
 static void discard_audio(void *context, raop_ntp_t *ntp, audio_decode_struct *audio) {}
 
-static int allow_local_peer(void *context, const char *peer) {
-    return strcmp(peer, "127.0.0.1") == 0;
-}
-
 typedef struct {
     raop_t *receiver;
     dnssd_t *discovery;
     JavaVM *vm;
     jobject video_callback;
     jmethodID on_video_data;
+    jmethodID on_video_reset;
+    uint32_t network;
+    uint32_t netmask;
 } receiver_probe_t;
+
+static int allow_local_peer(void *context, const char *peer) {
+    receiver_probe_t *probe = context;
+    struct in_addr remote;
+    if (!strcmp(peer, "::1")) return 1;
+    if (inet_pton(AF_INET, peer, &remote) != 1) {
+        struct in6_addr v6;
+        if (inet_pton(AF_INET6, peer, &v6) != 1 || !IN6_IS_ADDR_V4MAPPED(&v6)) return 0;
+        memcpy(&remote, v6.s6_addr + 12, sizeof(remote));
+    }
+    uint32_t address = ntohl(remote.s_addr);
+    if ((address >> 24) == 127) return 1;
+    return probe->netmask && (address & probe->netmask) == probe->network;
+}
+
+static void noop(void *context) {}
+static double client_volume(void *context) { return 0; }
+static int set_codec(void *context, video_codec_t codec) { return codec == VIDEO_CODEC_H264 ? 0 : -1; }
+
+static void reset_video(void *context, reset_type_t reason) {
+    if (reason != RESET_TYPE_NOHOLD && reason != RESET_TYPE_RTP_SHUTDOWN &&
+        reason != RESET_TYPE_RTP_TO_HLS_TEARDOWN) return;
+    receiver_probe_t *probe = context;
+    if (!probe->video_callback) return;
+    JNIEnv *env = NULL;
+    bool attached = false;
+    if ((*probe->vm)->GetEnv(probe->vm, (void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED) {
+        if ((*probe->vm)->AttachCurrentThread(probe->vm, &env, NULL) != JNI_OK) return;
+        attached = true;
+    }
+    if (env) {
+        (*env)->CallVoidMethod(env, probe->video_callback, probe->on_video_reset);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+    }
+    if (attached) (*probe->vm)->DetachCurrentThread(probe->vm);
+}
 
 /* Network callbacks run on UxPlay workers, not the thread that started JNI. */
 static void forward_video(void *context, raop_ntp_t *ntp, video_decode_struct *video) {
@@ -69,16 +107,26 @@ static void destroy_receiver(receiver_probe_t *probe) {
     free(probe);
 }
 
-JNIEXPORT jlong JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject video_callback) {
+static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callback,
+                             const char *device_id, const char *network_address, int prefix) {
     receiver_probe_t *probe = calloc(1, sizeof(*probe));
     if (!probe) return 0;
+    unsigned int octets[6];
+    if (strlen(device_id) != 17 || sscanf(device_id, "%2x:%2x:%2x:%2x:%2x:%2x", &octets[0], &octets[1],
+        &octets[2], &octets[3], &octets[4], &octets[5]) != 6) { free(probe); return 0; }
+    if (network_address) {
+        struct in_addr address;
+        if (prefix < 1 || prefix > 32 || inet_pton(AF_INET, network_address, &address) != 1) { free(probe); return 0; }
+        probe->netmask = UINT32_MAX << (32 - prefix);
+        probe->network = ntohl(address.s_addr) & probe->netmask;
+    }
     if ((*env)->GetJavaVM(env, &probe->vm) != JNI_OK) { free(probe); return 0; }
     if (video_callback) {
         jclass callback_type = (*env)->GetObjectClass(env, video_callback);
         probe->on_video_data = (*env)->GetMethodID(env, callback_type, "onVideoData", "([BJZ)V");
+        if (probe->on_video_data) probe->on_video_reset = (*env)->GetMethodID(env, callback_type, "onVideoReset", "()V");
         (*env)->DeleteLocalRef(env, callback_type);
-        if (!probe->on_video_data) { free(probe); return 0; }
+        if (!probe->on_video_data || !probe->on_video_reset) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
         if (!probe->video_callback) { free(probe); return 0; }
     }
@@ -92,32 +140,92 @@ Java_io_buzincast_fireos3probe_ProbeActivity_startReceiver(JNIEnv *env, jclass t
         .audio_process = discard_audio,
         .video_process = forward_video,
         .conn_admit = allow_local_peer,
+        .video_set_codec = set_codec,
+        .video_pause = noop,
+        .video_resume = noop,
+        .video_reset = reset_video,
+        .video_flush = noop,
+        .audio_flush = noop,
+        .audio_set_client_volume = client_volume,
+        .conn_feedback = noop,
     };
     raop_t *receiver = raop_init(&callbacks);
     probe->receiver = receiver;
-    int initialized = receiver && raop_init2(receiver, 1, "02:00:00:00:00:17", path) == 0;
+    int initialized = receiver && raop_init2(receiver, 1, device_id, path) == 0;
     (*env)->ReleaseStringUTFChars(env, key_path, path);
 
     if (!initialized) {
         destroy_receiver(probe);
         return 0;
     }
-    const char name[] = "Buzin Cast API 17 Probe";
-    const char address[] = { 2, 0, 0, 0, 0, 0x17 };
+    char name[64];
+    snprintf(name, sizeof(name), "Buzin Cast API17 %02X%02X", octets[4], octets[5]);
+    const char address[] = { octets[0], octets[1], octets[2], octets[3], octets[4], octets[5] };
     int error = 0;
-    probe->discovery = dnssd_init(name, sizeof(name) - 1, address, sizeof(address), &error, 0);
+    probe->discovery = dnssd_init(name, strlen(name), address, sizeof(address), &error, 0);
     if (!probe->discovery) {
         destroy_receiver(probe);
         return 0;
     }
     raop_set_dnssd(receiver, probe->discovery);
+    // This experimental target only renders H.264 mirroring; no HLS, photos,
+    // audio playback, metadata or H.265 is advertised.
+    const int unsupported[] = { 0, 1, 3, 4, 5, 8, 9, 11, 13, 15, 16, 17, 18, 19, 20, 21, 42 };
+    for (unsigned i = 0; i < sizeof(unsupported)/sizeof(unsupported[0]); i++)
+        dnssd_set_airplay_features(probe->discovery, unsupported[i], 0);
+    raop_set_plist(receiver, "width", 1280);
+    raop_set_plist(receiver, "height", 720);
+    raop_set_plist(receiver, "maxFPS", 30);
     unsigned short port = 0;
     if (raop_start_httpd(receiver, &port) < 0 || !port) {
         destroy_receiver(probe);
         return 0;
     }
     raop_set_port(receiver, port);
+    if (dnssd_register_airplay(probe->discovery, port) || dnssd_register_raop(probe->discovery, port)) {
+        destroy_receiver(probe); return 0;
+    }
     return (jlong)(intptr_t)probe;
+}
+
+JNIEXPORT jlong JNICALL
+Java_io_buzincast_fireos3probe_ProbeActivity_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject callback) {
+    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0);
+}
+
+JNIEXPORT jlong JNICALL
+Java_io_buzincast_fireos3probe_ProbeActivity_startNetworkReceiver(JNIEnv *env, jclass type,
+        jstring key_path, jobject callback, jstring identity, jstring network_address, jint prefix) {
+    const char *id = (*env)->GetStringUTFChars(env, identity, NULL);
+    if (!id) return 0;
+    const char *address = (*env)->GetStringUTFChars(env, network_address, NULL);
+    if (!address) { (*env)->ReleaseStringUTFChars(env, identity, id); return 0; }
+    jlong result = create_receiver(env, key_path, callback, id, address, prefix);
+    (*env)->ReleaseStringUTFChars(env, network_address, address);
+    (*env)->ReleaseStringUTFChars(env, identity, id);
+    return result;
+}
+
+JNIEXPORT jobjectArray JNICALL
+Java_io_buzincast_fireos3probe_ProbeActivity_receiverTxt(JNIEnv *env, jclass type, jlong handle, jboolean airplay) {
+    receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
+    if (!probe) return NULL;
+    int count = airplay ? android_dnssd_get_airplay_txt_count(probe->discovery) : android_dnssd_get_raop_txt_count(probe->discovery);
+    jclass strings = (*env)->FindClass(env, "java/lang/String");
+    jobjectArray result = (*env)->NewObjectArray(env, count * 2, strings, NULL);
+    (*env)->DeleteLocalRef(env, strings);
+    if (!result) return NULL;
+    for (int i = 0; i < count; i++) {
+        const char *key = airplay ? android_dnssd_get_airplay_txt_key(probe->discovery, i) : android_dnssd_get_raop_txt_key(probe->discovery, i);
+        const char *value = airplay ? android_dnssd_get_airplay_txt_val(probe->discovery, i) : android_dnssd_get_raop_txt_val(probe->discovery, i);
+        jstring k = (*env)->NewStringUTF(env, key), v = (*env)->NewStringUTF(env, value);
+        if (!k || !v) return NULL;
+        (*env)->SetObjectArrayElement(env, result, i*2, k);
+        (*env)->SetObjectArrayElement(env, result, i*2+1, v);
+        (*env)->DeleteLocalRef(env, k); (*env)->DeleteLocalRef(env, v);
+        if ((*env)->ExceptionCheck(env)) return NULL;
+    }
+    return result;
 }
 
 JNIEXPORT jint JNICALL

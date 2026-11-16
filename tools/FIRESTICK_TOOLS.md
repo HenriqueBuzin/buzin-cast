@@ -56,6 +56,12 @@ O script exige as ferramentas instaladas, restaura o ambiente do shell no fim
 e não assina produção nem publica. Execute primeiro em um ambiente de build
 configurado; caches de CMake incompletos podem exigir reparo local.
 
+O teste API 17 também consulta mDNS por UDP e RTSP, exercita o player
+persistente com H.264 sintético e confere início/parada e fechamento da porta.
+Faz dois ciclos e desinstala o pacote isolado ao terminar; `--cycles 1` reduz
+a execução e `--keep-installed` mantém a cópia parada para investigação.
+Não equivale a espelhamento de um iPhone/Mac real nem à aplicação completa.
+
 Os scripts `test_focus_navigation.py` e `test_fireos3_probe.py` recusam TVs
 físicas e testam a nova indicação de foco e a ponte de vídeo API 17 em emulador.
 Comandos e limites em `docs/TESTING.md`. O protótipo API 17 não é uma edição

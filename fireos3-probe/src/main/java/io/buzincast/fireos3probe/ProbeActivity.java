@@ -33,6 +33,9 @@ public final class ProbeActivity extends Activity {
     private static final int MAX_SAMPLE_BYTES = 64 * 1024;
     private boolean decoding;
     private CountDownLatch previewFrame;
+    private LegacyReceiverSession liveSession;
+    private Thread stackCheckWorker;
+    private TextureView previewView;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -68,6 +71,15 @@ public final class ProbeActivity extends Activity {
         exit.setOnClickListener(view -> finish());
         playback.addView(exit, new LinearLayout.LayoutParams(0, -2, 1));
 
+        LinearLayout liveControls = new LinearLayout(this);
+        content.addView(liveControls);
+        Button live = new Button(this);
+        live.setText(R.string.probe_live_start);
+        liveControls.addView(live, new LinearLayout.LayoutParams(0, -2, 1));
+        Button streamChecks = new Button(this);
+        streamChecks.setText(R.string.probe_stream_checks);
+        liveControls.addView(streamChecks, new LinearLayout.LayoutParams(0, -2, 1));
+
         TextView parserResult = new TextView(this);
         TextView receiverResult = new TextView(this);
         TextView decoderResult = new TextView(this);
@@ -75,11 +87,16 @@ public final class ProbeActivity extends Activity {
         content.addView(receiverResult);
         content.addView(decoderResult);
         TextureView preview = new TextureView(this);
+        previewView = preview;
         content.addView(preview, new LinearLayout.LayoutParams(-1, 0, 1));
         preview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
             @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {}
             @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {}
-            @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) { return true; }
+            @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+                stopLive();
+                if (stackCheckWorker != null) stackCheckWorker.interrupt();
+                return true;
+            }
 
             @Override
             public void onSurfaceTextureUpdated(SurfaceTexture texture) {
@@ -89,11 +106,12 @@ public final class ProbeActivity extends Activity {
             }
         });
         run.setOnClickListener(view -> {
+            if (decoding || liveSession != null) return;
             parserResult.setText(checkParser());
             startDecoder(decoderResult, receiverResult, null, null, false);
         });
         network.setOnClickListener(view -> {
-            if (decoding) {
+            if (decoding || liveSession != null) {
                 return;
             }
             SurfaceTexture texture = preview.getSurfaceTexture();
@@ -105,18 +123,69 @@ public final class ProbeActivity extends Activity {
             startDecoder(decoderResult, null, new Surface(texture), previewFrame, false);
         });
         callback.setOnClickListener(view -> {
-            if (decoding) return;
+            if (decoding || liveSession != null) return;
             SurfaceTexture texture = preview.getSurfaceTexture();
             if (texture == null) { decoderResult.setText(R.string.probe_surface_unavailable); return; }
             previewFrame = new CountDownLatch(1);
             startDecoder(decoderResult, null, new Surface(texture), previewFrame, true);
+        });
+        live.setOnClickListener(view -> {
+            if (liveSession != null) { live.setEnabled(false); stopLive(); return; }
+            if (decoding || preview.getSurfaceTexture() == null) return;
+            decoderResult.setText(R.string.probe_live_starting);
+            live.setText(R.string.probe_live_stop);
+            liveSession = new LegacyReceiverSession(this, new Surface(preview.getSurfaceTexture()), receiverIdentity(),
+                    new LegacyReceiverSession.Listener() {
+                        private boolean failed;
+                        @Override public void ready(String name) {
+                            runOnUiThread(() -> { if (!isDestroyed()) decoderResult.setText(getString(R.string.probe_live_ready, name)); });
+                        }
+                        @Override public void failed(Exception error) {
+                            failed = true;
+                            runOnUiThread(() -> { if (!isDestroyed()) decoderResult.setText(getString(R.string.probe_live_failed, error.getMessage())); });
+                        }
+                        @Override public void stopped() {
+                            runOnUiThread(() -> {
+                                liveSession = null;
+                                if (!isDestroyed()) {
+                                    live.setEnabled(true); live.setText(R.string.probe_live_start);
+                                    preview.setVisibility(android.view.View.VISIBLE);
+                                    if (!failed) decoderResult.setText(R.string.probe_live_stopped);
+                                }
+                            });
+                        }
+                    });
+            liveSession.start();
+        });
+        streamChecks.setOnClickListener(view -> {
+            if (decoding || liveSession != null || preview.getSurfaceTexture() == null) return;
+            decoding = true;
+            previewFrame = new CountDownLatch(1);
+            CountDownLatch displayed = previewFrame;
+            Surface surface = new Surface(preview.getSurfaceTexture());
+            decoderResult.setText(R.string.probe_stream_checking);
+            stackCheckWorker = new Thread(() -> {
+                String result;
+                try {
+                    StreamingSelfTest.run(this, surface, receiverIdentity(), displayed);
+                    result = getString(R.string.probe_stream_passed);
+                } catch (Exception | LinkageError error) {
+                    result = getString(R.string.probe_stream_failed, error.getMessage());
+                }
+                String status = result;
+                runOnUiThread(() -> {
+                    decoding = false; previewFrame = null; stackCheckWorker = null;
+                    if (!isDestroyed()) decoderResult.setText(status);
+                });
+            }, "fireos3-stream-selftest");
+            stackCheckWorker.start();
         });
         setContentView(content);
         run.requestFocus();
     }
 
     private void startDecoder(TextView status, TextView receiverStatus, Surface surface, CountDownLatch frameShown, boolean callbackPath) {
-        if (decoding) {
+        if (decoding || liveSession != null) {
             return;
         }
         decoding = true;
@@ -143,6 +212,32 @@ public final class ProbeActivity extends Activity {
                 }
             });
         }, "fireos3-decoder-probe").start();
+    }
+
+    private String receiverIdentity() {
+        android.content.SharedPreferences preferences = getSharedPreferences("receiver", MODE_PRIVATE);
+        String identity = preferences.getString("identity", null);
+        if (identity == null) {
+            byte[] address = new byte[6]; new java.security.SecureRandom().nextBytes(address);
+            address[0] = (byte)((address[0] & 0xFC) | 2);
+            StringBuilder text = new StringBuilder();
+            for (byte octet : address) { if (text.length() > 0) text.append(':'); text.append(String.format(java.util.Locale.US, "%02X", octet & 255)); }
+            identity = text.toString(); preferences.edit().putString("identity", identity).apply();
+        }
+        return identity;
+    }
+
+    private void stopLive() {
+        if (liveSession != null) {
+            liveSession.stop();
+            if (previewView != null) previewView.setVisibility(android.view.View.INVISIBLE);
+        }
+    }
+
+    @Override protected void onStop() {
+        stopLive();
+        if (stackCheckWorker != null) stackCheckWorker.interrupt();
+        super.onStop();
     }
 
     private String checkParser() {
@@ -350,8 +445,10 @@ public final class ProbeActivity extends Activity {
 
     private static native boolean checkNativeParser();
     private static native long startReceiver(String keyPath, VideoFrameQueue callback);
-    private static native int receiverPort(long handle);
-    private static native void stopReceiver(long handle);
+    static native long startNetworkReceiver(String keyPath, VideoFrameQueue callback, String identity, String address, int prefix);
+    static native String[] receiverTxt(long handle, boolean airplay);
+    static native int receiverPort(long handle);
+    static native void stopReceiver(long handle);
     private static native boolean replayVideoFrame(AvcInput callback, ByteBuffer input, int length, long timeNs);
-    private static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
+    static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
 }

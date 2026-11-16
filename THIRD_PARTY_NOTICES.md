@@ -16,4 +16,10 @@ Na versão 0.2.0, o código Buzin Cast também acrescenta muxer Matroska, transp
 - AndroidX, Jetpack Compose, Media3 e Oboe — consultar licenças dos respectivos artefatos e repositórios Android/Google, normalmente Apache 2.0.
 - Kotlin, kotlinx.coroutines, Dagger/Hilt e KSP — consultar as licenças dos artefatos fixados em `gradle/libs.versions.toml`.
 
+No protótipo isolado `fireos3-probe` (não nos APKs de produção atuais):
+
+- JmDNS 3.6.5 — https://github.com/jmdns/jmdns/tree/v3.6.5, revisão `2570b99a40ccaa3d3ef8352c20f25cca0ca3d477`, Apache 2.0. Licença e NOTICE em `licenses/JmDNS-*`. A instrumentação de compilação substitui somente a constante UTF-8 de `StandardCharsets` pela chamada equivalente `Charset.forName`, disponível na API 17; o restante da biblioteca publicada é preservado.
+- SLF4J API e provedor NOP 2.0.7 — https://www.slf4j.org/, MIT; licença em `licenses/SLF4J-MIT.txt`.
+- AndroidX MultiDex 2.0.1 e desugar_jdk_libs 2.1.5 — projetos Android/Google, Apache 2.0 e avisos dos respectivos artefatos. São usados para executar as APIs Java necessárias no Android anterior à API 21.
+
 Esta lista é um índice. Os avisos e as licenças originais completos, inclusive dos componentes incorporados, continuam aplicáveis e devem acompanhar a distribuição. Antes da primeira distribuição pública, revisar o inventário completo das dependências transitivas e incorporar seus avisos ao pacote de distribuição.

@@ -6,6 +6,16 @@
     <string name="probe_callback_passed">Receiver callback H.264: frame displayed</string>
     <string name="probe_decoding_callback">Decoding frames from the receiver callback…</string>
     <string name="probe_callback_not_shown">Receiver callback H.264: no frame displayed</string>
+    <string name="probe_live_start">Start experimental video receiver</string>
+    <string name="probe_live_stop">Stop experimental receiver</string>
+    <string name="probe_live_starting">Starting the IPv4 video receiver…</string>
+    <string name="probe_live_ready">%1$s — experimental H.264 video only; audio is not implemented.</string>
+    <string name="probe_live_failed">Experimental receiver failed: %1$s</string>
+    <string name="probe_live_stopped">Experimental receiver stopped.</string>
+    <string name="probe_stream_checks">Run streaming stack checks</string>
+    <string name="probe_stream_checking">Checking DNS-SD, RTSP and streaming H.264…</string>
+    <string name="probe_stream_passed">Streaming stack: DNS-SD + RTSP + H.264 Surface passed</string>
+    <string name="probe_stream_failed">Streaming stack check failed: %1$s</string>
     <string name="probe_exit">Exit</string>
     <string name="probe_device">%1$s · Android API %2$d · %3$s</string>
     <string name="probe_parser_ok">Native UxPlay HTTP parser: passed</string>
