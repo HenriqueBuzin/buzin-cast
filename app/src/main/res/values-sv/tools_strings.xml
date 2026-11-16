@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="tools_calibrate">Kalibrera bilden</string>
+    <string name="tools_connection_diagnostics">Anslutningsdiagnostik</string>
+    <string name="tools_record_title">Spela in skärmdubblering</string>
+    <string name="tools_record_help">Spara den dubblerade skärmen och ljudet. Förbered inspelningen innan du ansluter.</string>
+    <string name="tools_record_stop">■ Stoppa inspelningen</string>
+    <string name="tools_record_prepare">Förbered inspelningen</string>
+    <string name="tools_other_tv">En annan TV</string>
+    <string name="tools_relay_help">Vidarebefordra skärmdubblering till en annan TV som kör BuzinCast i samma nätverk. Välj Ta emot på den här TV:n på den andra TV:n och använd uppgifterna som visas.</string>
+    <string name="tools_this_tv_ip">Den här TV:ns IP-adress: %1$s</string>
+    <string name="tools_relay_receive">Ta emot på den här TV:n</string>
+    <string name="tools_relay_connect">Anslut till en annan TV</string>
+    <string name="tools_relay_stop">Stoppa vidarebefordran</string>
+    <string name="tools_relay_details">Port: %1$d  •  Kod: %2$s</string>
+    <string name="tools_dlna_photos">Foton via DLNA</string>
+    <string name="tools_dlna_help">Aktivera DLNA i Inställningar för att ta emot foton och visa bildspel.</string>
+    <string name="tools_native_help">Fire TV:s inbyggda skärmdubblering. Finns på kompatibla modeller.</string>
+    <string name="tools_native_unavailable">Miracast är inte tillgängligt på den här modellen. Se Inställningar → Bild och ljud → Skärmdubblering.</string>
+    <string name="tools_native_open">Öppna inbyggd skärmdubblering</string>
+    <string name="tools_recordings">Lokala inspelningar</string>
+    <string name="tools_refresh">Uppdatera listan</string>
+    <string name="tools_recordings_empty">Dina inspelningar visas här.</string>
+    <string name="tools_play">Spela upp</string>
+    <string name="tools_delete">Ta bort</string>
+    <string name="tools_delete_confirm">Ta bort inspelningen?</string>
+    <string name="tools_relay_input_help">Ange uppgifterna som visas efter att du har valt Ta emot på den här TV:n på den andra TV:n.</string>
+    <string name="tools_relay_keyboard_help">↑↓ för att flytta · OK för att skriva</string>
+    <string name="tools_other_tv_ip">Den andra TV:ns IP-adress</string>
+    <string name="tools_port">Port</string>
+    <string name="tools_pairing_code">Anslutningskod</string>
+    <string name="tools_connect">Anslut</string>
+</resources>

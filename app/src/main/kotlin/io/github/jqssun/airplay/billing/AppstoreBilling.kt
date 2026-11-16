@@ -25,9 +25,13 @@ object AppstoreBilling : PurchasingListener {
     fun init(context: Context) {
         try {
             PurchasingService.registerListener(context, this)
+        } catch (e: Exception) {
+            Log.w(TAG, "Appstore purchasing listener registration failed", e)
+        }
+        try {
             LicensingService.verifyLicense(context.applicationContext, LicenseCheck)
         } catch (e: Exception) {
-            Log.w(TAG, "Appstore SDK unavailable (missing AppstoreAuthenticationKey.pem?)", e)
+            Log.w(TAG, "Appstore license verification could not be started", e)
         }
     }
 

@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="capture_need_space">Otillräckligt utrymme. Frigör minst 128 MB.</string>
+    <string name="capture_waiting_keyframe">Väntar på en nyckelbildruta. Återanslut skärmdubbleringen vid behov.</string>
+    <string name="capture_recording_file">Spelar in %1$s</string>
+    <string name="capture_space_exhausted">Inspelningen stoppades eftersom lagringsutrymmet nästan är fullt.</string>
+    <string name="capture_failed">Det gick inte att spela in.</string>
+    <string name="capture_saved_file">Sparad: %1$s</string>
+    <string name="capture_no_keyframe">Ingen nyckelbildruta togs emot. Ingen fil sparades.</string>
+    <string name="capture_slow_storage">Inspelningen stoppades eftersom lagringen inte hann med strömningen.</string>
+    <string name="capture_finishing">Avslutar inspelningen…</string>
+    <string name="relay_waiting_peer">Väntar på en annan BuzinCast. Koden upphör att gälla om 5 minuter.</string>
+    <string name="relay_listener_failed">Det gick inte att starta mottagaren: %1$s</string>
+    <string name="relay_other_stream">En annan strömning är aktiv</string>
+    <string name="relay_receiving_peer">Tar emot från %1$s</string>
+    <string name="relay_mirroring_took_over">En skärmdubbleringssession tog över uppspelningen</string>
+    <string name="relay_ended">Vidarebefordran avslutades.</string>
+    <string name="relay_new_code">Mottagningen avslutades. Skapa en ny kod.</string>
+    <string name="relay_receive_failed">Mottagningen avslutades: %1$s</string>
+    <string name="relay_connecting">Ansluter…</string>
+    <string name="relay_use_local_ip">Använd den andra TV:ns lokala IP-adress</string>
+    <string name="relay_bad_code">Felaktig kod</string>
+    <string name="relay_connected">Ansluten. Starta eller återanslut skärmdubbleringen.</string>
+    <string name="relay_send_failed">Vidarebefordran avslutades: %1$s</string>
+    <string name="relay_slow_network">Långsamt nätverk: vidarebefordran avslutades. Anslut mottagarna igen.</string>
+    <string name="diag_no_ipv4">Ingen lokal IPv4-adress. Anslut TV:n via Wi-Fi eller Ethernet.</string>
+    <string name="diag_tv_ip">TV:ns IP-adress: %1$s</string>
+    <string name="diag_receiver_running">Mottagaren körs.</string>
+    <string name="diag_receiver_stopped">Mottagaren är stoppad. Starta den på anslutningsskärmen.</string>
+    <string name="diag_vpn_active">En VPN-anslutning är aktiv. Den kan blockera lokal upptäckt.</string>
+    <string name="diag_usb_only">Upptäckt är begränsad till USB. För Wi-Fi väljer du Alla nätverk i Inställningar.</string>
+    <string name="diag_airplay">AirPlay: %1$s • port %2$d</string>
+    <string name="diag_media_protocols">DLNA: %1$s • FCast: %2$s</string>
+    <string name="diag_help">Syns inte mottagaren på telefonen eller Mac-datorn?\n• Anslut båda enheterna till samma lokala nätverk. Wi-Fi och Ethernet kan användas tillsammans.\n• Undvik gästnätverk och klientisolering i routern.\n• Kontrollera att sändarens VPN eller brandvägg tillåter åtkomst till det lokala nätverket.\n• Upptäckt använder multicast/mDNS. Behåll automatisk återställning aktiverad när du byter nätverk.\nAppen kan inte kontrollera sändarens nätverk förrän den ansluter. Olika nätverk är en möjlig orsak.\n\nBeskärs bilden? Kalibrera de fyra hörnen. TV:n kan beskära HDMI-bilden även när appen skickar hela bildrutan.\nSRT/VTT-undertexter: använd CC vid videouppspelning via URL. Vid skärmdubblering används sändarens undertexter.</string>
+    <string name="export_logs_failed">Det gick inte att exportera loggarna. Försök igen.</string>
+</resources>

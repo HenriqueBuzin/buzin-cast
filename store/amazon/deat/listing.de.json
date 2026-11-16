@@ -1,0 +1,11 @@
+{
+  "displayTitle": "Buzin Cast",
+  "shortDescription": "Übertrage Bild und Ton von deinem iPhone, iPad oder Mac über dein lokales Netzwerk auf den Fire TV Stick. Kostenlos und werbefrei.",
+  "longDescription": "Übertrage Bildschirm und Ton von einem kompatiblen iPhone, iPad oder Mac auf deinen Fire TV Stick. Verbinde beide Geräte mit demselben lokalen Netzwerk, öffne Buzin Cast auf dem Fernseher und wähle den Empfänger in der Bildschirmsynchronisierung des Sendegeräts aus.\n\nWähle zwischen Standard (voreingestellt), Kino, Präsentation und Spiele. Passe das Bild an deinen Fernseher an und bestätige Verbindungen auf Wunsch mit der Fernbedienung. Der Medienempfang über DLNA und FCast v2 und die Live-Weiterleitung sind experimentell.\n\nDiese Ausgabe ist für Deutschland und Österreich. Sie ist kostenlos, quelloffen und werbefrei. Unterstützt werden Fire TV Sticks mit Fire OS 5, 6, 7 und 8. Kompatibilität und Bildqualität hängen vom Gerät, Sender und Netzwerk ab.\n\nHerausgeber: BUZIN SOLUTIONS LTDA. Support: contato@buzin.solutions",
+  "featureBullets": [
+    "Bildschirm und Ton im lokalen Netzwerk übertragen.",
+    "Vier Bildprofile und optionale Verbindungsfreigabe per Fernbedienung.",
+    "Kostenlos, quelloffen und werbefrei."
+  ],
+  "keywords": "Cast, TV, Buzin, Empfänger, Fire, Stick, DLNA, Bildschirmspiegelung, FCast"
+}

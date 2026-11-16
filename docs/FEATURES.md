@@ -44,3 +44,29 @@ Inventário das funções divulgadas nas fontes abaixo, consultadas em 31/10/202
 Nenhuma versão atual reúne todas as funções dessas referências. As próximas etapas são escopo de desenvolvimento, sem garantia de compatibilidade universal. Fire OS 6+ (API 25) tem a edição principal; Fire OS 5 (API 22) tem uma edição compatível com código compartilhado e dependências próprias. O inventário de recursos acima descreve essas edições Fire OS, com as limitações de validação física registradas em [testes](TESTING.md). Vega OS ainda tem apenas uma prévia de interface; o [port no Mac](VEGA_HANDOFF.md) tem como objetivo alcançar os mesmos recursos. Conteúdo protegido segue as permissões do serviço de origem. Sem anúncios, cobrança ou temporizador comercial em todas as funções do Buzin.
 
 **Fire OS 5 (API 22) é o piso dos APKs atuais.** A meta do projeto é cobrir todos os Fire TV Sticks, inclusive em firmwares antigos quando houver um modelo identificável e um caminho de distribuição e teste. A [Amazon lista o primeiro Stick, de 2014, com Fire OS 5](https://developer.amazon.com/docs/fire-tv/fire-os-overview.html). Para firmwares anteriores ao Android 5.0 (API 21), uma edição separada precisaria de interface sem Compose, ferramentas nativas compatíveis e validação das dependências de mídia e dos codecs. O suporte a esses firmwares segue em investigação.
+
+O alvo anterior a investigar é o firmware original do Stick de primeira geração
+(`AFTM`). [Relatos da época documentam a atualização direta de Fire OS 3
+para Fire OS 5](https://www.golem.de/news/fire-os-5-fire-tv-geraete-erhalten-grosses-update-1602-119089.html).
+O Fire OS 3 era baseado no Android 4.2 (API 17). Ainda falta confirmar um
+aparelho com esse firmware e a disponibilidade de distribuição pela loja.
+
+O protótipo em `fireos3-probe` usa Android Views e o NDK r23, a última série
+com suporte à API 17 segundo o [histórico do NDK](https://developer.android.com/ndk/downloads/revision_history).
+O build gera bibliotecas ARM de 32 bits e x86. O protótipo testa a navegação
+por setas e OK, o carregamento JNI do parser HTTP `llhttp` usado pelo UxPlay
+e a decodificação de um quadro H.264 via `MediaCodec` Java. Compile com
+`./gradlew -PbuzinFireOs3Probe=true :fireos3-probe:assembleDebug :fireos3-probe:lintDebug`.
+O protótipo tem um ID de pacote próprio e serve para teste local.
+O emulador Android 4.2 x86 passou na navegação, na decodificação H.264 e no
+teste do parser. Também exibiu um quadro H.264 recebido via HTTP do host.
+A biblioteca ARM foi compilada para API 17. O emulador
+instalado no Windows rejeitou a imagem ARM da API 17; a execução ARM
+continua pendente em um ambiente compatível ou no Stick físico.
+
+O receptor completo ainda precisa de um caminho de decodificação compatível.
+O build de produção vincula `libmediandk`, que começa na API 21. Para a
+API 17, é preciso adaptar essa parte para `MediaCodec` Java ou um
+decodificador de software compatível, e verificar as demais dependências
+antes de portar as telas completas. A meta é paridade de funções entre
+gerações, com as variantes regionais de download e gravação.

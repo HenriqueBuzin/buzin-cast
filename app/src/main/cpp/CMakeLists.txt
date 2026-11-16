@@ -9,6 +9,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffile-prefix-map=${CMAKE_SOURCE_DIR}=. -ffi
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffile-prefix-map=${CMAKE_SOURCE_DIR}=. -ffile-prefix-map=${CMAKE_BINARY_DIR}=. -ffile-prefix-map=${ANDROID_NDK}=.")
 
 set(UXPLAY_LIB third_party/UxPlay/lib)
+option(BUZIN_RAOP_CORE_ONLY "Build the RAOP receiver without the Android media engine" OFF)
 
 # ---------- OpenSSL (built from source via openssl-cmake) ----------
 set(BUILD_OPENSSL ON CACHE BOOL "" FORCE)
@@ -43,10 +44,12 @@ if(SANITIZE)
 endif()
 
 # ---------- Oboe (low-latency audio output, via prefab AAR) ----------
-find_package(oboe REQUIRED CONFIG)
+if(NOT BUZIN_RAOP_CORE_ONLY)
+    find_package(oboe REQUIRED CONFIG)
 
 # ---------- ffmpeg (software ALAC decoder) ----------
-include(BuildFFmpeg)
+    include(BuildFFmpeg)
+endif()
 
 # ---------- libplist (built from submodule source) ----------
 set(PLIST_SRC third_party/libplist/src)
@@ -124,6 +127,14 @@ set(AIRPLAY_SOURCES
 )
 
 # ---------- Android JNI bridge + dnssd shim ----------
+if(BUZIN_RAOP_CORE_ONLY)
+    add_library(airplay_native STATIC ${AIRPLAY_SOURCES} android_dnssd_shim.c)
+    target_include_directories(airplay_native PUBLIC ${UXPLAY_LIB})
+    target_compile_definitions(airplay_native PRIVATE ANDROID PLIST_210 TARGET_RT_LITTLE_ENDIAN=1)
+    target_link_libraries(airplay_native PRIVATE llhttp playfair crypto plist m log android)
+    return()
+endif()
+
 set(BRIDGE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/android_dnssd_shim.c
     ${CMAKE_CURRENT_SOURCE_DIR}/android_raop_callbacks.c

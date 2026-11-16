@@ -16,6 +16,8 @@
 **/.buzin-patches.properties
 **/build/
 __pycache__/
+.kotlin/
+/outputs/
 
 /app/build-legacy/
 /app/build-legacy-nodownload/

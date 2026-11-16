@@ -1,0 +1,314 @@
+package io.buzincast.fireos3probe;
+
+import android.app.Activity;
+import android.content.res.AssetFileDescriptor;
+import android.graphics.SurfaceTexture;
+import android.media.MediaCodec;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.SystemClock;
+import android.view.Surface;
+import android.view.TextureView;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+public final class ProbeActivity extends Activity {
+    private static final String EMULATOR_SAMPLE_URL = "http://10.0.2.2:18765/h264_sample.mp4";
+    private static final int MAX_SAMPLE_BYTES = 64 * 1024;
+    private boolean decoding;
+    private CountDownLatch previewFrame;
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        int padding = Math.round(24 * getResources().getDisplayMetrics().density);
+        content.setPadding(padding, padding, padding, padding);
+
+        TextView device = new TextView(this);
+        device.setText(getString(R.string.probe_device, Build.MODEL, Build.VERSION.SDK_INT, Build.CPU_ABI));
+        content.addView(device);
+
+        Button run = new Button(this);
+        run.setText(R.string.probe_run);
+        content.addView(run);
+
+        Button network = new Button(this);
+        network.setText(R.string.probe_run_network);
+        content.addView(network);
+
+        Button exit = new Button(this);
+        exit.setText(R.string.probe_exit);
+        exit.setOnClickListener(view -> finish());
+        content.addView(exit);
+
+        TextView parserResult = new TextView(this);
+        TextView receiverResult = new TextView(this);
+        TextView decoderResult = new TextView(this);
+        content.addView(parserResult);
+        content.addView(receiverResult);
+        content.addView(decoderResult);
+        TextureView preview = new TextureView(this);
+        content.addView(preview, new LinearLayout.LayoutParams(-1, 0, 1));
+        preview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {}
+            @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {}
+            @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) { return true; }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+                if (previewFrame != null) {
+                    previewFrame.countDown();
+                }
+            }
+        });
+        run.setOnClickListener(view -> {
+            parserResult.setText(checkParser());
+            startDecoder(decoderResult, receiverResult, null, null);
+        });
+        network.setOnClickListener(view -> {
+            if (decoding) {
+                return;
+            }
+            SurfaceTexture texture = preview.getSurfaceTexture();
+            if (texture == null) {
+                decoderResult.setText(R.string.probe_surface_unavailable);
+                return;
+            }
+            previewFrame = new CountDownLatch(1);
+            startDecoder(decoderResult, null, new Surface(texture), previewFrame);
+        });
+        setContentView(content);
+        run.requestFocus();
+    }
+
+    private void startDecoder(TextView status, TextView receiverStatus, Surface surface, CountDownLatch frameShown) {
+        if (decoding) {
+            return;
+        }
+        decoding = true;
+        status.setText(surface == null ? R.string.probe_decoding : R.string.probe_decoding_network);
+        new Thread(() -> {
+            String receiverResult = receiverStatus == null ? null : checkReceiver();
+            String result;
+            try {
+                result = checkDecoder(surface, frameShown);
+            } finally {
+                if (surface != null) {
+                    surface.release();
+                }
+            }
+            runOnUiThread(() -> {
+                decoding = false;
+                previewFrame = null;
+                if (!isFinishing() && !isDestroyed()) {
+                    if (receiverStatus != null) {
+                        receiverStatus.setText(receiverResult);
+                    }
+                    status.setText(result);
+                }
+            });
+        }, "fireos3-decoder-probe").start();
+    }
+
+    private String checkParser() {
+        try {
+            System.loadLibrary("fireos3_probe");
+            return getString(checkNativeParser() ? R.string.probe_parser_ok : R.string.probe_parser_failed);
+        } catch (LinkageError error) {
+            return getString(R.string.probe_library_failed, error.getMessage());
+        }
+    }
+
+    private String checkReceiver() {
+        long handle = 0;
+        File key = null;
+        try {
+            System.loadLibrary("fireos3_probe");
+            key = File.createTempFile("probe-raop", ".key", getCacheDir());
+            handle = startReceiver(key.getAbsolutePath());
+            if (handle == 0) {
+                return getString(R.string.probe_receiver_start_failed);
+            }
+            try (Socket client = new Socket()) {
+                client.connect(new InetSocketAddress("127.0.0.1", receiverPort(handle)), 2000);
+                client.setSoTimeout(2000);
+                client.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n".getBytes("US-ASCII"));
+                BufferedReader response = new BufferedReader(new InputStreamReader(client.getInputStream(), "US-ASCII"));
+                String status = response.readLine();
+                if (!"RTSP/1.0 200 OK".equals(status)) {
+                    return getString(R.string.probe_receiver_failed, status);
+                }
+                for (String header; (header = response.readLine()) != null && !header.isEmpty();) {
+                    if (header.startsWith("Public:") && header.contains("SETUP") && header.contains("RECORD")) {
+                        return getString(R.string.probe_receiver_passed);
+                    }
+                }
+                return getString(R.string.probe_receiver_failed, getString(R.string.probe_receiver_missing_methods));
+            }
+        } catch (IOException | LinkageError | RuntimeException error) {
+            return getString(R.string.probe_receiver_failed, error.getMessage());
+        } finally {
+            if (handle != 0) {
+                stopReceiver(handle);
+            }
+            if (key != null) {
+                key.delete();
+            }
+        }
+    }
+
+    private String checkDecoder(Surface surface, CountDownLatch frameShown) {
+        MediaExtractor extractor = new MediaExtractor();
+        MediaCodec decoder = null;
+        File networkSample = null;
+        try {
+            System.loadLibrary("fireos3_probe");
+            if (surface == null) {
+                try (AssetFileDescriptor sample = getResources().openRawResourceFd(R.raw.h264_sample)) {
+                    extractor.setDataSource(sample.getFileDescriptor(), sample.getStartOffset(), sample.getLength());
+                }
+            } else {
+                networkSample = File.createTempFile("probe-avc", ".mp4", getCacheDir());
+                fetchNetworkSample(networkSample);
+                extractor.setDataSource(networkSample.getAbsolutePath());
+            }
+            MediaFormat format = extractor.getTrackFormat(0);
+            extractor.selectTrack(0);
+            decoder = MediaCodec.createDecoderByType("video/avc");
+            decoder.configure(format, surface, null, 0);
+            decoder.start();
+
+            ByteBuffer[] inputBuffers = decoder.getInputBuffers();
+            AvcInput frameInput = new AvcInput(decoder, inputBuffers);
+            MediaCodec.BufferInfo output = new MediaCodec.BufferInfo();
+            boolean inputEnded = false;
+            long deadline = SystemClock.elapsedRealtime() + 5000;
+            while (SystemClock.elapsedRealtime() < deadline) {
+                int inputIndex = inputEnded ? -1 : decoder.dequeueInputBuffer(10000);
+                if (inputIndex >= 0) {
+                    ByteBuffer input = inputBuffers[inputIndex];
+                    input.clear();
+                    int size = extractor.readSampleData(input, 0);
+                    inputEnded = size < 0;
+                    if (inputEnded) {
+                        decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                    } else {
+                        frameInput.replay(inputIndex, size, extractor.getSampleTime() * 1000L);
+                        extractor.advance();
+                    }
+                }
+                int outputIndex = decoder.dequeueOutputBuffer(output, 10000);
+                if (outputIndex >= 0) {
+                    boolean frame = output.size > 0 && (output.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0;
+                    decoder.releaseOutputBuffer(outputIndex, surface != null && frame);
+                    if (frame) {
+                        if (frameShown == null) {
+                            return getString(R.string.probe_decoder_passed);
+                        }
+                        return getString(frameShown.await(2, TimeUnit.SECONDS)
+                                ? R.string.probe_network_passed : R.string.probe_frame_not_shown);
+                    }
+                    if ((output.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        break;
+                    }
+                }
+            }
+            return getString(R.string.probe_decoder_no_frame);
+        } catch (IOException | LinkageError | RuntimeException error) {
+            return getString(R.string.probe_decoder_failed, error.getMessage());
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            return getString(R.string.probe_frame_not_shown);
+        } finally {
+            if (decoder != null) {
+                decoder.release();
+            }
+            extractor.release();
+            if (networkSample != null) {
+                networkSample.delete();
+            }
+        }
+    }
+
+    private void fetchNetworkSample(File destination) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(EMULATOR_SAMPLE_URL).openConnection();
+        connection.setConnectTimeout(2000);
+        connection.setReadTimeout(2000);
+        connection.setInstanceFollowRedirects(false);
+        long deadline = SystemClock.elapsedRealtime() + 4000;
+        try {
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                throw new IOException("Unexpected response from sample server");
+            }
+            try (InputStream source = connection.getInputStream();
+                 FileOutputStream output = new FileOutputStream(destination)) {
+                byte[] buffer = new byte[4096];
+                int total = 0;
+                int count;
+                while ((count = source.read(buffer)) != -1) {
+                    total += count;
+                    if (total > MAX_SAMPLE_BYTES || SystemClock.elapsedRealtime() > deadline) {
+                        throw new IOException("Network sample exceeded the size or time limit");
+                    }
+                    output.write(buffer, 0, count);
+                }
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static final class AvcInput {
+        private final MediaCodec decoder;
+        private final ByteBuffer[] buffers;
+        private int inputIndex;
+
+        AvcInput(MediaCodec decoder, ByteBuffer[] buffers) {
+            this.decoder = decoder;
+            this.buffers = buffers;
+        }
+
+        void replay(int index, int length, long timeNs) {
+            inputIndex = index;
+            if (!replayVideoFrame(this, buffers[index], length, timeNs)) {
+                throw new IllegalStateException("Native frame callback failed");
+            }
+        }
+
+        // Called synchronously from JNI on the decoder worker.
+        @SuppressWarnings("unused")
+        private void onVideoData(byte[] data, long timeNs, boolean isH265) {
+            if (isH265) {
+                throw new IllegalArgumentException("Expected H.264");
+            }
+            ByteBuffer input = buffers[inputIndex];
+            input.clear();
+            input.put(data);
+            decoder.queueInputBuffer(inputIndex, 0, data.length, timeNs / 1000L, 0);
+        }
+    }
+
+    private static native boolean checkNativeParser();
+    private static native long startReceiver(String keyPath);
+    private static native int receiverPort(long handle);
+    private static native void stopReceiver(long handle);
+    private static native boolean replayVideoFrame(AvcInput callback, ByteBuffer input, int length, long timeNs);
+}

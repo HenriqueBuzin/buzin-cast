@@ -1,0 +1,11 @@
+--- a/lib/raop.c
++++ b/lib/raop.c
+@@ -867,5 +867,7 @@
+ void
+ raop_stop_httpd(raop_t *raop) {
+     assert(raop);
+-    httpd_stop(raop->httpd);
++    if (raop->httpd) {
++        httpd_stop(raop->httpd);
++    }
+ }

@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="photo_loading">Läser in foto…</string>
+    <string name="photo_received">Foto mottaget via DLNA</string>
+    <string name="media_previous">Föregående</string>
+    <string name="media_next">Nästa</string>
+    <string name="photo_slideshow">Bildspel</string>
+    <string name="photo_rotate">Rotera</string>
+    <string name="photo_scale">Anpassa / fyll</string>
+    <string name="photo_position">Foto %1$d av %2$d • Använd fjärrkontrollen för att bläddra, rotera eller stänga.</string>
+    <string name="photo_error">Det gick inte att öppna fotot.</string>
+    <string name="photo_error_size">Fotot är större än 16 MB.</string>
+    <string name="photo_error_format">Fotoformatet är ogiltigt.</string>
+    <string name="photo_error_redirect">Det gick inte att följa fotolänken.</string>
+</resources>

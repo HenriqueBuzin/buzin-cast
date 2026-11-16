@@ -1,0 +1,11 @@
+{
+  "displayTitle": "Buzin Cast",
+  "shortDescription": "Mirror the screen and audio from your iPhone, iPad or Mac to Fire TV Stick over your local network. Free and ad-free.",
+  "longDescription": "Share your screen and audio from a compatible iPhone, iPad or Mac to your Fire TV Stick over the local network. Connect both devices to the same network, open Buzin Cast on the TV and select the receiver in Screen Mirroring on the sending device.\n\nChoose Default (the initial profile), Cinema, Presentation or Games and customise how the picture fits your TV. Optional connection approval uses the TV remote. DLNA and FCast v2 media reception and live relay are experimental.\n\nThis edition is for Germany and Austria. It is free, open source and has no advertising or session timer. It supports Fire TV Stick models with Fire OS 5, 6, 7 and 8. Compatibility and picture quality depend on the device, sender and network.\n\nPublished by BUZIN SOLUTIONS LTDA. Support: contato@buzin.solutions",
+  "featureBullets": [
+    "Screen mirroring with audio over the local network.",
+    "Four picture profiles and remote-controlled connection approval.",
+    "Free, open source and ad-free."
+  ],
+  "keywords": "Cast, TV, receiver, Buzin, Fire, Stick, screen, DLNA, mirroring, FCast"
+}

@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Buzin Cast Fire OS 3 Probe</string>
+    <string name="probe_run">Run compatibility checks</string>
+    <string name="probe_run_network">Render network sample</string>
+    <string name="probe_exit">Exit</string>
+    <string name="probe_device">%1$s · Android API %2$d · %3$s</string>
+    <string name="probe_parser_ok">Native UxPlay HTTP parser: passed</string>
+    <string name="probe_parser_failed">Native UxPlay HTTP parser: failed</string>
+    <string name="probe_receiver_passed">UxPlay receiver: RTSP OPTIONS passed</string>
+    <string name="probe_receiver_start_failed">UxPlay receiver could not start.</string>
+    <string name="probe_receiver_missing_methods">RTSP methods missing from response.</string>
+    <string name="probe_receiver_failed">UxPlay receiver check failed: %1$s</string>
+    <string name="probe_library_failed">Native library load failed: %1$s</string>
+    <string name="probe_decoding">Decoding the H.264 sample…</string>
+    <string name="probe_decoding_network">Opening the emulator host H.264 sample…</string>
+    <string name="probe_surface_unavailable">Video Surface is unavailable.</string>
+    <string name="probe_decoder_passed">H.264 sample: decoded frame</string>
+    <string name="probe_network_passed">Network H.264 sample: frame displayed</string>
+    <string name="probe_frame_not_shown">Network H.264 sample: no frame displayed</string>
+    <string name="probe_decoder_no_frame">H.264 sample: no decoded frame</string>
+    <string name="probe_decoder_failed">H.264 decoding failed: %1$s</string>
+</resources>

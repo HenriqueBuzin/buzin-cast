@@ -1,4 +1,64 @@
-# Retomada — 5 de novembro de 2026
+# Retomada — 15 de novembro de 2026
+
+## Fichas Amazon, traduções e artefatos atuais
+
+- Geral: rascunho 0.6.6 (principal código 42; compatível código 40),
+  com sueco. Release `amzn1.devportal.apprelease.5f0aca6e049d405994dee3ab957a1512`.
+  A versão 0.6.4 continua publicada até aprovação da atualização.
+- DE/AT: mantém os APKs 0.6.5-nodownload (39) e
+  0.6.5-compat-nodownload (38), com a chave pública da ficha regional.
+  A submissão foi retirada da análise para corrigir as imagens; precisa
+  ser reenviada. Ficha em alemão e inglês US obrigatório, sem adicionar
+  sueco à descrição regional.
+- Cobertura configurada no console: 232 países/territórios no geral,
+  excluindo Alemanha e Áustria; os dois países somente na edição regional.
+  Juntas cobrem as 234 opções oferecidas pelo console nesta conferência.
+  Isso não garante disponibilidade onde a Amazon não distribui apps ou
+  suporte a Vega/firmwares históricos ainda não implementados.
+- Geral: 15 localizações de descrição completas; 11 localizações de imagens
+  completas. Os textos foram relidos no console, sem “AirPlay” nos campos
+  da ficha. Cópias locais em `store/amazon/listing.*.json`.
+- App: 22 idiomas próprios, com 304 strings traduzíveis presentes em cada
+  tradução. Sueco adicionado em `values-sv`; placeholders conferidos. A
+  lista fixa “Language Support” do console só oferece os 21 itens antigos;
+  sueco está no APK e na descrição sueca, mas não existe checkbox sueco.
+- Capturas definitivas em `store/amazon/images/screenshots/normal` e
+  `store/amazon/images/screenshots/deat`. Início, configurações e Sobre,
+  sem Diagnóstico visível. O conjunto sueco é validação adicional local;
+  não há localização sueca de imagens no console. Logos aprovadas preservadas.
+- Apenas o Stick do quarto foi usado. APK de produção 0.6.6 reinstalado
+  depois das capturas; usuário retomou o uso da TV. Não voltar a controlá-la
+  sem coordenar com Henrique. Outras TVs não foram alteradas.
+- Seleção nova: sete Sticks na principal e dois na compatível, sem tablets,
+  Automotive ou TVs integradas. Uma Xiaomi indevidamente selecionada na
+  ficha geral anterior foi retirada da próxima versão. Não criar regras
+  amplas de inclusão de novos dispositivos; conferir modelos a cada envio.
+- APKs locais em `outputs/buzin-cast-0.6.6.apk` e
+  `outputs/buzin-cast-0.6.6-compat.apk`, assinados para produção. Builds e
+  lint vital passaram. ZIP, certificado, chave pública e preservação das
+  classes Amazon conferidos; código temporário de captura ausente nos
+  binários finais. A validação de licença pela Appstore continua dependendo
+  da instalação oficial/LAT e da análise da Amazon.
+- Rascunhos revisados, com notas da 0.6.6 completas nas 15 localizações.
+  Reenviar após a confirmação exigida
+  pelas declarações finais do console. Não confundir “Ready to Submit” com
+  publicação ou aprovação.
+- Conferência final de mídia: 13 conjuntos completos (11 geral + 2 DE/AT),
+  78 posições de capturas e 52 posições de artes. Dimensões e ordem
+  conferidas após reabrir as fichas. O ícone de 114 px foi alinhado em
+  todos os conjuntos. As quatro artes canônicas de cada ficha foram
+  exportadas do console e coincidem pixel a pixel com os arquivos locais.
+  English (U.K.) foi recriado e conferido após a confirmação de remoção.
+- Algumas capturas iniciais pegaram a abertura; foram refeitas esperando
+  as mensagens traduzidas de receptor pronto e Sobre antes de capturar.
+  As 42 capturas locais definitivas são RGB 1920×1080. As 15 descrições,
+  recursos, palavras-chave e notas gerais coincidem com os JSONs do Git;
+  os dois textos regionais estão em `store/amazon/deat`.
+- Limpeza no quarto: cópia temporária de captura `com.buzincast.tv.deat`
+  0.6.6/código 43 removida enquanto estava inativa. Permanece instalada a
+  edição principal final de produção 0.6.6/código 42.
+
+## Registro anterior — 5 de novembro de 2026
 
 **9/nov — Vega:** ambiente preparado neste Mac e alvo ampliado para Vega OS 1.0
 a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
@@ -71,16 +131,18 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   recursos (36) e principal sem os recursos (37). As edições compat usam
   API 22 e as principais usam API 25.
 - [~] Publicar somente para Fire TV Stick, contemplando todas as gerações
-  já lançadas e as futuras. Cobertura inicial a não esquecer: **Fire OS 1, 2,
-  3, 4, 5, 6, 7, 8, 14 e 16; Vega OS 1.0, 1.1, 1.2 e 2.0**. A lista não
-  limita o escopo: acrescentar outras versões que existam ao retomar o trabalho.
+  já lançadas e as futuras. Fire OS confirmado em Sticks físicos: **3, 5,
+  6, 7 e 8**. O Stick de 2014 recebeu atualização direta do 3 para o 5.
+  Fire OS 1, 2, 4, 14 e 16 seguem sem modelo Stick confirmado. Atualizar
+  a lista quando houver evidência de outro firmware em um Stick.
+  Vega OS segue no outro computador, com a investigação de 1.0, 1.1, 1.2 e 2.0.
   Confirmar os nomes comerciais, níveis reais de API e compatibilidade antes
   de cada disponibilização. Vega continua fora desta publicação enquanto seu
   receptor e o VPKG não forem validados.
-  **Meta revisada por Henrique:** cobrir Fire OS e Vega OS desde a versão 1.0
-  até a mais recente, cada um com e sem download e gravação, somente em
-  Fire TV Stick. Confirmar primeiro quais firmwares antigos realmente
-  existiram em Sticks, se a loja ainda os atende e como testá-los. Compilar
+  **Meta revisada por Henrique:** cobrir todas as versões de Fire OS e
+  Vega OS que rodaram em Fire TV Stick físico, com as mesmas funções e
+  variantes com e sem download e gravação. Confirmar se a loja ainda atende
+  os firmwares antigos e como testá-los. Compilar
   os APKs Fire OS neste Windows e deixar os VPKGs para macOS ou Ubuntu nativo.
   Fire OS 5
   (API 22) é o piso dos APKs atuais. Uma edição abaixo de API 21 exigiria
@@ -101,6 +163,12 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   não é parte do escopo da 6.4 (que é só Cornish + correção da edição
   sem-download/gravação para Alemanha e Áustria), fica para uma atualização
   seguinte.
+  **11/nov — próxima publicação:** selecionar somente os aparelhos Fire TV
+  Stick no console, incluindo as gerações já validadas, e preparar os idiomas
+  da ficha e a distribuição por país com as variantes regionais. A meta de
+  desenvolvimento é ter o mesmo Buzin Cast e as mesmas funções em todas as
+  gerações, respeitando as restrições por país. Fire OS 3 está em protótipo
+  local neste Windows. O trabalho em Vega OS continua no outro computador.
 - [x] Build nativo (C++/FFmpeg) diretamente no Windows, fora do WSL, ainda não
   funciona — trava no CMake/ndk-build do jeito que o toolchain Windows está
   hoje. **9/nov:** o build via WSL (`/var/tmp/buzin-cast-build`) está validado

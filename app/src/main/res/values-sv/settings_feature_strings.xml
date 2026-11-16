@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="setting_streaming_profile">Strömningsprofil</string>
+    <string name="setting_streaming_profile_desc">Om du byter profil startas mottagaren om. Den faktiska kvaliteten beror på sändaren och nätverket.</string>
+    <string name="setting_profile_default">Standard</string>
+    <string name="setting_profile_cinema">Bio</string>
+    <string name="setting_profile_presentation">Presentation</string>
+    <string name="setting_profile_games">Spel</string>
+    <string name="setting_approve_connections">Godkänn anslutningar</string>
+    <string name="setting_approve_connections_desc">Använd fjärrkontrollen för att godkänna eller neka AirPlay-, DLNA-, FCast- och Cast V2-anslutningar. Godkännandet gäller protokollet och IP-adressen i fem minuter.</string>
+    <string name="setting_network_recovery">Återställ efter nätverksavbrott</string>
+    <string name="setting_network_recovery_desc">Gör mottagaren upptäckbar igen när nätverket kommer tillbaka. Kompatibla videor försöker återuppta uppspelningen. AirPlay-sändaren kan behöva ansluta igen.</string>
+    <string name="setting_calibrate_corners">Kalibrera de fyra hörnen</string>
+    <string name="calibration_adjust_hint">← Förstora bilden • Förminska bilden →</string>
+    <string name="calibration_save_hint">Håll alla fyra hörnen synliga. OK sparar • Tillbaka avbryter</string>
+    <string name="setting_profile_unavailable">Det gick inte att använda strömningsprofilen.</string>
+</resources>

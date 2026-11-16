@@ -1,6 +1,103 @@
 # Testes automatizados
 
+## Verificação da atualização 0.6.6 — 15/nov/2026
+
+- Principal e compatível de produção compiladas para ARM32/ARM64 com lint
+  vital; códigos 42 e 40. ZIPs íntegros e certificado de produção iguais.
+- 304 strings suecas e parâmetros de formatação conferidos contra o inglês;
+  os 22 idiomas próprios têm todas as chaves traduzíveis do app.
+- Interface sueca e 11 conjuntos de localizações da loja capturados no
+  Fire TV Stick do quarto (AFTMM/API 25). Capturas regionais 0.6.5 em
+  alemão/inglês. Não representam teste físico em todas as gerações.
+- `tools/verify_brand.py` passou: 12 recursos do launcher preservados.
+- Classes do SDK Amazon preservadas nos DEX e ausência de `capture_locale`
+  nos APKs finais conferidas. O mecanismo temporário usado nas capturas foi
+  removido antes dos builds finais e não integra o código de produção.
+- Licença por instalação oficial/LAT e aprovação da Amazon continuam
+  pendentes; não inferir aprovação a partir do sideload local.
+
 A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Automação completa dos comandos da suíte não equivale a cobertura de 100% do aplicativo nem a compatibilidade garantida com todos os emissores e aparelhos físicos.
+
+## Plano de compatibilidade dos Fire TV Sticks
+
+O alvo são todas as famílias de Fire OS que rodaram em Sticks físicos.
+Manter as mesmas funções por geração dentro de cada variante regional.
+Vega OS é desenvolvido em outro ambiente.
+
+1. **Fire OS 3 (API 17, AFTM no firmware original).** A primeira prova
+   passou no emulador x86: Android Views com setas e OK, parser nativo
+   e um quadro H.264 decodificado pelo MediaCodec Java. A segunda prova
+   carregou a amostra H.264 por HTTP e confirmou um quadro visível na
+   Surface do emulador API 17. A amostra agora passa por JNI usando
+   `video_decode_struct` e a assinatura `onVideoData(byte[], long, boolean)`
+   do receptor. O APK de teste inclui ARMv7.
+   O protótipo compila o núcleo UxPlay com OpenSSL, sem vincular
+   `libmediandk`. O botão de compatibilidade inclui uma prova RTSP
+   local: iniciar, enviar `OPTIONS`, conferir os métodos anunciados
+   pelo receptor e parar. Dois ciclos passaram no emulador x86 API 17
+   com a resposta RTSP 200, incluindo `SETUP` e `RECORD` no cabeçalho
+   `Public`. Próximo marco: conectar os callbacks da sessão
+   de espelhamento à ponte de vídeo e adaptar a descoberta na rede, o
+   áudio e o player à API 17.
+   Depois portar as telas, configurações e funções restantes e validar
+   com emissores reais em um AFTM com Fire OS 3.
+2. **Fire OS 5 (API 22, AFTM atualizado e AFTT).** Validar os dois
+   APKs compat já assinados. Testar primeiro no AFTM de 2014, que é o
+   modelo mais antigo, e depois no Stick de 2ª geração e no Basic Edition.
+   Conferir instalação, abertura a frio, foco, espelhamento, áudio,
+   reprodução e recuperação após interrupção da rede.
+3. **Fire OS 6, 7 e 8 (APIs 25, 28 e 30 nos Sticks).** Validar os dois
+   APKs principais já assinados. Começar com um Stick 4K de 1ª geração
+   no 6, um Stick ou Lite no 7 e um Stick 4K de 2ª geração no 8. Repetir
+   os testes principais nos demais modelos do catálogo antes de marcar
+   a cobertura de cada modelo. Conferir codecs, controle remoto e
+   reprodução prolongada.
+4. **Paridade e publicação.** Usar [FEATURES.md](FEATURES.md#disponível-no-código)
+   como inventário. Verificar funções de rede, mídia, fotos, legendas,
+   gravação, download e retransmissão conforme a variante. Em Alemanha e
+   Áustria, validar que download e gravação não podem ser acionados.
+   No console, conferir elegibilidade dos Sticks por modelo e país,
+   distribuição das variantes e entrega ao firmware Fire OS 3. Validar
+   instalação e atualização na loja antes de anunciar cobertura.
+
+Projeção de seis APKs, dois por faixa: API 17, API 22 e API 25 ou superior.
+As quatro edições existentes da 0.6.4 já têm assinatura de produção. O
+protótipo API 17 é um APK de depuração com ID próprio.
+
+### Reproduzir a prova H.264 na API 17
+
+```powershell
+.\gradlew.bat -PbuzinFireOs3Probe=true :fireos3-probe:assembleDebug :fireos3-probe:lintDebug
+$serial = 'emulator-5560' # Substitua pelo serial do emulador API 17.
+adb -s $serial install -r fireos3-probe/build/outputs/apk/debug/fireos3-probe-debug.apk
+adb -s $serial shell am start -n io.buzincast.fireos3probe/.ProbeActivity
+```
+
+Navegue com as setas, acione **Run compatibility checks** com OK e
+confirme **Native UxPlay HTTP parser: passed**, **UxPlay receiver: RTSP OPTIONS passed**
+e **H.264 sample: decoded frame**. O teste RTSP usa um cliente no próprio
+emulador e encerra o servidor ao terminar.
+A amostra sintética foi criada com:
+
+```bash
+ffmpeg -f lavfi -i testsrc2=size=64x48:rate=5:duration=1 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -movflags +faststart fireos3-probe/src/main/res/raw/h264_sample.mp4
+```
+
+Para a prova de rede, sirva a mesma amostra no host do emulador:
+
+```powershell
+python -m http.server 18765 --bind 127.0.0.1 --directory fireos3-probe/src/main/res/raw
+```
+
+No protótipo, acione **Render network sample**. O emulador acessa o host
+em `10.0.2.2:18765`. Confirme o GET no servidor, o quadro colorido e a
+mensagem **Network H.264 sample: frame displayed**. A mensagem depende de
+uma atualização da textura da Surface, com tempo limite de dois segundos
+após o envio do quadro. A fonte HTTP é uma amostra de teste. O protótipo
+limita o tamanho do arquivo temporário e o remove ao terminar. Com o
+servidor desligado, o teste exibiu erro de conexão e a prova local
+voltou a decodificar na mesma atividade. A sessão de espelhamento do
+UxPlay segue pendente.
 
 ## Núcleo e protocolos
 

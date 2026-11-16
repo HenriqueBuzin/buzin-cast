@@ -15,15 +15,22 @@ val localProps = Properties().apply {
 
 val legacyEdition = providers.gradleProperty("buzinLegacy").orNull == "true"
 val coverageEnabled = providers.gradleProperty("buzinCoverage").orNull == "true"
-val noDownloadEdition = providers.gradleProperty("buzinNoDownload").orNull == "true"
+val regionalAppstoreAssets = providers.gradleProperty("buzinRegionalAppstoreAssets").orNull?.let { path ->
+    file(path).also { directory ->
+        require(directory.resolve("AppstoreAuthenticationKey.pem").isFile) {
+            "Provide the regional AppstoreAuthenticationKey.pem in buzinRegionalAppstoreAssets"
+        }
+    }
+}
+val noDownloadEdition = regionalAppstoreAssets != null || providers.gradleProperty("buzinNoDownload").orNull == "true"
 val editionVersionCode = when {
-    legacyEdition && noDownloadEdition -> 35
-    legacyEdition -> 34
-    noDownloadEdition -> 37
-    else -> 36
+    legacyEdition && noDownloadEdition -> 41
+    legacyEdition -> 40
+    noDownloadEdition -> 43
+    else -> 42
 }
 val editionVersionName = buildString {
-    append("0.6.4")
+    append("0.6.6")
     if (legacyEdition) append("-compat")
     if (noDownloadEdition) append("-nodownload")
 }
@@ -50,7 +57,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.buzincast.tv"
+        applicationId = if (regionalAppstoreAssets == null) "com.buzincast.tv" else "com.buzincast.tv.deat"
         minSdk = if (legacyEdition) 22 else 25
         targetSdk = 37
         versionCode = editionVersionCode
@@ -130,6 +137,9 @@ android {
         compose = true
         prefab = true
         buildConfig = true
+    }
+    if (regionalAppstoreAssets != null) {
+        sourceSets.getByName("main").assets.setSrcDirs(listOf(regionalAppstoreAssets))
     }
     sourceSets.getByName("debug").assets.directories.add("../dlna-domain/src/test/resources")
 }

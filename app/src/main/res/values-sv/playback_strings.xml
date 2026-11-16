@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="subtitle_external">Externa undertexter</string>
+    <string name="subtitle_picker_help">Välj en UTF-8-kodad SRT- eller VTT-fil på högst 2 MB. Externa undertexter fungerar med video som tas emot via URL. Vid skärmdubblering används undertexterna från den sändande enheten. En filväljare krävs.</string>
+    <string name="subtitle_picker_unavailable">Den här enheten saknar en tillgänglig filväljare.</string>
+    <string name="subtitle_choose_file">Välj fil</string>
+    <string name="subtitle_disable">Inga undertexter</string>
+    <string name="subtitle_load_failed">Det gick inte att läsa in undertexterna.</string>
+    <string name="connection_approval_title">Tillåt den här strömningen?</string>
+    <string name="connection_approval_help">Tillåt endast en enhet som du känner igen. Godkännandet gäller i 5 minuter. Om du inte svarar inom 25 sekunder nekas anslutningen.</string>
+    <string name="connection_decline">Neka</string>
+    <string name="record_waiting">Väntar på inspelning</string>
+    <string name="network_available">Nätverk tillgängligt</string>
+    <string name="network_waiting">Inget lokalt nätverk. Väntar på anslutning…</string>
+    <string name="network_recovered">Nätverket har återställts. Du kan ansluta till mottagaren igen.</string>
+    <string name="network_playback_retry">Anslutningen avbröts. Återupptar videon (%1$d/3)…</string>
+</resources>

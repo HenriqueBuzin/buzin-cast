@@ -89,6 +89,15 @@
         </receiver>
 
         <receiver
+            android:name="com.amazon.device.drm.ResponseReceiver"
+            android:exported="true"
+            android:permission="com.amazon.drm.Permission.NOTIFY">
+            <intent-filter>
+                <action android:name="com.amazon.drm.NOTIFY" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name="com.amazon.device.iap.ResponseReceiver"
             android:exported="true"
             android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY">
