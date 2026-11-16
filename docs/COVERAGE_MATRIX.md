@@ -134,6 +134,13 @@ packets, UTF-8 label truncation and case-insensitive comparison. The decoder
 rejects reserved label prefixes rather than treating them as labels longer than
 63 bytes. These wire checks do not establish physical USB tether discovery.
 
+Responder contracts use real emulator-loopback UDP for legacy queries and capture
+multicast sends in a socket fixture. They validate record types and payloads,
+legacy TTLs, cache-flush flags, UTF-8 TXT limits, duplicate removal, subnet filters,
+foreign responders and goodbye records. Deterministic timestamps exercise probe,
+announcement and retry intervals without waiting for real time to pass. A
+separate emulator-only lifecycle case checks that idle discovery stops its worker.
+
 The native unit suite also supplies controlled JNI function tables to the real
 log sink. It checks VM-query and thread-attachment failures, reference ownership,
 class/method lookup errors, string-allocation failures and throwing callbacks.
