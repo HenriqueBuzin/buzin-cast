@@ -31,6 +31,10 @@ final class LegacyPreferences {
     }
     int port() { int value=preferences.getInt("server_port",7000); return value>0 && value<=65535?value:7000; }
     boolean autoStart() { return preferences.getBoolean("auto_start",true); }
+    boolean background() {return preferences.getBoolean("run_in_background",true);}
+    boolean bootAutoStart() {return preferences.getBoolean("boot_auto_start",false);}
+    boolean serviceRequested() {return preferences.getBoolean("legacy_service_requested",false);}
+    void serviceRequested(boolean value) {preferences.edit().putBoolean("legacy_service_requested",value).apply();}
     boolean keepScreenOn() { return preferences.getBoolean("keep_screen_on",true); }
     boolean advanced() { return preferences.getBoolean("developer_options",false); }
     int margin() { return Math.max(0,Math.min(10,preferences.getInt("tv_margin",2))); }

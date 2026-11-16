@@ -22,6 +22,8 @@ def main():
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--locales',nargs='+',help='Omit to capture every app locale.')
+    parser.add_argument('--lifecycle-checks',action='store_true',help='Check Home/Back, background opt-out and boot opt-in/out; reboots only the selected emulator twice.')
+    parser.add_argument('--lifecycle-only',action='store_true',help='Run only service lifecycle/recovery checks; defaults to English, reboots only this emulator twice.')
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-ui-checks'))
     args=parser.parse_args()
     if not 1 <= args.adb_server_port <= 65535: parser.error('Invalid ADB server port.')
@@ -32,7 +34,7 @@ def main():
     for folder in resources.glob('values-*'):
         suffix=folder.name[7:]
         if re.fullmatch(r'[a-z]{2}(-r[A-Z]{2})?',suffix): locales[suffix.replace('-r','-')]=folder.name
-    wanted=args.locales or sorted(locales)
+    wanted=args.locales or (['en'] if args.lifecycle_only else sorted(locales))
     if any(locale not in locales for locale in wanted): parser.error('Unsupported app locale.')
     args.output.mkdir(parents=True,exist_ok=True)
     report={'locales':{},'scope':'Native API17 UI and receiver control, not a real sender session','status':'running'}
@@ -72,16 +74,23 @@ def main():
         raise AssertionError('Missing UI: '+repr(texts)+'; actual='+repr(actual))
 
     def tap(label,prefix=False):
-        tree=ui(); parents={child:parent for parent in tree.iter() for child in parent}
-        candidates=[]
-        for node in tree.iter():
-            value=node.get('text','')
-            if (value.startswith(label) if prefix else value==label):
-                while node.get('clickable')!='true' and node in parents:node=parents[node]
-                if node.get('clickable')=='true' and node not in candidates:candidates.append(node)
-        if len(candidates)!=1:raise AssertionError('Expected one clickable control: '+label)
-        x1,y1,x2,y2=map(int,re.findall(r'\d+',candidates[0].get('bounds')))
-        adb('shell','input','tap',(x1+x2)//2,(y1+y2)//2)
+        for attempt in range(6):
+            tree=ui();parents={child:parent for parent in tree.iter() for child in parent};candidates=[]
+            for node in tree.iter():
+                value=node.get('text','')
+                if (value.startswith(label) if prefix else value==label):
+                    while node.get('clickable')!='true' and node in parents:node=parents[node]
+                    if node.get('clickable')=='true' and node not in candidates:candidates.append(node)
+            if len(candidates)>1:raise AssertionError('Ambiguous clickable control: '+label)
+            if candidates:
+                x1,y1,x2,y2=map(int,re.findall(r'\d+',candidates[0].get('bounds')))
+                if x2-x1>2 and y2-y1>2:
+                    adb('shell','input','tap',(x1+x2)//2,(y1+y2)//2);return
+            scrolls=[node for node in tree.iter() if node.get('class')=='android.widget.ScrollView' and node.get('scrollable')=='true']
+            if len(scrolls)!=1:break
+            x1,y1,x2,y2=map(int,re.findall(r'\d+',scrolls[0].get('bounds')))
+            adb('shell','input','swipe',(x1+x2)//2,y2-30,(x1+x2)//2,y1+80,350)
+        raise AssertionError('Expected one visible clickable control: '+label)
 
     def capture(path):
         previous=None
@@ -225,7 +234,102 @@ def main():
         if saved_margin()!=2:raise AssertionError('Could not restore default margin')
         report['calibration_touch_dpad_limits_save_cancel_continuous_receiver']='pass'
 
+    def lifecycle(strings,locale):
+        print('Checking background and boot '+locale,flush=True)
+        def open_app():
+            adb('shell','am','start','-n',args.package+'/io.buzincast.legacy.LegacyActivity','--es','buzin_test_locale',locale)
+        def left_app():
+            if any(node.get('package')==args.package for node in ui().iter()):
+                raise AssertionError('Activity still visible after leaving the app')
+        def receiver_resources(wanted):
+            deadline=time.monotonic()+10
+            while time.monotonic()<deadline:
+                services=adb('shell','dumpsys','activity','services',args.package)
+                power=adb('shell','dumpsys','power')
+                foreground='isForeground=true' in services
+                awake='buzincast:legacy-receiver' in power
+                if foreground==wanted and awake==wanted:return
+                time.sleep(.2)
+            raise AssertionError('Receiver foreground/wake resources do not match running state: '+repr((foreground,awake,wanted)))
+        def wait_receiver(wanted):
+            deadline=time.monotonic()+30;last=None
+            while time.monotonic()<deadline:
+                try:rtsp(7000,wanted);return
+                except (AssertionError,ValueError,OSError) as error:last=error;time.sleep(.3)
+            raise AssertionError('Receiver availability did not become '+str(wanted)+': '+str(last))
+        def app_pid():
+            matches=[line.split()[1] for line in adb('shell','ps').splitlines() if line.split() and line.split()[-1]==args.package]
+            if len(matches)!=1 or not matches[0].isdigit() or int(matches[0])<=1:
+                raise AssertionError('Could not identify the selected preview process safely')
+            return matches[0]
+        def reboot_emulator():
+            if adb('shell','getprop','ro.kernel.qemu').strip()!='1':raise AssertionError('Refusing to reboot a non-emulator')
+            adb('reboot');deadline=time.monotonic()+120
+            while time.monotonic()<deadline:
+                try:
+                    if adb('shell','getprop','sys.boot_completed').strip()=='1':break
+                except (subprocess.SubprocessError,OSError):pass
+                time.sleep(1)
+            else:raise AssertionError('Emulator did not finish rebooting')
+            deadline=time.monotonic()+60
+            while time.monotonic()<deadline:
+                state=adb('shell','dumpsys','input')
+                if re.search(r'DispatchEnabled:\s*1',state) and re.search(r'DispatchFrozen:\s*0',state):break
+                time.sleep(1)
+            else:raise AssertionError('API17 emulator input dispatch remained frozen after boot')
+            adb('shell','input','keyevent',82)
+        def options(connection):
+            connection.sendall(b'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nContent-Length: 0\r\n\r\n')
+            header=b''
+            while not header.endswith(b'\r\n\r\n'):
+                chunk=connection.recv(1)
+                if not chunk:raise AssertionError('Leaving the Activity closed the active RTSP socket')
+                header+=chunk
+                if len(header)>16384:raise AssertionError('Oversized OPTIONS response')
+            if not header.startswith(b'RTSP/1.0 200 OK\r\n'):raise AssertionError('Persistent OPTIONS failed')
+        tap(strings['tab_overview']);expect(strings['buzin_ready'])
+        local=int(adb('forward','tcp:0','tcp:7000').strip());forwards.append(local)
+        try:
+            with socket.create_connection(('127.0.0.1',local),timeout=3) as connection:
+                options(connection)
+                adb('shell','input','keyevent',3);left_app();options(connection);receiver_resources(True)
+                open_app();expect(strings['buzin_ready']);options(connection)
+                adb('shell','input','keyevent',4);left_app();options(connection)
+                open_app();expect(strings['buzin_ready']);options(connection)
+        finally:adb('forward','--remove','tcp:'+str(local));forwards.remove(local)
+        report['same_rtsp_connection_across_home_back_new_activity']='pass'
+        adb('shell','input','keyevent',3);left_app();receiver_resources(True)
+        before=app_pid();adb('shell','run-as',args.package,'kill','-9',before)
+        # A foreground sticky service is recreated by Android without reopening
+        # its Activity. The old socket must close; a new receiver must answer.
+        time.sleep(1);wait_receiver(True);receiver_resources(True);left_app()
+        if app_pid()==before:raise AssertionError('Sticky recovery did not replace the killed process')
+        open_app();expect(strings['buzin_ready'])
+        report['sticky_receiver_recovery_after_debug_process_kill']='pass'
+        tap(strings['tab_settings']);tap(strings['setting_run_in_background'],prefix=True)
+        tap(strings['tab_overview']);expect(strings['buzin_ready'])
+        adb('shell','input','keyevent',3);left_app();wait_receiver(False);receiver_resources(False)
+        open_app();expect(strings['buzin_ready']);wait_receiver(True)
+        tap(strings['tab_settings']);tap(strings['setting_run_in_background'],prefix=True)
+        tap(strings['tab_overview']);expect(strings['buzin_ready']);tap(strings['btn_stop']);expect(strings['buzin_stopped'])
+        adb('shell','input','keyevent',3);left_app();open_app();expect(strings['buzin_stopped']);wait_receiver(False)
+        tap(strings['btn_start']);expect(strings['buzin_ready'])
+        report['background_opt_out_resume_and_explicit_stop']='pass'
+        report['foreground_notification_and_wake_resources_follow_receiver']='pass'
+        tap(strings['tab_settings']);tap(strings['setting_boot_auto_start'],prefix=True)
+        adb('shell','input','keyevent',3);left_app();reboot_emulator();left_app();wait_receiver(True)
+        open_app();expect(strings['buzin_ready']);tap(strings['tab_settings']);tap(strings['setting_boot_auto_start'],prefix=True)
+        adb('shell','input','keyevent',3);left_app();reboot_emulator();left_app();wait_receiver(False)
+        open_app();expect(strings['buzin_ready']);wait_receiver(True)
+        report['boot_opt_in_out_after_real_emulator_reboots']='pass'
+
     if adb('shell','getprop','ro.build.version.sdk').strip()!='17':parser.error('Use API17.')
+    # A physical Stick has a fixed TV display, without a phone accelerometer.
+    # API17's emulator can otherwise freeze input while rotating after reboot.
+    if args.lifecycle_checks or args.lifecycle_only:
+        if adb('shell','getprop','ro.kernel.qemu').strip()!='1':parser.error('Lifecycle checks require the emulator.')
+        adb('shell','settings','put','system','accelerometer_rotation',0)
+        adb('shell','settings','put','system','user_rotation',0)
     adb('shell','input','keyevent',82) # Dismiss the fresh API17 emulator's keyguard.
     adb('install','-r',args.apk.resolve());adb('shell','pm','clear',args.package)
     try:
@@ -234,6 +338,8 @@ def main():
             adb('shell','am','force-stop',args.package)
             adb('shell','am','start','-n',args.package+'/io.buzincast.legacy.LegacyActivity','--es','buzin_test_locale',locale)
             home_tree=expect(strings['buzin_ready'],strings['buzin_hero'],'Buzin Cast')
+            if args.lifecycle_only:
+                lifecycle(strings,locale);report['locales'][locale]='pass';continue
             if index==0 and rtsp(7000)['name']!='Buzin Cast':raise AssertionError('Native receiver name differs from UI')
             capture(args.output/(locale+'-home.png'))
             tap(strings['buzin_about']); tree=expect('© '+str(datetime.datetime.now().year)+' Buzin Solutions LTDA')
@@ -285,6 +391,7 @@ def main():
                     chosen=[n for n in tree.iter() if n.get('text')==strings[label] and n.get('selected')=='true']
                     if len(chosen)!=1:raise AssertionError('Profile selection lost its persistent state')
                 report['profiles_preferences_restart_native_dimensions']='pass'
+            if index==0 and args.lifecycle_checks:lifecycle(strings,locale)
             calibrate(strings,locale,index==0)
             tap(strings['tab_overview']);expect(strings['buzin_ready']);tap(strings['btn_stop']);expect(strings['btn_start'],strings['buzin_stopped'])
             if index==0:rtsp(7000,False)

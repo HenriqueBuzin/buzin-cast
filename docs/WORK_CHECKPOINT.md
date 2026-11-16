@@ -84,8 +84,8 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   sufixo `-nodownload` na regional. São debug, não assinadas para produção,
   sem integração da licença Amazon. Não enviar esses APKs à loja.
 - Início/parada, nome/porta, autostart ao abrir e manter a tela durante vídeo
-  têm implementação real. Diagnóstico usa a sessão atual. Servidor encerra
-  ao sair da Activity: serviço de background/boot ainda não foi portado.
+  têm implementação real. Diagnóstico usa a sessão atual. A posse do receptor
+  agora é do `LegacyReceiverService`, com background/boot descritos abaixo.
 - Regressão após extração: 33 testes JVM (32 runtime + um fixture no probe),
   build ARMv7/x86 e lint passaram. Os dois ciclos completos do receptor
   API17 passaram em `outputs/fireos3-shared-runtime-checks/report.json`.
@@ -151,24 +151,74 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   IDRs sem novos SPS/PPS. Relatório diagnóstico aprovado em
   `outputs/legacy-surface-diagnostic`; a tentativa isolada inicial que não
   retomou a tela está preservada em `outputs/legacy-surface-regression`.
-  A Activity ainda encerra a sessão ao sair: falta transferir a posse ao
-  serviço; este marco apenas prepara e testa a base de renderização.
+  Esse marco validou apenas a base de renderização; a integração ao serviço
+  foi feita na etapa seguinte, descrita abaixo.
   A rodada final passou em `outputs/legacy-surface-headless-final/report.json`:
   dois ciclos com duas sessões cada, iniciando RTSP/descoberta/áudio sem display
   antes da primeira Surface e repetindo as retiradas/trocas. Passaram 45 testes
   do alvo antigo (41 runtime, um probe, três frontend), builds ARMv7/x86 e lint
   do probe e das duas edições. Prévia removida e emulador próprio encerrado;
-  nenhuma TV física foi controlada. Próximo passo: serviço dono da sessão,
-  vínculo/desvínculo da Activity e preferências de background/boot reais.
+  nenhuma TV física foi controlada. A integração seguinte transfere a posse
+  da sessão ao serviço, mantendo a mesma saída de vídeo validada.
+
+- Serviço integrado: a Activity observa o estado e oferece/retira a Surface,
+  sem ser dona do receptor. Home/Voltar/nova Activity mantêm o mesmo socket
+  RTSP quando background está ligado. Ao desligar a opção, encerra ao sair e
+  retoma ao voltar; Parar explícito é preservado no retorno. Boot é opt-in e
+  inicia sem Activity. Serviço/receiver privados; foreground do tipo
+  connectedDevice, notificação com a marca e wake lock parcial limitado à
+  sessão. `TextureTarget` retém cada textura até view e decoder a soltarem.
+  A retomada `START_STICKY` exige novo processo respondendo sem abrir UI;
+  comandos explícitos já recebidos prevalecem sobre uma entrega nula tardia.
+  O cenário completo geral passou em português em
+  `outputs/legacy-service-ui-retry`, e o APK final repetiu ciclo de vida,
+  morte do processo e dois reboots em `outputs/legacy-service-focused-final`.
+  Uma primeira execução teve falha ADB; outra rodada regional encontrou o
+  input do próprio emulador congelado após reboot. Relatórios preservados.
+  O capturador agora fixa rotação de TV e aguarda input pronto/descongelado.
+  `--lifecycle-checks` inclui essa bateria no primeiro idioma;
+  `--lifecycle-only` executa apenas serviço/recuperação (inglês ou lista).
+  Builds ARMv7/x86, lint e os 45 testes JVM do alvo passaram nas duas edições.
+  Captura pública: `docs/images/fireos3-native-service-settings.png`.
+  Uma rodada regional posterior encontrou toque perdido durante reconstruções
+  de menu por callbacks do serviço. Atualizações assíncronas agora preservam
+  controles/foco e alteram só status/diagnóstico. A regressão instrumentada
+  `LegacyGestureChecks` mantém toque e OK pressionados durante um stop/start
+  nativo, observa a troca real de sockets RTSP e confere a navegação após UP.
+  Geral aprovada em `outputs/legacy-service-gesture-platform-final`. Build com
+  `-Instrumentation`; execução por `tools/test_legacy_gestures.py`. O runner
+  API17 usa Instrumentation da plataforma e o multidex do app, sem expor hooks
+  no produto; JSON inclui hashes e confirma desinstalação de app e teste.
+  A regional também passou nessa regressão em
+  `outputs/legacy-service-regional-gesture-final`. A geral repetiu a bateria
+  completa após a correção em `outputs/legacy-service-stable-final`, aprovada:
+  processo/boot/background, perfis, nome/porta e calibração.
+  Regional completa aprovada em alemão/árabe em
+  `outputs/legacy-service-regional-stable-final`. Revisão visual corrigiu a
+  ordem LTR da versão em árabe e respiro relativo do logo. Captura pública:
+  `docs/images/fireos3-native-service-rtl-about.png`.
+  Os APKs exportados após isso passaram novamente nos gestos:
+  `outputs/legacy-service-general-export-gestures` e
+  `outputs/legacy-service-regional-export-gestures`.
+  O helper preserva as edições em `outputs/fireos/legacy-preview` e
+  `outputs/fireos/legacy-preview-nodownload`, com APK, teste opcional e
+  `artifact.json` (ID/versão/hashes). Confirmado por build sequencial e hashes;
+  o Gradle podia remover os APKs antigos ao alternar o buildDirectory.
+  A rodada árabe após o ajuste visual passou em
+  `outputs/legacy-service-rtl-visual-verified` (inclusive os quatro perfis e
+  calibração). Cópias exportadas conferidas com os hashes dos relatórios de
+  gestos. Prévias/testes removidos, emulador próprio encerrado; nenhuma TV usada.
+
+
 
 - Ainda faltam controles completos, DLNA/FCast/Cast V2,
   URL/HLS/fotos/legendas, gravação/download/retransmissão na edição geral,
-  background/boot/rede, aprovação/PIN/DACP, licença/assinatura e validação
+  recuperação de rede, aprovação/PIN/DACP, licença/assinatura e validação
   com emissores reais e Stick antigo. A meta permanece o mesmo app/funções
   em todos os Fire Sticks com Fire OS; não considerar esta prévia paridade.
-  Próximo marco: execução em segundo plano e retomada sem perder a sessão,
-  antes dos demais controles e protocolos. Separar a posse do receptor da
-  Activity e conectar a troca de Surface já implementada no decoder antigo.
+  Próximo marco: recuperação de rede em background e configurações/controles
+  avançados, antes dos demais protocolos. A validação física de background,
+  boot e reprodução no firmware antigo continua pendente.
 
 ## Fichas Amazon, traduções e artefatos atuais
 

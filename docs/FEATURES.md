@@ -19,9 +19,11 @@ controle de início/parada, nome/porta, início automático ao abrir, manter a
 tela ligada durante vídeo, calibração dos quatro cantos, diagnóstico e Sobre.
 Também integra os perfis Padrão/Cinema/Apresentação/Jogos ao anúncio de
 resolução/FPS e ao buffer temporal de áudio, usando `QualityProfiles` comum.
-Usa os mesmos 22 idiomas e assets, com foco por controle/toque e seleção persistente no menu. Ainda
-faltam os demais protocolos e funções abaixo, serviço em segundo plano/boot,
-integração de licença e validação com emissores e Sticks antigos reais.
+Usa os mesmos 22 idiomas e assets, com foco por controle/toque e seleção
+persistente no menu. O serviço mantém a sessão ao sair/voltar, pode iniciar no
+boot por opção e tem retomada após morte do processo. Background desligado
+encerra o servidor ao sair. Ainda faltam os demais protocolos e funções abaixo,
+recuperação de rede, licença e validação com emissores e Sticks antigos reais.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.
 - Recuperação: reanúncio após mudança de rede e até três tentativas do player em falhas de conexão/timeout; AirPlay pode exigir reconexão no emissor.

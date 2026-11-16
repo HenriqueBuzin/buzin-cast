@@ -22,6 +22,81 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Serviço do alvo API17:** `LegacyReceiverService` passa a ser o dono do
+  receptor; a Activity observa o estado e oferece/retira a saída de vídeo.
+  Home e uma nova Activity mantêm a mesma conexão RTSP com background ligado.
+  Com a opção desligada, o servidor fecha ao sair e retoma ao voltar. Parar
+  explicitamente não é desfeito por Home/retorno. A notificação foreground e
+  o wake lock parcial acompanham a sessão e são liberados ao parar. O serviço
+  é privado; o receiver de boot também não é exportado para outros apps.
+  `TextureTarget` retém a SurfaceTexture até a view e os wrappers dos decoders
+  antigos terem terminado de usá-la. Background segue ligado por padrão;
+  início no boot é opt-in. Os textos vêm dos mesmos recursos traduzidos.
+  `START_STICKY` recupera uma sessão solicitada após morte do processo, sem
+  abrir a Activity. O teste encerra apenas o processo do APK debug permitido,
+  identificado pelo pacote/UID, e exige novo PID e receptor respondendo.
+  `tools/test_legacy_app.py --lifecycle-checks` acrescenta essa bateria ao
+  primeiro idioma, incluindo dois reinícios reais do emulador para boot
+  ligado/desligado. `--lifecycle-only` limita a execução a ciclo de vida,
+  usando inglês por padrão ou a lista explícita de `--locales`. Todos os
+  comandos continuam recusando TVs físicas; os reinícios também conferem
+  `ro.kernel.qemu`. O display fica sem sensor de rotação, como num Stick.
+  Após reboot, aguarda input dispatch habilitado e descongelado antes de
+  desbloquear a tela. Uma execução anterior sofreu congelamento do próprio
+  input do emulador (`outputs/legacy-service-regional-ui`); não é aprovação.
+  Outra tentativa teve interrupção de transporte ADB (`outputs/legacy-service-ui`).
+  O cenário completo geral passou em português em
+  `outputs/legacy-service-ui-retry`; a regressão final focada passou em
+  `outputs/legacy-service-focused-final`, incluindo morte do processo,
+  recursos foreground/wake e boot opt-in/out com dois reboots reais.
+  Builds ARMv7/x86, lint e os 45 testes JVM do alvo passaram para as duas
+  edições. [Tela real com as opções](images/fireos3-native-service-settings.png).
+  Isso não comprova mudança de rede, emissor real ou firmware físico antigo;
+  a recuperação de rede ainda precisa ser portada.
+  A primeira conferência regional completa (`outputs/legacy-service-regional-final`)
+  encontrou navegação perdida durante atualizações do serviço: reconstruir os
+  controles entre DOWN/UP podia cancelar o toque. O observer agora atualiza
+  apenas os widgets de status e diagnóstico, preservando o menu e o foco.
+  `Build-FireOs.ps1 -Target legacy -Instrumentation -Check` gera também um
+  APK de teste separado, usando Instrumentation da plataforma e multidex
+  apropriado para API17, sem hooks de teste no produto. O runner mantém toque
+  ou DPAD_CENTER pressionado, exige o fechamento do socket antigo e uma resposta
+  do novo listener, só então libera o gesto e confere a navegação selecionada.
+  `tools/test_legacy_gestures.py` instala os dois APKs, executa essa regressão,
+  grava hashes/resultado e remove ambos. A geral passou em
+  `outputs/legacy-service-gesture-platform-final`. As primeiras tentativas do
+  runner sem a preparação correta do classloader estão preservadas em
+  `outputs/legacy-service-gesture-final` e `outputs/legacy-service-gesture-verified`.
+  Após a correção de interação, a geral repetiu o roteiro completo em português
+  em `outputs/legacy-service-stable-final`, incluindo todos os testes de
+  background/boot/processo, perfis, nome/porta e calibração. A mesma regressão de
+  gestos passou na regional em `outputs/legacy-service-regional-gesture-final`.
+  Ambos os relatórios de gestos incluem hashes dos APKs e desinstalação do app
+  e do APK de teste. Builds finais com instrumentação e lint também passaram
+  nas duas edições; o runner separado não integra o APK do aplicativo.
+  A regional concluiu o mesmo roteiro em alemão e árabe em
+  `outputs/legacy-service-regional-stable-final`, com os mesmos testes de
+  ciclo de vida no primeiro idioma e calibração/controle no segundo.
+  A revisão visual encontrou inversão do identificador de versão em árabe;
+  o argumento latino agora tem direção explícita e o espaçamento do logo usa
+  margem/padding relativos. [Sobre em árabe](images/fireos3-native-service-rtl-about.png).
+  Depois desses ajustes visuais, as cópias finais exportadas passaram novamente
+  nos gestos em `outputs/legacy-service-general-export-gestures` e
+  `outputs/legacy-service-regional-export-gestures`. O script de build agora
+  retém cada edição em `outputs/fireos/legacy-preview[-nodownload]`, com
+  `artifact.json` contendo ID/versão/hashes. Build sequencial das duas edições
+  e verificação dos dois APKs/APKs de teste confirmaram que uma cópia não some
+  ao alternar `-NoDownload`. Os diretórios de build do Gradle são temporários.
+  A nova rodada árabe também passou em `outputs/legacy-service-rtl-visual-verified`,
+  incluindo perfis, nome/porta, controle/toque e calibração; a captura foi
+  inspecionada visualmente. Apps/testes foram desinstalados e o emulador próprio
+  encerrado. Nenhuma TV física foi usada nesta etapa.
+
+
+
+
+
+
 - **Troca da saída de vídeo API17:** `LegacyReceiverSession.setVideoSurface`
   transfere a posse da Surface ao worker do decoder. O alvo ativo só é liberado
   depois do codec; substituições ainda não usadas são descartadas sem esperar

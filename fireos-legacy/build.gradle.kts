@@ -64,6 +64,7 @@ android {
         applicationId = if (noDownload) "com.buzincast.tv.deat.legacy.preview" else "com.buzincast.tv.legacy.preview"
         minSdk = 17
         targetSdk = 37
+        testInstrumentationRunner = "io.buzincast.legacy.LegacyGestureChecks"
         versionCode = 1
         versionName = "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
         multiDexEnabled = true
