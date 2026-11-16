@@ -4,8 +4,9 @@ Port separado com SDK oficial 2.0.13986, React Native 0.83 e integrações C++23
 Identidade `com.buzincast.tv`; logo e ícone aprovados preservados. As duas
 edições Fire OS mantêm sua interface nativa e o código já testado.
 O Vega ainda está em desenvolvimento: recebe FCast v2 experimental por URLs e
-tem anúncio DNS-SD implementado para `_fcast._tcp.local`. AirPlay, DLNA e Cast
-V2 não estão disponíveis. O anúncio DNS-SD foi compilado, mas ainda aguarda
+tem anúncio DNS-SD implementado para `_fcast._tcp.local`. Há um teste manual
+AirPlay por URL em Estado do port. Espelhamento AirPlay, DLNA e Cast V2 ainda
+não estão disponíveis. O anúncio DNS-SD foi compilado, mas ainda aguarda
 teste no VVD e com emissores físicos.
 
 ## Estado verificado em 16 de novembro de 2026
@@ -16,7 +17,8 @@ teste no VVD e com emissores físicos.
 - Sockets TCP/UDP, bind de rede e adesão multicast testados no sandbox.
 - Fontes compartilhadas UxPlay, libplist, llhttp e PlayFair compiladas com
   OpenSSL 3.5.9 LTS. Parser RTSP fragmentado, rejeição de mensagem inválida e
-  vetor AES-CTR NIST aprovados. Isso ainda não inicia um receptor AirPlay.
+  vetor AES-CTR NIST aprovados. O teste AirPlay por URL usa a sessão UxPlay nativa;
+  a saída de espelhamento ainda está pendente.
 - Página Mídia consulta o módulo público Vega Media Descriptor: o VVD informou
   zero resultados H.264/HEVC e um AAC. Lista vazia também pode indicar erro da
   consulta; esses números não comprovam reprodução ou capacidades de TVs físicas.
@@ -24,7 +26,7 @@ teste no VVD e com emissores físicos.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript, doctor e 49 testes Jest passaram.
+- Lint sem avisos, TypeScript, doctor e 51 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -37,6 +39,12 @@ escolhidas pelo emissor; a validação do protocolo limita esquemas a HTTP(S).
 HLS e DASH locais também passaram no VVD ARM64 pelo MSE. Descoberta e
 recepção com emissores físicos, streams ao vivo e troca de qualidade ainda
 precisam de validação.
+
+AirPlay por URL passou no VVD ARM64 com MP4 HTTP, posição inicial, relógio
+avançando, pausa, busca, retomada, Stop e liberação ao Voltar. É ativado em
+**Estado do port → Testar AirPlay por URL**, por conexão manual em porta dinâmica,
+sem descoberta ou PIN. Isso ainda não comprova recepção com iPhone/Mac, HLS por
+AirPlay ou espelhamento. Identidade/chave ficam apenas no sandbox.
 
 O nome do receptor pode ser editado em Configurações e é preservado no sandbox.
 Ele será usado no próximo anúncio FCast após ativar o receptor.
@@ -79,6 +87,14 @@ Na raiz do repositório, com o VVD iniciado e o pacote compilado:
 python3 tools/test_vega.py --serial emulator-5554 \
   --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
   --output build/vega-media-checks
+```
+
+Para repetir o ensaio AirPlay por URL no VVD:
+
+```sh
+python3 tools/test_vega_airplay_url.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --output build/vega-airplay-url
 ```
 
 O script recusa TVs físicas. Exercita o controle real, os oito resultados

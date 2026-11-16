@@ -9,12 +9,71 @@
 #include <limits>
 #include <fstream>
 #include <stdexcept>
+#include <random>
 
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() = default;
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
+double BuzinNetwork::startAirPlayUrl() {
+  std::string identity;
+  std::ifstream saved("/data/airplay-identity");
+  if (saved) std::getline(saved, identity);
+  if (identity.empty()) {
+    std::random_device random;
+    unsigned char bytes[6];
+    for (auto& byte : bytes) byte = static_cast<unsigned char>(random());
+    bytes[0] = (bytes[0] | 2) & 0xfe;
+    char encoded[18];
+    std::snprintf(encoded, sizeof(encoded), "%02x:%02x:%02x:%02x:%02x:%02x", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
+    identity = encoded;
+    std::ofstream output("/data/airplay-identity.tmp", std::ios::trunc);
+    output << identity; output.close();
+    if (!output || std::rename("/data/airplay-identity.tmp", "/data/airplay-identity") != 0)
+      throw std::runtime_error("Could not save local AirPlay identity");
+  }
+  const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false);
+  std::ofstream report("/data/airplay-port.json", std::ios::trunc);
+  report << "{\"port\":" << port << "}"; report.close();
+  if (!report) {airplay.stop(); throw std::runtime_error("Could not record AirPlay listener state");}
+  return port;
+}
+void BuzinNetwork::stopAirPlayUrl() {
+  airplay.stop();
+  std::remove("/data/airplay-port.json");
+}
+void BuzinNetwork::updateAirPlayState(double position, double duration, double rate, bool ready) {
+  airplay.updatePlayback(position, duration, rate, ready);
+}
+std::string BuzinNetwork::pollAirPlayCommand() {
+  if (!airplay.healthy()) throw std::runtime_error("AirPlay callback queue failed");
+  AirPlayEvent event;
+  for (int n = 0; n < 16 && airplay.poll(event); ++n) {
+    const char* kind = nullptr;
+    switch (event.kind) {
+      case AirPlayEvent::Kind::PlayUrl: kind = "play"; break;
+      case AirPlayEvent::Kind::Seek: kind = "seek"; break;
+      case AirPlayEvent::Kind::Rate: kind = "rate"; break;
+      case AirPlayEvent::Kind::Stop: case AirPlayEvent::Kind::Reset: kind = "stop"; break;
+      case AirPlayEvent::Kind::Audio: case AirPlayEvent::Kind::Video:
+        throw std::runtime_error("AirPlay mirroring output is not available");
+      default: continue;
+    }
+    std::string quoted = "\"";
+    constexpr char hex[] = "0123456789abcdef";
+    for (unsigned char c : event.url) {
+      if (c == '"' || c == '\\') {quoted += '\\'; quoted += c;}
+      else if (c < 32) {quoted += "\\u00"; quoted += hex[c >> 4]; quoted += hex[c & 15];}
+      else quoted += c;
+    }
+    quoted += '"';
+    std::ostringstream output; output.imbue(std::locale::classic());
+    output << "{\"kind\":\"" << kind << "\",\"value\":" << event.value << ",\"url\":" << quoted << "}";
+    return output.str();
+  }
+  return "";
+}
 double BuzinNetwork::startFCast() {
   const auto listeningPort = fcast.start();
   try {

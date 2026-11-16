@@ -15,7 +15,7 @@ Compartilhe a tela do iPhone, iPad ou Mac na Fire TV pela rede local. O Buzin Ca
 
 ## Como testar
 
-O projeto está em desenvolvimento, com instalação de teste por APK. A edição principal é para Fire OS 6 ou posterior. Há uma edição de compatibilidade para Fire OS 5 e uma [prévia para Vega OS](vega/README.md) ainda sem recepção de transmissões. A disponibilidade por modelo depende da validação em aparelho.
+O projeto está em desenvolvimento, com instalação de teste por APK. A edição principal é para Fire OS 6 ou posterior. Há uma edição de compatibilidade para Fire OS 5 e uma [prévia para Vega OS](vega/README.md) com recepção experimental FCast por URL e teste manual AirPlay por URL. A disponibilidade por modelo depende da validação em aparelho.
 
 1. Siga as [instruções de compilação e instalação](BUZIN_CAST.md).
 2. Abra o Buzin Cast e conecte a Fire TV e o dispositivo transmissor à mesma rede.

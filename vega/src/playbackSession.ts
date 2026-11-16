@@ -82,8 +82,11 @@ export function createPlaybackSession(
           if (generation === sourceGeneration) {fail();}
         });
         await adaptive.load(source.url, source.position, source.mimeType, source.headers);
-      } else {
+      } else if (Object.keys(source.headers).length) {
         player.setSrcWithCustomHeaders(source.url, source.headers);
+      } else {
+        // The native custom-header setter rejects an empty header list.
+        player.src = source.url;
       }
       if (closed || generation !== sourceGeneration) {return;}
       sourceReady = true;

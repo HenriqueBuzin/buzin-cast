@@ -1,5 +1,32 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## AirPlay por URL ligado ao player — 16 de novembro de 2026
+
+- A sessão UxPlay entrega Play/Seek/Rate/Stop à sessão de reprodução Vega;
+  posição, duração, taxa e prontidão observadas no player retornam em
+  `/playback-info`. Há identidade sintética persistida apenas no sandbox,
+  chave local, porta dinâmica e encerramento ao sair ou entrar em segundo plano.
+- Acesso experimental em **Estado do port → Testar AirPlay por URL**. Admite
+  conexão manual de IPv4 privado/loopback; não anuncia DNS-SD nem espelhamento.
+  PIN, descoberta e emissores Apple reais continuam pendentes. HLS/DASH usam o
+  adaptador existente, mas esta rodada AirPlay validou somente MP4 por HTTP.
+- O ensaio real `tools/test_vega_airplay_url.py` passou no VVD ARM64 em
+  `build/vega-airplay-url-clock/result.json`: GET da mídia, relógio avançando
+  após posição inicial, pausa estável, busca, retomada, Stop e liberação nativa
+  ao Voltar. O servidor de fixture atende Range/206. O cliente mantém a sessão
+  de controle aberta nas respostas POST sem corpo/Content-Length do UxPlay.
+- Identificada e corrigida falha compartilhada: o setter nativo com cabeçalhos
+  rejeita `{}`. URLs sem cabeçalhos agora usam `player.src`; URLs com cabeçalhos
+  preservam o setter específico. Ambos já chamam load no SDK, sem chamada extra.
+- 51 testes Jest, lint, TypeScript e build/validação ABI das três arquiteturas
+  passaram. O teste exige avanço do relógio antes de pausar: o getter pode
+  expor a posição pedida enquanto a busca nativa inicial ainda está pendente.
+- Regressão FCast MP4 com cabeçalhos e smoke geral passaram no mesmo pacote:
+  `build/vega-airplay-url-fcast-regression/result.json` e
+  `build/vega-airplay-url-smoke/result.json`, ambos `passed: true`.
+- Esta entrega não completa AirPlay: saída de amostras comprimidas, áudio,
+  relógio A/V, descoberta, pareamento e validação física continuam pendentes.
+
 ## Sessão UxPlay nativa — 16 de novembro de 2026
 
 - Adicionada `AirPlaySession` C++ com propriedade RAII de UxPlay/identidade,

@@ -35,6 +35,10 @@ public:
   virtual std::string getReport() = 0;
   virtual std::string getReceiverName() = 0;
   virtual void setReceiverName(std::string name) = 0;
+  virtual double startAirPlayUrl() = 0;
+  virtual void stopAirPlayUrl() = 0;
+  virtual std::string pollAirPlayCommand() = 0;
+  virtual void updateAirPlayState(double position, double duration, double rate, bool ready) = 0;
   virtual double startFCast() = 0;
   virtual void stopFCast() = 0;
   virtual std::string pollFCastCommand() = 0;
