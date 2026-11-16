@@ -26,6 +26,7 @@ public final class LegacyReceiverSession {
     private final AudioPacketQueue audioQueue = new AudioPacketQueue();
     private final VideoFrameQueue queue;
     private final ReceiverOptions options;
+    private LegacyNetwork requestedNetwork;
     private final AtomicBoolean videoActive = new AtomicBoolean();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
@@ -50,6 +51,9 @@ public final class LegacyReceiverSession {
     }
     public LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, ReceiverOptions options) {
         this(context,surface,identity,listener,false,options);
+    }
+    public LegacyReceiverSession(Context context,Surface surface,String identity,Listener listener,ReceiverOptions options,LegacyNetwork network) {
+        this(context,surface,identity,listener,false,options);requestedNetwork=network;
     }
     LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, boolean muted, ReceiverOptions options) {
         this.context = context.getApplicationContext();
@@ -84,7 +88,8 @@ public final class LegacyReceiverSession {
         WifiManager.MulticastLock multicast = null;
         try {
             System.loadLibrary("fireos3_probe");
-            network = LegacyNetwork.select();
+            network = LegacyNetwork.select(requestedNetwork);
+            if(requestedNetwork!=null && !requestedNetwork.equals(network))throw new java.net.SocketException("Selected local network changed before startup");
             WifiManager wifi = (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
             if (wifi != null) {
                 multicast = wifi.createMulticastLock("buzin-api17-probe");

@@ -22,6 +22,49 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Recuperação de rede API17:** o serviço observa a interface IPv4 em um
+  worker, com verificações periódicas e sinal de conectividade do sistema.
+  Sinais repetidos não encerram a sessão. Uma mudança de interface/endereço
+  retira a descoberta antiga, fecha o receptor e inicia uma sessão ligada ao
+  novo endereço; a identidade persistida permanece. Sem rede, o pedido de
+  início fica aguardando e Parar continua disponível. A espera mantém a
+  notificação, sem manter o wake lock do receptor nativo. Parar, suspensão
+  por configuração e destruição cancelam o monitor e tentativas pendentes.
+  A preferência traduzida de recuperação pode desativar a retomada automática.
+  Falhas no início têm três novas tentativas com espera crescente; notificações
+  idênticas não renovam esse orçamento. Uma rede diferente, início manual ou
+  30 segundos de sessão estável permitem uma nova sequência. Três testes JVM
+  conferem os limites, prazos e cancelamento.
+  `tools/test_legacy_network.py` aceita somente emulador API17 com interface
+  padrão e root, troca seu IP e derruba sua interface de verdade, consulta
+  RTSP e DNS-SD, confere a identidade, o cancelamento e a opção desligada.
+  A conferência DNS acontece em outro processo, no APK de prova, e exige
+  PTR/SRV/TXT de áudio/vídeo e o registro A do endereço atual. Não há hook
+  de teste no aplicativo. O `finally` restaura a interface e remove os APKs.
+  Isso não substitui testes em roteadores, emissores e Sticks físicos.
+  Os sete cenários passaram nas duas edições em
+  `outputs/legacy-network-general-final` e `outputs/legacy-network-regional-final`,
+  com restauração da interface e remoção dos APKs ao final. Builds ARMv7/x86,
+  lint e 48 testes JVM do alvo antigo passaram. A regressão do runtime passou
+  em dois ciclos em `outputs/legacy-network-runtime-regression`, incluindo
+  DNS/RTSP, início sem display, formatos de áudio, relógio e troca de Surface.
+  A primeira tentativa dessa regressão foi interrompida por perda do daemon
+  ADB; o runner interrompido está em `outputs/legacy-network-regression-runner.log`.
+  A repetição completa usa `outputs/legacy-network-regression-runner-retry.log`.
+  Gestos de toque/DPAD durante reinício passaram nas duas edições em
+  `outputs/legacy-network-general-gestures` e `outputs/legacy-network-regional-gestures`.
+  A rodada `outputs/legacy-network-service-regression` também passou: mesma
+  conexão por Home/Back/nova Activity, morte real do processo debug e
+  recuperação sticky, background opt-out, parada explícita, recursos de
+  foreground/wake e boot opt-in/out após dois reboots reais do emulador.
+  Todas essas rodadas removeram os APKs temporários ao terminar.
+
+```powershell
+python tools/test_legacy_network.py --adb <adb> --serial emulator-5560 --apk outputs/fireos/legacy-preview/fireos-legacy-debug.apk --probe-apk fireos3-probe/build/outputs/apk/debug/fireos3-probe-debug.apk
+# Edição regional: use o APK exportado de legacy-preview-nodownload e
+# --package com.buzincast.tv.deat.legacy.preview.
+```
+
 - **Serviço do alvo API17:** `LegacyReceiverService` passa a ser o dono do
   receptor; a Activity observa o estado e oferece/retira a saída de vídeo.
   Home e uma nova Activity mantêm a mesma conexão RTSP com background ligado.

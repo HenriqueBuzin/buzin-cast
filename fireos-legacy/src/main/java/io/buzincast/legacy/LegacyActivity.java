@@ -68,7 +68,7 @@ public final class LegacyActivity extends Activity {
     private final ArrayDeque<Modal> modals=new ArrayDeque<>();
     private Locale displayLocale;
     private String destination="overview", shownName, lastFocus="nav-overview";
-    private boolean foreground,desired,running,busy,video;
+    private boolean foreground,desired,running,busy,video,networkWaiting;
     private int videoWidth,videoHeight;
     private String error;
 
@@ -134,6 +134,7 @@ public final class LegacyActivity extends Activity {
         if(!foreground || service==null)return;
         service.attach(serviceOwner,state-> {
             receiverState=state;desired=state.desired;running=state.running;busy=state.busy;shownName=state.name;
+            networkWaiting=state.networkWaiting;
             error=state.failure==null?null:getString(R.string.error_starting_server);
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
@@ -143,7 +144,7 @@ public final class LegacyActivity extends Activity {
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
     }
     private void toggleReceiver() {
-        if(busy)return;
+        if(busy && !desired)return;
         desired=!desired;busy=true;render();
         LegacyReceiverService.dispatch(this,desired?LegacyReceiverService.START:LegacyReceiverService.STOP);
     }
@@ -151,6 +152,7 @@ public final class LegacyActivity extends Activity {
         shownName=prefs.name();render();LegacyReceiverService.dispatch(this,LegacyReceiverService.RESTART);
     }
     private String statusLabel() {
+        if(networkWaiting)return getString(R.string.network_waiting);
         return error!=null?error:getString(busy?R.string.waiting_for_connection:running?R.string.buzin_ready:R.string.buzin_stopped);
     }
     // Runtime callbacks must not replace controls between ACTION_DOWN and UP.
@@ -158,8 +160,8 @@ public final class LegacyActivity extends Activity {
         if(receiverStatus!=null) {receiverStatus.setText(statusLabel());receiverStatus.setTextColor(error!=null?0xffffab91:MINT);}
         if(receiverLabel!=null)receiverLabel.setText(shownName);
         if(receiverToggle!=null) {
-            receiverToggle.setText(running?R.string.btn_stop:R.string.btn_start);receiverToggle.setEnabled(!busy);
-            if(toggleFilled!=!running) {toggleFilled=!running;focus(receiverToggle,toggleFilled);receiverToggle.setTextColor(toggleFilled?0xff082b27:WHITE);}
+            receiverToggle.setText(desired?R.string.btn_stop:R.string.btn_start);receiverToggle.setEnabled(!busy || desired);
+            if(toggleFilled!=!desired) {toggleFilled=!desired;focus(receiverToggle,toggleFilled);receiverToggle.setTextColor(toggleFilled?0xff082b27:WHITE);}
         }
         if(diagnosticView!=null)diagnosticView.setText(diagnosticText(true));
     }
@@ -217,7 +219,7 @@ public final class LegacyActivity extends Activity {
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(new BrandMark(this),new LinearLayout.LayoutParams(dp(this,36),dp(this,36)));
         TextView appName=text(this,getString(R.string.app_name),18,WHITE,true);LinearLayout.LayoutParams appSize=new LinearLayout.LayoutParams(-2,-2);appSize.setMarginStart(dp(this,10));header.addView(appName,appSize);
-        TextView status=text(this,statusLabel(),12,error!=null?0xffffab91:MINT,false);receiverStatus=status;
+        TextView status=text(this,statusLabel(),12,error!=null?0xffffab91:MINT,false);receiverStatus=status;status.setTag("receiver-status");
         status.setGravity(Gravity.END);
         LinearLayout.LayoutParams statusSize=new LinearLayout.LayoutParams(0,-2,1);statusSize.leftMargin=dp(this,14);header.addView(status,statusSize);addSpaced(page,header,-2);
         LinearLayout columns=new LinearLayout(this);columns.setOrientation(LinearLayout.HORIZONTAL);
@@ -228,8 +230,8 @@ public final class LegacyActivity extends Activity {
         LinearLayout name=column(this);name.setBackground(shape(this,0xff14282d,0xff28554e,1,18));name.setPadding(dp(this,16),dp(this,16),dp(this,16),dp(this,16));
         name.addView(text(this,getString(R.string.buzin_receiver_label),10,MINT,true));receiverLabel=text(this,shownName,23,WHITE,true);name.addView(receiverLabel);name.addView(text(this,getString(R.string.buzin_rename_hint),11,MUTED,false));addSpaced(identity,name,-2);
         LinearLayout actions=new LinearLayout(this);
-        Button toggle=button(this,running?R.string.btn_stop:R.string.btn_start,!running,this::toggleReceiver);toggle.setEnabled(!busy);
-        receiverToggle=toggle;toggleFilled=!running;
+        Button toggle=button(this,desired?R.string.btn_stop:R.string.btn_start,!desired,this::toggleReceiver);toggle.setEnabled(!busy || desired);
+        receiverToggle=toggle;toggleFilled=!desired;
         toggle.setTag("receiver-toggle");
         actions.addView(toggle,new LinearLayout.LayoutParams(-2,dp(this,46)));
         Button about=button(this,R.string.buzin_about,false,this::about);about.setTag("about");LinearLayout.LayoutParams a=new LinearLayout.LayoutParams(-2,dp(this,46));a.leftMargin=dp(this,10);actions.addView(about,a);identity.addView(actions);
@@ -259,6 +261,7 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_auto_start,R.string.setting_auto_start_desc,"auto_start",prefs.autoStart());
         toggle(body,R.string.setting_run_in_background,R.string.setting_run_in_background_desc,"run_in_background",prefs.background());
         toggle(body,R.string.setting_boot_auto_start,R.string.setting_boot_auto_start_desc,"boot_auto_start",prefs.bootAutoStart());
+        toggle(body,R.string.setting_network_recovery,R.string.setting_network_recovery_desc,"network_recovery",prefs.networkRecovery());
         toggle(body,R.string.setting_keep_screen_on,R.string.setting_keep_screen_on_desc,"keep_screen_on",prefs.keepScreenOn());
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
     }

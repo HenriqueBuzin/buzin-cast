@@ -1,5 +1,38 @@
 # Retomada — 16 de novembro de 2026
 
+## Alvo antigo — recuperação de rede
+
+O serviço API17 aguarda uma interface local antes de iniciar, observa mudanças
+fora da UI e recria o receptor/descoberta quando o endereço muda, preservando
+a identidade. Parar cancela a recuperação, inclusive offline; a preferência
+de recuperação pode exigir reinício manual. Falhas têm tentativas limitadas,
+sem renovar o limite por sinais repetidos. O monitor para junto da solicitação;
+a espera sem rede não mantém o bloqueio de CPU do receptor.
+
+`tools/test_legacy_network.py` passou seus sete cenários em ambas as edições:
+`outputs/legacy-network-general-final/report.json` e
+`outputs/legacy-network-regional-final/report.json`. Usou troca real de IP e
+interface do emulador, RTSP e DNS-SD em outro processo, sem TVs físicas. A
+primeira execução encontrou o sufixo ligado/desligado no seletor do roteiro;
+o script passou após reconhecer esse texto. Builds ARMv7/x86, lint e 48 testes
+JVM do alvo antigo passaram. A primeira build regional encontrou testes de
+metadados DLNA em alteração simultânea; a rodada final passou com a revisão
+atualizada. Consulte [TESTING.md](TESTING.md) para o contrato e comando.
+
+A regressão final passou em dois ciclos de DNS/RTSP, áudio/vídeo e trocas de
+display; toque/DPAD durante reinícios passou nas duas edições. O ciclo de vida
+também passou, incluindo morte do processo e dois reboots reais. Relatórios
+`outputs/legacy-network-runtime-regression`, `outputs/legacy-network-*-gestures`
+e `outputs/legacy-network-service-regression`. Uma tentativa anterior do
+runtime perdeu o daemon ADB; o runner preserva a falha, e a repetição completa
+passou. Os APKs temporários foram removidos após os testes.
+
+O alvo ainda é uma prévia debug 0.6.7, com IDs separados dos apps publicados.
+Faltam controles, protocolos/reprodução de mídia, gravação/download, aprovação
+e licenciamento de produção, além de interoperabilidade e hardware antigo.
+A meta continua sendo paridade completa, nas edições geral e sem download;
+essa etapa não autoriza publicar a prévia como aplicativo pronto.
+
 ## Vega — AirPlay por URL no player — 16 de novembro de 2026
 
 O caminho UxPlay → fila nativa → player → playback-info passou no VVD ARM64 com

@@ -9,6 +9,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
@@ -55,7 +56,9 @@ public final class LegacyGestureChecks extends Instrumentation {
                 // Keep the settings page open: callbacks must not remove its nav.
                 Button toggle=(Button)control("receiver-toggle");
                 int label=activity.getResources().getIdentifier(running?"btn_stop":"btn_start","string",activity.getPackageName());
-                ready.set(toggle.isEnabled() && toggle.getText().toString().equals(activity.getString(label)));
+                TextView state=(TextView)control("receiver-status");
+                int status=activity.getResources().getIdentifier(running?"buzin_ready":"buzin_stopped","string",activity.getPackageName());
+                ready.set(toggle.isEnabled() && toggle.getText().toString().equals(activity.getString(label)) && state.getText().toString().equals(activity.getString(status)));
             });
             if(ready.get())return;
             SystemClock.sleep(10);

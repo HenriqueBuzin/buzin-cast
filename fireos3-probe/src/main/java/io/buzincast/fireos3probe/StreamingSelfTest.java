@@ -163,7 +163,7 @@ final class StreamingSelfTest {
         }
     }
 
-    private static void checkDiscovery(InetAddress address, int expectedPort) throws IOException {
+    static void checkDiscovery(InetAddress address, int expectedPort) throws IOException {
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         DataOutputStream query = new DataOutputStream(data);
         query.writeShort(0xB017); query.writeShort(0); query.writeShort(2);
@@ -177,6 +177,7 @@ final class StreamingSelfTest {
         byte[] bytes = data.toByteArray();
         boolean service = false, properties = false, pointer = false;
         boolean audioService = false, audioProperties = false, audioPointer = false;
+        boolean advertisedAddress=false;
         int responses = 0;
         try (MulticastSocket client = new MulticastSocket(new InetSocketAddress(address, 0))) {
             client.setNetworkInterface(NetworkInterface.getByInetAddress(address));
@@ -193,7 +194,9 @@ final class StreamingSelfTest {
                 if (!response.isResponse()) continue;
                 responses++;
                 for (DNSRecord record : response.getAllAnswers()) {
-                    if (record instanceof DNSRecord.Service && record.getName().endsWith("._airplay._tcp.local.")) {
+                    if(record instanceof DNSRecord.Address) {
+                        advertisedAddress|=java.util.Arrays.asList(record.getServiceInfo(false).getInet4Addresses()).contains(address);
+                    } else if (record instanceof DNSRecord.Service && record.getName().endsWith("._airplay._tcp.local.")) {
                         service |= ((DNSRecord.Service)record).getPort() == expectedPort;
                     } else if (record instanceof DNSRecord.Service && record.getName().endsWith("._raop._tcp.local.")) {
                         audioService |= ((DNSRecord.Service)record).getPort() == expectedPort;
@@ -213,11 +216,11 @@ final class StreamingSelfTest {
                         audioPointer |= ((DNSRecord.Pointer)record).getAlias().endsWith("._raop._tcp.local.");
                     }
                 }
-                if (service && properties && pointer && audioService && audioProperties && audioPointer) return;
+                if (service && properties && pointer && audioService && audioProperties && audioPointer && advertisedAddress) return;
             }
         }
         throw new IOException("DNS-SD incomplete: responses="+responses+", port="+service+", TXT="+properties+", PTR="+pointer+
-                ", audio="+audioService+"/"+audioProperties+"/"+audioPointer);
+                ", audio="+audioService+"/"+audioProperties+"/"+audioPointer+", address="+advertisedAddress);
     }
 
     private static void checkVolume(int port, LegacyReceiverSession session) throws IOException {
