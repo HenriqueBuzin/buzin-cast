@@ -87,6 +87,13 @@ branches, lines, complexity, methods and classes.
 These are debug-instrumented execution results. They complement physical-device
 testing and store-distributed license checks; they do not prove those checks ran.
 
+The Android contracts include boot opt-in and broadcast filtering, settings links,
+platform local-network permission checks, and safe JNI calls before initialization.
+Relay contracts use real local sockets and encrypted frames for pairing, audio,
+video, keepalives, malformed input, stream takeover and session teardown. The
+paired-relay test allows 45 seconds for two real PBKDF2 derivations on software
+emulators; it still requires successful authentication and delivered video.
+
 Native profiles from the unit executable contribute to the functions also
 compiled into the app. The instrumented APK library defines the native mapping
 inventory. The test executable is not supplied as an additional coverage object:
