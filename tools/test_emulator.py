@@ -93,7 +93,8 @@ class Suite:
             try:
                 value = predicate()
                 unavailable = None
-                if value:
+                ready = len(value) > 0 if isinstance(value, ET.Element) else bool(value)
+                if ready:
                     return value
             except UiUnavailable as error:
                 # Retry within the caller's startup/transition deadline, without

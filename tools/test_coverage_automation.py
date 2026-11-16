@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -15,6 +16,14 @@ from report_coverage import coverage_target_met
 
 
 class CoverageAutomationTest(unittest.TestCase):
+    @patch("test_emulator.time.sleep")
+    def test_wait_does_not_accept_an_empty_xml_element_as_ready(self, _sleep):
+        suite = Suite.__new__(Suite)
+        complete = ET.fromstring("<hierarchy><node/></hierarchy>")
+        predicate = Mock(side_effect=[ET.fromstring("<hierarchy/>"), complete])
+        self.assertIs(complete, suite.wait(predicate, "Screen did not become ready"))
+        self.assertEqual(2, predicate.call_count)
+
     @patch("test_emulator.time.sleep")
     def test_profile_transition_requires_a_complete_persisted_value(self, _sleep):
         suite = Suite.__new__(Suite)
