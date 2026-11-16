@@ -22,6 +22,24 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **16/nov — protótipo 0.3 de áudio para API 17:** o mesmo `FfmpegDecoder`
+  e `TimelineBuffer` da produção agora podem ser compilados sem os headers e
+  as fábricas de `libmediandk`. O app moderno continua usando seu backend
+  habitual. A ponte JNI isolada limita o tamanho dos pacotes, acrescenta o
+  padding exigido pelo FFmpeg e serializa decodificação, leitura e destruição.
+  O autoteste injeta tons próprios ALAC/352, AAC-LC/1024 e AAC-ELD/480 e /512,
+  exige PCM não nulo no buffer temporal e o entrega a um AudioTrack real com
+  volume zero, conferindo avanço do relógio. Não é ainda áudio de um emissor
+  na rede nem sincronização A/V; o receptor persistente segue anunciando
+  somente vídeo. AAC-LC/960 ainda não tem fixture. Geração reproduzível em
+  `tools/LEGACY_AUDIO_FIXTURES.md`; FDK AAC é ferramenta de host, fora do APK.
+  ARMv7/x86, lint e os 16 testes JVM passaram. Dois ciclos completos do
+  emulador x86 passaram, incluindo o áudio duas vezes por ciclo; pacote
+  removido no fim. Relatório em `outputs/fireos3-audio-checks/report.json`,
+  [captura real do emulador](images/fireos3-audio-probe.png). Os ELF das duas
+  ABIs dependem somente de `libm`, `liblog`, `libandroid`, `libdl` e `libc`.
+  A regressão do app moderno x86_64 também compilou, com lint e a verificação
+  do núcleo aprovados após a mudança no header/CMake compartilhado.
 - O indicador do menu lateral agora depende também do destino selecionado,
   além do foco. Deve continuar visível ao entrar no conteúdo e atrás do Sobre.
   O estado selecionado também é exposto à acessibilidade.

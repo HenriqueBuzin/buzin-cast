@@ -65,12 +65,12 @@ ExternalProject_Add(ffmpeg_ep
 
 file(MAKE_DIRECTORY ${FFMPEG_INSTALL}/include)
 
-add_library(ffmpeg::avutil STATIC IMPORTED)
+add_library(ffmpeg::avutil STATIC IMPORTED GLOBAL)
 set_target_properties(ffmpeg::avutil PROPERTIES
     IMPORTED_LOCATION ${FFMPEG_INSTALL}/lib/libavutil.a
     INTERFACE_INCLUDE_DIRECTORIES ${FFMPEG_INSTALL}/include
 )
-add_library(ffmpeg::avcodec STATIC IMPORTED)
+add_library(ffmpeg::avcodec STATIC IMPORTED GLOBAL)
 set_target_properties(ffmpeg::avcodec PROPERTIES
     IMPORTED_LOCATION ${FFMPEG_INSTALL}/lib/libavcodec.a
     INTERFACE_INCLUDE_DIRECTORIES ${FFMPEG_INSTALL}/include

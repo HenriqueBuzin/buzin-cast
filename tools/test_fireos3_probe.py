@@ -66,7 +66,7 @@ def main():
     package = 'io.buzincast.fireos3probe'
     adb('install', '-r', str(args.apk.resolve()))
     adb('shell', 'input', 'keyevent', '82')
-    report = {'api': 17, 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets with synthetic H.264, not an Apple sender session'}
+    report = {'api': 17, 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
     try:
         for cycle in range(args.cycles):
             entry = {'cycle': cycle+1}
@@ -82,16 +82,17 @@ def main():
             expect('Receiver callback H.264: frame displayed')
             entry['callback_surface'] = 'pass'
             tap('Run streaming stack checks')
-            expect('Streaming stack: DNS-SD + RTSP + H.264 Surface passed', timeout=45)
+            expect('Streaming stack: DNS-SD + RTSP + H.264 + ALAC/AAC + PCM passed', timeout=45)
             tap('Start experimental video receiver')
             expect_live_ready()
             tap('Stop experimental receiver')
             expect('Experimental receiver stopped.', timeout=15)
             # Restart the streaming self-test after a full live start/stop.
             tap('Run streaming stack checks')
-            expect('Streaming stack: DNS-SD + RTSP + H.264 Surface passed', timeout=45)
+            expect('Streaming stack: DNS-SD + RTSP + H.264 + ALAC/AAC + PCM passed', timeout=45)
             entry['dns_rtsp_live_decoder'] = 'pass'
             entry['live_start_stop'] = 'pass'
+            entry['alac_aac_lc_aac_eld_timeline_pcm_output'] = 'pass'
             # API 17's adbd does not implement exec-out. Pull a PNG file intact.
             adb('shell', 'screencap', '-p', '/data/local/tmp/buzin-probe.png')
             picture = args.output/f'cycle-{cycle+1}.png'

@@ -36,6 +36,7 @@ final class StreamingSelfTest {
         session.start();
         int port = 0;
         try {
+            AudioSelfTest.run(context);
             if (!session.ready.await(20, TimeUnit.SECONDS)) throw new IOException("Receiver startup timed out");
             if (session.failure != null) throw session.failure;
             port = session.port;

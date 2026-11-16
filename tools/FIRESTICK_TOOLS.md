@@ -61,6 +61,10 @@ persistente com H.264 sintético e confere início/parada e fechamento da porta.
 Faz dois ciclos e desinstala o pacote isolado ao terminar; `--cycles 1` reduz
 a execução e `--keep-installed` mantém a cópia parada para investigação.
 Não equivale a espelhamento de um iPhone/Mac real nem à aplicação completa.
+Na prova 0.3 também decodifica ALAC, AAC-LC e AAC-ELD (480/512), confere o
+buffer temporal e o relógio de saída AudioTrack com volume zero. Os pacotes
+são sintéticos; não anuncia áudio no receptor persistente. Para regenerar as
+amostras, consulte `LEGACY_AUDIO_FIXTURES.md`.
 
 Os scripts `test_focus_navigation.py` e `test_fireos3_probe.py` recusam TVs
 físicas e testam a nova indicação de foco e a ponte de vídeo API 17 em emulador.

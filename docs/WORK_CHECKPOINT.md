@@ -126,7 +126,21 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   compilados. Relatório em `outputs/fireos3-streaming-checks/report.json`.
   O script aceita `--cycles` e remove o pacote de teste ao terminar, salvo
   `--keep-installed`. TVs físicas e fichas Amazon não foram alteradas.
-  Próximo marco: áudio compatível, sessão com emissor real e migração das
+  **Avanço seguinte — protótipo 0.3/código 3:** `FfmpegDecoder` e
+  `TimelineBuffer` compartilhados com a produção, compilados para API 17
+  sem `libmediandk`/Oboe. Ponte JNI com pacotes limitados e padding FFmpeg,
+  leitura PCM e fechamento serializados. Quatro fixtures próprias: ALAC/352,
+  AAC-LC/1024 e AAC-ELD/480 e /512; gerador reproduzível com FDK AAC somente
+  no host, fora do APK. Dois ciclos completos passaram na API 17 x86, cada
+  um repetindo o teste de áudio e a regressão mDNS/RTSP/vídeo/início/parada.
+  PCM não nulo, amplitude e avanço do AudioTrack silenciado conferidos.
+  ARMv7/x86, lint e os 16 testes JVM passaram. Dependências ELF das duas
+  ABIs conferidas sem `libmediandk` ou Oboe. Relatório local ignorado em
+  `outputs/fireos3-audio-checks/report.json`; prova pública em
+  `docs/images/fireos3-audio-probe.png`. Pacote removido e emulador fechado;
+  nenhuma TV física usada. O receptor de rede ainda anuncia somente vídeo.
+  Próximo marco: integrar áudio da sessão de rede, sincronismo A/V,
+  sessão com emissor real e migração das
   funções/telas restantes; não declarar paridade ou publicar este protótipo.
 
 - [x] **0.6.7 em desenvolvimento:** borda acompanha também o item tocado e o

@@ -14,7 +14,7 @@
     <string name="probe_live_stopped">Experimental receiver stopped.</string>
     <string name="probe_stream_checks">Run streaming stack checks</string>
     <string name="probe_stream_checking">Checking DNS-SD, RTSP and streaming H.264…</string>
-    <string name="probe_stream_passed">Streaming stack: DNS-SD + RTSP + H.264 Surface passed</string>
+    <string name="probe_stream_passed">Streaming stack: DNS-SD + RTSP + H.264 + ALAC/AAC + PCM passed</string>
     <string name="probe_stream_failed">Streaming stack check failed: %1$s</string>
     <string name="probe_exit">Exit</string>
     <string name="probe_device">%1$s · Android API %2$d · %3$s</string>

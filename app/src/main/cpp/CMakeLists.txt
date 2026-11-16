@@ -10,6 +10,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffile-prefix-map=${CMAKE_SOURCE_DIR}=. 
 
 set(UXPLAY_LIB third_party/UxPlay/lib)
 option(BUZIN_RAOP_CORE_ONLY "Build the RAOP receiver without the Android media engine" OFF)
+option(BUZIN_RAOP_LEGACY_AUDIO "Build software audio for the Java API17 output backend" OFF)
 
 # ---------- OpenSSL (built from source via openssl-cmake) ----------
 set(BUILD_OPENSSL ON CACHE BOOL "" FORCE)
@@ -47,7 +48,9 @@ endif()
 if(NOT BUZIN_RAOP_CORE_ONLY)
     find_package(oboe REQUIRED CONFIG)
 
-# ---------- ffmpeg (software ALAC decoder) ----------
+endif()
+# ---------- ffmpeg (software ALAC/AAC decoders) ----------
+if(NOT BUZIN_RAOP_CORE_ONLY OR BUZIN_RAOP_LEGACY_AUDIO)
     include(BuildFFmpeg)
 endif()
 

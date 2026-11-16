@@ -2,8 +2,10 @@
 #define AUDIO_DECODER_H
 
 #include <android/log.h>
+#ifndef BUZIN_SOFTWARE_AUDIO_ONLY
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaFormat.h>
+#endif
 #include <atomic>
 #include <climits>
 #include <cmath>
@@ -203,6 +205,7 @@ static inline std::optional<CodecConfig> codecConfig(int ct, int spf, int sample
 }
 
 // AMediaCodec decoder; output dequeued on separate thread, shaves ~10ms latency
+#ifndef BUZIN_SOFTWARE_AUDIO_ONLY
 class MediaCodecDecoder : public Decoder {
 public:
     // takes ownership of already-created+started codec
@@ -265,6 +268,7 @@ private:
     std::thread mDrainThread;
     std::atomic<bool> mDrainRun{false};
 };
+#endif
 
 static inline void installFfmpegLogcat() {
     static std::once_flag once;
@@ -393,6 +397,7 @@ private:
 };
 
 // ---- decoder factories ----
+#ifndef BUZIN_SOFTWARE_AUDIO_ONLY
 // create + configure + start; nullptr on failure
 static inline AMediaCodec *startCodec(const char *mime, const char *name, AMediaFormat *fmt,
                                       LogSink &log) {
@@ -437,6 +442,7 @@ static inline AMediaCodec *startMediaCodec(const CodecConfig &c, LogSink &log, b
     AMediaFormat_delete(fmt);
     return codec;
 }
+#endif
 
 static inline std::unique_ptr<Decoder> makeDecoder(int ct, int spf, int sampleRate, int channels,
                                                    TimelineBuffer &timeline, LatencyReporter &lat,
@@ -447,10 +453,12 @@ static inline std::unique_ptr<Decoder> makeDecoder(int ct, int spf, int sampleRa
         log.error("Unknown audio ct=%d", ct);
         return nullptr;
     }
+#ifndef BUZIN_SOFTWARE_AUDIO_ONLY
     if (!forceSw) {
         if (AMediaCodec *codec = startMediaCodec(*c, log, realtimePriority, lowLatency))
             return std::make_unique<MediaCodecDecoder>(codec, timeline, lat);
     }
+#endif
     if (auto sw = FfmpegDecoder::make(*c, timeline, lat, log)) {
         log.info("%s decoder started (ffmpeg%s)", c->mime, forceSw ? ", forced" : "");
         return sw;
