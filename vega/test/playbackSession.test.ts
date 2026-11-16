@@ -2,6 +2,8 @@
 import {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import {createPlaybackSession} from '../src/playbackSession';
 import Network from '../src/turbo-modules/BuzinNetwork';
+import {createAdaptivePlayback} from '../src/adaptivePlayback';
+jest.mock('../src/adaptivePlayback', () => ({createAdaptivePlayback: jest.fn()}));
 
 jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
   VideoPlayer: jest.fn(),
@@ -260,8 +262,51 @@ test('carrega URL uma única vez pelo setter do SDK, preservando cabeçalhos', a
   const opened = new Promise<void>((resolve) => {ready = resolve;});
   const session = createPlaybackSession(ready, jest.fn(), null);
   await opened;
-  session.load({url: 'https://example.com/clip.mp4', headers: {'X-Test': 'value'}, position: 0, speed: 1});
+  await session.load({url: 'https://example.com/clip.mp4', headers: {'X-Test': 'value'}, position: 0, speed: 1});
+  await Promise.resolve();
+  await Promise.resolve();
   expect(player.setSrcWithCustomHeaders).toHaveBeenCalledWith('https://example.com/clip.mp4', {'X-Test': 'value'});
   expect(player.load).toHaveBeenCalledTimes(1);
+  await session.stop();
+});
+
+test('libera o player nativo mesmo quando a destruição do Shaka falha', async () => {
+  const player = fakePlayer();
+  const engine = {load: jest.fn(() => Promise.resolve()), stop: jest.fn(() => Promise.reject(new Error('adaptive cleanup')))};
+  jest.mocked(createAdaptivePlayback).mockReturnValue(engine);
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let ready!: () => void;
+  const opened = new Promise<void>((resolve) => {ready = resolve;});
+  const session = createPlaybackSession(ready, jest.fn(), null);
+  await opened;
+  await session.load({url: 'https://example.com/stream.mpd', headers: {'X-Test': 'header'}, position: 3, speed: 1, mimeType: 'application/dash+xml'});
+  expect(engine.load).toHaveBeenCalledWith('https://example.com/stream.mpd', 3, 'application/dash+xml', {'X-Test': 'header'});
+  await session.stop();
+  expect(engine.stop).toHaveBeenCalledTimes(1);
+  expect(player.deinitialize).toHaveBeenCalledTimes(1);
+  expect(Network.recordPlaybackState).toHaveBeenLastCalledWith('error', 1.5);
+});
+
+test('troca de fonte cancela um manifesto pendente antes de aguardar sua carga', async () => {
+  const player = {...fakePlayer(), setSrcWithCustomHeaders: jest.fn()};
+  let cancelLoad!: () => void;
+  let started!: () => void;
+  const loading = new Promise<void>((resolve) => {started = resolve;});
+  const engine = {
+    load: jest.fn(() => {started(); return new Promise<void>((_resolve, reject) => {cancelLoad = () => reject(new Error('cancelled'));});}),
+    stop: jest.fn(() => {cancelLoad(); return Promise.resolve();}),
+  };
+  jest.mocked(createAdaptivePlayback).mockReturnValue(engine);
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let ready!: () => void;
+  const opened = new Promise<void>((resolve) => {ready = resolve;});
+  const session = createPlaybackSession(ready, jest.fn(), null);
+  await opened;
+  const previous = session.load({url: 'https://example.com/live.mpd', headers: {}, position: 0, speed: 1, mimeType: 'application/dash+xml'});
+  await loading;
+  await session.load({url: 'https://example.com/new.mp4', headers: {}, position: 0, speed: 1});
+  await previous.catch(() => {});
+  expect(engine.stop).toHaveBeenCalledTimes(1);
+  expect(player.setSrcWithCustomHeaders).toHaveBeenCalledWith('https://example.com/new.mp4', {});
   await session.stop();
 });

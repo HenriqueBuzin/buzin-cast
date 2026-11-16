@@ -19,3 +19,11 @@ O app usa o runtime React Native for Vega fornecido pelo sistema Amazon.
 A ferramenta/ponte @amazon-devices/keplerscript-turbomodule-api 1.2.5 usa
 Amazon Program Materials License e avisos de terceiros, preservados no npm:
 https://developer.amazon.com/support/legal/pml
+
+Adaptive playback dependencies (candidate integration):
+- Shaka Player 4.16.13, Google LLC, Apache-2.0; official Amazon Vega patches.
+  https://github.com/shaka-project/shaka-player
+  License: licenses/Shaka-Apache-2.0.txt. Generated source build is pinned by
+  tools/prepare_vega_shaka.py. Preserve this notice and the upstream license.
+- @xmldom/xmldom 0.9.12, MIT; licenses/xmldom-MIT.txt.
+- base-64 1.0.0, Mathias Bynens, MIT; licenses/base64-MIT.txt.

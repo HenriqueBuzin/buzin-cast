@@ -24,7 +24,7 @@ teste no VVD e com emissores físicos.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript, doctor e 45 testes Jest passaram.
+- Lint sem avisos, TypeScript, doctor e 47 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -40,6 +40,12 @@ O nome do receptor pode ser editado em Configurações e é preservado no sandbo
 Ele será usado no próximo anúncio FCast após ativar o receptor.
 
 ## Ambiente e build
+
+O bundle inclui um adaptador Shaka/MSE candidato, ainda sem HLS/DASH liberados
+no FCast. Os hooks de build preparam a versão fixada pelo script
+`tools/prepare_vega_shaka.py`; precisam de Git, curl, Python 3.12+ e Java 21+.
+A distribuição gerada fica em `vega/generated` e não é versionada.
+
 
 Use o nvm existente e o [SDK oficial Vega](https://developer.amazon.com/docs/vega/2.0/install-vega-sdk).
 `.nvmrc` fixa Node 26.13.0 LTS; `package-lock.json` fixa as dependências.

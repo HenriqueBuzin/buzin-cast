@@ -1,5 +1,29 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Adaptador Shaka/MSE candidato — 16 de novembro de 2026
+
+- Criado adaptador próprio `adaptivePlayback.ts` sobre os objetos W3C reais do
+  SDK e Shaka compilado. Faz attach/load, encaminha cabeçalhos às requisições e
+  oferece destruição idempotente. Wrappers proprietários de exemplo não foram
+  copiados. DOMParser vem de @xmldom/xmldom; codecs/MSE vêm do sistema Vega.
+- `playbackSession` serializa a troca de fonte, espera a carga antes de pedir
+  Play numa superfície já disponível, cancela o adaptador ao sair e ainda
+  libera o player nativo se a destruição adaptativa falhar. Uma troca de fonte
+  também cancela a carga de um manifesto pendente antes de aguardar sua saída.
+  A API interna aceita
+  `mimeType` para a futura seleção de HLS/DASH; o validador público FCast ainda
+  rejeita manifestos adaptativos enquanto o MSE não for exercitado no VVD.
+- `prepare_vega_shaka.py --build` agora disponibiliza o JS em `vega/generated`,
+  fora do Git, e roda nos hooks anteriores aos builds Release/Debug. Build novo
+  exige Git, curl, Python com extração tar segura e Java 21+ para o compilador.
+  Foram incluídos no pacote os avisos/licenças Shaka, xmldom e base-64.
+- Lint, TypeScript, 47 testes Jest e build/validação ABI das três arquiteturas
+  passaram. A regressão FCast MP4 real no VVD ARM64 passou novamente em
+  `build/vega-adaptive-progressive-regression/result.json`.
+- Isso ainda não comprova HLS/DASH: falta gerar fixtures locais, exercitar a
+  inicialização real do Shaka e os globais de compatibilidade, validar troca/
+  busca/encerramento adaptativos e só então abrir esses MIME types no FCast.
+
 ## Dependência para HLS/DASH — 16 de novembro de 2026
 
 - Criado `tools/prepare_vega_shaka.py --build`, seguindo a integração oficial

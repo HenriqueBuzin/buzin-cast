@@ -1,6 +1,7 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system player selected by the SDK resolver; validated with doctor and VVD. */
 import {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import Network from './turbo-modules/BuzinNetwork';
+import {createAdaptivePlayback} from './adaptivePlayback';
 
 export type PlaybackState =
   | 'loading'
@@ -17,6 +18,7 @@ export type PlaybackRequest = {
   headers: Record<string, string>;
   position: number;
   speed: number;
+  mimeType?: string;
 };
 
 // A quick Back/reopen must wait for the previous native decoder to be released.
@@ -33,6 +35,9 @@ export function createPlaybackSession(
   let initialized = false;
   let surface: string | undefined;
   let sourceGeneration = 0;
+  let sourceReady = false;
+  let adaptive: ReturnType<typeof createAdaptivePlayback> | undefined;
+  let sourceBarrier: Promise<void> = Promise.resolve();
   let failed = false;
   let closed = false;
   let closing: Promise<void> | undefined;
@@ -60,12 +65,35 @@ export function createPlaybackSession(
     failed = false;
     hasSource = true;
     position = source.position;
-    player.volume = 1;
-    player.playbackRate = source.speed;
-    // The Vega SDK setter starts loading; a second load resets the request.
-    player.setSrcWithCustomHeaders(source.url, source.headers);
+    sourceReady = false;
+    const generation = sourceGeneration;
     publish('loading');
+    // Interrupt an in-flight manifest request before waiting on its load.
+    const interrupted = adaptive?.stop();
+    interrupted?.catch(() => {});
+    sourceBarrier = sourceBarrier.catch(() => {}).then(async () => {
+      await interrupted;
+      adaptive = undefined;
+      if (closed || generation !== sourceGeneration || !player) {return;}
+      player.volume = 1;
+      player.playbackRate = source.speed;
+      if (source.mimeType) {
+        adaptive = createAdaptivePlayback(player, () => {
+          if (generation === sourceGeneration) {fail();}
+        });
+        await adaptive.load(source.url, source.position, source.mimeType, source.headers);
+      } else {
+        player.setSrcWithCustomHeaders(source.url, source.headers);
+      }
+      if (closed || generation !== sourceGeneration) {return;}
+      sourceReady = true;
+      if (surface) {player.play().catch(fail);}
+    });
+    sourceBarrier.catch(() => {
+      if (generation === sourceGeneration) {fail();}
+    });
     observe();
+    return sourceBarrier;
   }
 
   function publish(state = snapshot.state) {
@@ -147,6 +175,7 @@ export function createPlaybackSession(
     } else if (request === undefined) {
       player.volume = 0.15;
       player.src = SAMPLE;
+      sourceReady = true;
     }
     onReady(player);
     observe();
@@ -156,14 +185,14 @@ export function createPlaybackSession(
 
   return {
     load(source: PlaybackRequest) {
-      configure(source);
+      return configure(source);
     },
     attachSurface(handle: string) {
       if (!closed && initialized && player) {
         try {
           player.setSurfaceHandle(handle);
           surface = handle;
-          if (hasSource) {
+          if (hasSource && sourceReady) {
             const generation = sourceGeneration;
             player.play().catch(() => {
               if (generation === sourceGeneration) {
@@ -215,6 +244,10 @@ export function createPlaybackSession(
           ? Promise.resolve().then(() => pending.deinitialize())
           : starting.catch(() => {})
       ).then(async () => {
+        // Cancel adaptive downloads before releasing the native player.
+        let adaptiveReleaseError: unknown;
+        try {await adaptive?.stop();} catch (error) {adaptiveReleaseError = error;}
+        await sourceBarrier.catch(() => {});
         if (player) {
           for (const [event, handler] of listeners) {
             player.removeEventListener(event, handler);
@@ -228,6 +261,7 @@ export function createPlaybackSession(
           }
           player = undefined;
         }
+        if (adaptiveReleaseError) {throw adaptiveReleaseError;}
         Network.recordPlaybackState('released', snapshot.seconds);
       });
       // A failed release is reported, but does not leave an unhandled rejection.

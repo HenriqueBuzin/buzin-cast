@@ -1,5 +1,14 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — adaptador MSE candidato — 16 de novembro de 2026
+
+Shaka passou a integrar a preparação do bundle e há adaptador próprio ligado ao
+ciclo de vida da sessão, com cabeçalhos e destruição idempotente. 47 testes,
+lint/TypeScript e builds das três ABIs passaram; FCast MP4 continuou passando no
+VVD ARM64. HLS/DASH seguem bloqueados no protocolo até validar MSE com fixtures
+locais. Próxima etapa detalhada em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+
 ## Vega — preparação HLS/DASH — 16 de novembro de 2026
 
 Shaka 4.16.13 com os 33 patches oficiais Amazon compilado localmente, com fonte,

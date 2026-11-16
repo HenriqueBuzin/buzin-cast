@@ -97,7 +97,11 @@ def main():
         }
         (args.destination.resolve() / "build-report.json").write_text(
             json.dumps(report, indent=2) + "\n")
-        print(f"Built {output}")
+        generated = ROOT / "vega/generated"
+        generated.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(output, generated / "shaka-player.compiled.js")
+        shutil.copyfile(source / "LICENSE", generated / "Shaka-LICENSE")
+        print(f"Built and staged {output}")
 
 
 if __name__ == "__main__":

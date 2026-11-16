@@ -17,15 +17,20 @@
     "build:app": "npm-run-all build:release",
     "build": "npm-run-all build:release",
     "release": "npm-run-all lint test build:app",
-    "codegen:network": "keplerscript-turbomodule-api codegen src/turbo-modules/BuzinNetwork.ts -o kepler/turbo-modules/ -s BuzinNetworkTurboModule"
+    "codegen:network": "keplerscript-turbomodule-api codegen src/turbo-modules/BuzinNetwork.ts -o kepler/turbo-modules/ -s BuzinNetworkTurboModule",
+    "prepare:adaptive": "python3 ../tools/prepare_vega_shaka.py --build",
+    "prebuild:release": "npm run prepare:adaptive",
+    "prebuild:debug": "npm run prepare:adaptive"
   },
   "dependencies": {
+    "@amazon-devices/keplermediadescriptor": "~1.1.0",
     "@amazon-devices/keplerscript-turbomodule-api": "1.2.5",
     "@amazon-devices/react-native-kepler": "~4.0.0",
+    "@amazon-devices/react-native-w3cmedia": "~2.3.0",
+    "@xmldom/xmldom": "0.9.12",
+    "base-64": "1.0.0",
     "react": "19.2.0",
-    "react-native": "0.83.0",
-    "@amazon-devices/keplermediadescriptor": "~1.1.0",
-    "@amazon-devices/react-native-w3cmedia": "~2.3.0"
+    "react-native": "0.83.0"
   },
   "engines": {
     "node": ">=26.13.0 <27"
@@ -39,6 +44,7 @@
     "@react-native/metro-config": "0.83.0",
     "@react-native/typescript-config": "0.83.0",
     "@testing-library/react-native": "^13.0.0",
+    "@types/base-64": "1.0.2",
     "@types/jest": "^29.5.14",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
