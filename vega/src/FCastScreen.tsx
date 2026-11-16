@@ -48,8 +48,8 @@ export default function FCastScreen({onBack}: {onBack: () => void}) {
           </Text>
           <Text style={styles.details}>
             Conexão manual pela rede local, sem PIN ou TLS. Descoberta
-            automática FCast v2 ativa por DNS-SD. HLS/DASH ainda não estão
-            disponíveis.
+            automática FCast v2 ativa por DNS-SD. Áudio, vídeo e HLS/DASH
+            experimentais.
           </Text>
           <Text style={styles.details}>Voltar desativa este receptor.</Text>
         </View>

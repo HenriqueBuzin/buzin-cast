@@ -48,6 +48,9 @@ function loadLibrary(player: Media.VideoPlayer): Shaka {
     atob: decode,
     btoa: encode,
   });
+  // The upstream device factory reads userAgent during module evaluation.
+  // AFT selects the official Amazon TV compatibility profile, not a model.
+  scope.navigator.userAgent = 'BuzinCast/0.6.0 (Vega; AFT)';
   scope.navigator.mediaCapabilities = {decodingInfo: Media.decodingInfo};
   scope.navigator.requestMediaKeySystemAccess = Media.requestMediaKeySystemAccess;
   scope.addEventListener = scope.addEventListener || (() => {});

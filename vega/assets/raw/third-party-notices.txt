@@ -20,7 +20,7 @@ A ferramenta/ponte @amazon-devices/keplerscript-turbomodule-api 1.2.5 usa
 Amazon Program Materials License e avisos de terceiros, preservados no npm:
 https://developer.amazon.com/support/legal/pml
 
-Adaptive playback dependencies (candidate integration):
+Experimental adaptive playback dependencies:
 - Shaka Player 4.16.13, Google LLC, Apache-2.0; official Amazon Vega patches.
   https://github.com/shaka-project/shaka-player
   License: licenses/Shaka-Apache-2.0.txt. Generated source build is pinned by

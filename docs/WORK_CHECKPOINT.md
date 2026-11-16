@@ -1,5 +1,15 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — HLS e DASH locais — 16 de novembro de 2026
+
+As duas fixtures VOD passaram individualmente no VVD ARM64 via FCast e
+Shaka/MSE, incluindo controles e encerramento. A etapa final também passou,
+exigindo cabeçalhos no manifesto e em cada segmento. 49 testes Jest e os builds
+das três ABIs passaram. Gerador local e comandos em
+[VEGA_HANDOFF.md](VEGA_HANDOFF.md). Isso não comprova live, DRM, ABR ou hardware
+físico; o escopo completo do port continua ativo.
+
+
 ## Vega — adaptador MSE candidato — 16 de novembro de 2026
 
 Shaka passou a integrar a preparação do bundle e há adaptador próprio ligado ao

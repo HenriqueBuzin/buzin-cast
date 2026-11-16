@@ -113,13 +113,13 @@ não foram copiados runtimes/encoders. A amostra sintética foi gerada localment
 com FFmpeg e somente seu MP4 é incluído, com comando de geração documentado.
 Doctor, build/ABI das três arquiteturas e execução ARM64 foram verificados.
 
-## Vega — adaptador de mídia adaptativa candidato
+## Vega — mídia adaptativa experimental
 
 Shaka Player 4.16.13 (Apache-2.0) é compilado com os 33 patches oficiais Amazon
 pela ferramenta `tools/prepare_vega_shaka.py`. O commit upstream, o arquivo de
 patches e a árvore resultante são fixados por hashes. A distribuição fica em
-`vega/generated`, fora do Git. A integração MSE ainda aguarda execução HLS/DASH
-no VVD; o FCast público continua rejeitando esses manifestos nesta etapa.
+`vega/generated`, fora do Git. HLS/DASH VOD locais passaram no VVD ARM64
+via FCast e MSE; live, ABR entre qualidades, DRM e hardware seguem pendentes.
 
 O adaptador usa @xmldom/xmldom 0.9.12 (MIT) e base-64 1.0.0 (MIT), fixados no
 lock npm. Licenças e créditos seguem em `vega/assets/raw/licenses` e

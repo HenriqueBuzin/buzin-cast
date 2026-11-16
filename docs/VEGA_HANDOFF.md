@@ -1,5 +1,33 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Primeira execução HLS e DASH no MSE — 16 de novembro de 2026
+
+- `tools/generate_vega_adaptive_samples.py` gera HLS VOD MPEG-TS e DASH fMP4
+  com áudio/vídeo a partir da amostra própria do pacote, usando FFmpeg local.
+  As mídias geradas ficam em `build/vega-adaptive-samples`, fora do Git.
+- O runner FCast aceita `--media mp4|hls|dash`, serve apenas o inventário local
+  de fixtures e agora também exige cabeçalhos personalizados no manifesto e
+  segmentos. A seleção do protocolo reconhece MIME HLS/DASH e extensões de
+  manifestos, mantendo HTTP(S), limites e rejeição de credenciais/cabeçalhos
+  inválidos. Manifestos em linha continuam rejeitados.
+- O primeiro HLS expôs `navigator.userAgent` ausente durante a importação do
+  Shaka. O adaptador fornece a identificação Buzin Cast/Vega com token AFT para
+  selecionar o perfil Amazon TV dos patches, sem declarar um modelo físico.
+- HLS e DASH passaram individualmente no VVD ARM64: posição inicial, pausa,
+  busca, volume, velocidade, retomada, Stop e encerramento pelo controle.
+  Relatórios: `build/vega-hls-useragent/result.json` e
+  `build/vega-dash-runtime/result.json`. A conferência final também passou:
+  `build/vega-hls-verified/result.json` e `build/vega-dash-verified/result.json`
+  têm `passed: true`, cabeçalhos em cada manifesto/segmento e EOF após Voltar.
+  Lint, TypeScript, 49 testes Jest e build/validação ABI das três arquiteturas
+  passaram. O subconjunto HLS/DASH por URL agora está habilitado no FCast.
+- Limites: fixtures VOD locais de cerca de oito segundos, sem live, ABR entre
+  múltiplas qualidades, DRM, emissor comercial ou hardware físico. Não houve
+  nova inspeção visual ou medição de áudio audível/sincronismo nesta etapa.
+- O Shaka emitiu avisos não terminais de polyfills opcionais de screen/EME;
+  não oferecer DRM baseado neste ensaio. AirPlay e os demais receptores ainda
+  não foram portados.
+
 ## Adaptador Shaka/MSE candidato — 16 de novembro de 2026
 
 - Criado adaptador próprio `adaptivePlayback.ts` sobre os objetos W3C reais do

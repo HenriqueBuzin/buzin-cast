@@ -34,7 +34,6 @@ test.each([
   {url: `http://host/${'a'.repeat(8192)}`},
   {content: '<manifest/>'},
   {container: 'image/jpeg'},
-  {url: 'https://host/video.m3u8?token=abc'},
   {headers: {Host: 'other'}},
   {headers: {'X-Test': 'injected\r\nHeader: x'}},
   {
@@ -55,3 +54,12 @@ test.each([null, [], 1, true, 'text'])(
     expect(() => object(body)).toThrow();
   },
 );
+
+
+test.each([
+  ['application/vnd.apple.mpegurl', 'https://example.com/live', 'application/x-mpegURL'],
+  ['application/dash+xml', 'https://example.com/live', 'application/dash+xml'],
+  ['video/mp4', 'https://example.com/video.m3u8?token=abc', 'application/x-mpegURL'],
+])('encaminha manifesto ao MSE: %s', (container, url, mimeType) => {
+  expect(playRequest({...valid, container, url})).toMatchObject({url, mimeType});
+});

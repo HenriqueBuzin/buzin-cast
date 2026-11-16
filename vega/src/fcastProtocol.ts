@@ -58,20 +58,22 @@ export function playRequest(body: ObjectValue): PlaybackRequest {
   ) {
     throw new Error('Expected HTTP(S) media URL');
   }
-  if (
-    typeof body.container !== 'string' ||
-    body.container.length > 120 ||
-    !/^(video|audio)\//.test(body.container)
-  ) {
-    throw new Error('Expected progressive audio/video media');
+  if (typeof body.container !== 'string' || body.container.length > 120 || controls(body.container)) {
+    throw new Error('Expected audio/video media type');
   }
-  if (
-    /mpegurl|dash\+xml/i.test(body.container) ||
-    /\.(m3u8|mpd)$/i.test(
-      normalized.replace(/^https?:\/\/[^/]+/, '').split(/[?#]/)[0],
-    )
-  ) {
-    throw new Error('Adaptive playback is not implemented on Vega yet');
+  const mime = body.container.split(';')[0].trim().toLowerCase();
+  const hlsMime = ['application/vnd.apple.mpegurl', 'application/x-mpegurl', 'audio/mpegurl', 'audio/x-mpegurl'].includes(mime);
+  if (!/^(video|audio)\//.test(mime) && !hlsMime && mime !== 'application/dash+xml') {
+    throw new Error('Expected audio/video media type');
+  }
+  const path = normalized.replace(/^https?:\/\/[^/]+/, '').split(/[?#]/)[0];
+  const adaptiveMime = hlsMime || /\.m3u8$/i.test(path)
+    ? 'application/x-mpegURL'
+    : mime === 'application/dash+xml' || /\.mpd$/i.test(path)
+    ? 'application/dash+xml'
+    : undefined;
+  if (!adaptiveMime && !/^(video|audio)\//.test(mime)) {
+    throw new Error('Expected audio/video media type');
   }
   const headers: Record<string, string> = {};
   if (body.headers != null) {
@@ -95,6 +97,7 @@ export function playRequest(body: ObjectValue): PlaybackRequest {
     }
   }
   return {
+    ...(adaptiveMime ? {mimeType: adaptiveMime} : {}),
     url: body.url,
     headers,
     position: body.time == null ? 0 : number(body, 'time', 0, 31536000),

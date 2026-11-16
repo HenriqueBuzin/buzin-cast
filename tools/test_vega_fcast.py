@@ -21,17 +21,31 @@ def main():
     parser.add_argument("--serial", required=True)
     parser.add_argument("--vpkg", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("build/vega-fcast-checks"))
+    parser.add_argument("--media", choices=("mp4", "hls", "dash"), default="mp4")
+    parser.add_argument("--fixtures", type=Path)
     args = parser.parse_args()
     if not re.fullmatch(r"emulator-\d+", args.serial):
         parser.error("Only emulator-N is allowed; never a physical TV")
     root = Path(__file__).resolve().parent.parent
     sample = (root / "vega/assets/raw/media/playback-sample.mp4").read_bytes()
+    media_files = {"/clip.mp4": (sample, "video/mp4")}
+    if args.media != "mp4":
+        fixtures = args.fixtures or root / "build/vega-adaptive-samples"
+        for path in fixtures.rglob("*"):
+            if path.is_file() and not path.is_symlink():
+                mime = {".m3u8": "application/x-mpegURL", ".mpd": "application/dash+xml", ".ts": "video/mp2t"}.get(path.suffix, "application/octet-stream")
+                media_files["/" + path.relative_to(fixtures).as_posix()] = (path.read_bytes(), mime)
+        manifest = "/hls/stream.m3u8" if args.media == "hls" else "/dash/stream.mpd"
+        if manifest not in media_files:
+            parser.error("Generate adaptive fixtures first")
+    else:
+        manifest = "/clip.mp4"
     sdk = shutil.which("vega") or str(Path.home() / "vega/bin/vega")
     if not args.vpkg.is_file():
         parser.error("Build the VVD architecture VPKG first")
     args.output.mkdir(parents=True, exist_ok=True)
     history, requests, observations = [], [], []
-    result = {"serial": args.serial, "physicalValidation": False, "checks": {}}
+    result = {"serial": args.serial, "physicalValidation": False, "media": args.media, "checks": {}}
 
     def run(arguments, timeout=30):
         completed = subprocess.run([sdk, *arguments], capture_output=True, text=True,
@@ -56,12 +70,13 @@ def main():
             self.serve(True)
 
         def serve(self, body):
-            if self.path != "/clip.mp4":
+            if self.path not in media_files:
                 self.send_error(404)
                 return
-            requests.append({"customHeader": self.headers.get("X-Buzin-Test"),
+            content, content_type = media_files[self.path]
+            requests.append({"fixture": self.path, "customHeader": self.headers.get("X-Buzin-Test"),
                              "range": self.headers.get("Range")})
-            start, end = 0, len(sample) - 1
+            start, end = 0, len(content) - 1
             byte_range = self.headers.get("Range")
             if byte_range:
                 match = re.fullmatch(r"bytes=(\d+)-(\d*)", byte_range)
@@ -74,15 +89,15 @@ def main():
                     self.send_error(416)
                     return
             self.send_response(206 if byte_range else 200)
-            self.send_header("Content-Type", "video/mp4")
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(end - start + 1))
             self.send_header("Accept-Ranges", "bytes")
             if byte_range:
-                self.send_header("Content-Range", f"bytes {start}-{end}/{len(sample)}")
+                self.send_header("Content-Range", f"bytes {start}-{end}/{len(content)}")
             self.end_headers()
             if body:
                 try:
-                    self.wfile.write(sample[start:end + 1])
+                    self.wfile.write(content[start:end + 1])
                 except (BrokenPipeError, ConnectionResetError):
                     pass
 
@@ -174,7 +189,7 @@ def main():
         send(11, {"version": 2})
         send(12)
         until(13)
-        request = {"container": "video/mp4", "url": "http://127.0.0.1:40880/clip.mp4",
+        request = {"container": media_files[manifest][1], "url": "http://127.0.0.1:40880" + manifest,
                    "headers": {"X-Buzin-Test": "vega-fcast"}, "time": 1, "speed": 1}
         send(1, request, fragmented=True)
         result["checks"]["playing"] = until(6, lambda b: b["state"] == 1 and b["time"] >= 1)
@@ -202,6 +217,15 @@ def main():
         if not any(entry["customHeader"] == "vega-fcast" for entry in requests):
             raise RuntimeError("Custom request headers did not reach the media server")
         result["checks"]["httpCustomHeaders"] = True
+        if args.media != "mp4":
+            relevant = [entry for entry in requests if entry["fixture"].startswith("/" + args.media + "/")]
+            if not any(entry["fixture"] == manifest for entry in relevant):
+                raise RuntimeError("Adaptive manifest was not requested")
+            if not any(entry["fixture"].endswith((".ts", ".m4s")) for entry in relevant):
+                raise RuntimeError("Adaptive segments were not requested")
+            if any(entry["customHeader"] != "vega-fcast" for entry in relevant):
+                raise RuntimeError("A manifest or segment request lost its custom header")
+            result["checks"]["manifestAndSegments"] = sorted({entry["fixture"] for entry in relevant})
         shell("inputd-cli", "button_press", "KEY_BACK")
         # TCP may still contain state frames queued before Back. Drain that
         # bounded backlog and require EOF/reset within the shutdown deadline.
