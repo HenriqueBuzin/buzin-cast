@@ -31,23 +31,23 @@ async function waitDetached(tab, locator, retries = 10) {
 }
 
 async function clickDelete(tab, selector) {
-  // The SVG is the actual hit target; its tiny wrapper can fail actionability.
-  try {
-    await tab.playwright.locator(`${selector} > svg`).click();
-  } catch (error) {
-    const state = await tab.playwright.domSnapshot();
-    if (state.includes('Are you sure you want to delete the image?')) return;
-    // The locator attempt scrolls into view. Read a fresh page rect before
-    // using native input; never reuse a cached rectangle after scrolling.
-    const position = await tab.playwright.evaluate(css => {
-      const node = document.querySelector(css);
-      return node ? { rect: node.getBoundingClientRect().toJSON(), width: innerWidth, height: innerHeight } : null;
-    }, selector);
-    if (!position || position.rect.y < 0 || position.rect.bottom > position.height ||
-        position.rect.x < 0 || position.rect.right > position.width) throw error;
+  // The tiny SVG wrapper can fail locator actionability. Use fresh UI-backed
+  // geometry and small scroll increments; never click outside the viewport.
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const position = await tab.playwright.evaluate(input => {
+      const node = document.querySelector(input.selector);
+      return node ? { rect: node.getBoundingClientRect().toJSON(), width: innerWidth, height: innerHeight, scrollY } : null;
+    }, { selector, attempt });
+    if (!position) throw new Error('Screenshot control was removed; inspect current state.');
     const rect = position.rect;
-    await tab.click([rect.x + rect.width / 2, rect.y + rect.height / 2]);
+    if (rect.y >= 100 && rect.bottom <= position.height - 20 && rect.x >= 0 && rect.right <= position.width) {
+      await tab.click([Math.round(rect.x + rect.width / 2), Math.round(rect.y + rect.height / 2)]);
+      return;
+    }
+    await tab.scroll([Math.round(position.width * .6), Math.round(position.height * .65)], rect.y < 100 ? 'up' : 'down', .25);
+    await tab.playwright.domSnapshot();
   }
+  throw new Error('Could not bring screenshot control into the viewport.');
 }
 
 export async function selectLocale(tab, locale) {
