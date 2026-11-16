@@ -17,8 +17,14 @@ function Export-StorePng([string]$InputPath, [string]$OutputPath, [int]$Width, [
     } finally { $drawing.Dispose(); $outputImage.Dispose(); $sourceImage.Dispose() }
 }
 
+$captureNames = @('01-conectar.png','04-ferramentas.png','02-configuracoes.png','03-sobre.png')
+foreach ($captureName in $captureNames) {
+    if (-not (Test-Path -LiteralPath (Join-Path $CaptureDirectory $captureName) -PathType Leaf)) {
+        throw "Missing capture: $captureName. Generate the complete four-screen set first."
+    }
+}
 & (Join-Path $PSScriptRoot 'GenerateBrandAssets.ps1') -StoreDirectory $assetRoot
-foreach ($captureName in @('01-conectar.png','02-configuracoes.png','03-sobre.png')) {
+foreach ($captureName in $captureNames) {
     $capturePath = Join-Path $CaptureDirectory $captureName
     $captureImage = [System.Drawing.Image]::FromFile($capturePath)
     try {

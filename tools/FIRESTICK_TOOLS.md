@@ -35,7 +35,7 @@ não garante detectar todo tipo de segredo.
 
 `amazon_media_ui.mjs` contém rotinas reutilizáveis para o tab API documentado
 do CUA: selecionar idioma, remover capturas em lotes de duas, iniciar upload
-de três arquivos e conferir contagem/dimensões. É carregado pelo agente em
+de quatro arquivos (ou três para conjuntos antigos) e conferir contagem/dimensões. É carregado pelo agente em
 uma sessão autenticada no console. Cada chamada é limitada para permitir
 conferência entre etapas. Não usa APIs privadas, não armazena credenciais,
 não publica apps e não confirma declarações legais.
@@ -46,6 +46,17 @@ atual antes de clicar; após mudança de rolagem/foco ele pode conferir e
 recalcular o alvo, sem reutilizar coordenadas antigas.
 
 ## Capturas e verificação de abertura
+
+O conjunto padrão inclui quatro telas por idioma e por edição: início
+(`01-conectar.png`), Ferramentas (`04-ferramentas.png`), configurações
+(`02-configuracoes.png`) e Sobre (`03-sobre.png`). Os nomes antigos foram
+preservados. A captura de Ferramentas mantém foco no item correspondente
+do menu lateral e aguarda a animação terminar, como as demais telas.
+As folhas de conferência e a exportação Amazon também incluem Ferramentas.
+`Test-FireStick.ps1` e `FireStick.ps1 -Action Capture` usam esse conjunto
+automaticamente; os filtros de idiomas e edições continuam disponíveis.
+Os PNGs são capturas reais, sem editar a interface; revise dados visíveis
+da rede na tela Ferramentas antes de torná-los públicos.
 
 ### Desenvolvimento da próxima versão
 
