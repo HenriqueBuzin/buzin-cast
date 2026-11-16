@@ -19,6 +19,10 @@ rootProject.name = "BuzinCast"
 include(":app")
 include(":dlna-domain")
 include(":receiver-core")
-if (providers.gradleProperty("buzinFireOs3Probe").orNull == "true") {
+val oldProbe = providers.gradleProperty("buzinFireOs3Probe").orNull == "true"
+val oldApp = providers.gradleProperty("buzinFireOsLegacy").orNull == "true"
+if (oldProbe || oldApp) include(":fireos3-runtime")
+if (oldProbe) {
     include(":fireos3-probe")
 }
+if (oldApp) include(":fireos-legacy")

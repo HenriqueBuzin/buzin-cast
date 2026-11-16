@@ -11,7 +11,7 @@ import java.util.LinkedHashMap;
 /** API 17 streaming decoder. All MediaCodec operations belong to one worker. */
 final class LegacyAvcPlayer {
     interface StopSignal { boolean stopped(); }
-    interface Listener { void decodedFrame(); }
+    interface Listener { void decodedFrame(); default void resized(int width,int height) {} }
     private final Surface surface;
     private final VideoFrameQueue queue;
     private final Listener listener;
@@ -67,6 +67,7 @@ final class LegacyAvcPlayer {
         codec.start();
         inputs = codec.getInputBuffers();
         config = next;
+        listener.resized(next.width,next.height);
     }
 
     private void enqueue(VideoFrameQueue.Frame frame, StopSignal stop) throws InterruptedException {

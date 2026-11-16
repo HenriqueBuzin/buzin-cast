@@ -171,7 +171,9 @@ static void destroy_receiver(receiver_probe_t *probe) {
 }
 
 static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callback,
-                             const char *device_id, const char *network_address, int prefix) {
+                             const char *device_id, const char *network_address, int prefix,
+                             const char *service_name, int requested_port) {
+    if (requested_port < 0 || requested_port > 65535) return 0;
     receiver_probe_t *probe = calloc(1, sizeof(*probe));
     if (!probe) return 0;
     unsigned int octets[6];
@@ -233,7 +235,8 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         return 0;
     }
     char name[64];
-    snprintf(name, sizeof(name), "Buzin Cast API17 %02X%02X", octets[4], octets[5]);
+    if (service_name) snprintf(name,sizeof(name),"%s",service_name);
+    else snprintf(name, sizeof(name), "Buzin Cast API17 %02X%02X", octets[4], octets[5]);
     const char address[] = { octets[0], octets[1], octets[2], octets[3], octets[4], octets[5] };
     int error = 0;
     probe->discovery = dnssd_init(name, strlen(name), address, sizeof(address), &error, 0);
@@ -255,7 +258,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
     raop_set_plist(receiver, "width", 1280);
     raop_set_plist(receiver, "height", 720);
     raop_set_plist(receiver, "maxFPS", 30);
-    unsigned short port = 0;
+    unsigned short port = (unsigned short)requested_port;
     if (raop_start_httpd(receiver, &port) < 0 || !port) {
         destroy_receiver(probe);
         return 0;
@@ -268,25 +271,34 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
 }
 
 JNIEXPORT jlong JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject callback) {
-    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0);
+Java_io_buzincast_fireos3probe_NativeReceiver_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject callback) {
+    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0);
 }
 
 JNIEXPORT jlong JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_startNetworkReceiver(JNIEnv *env, jclass type,
-        jstring key_path, jobject callback, jstring identity, jstring network_address, jint prefix) {
+Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env, jclass type,
+        jstring key_path, jobject callback, jstring identity, jstring network_address, jint prefix,
+        jbyteArray utf8_name, jint requested_port) {
+    char name[64]={0};
+    if (utf8_name) {
+        jsize length=(*env)->GetArrayLength(env,utf8_name);
+        if (length<1 || length>63) return 0;
+        (*env)->GetByteArrayRegion(env,utf8_name,0,length,(jbyte *)name);
+        if ((*env)->ExceptionCheck(env) || memchr(name,0,length)) return 0;
+    }
     const char *id = (*env)->GetStringUTFChars(env, identity, NULL);
     if (!id) return 0;
     const char *address = (*env)->GetStringUTFChars(env, network_address, NULL);
     if (!address) { (*env)->ReleaseStringUTFChars(env, identity, id); return 0; }
-    jlong result = create_receiver(env, key_path, callback, id, address, prefix);
+    jlong result = create_receiver(env, key_path, callback, id, address, prefix,
+                                   utf8_name ? name : NULL, requested_port);
     (*env)->ReleaseStringUTFChars(env, network_address, address);
     (*env)->ReleaseStringUTFChars(env, identity, id);
     return result;
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_receiverTxt(JNIEnv *env, jclass type, jlong handle, jboolean airplay) {
+Java_io_buzincast_fireos3probe_NativeReceiver_receiverTxt(JNIEnv *env, jclass type, jlong handle, jboolean airplay) {
     receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
     if (!probe) return NULL;
     int count = airplay ? android_dnssd_get_airplay_txt_count(probe->discovery) : android_dnssd_get_raop_txt_count(probe->discovery);
@@ -308,13 +320,13 @@ Java_io_buzincast_fireos3probe_ProbeActivity_receiverTxt(JNIEnv *env, jclass typ
 }
 
 JNIEXPORT jint JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_receiverPort(JNIEnv *env, jclass type, jlong handle) {
+Java_io_buzincast_fireos3probe_NativeReceiver_receiverPort(JNIEnv *env, jclass type, jlong handle) {
     receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
     return raop_get_port(probe->receiver);
 }
 
 JNIEXPORT void JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_stopReceiver(JNIEnv *env, jclass type, jlong handle) {
+Java_io_buzincast_fireos3probe_NativeReceiver_stopReceiver(JNIEnv *env, jclass type, jlong handle) {
     destroy_receiver((receiver_probe_t *)(intptr_t)handle);
 }
 
@@ -328,7 +340,7 @@ static void *replay_on_worker(void *context) {
 }
 
 JNIEXPORT jboolean JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_replayReceiverVideo(
+Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverVideo(
         JNIEnv *env, jclass type, jlong handle, jobject input, jint length, jlong time_ns) {
     receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
     unsigned char *bytes = (*env)->GetDirectBufferAddress(env, input);
@@ -362,7 +374,7 @@ static void *replay_audio_on_worker(void *context) {
 }
 
 JNIEXPORT jboolean JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_replayReceiverAudio(JNIEnv *env, jclass type, jlong handle,
+Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverAudio(JNIEnv *env, jclass type, jlong handle,
         jobject input, jint length, jint codec, jint spf, jlong time_ns, jfloat volume, jboolean flush) {
     receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
     unsigned char *bytes = (*env)->GetDirectBufferAddress(env, input);
@@ -378,7 +390,7 @@ Java_io_buzincast_fireos3probe_ProbeActivity_replayReceiverAudio(JNIEnv *env, jc
 }
 
 JNIEXPORT jboolean JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_checkNativeParser(JNIEnv *env, jclass activity) {
+Java_io_buzincast_fireos3probe_NativeReceiver_checkNativeParser(JNIEnv *env, jclass activity) {
     const char request[] = "GET /info HTTP/1.1\r\nHost: localhost\r\n\r\n";
     int complete = 0;
     llhttp_t parser;
@@ -394,7 +406,7 @@ Java_io_buzincast_fireos3probe_ProbeActivity_checkNativeParser(JNIEnv *env, jcla
 /* Replay the same frame payload, timestamp, and codec flag as the receiver's
  * video_process callback. The sample source stands in for a live RAOP session. */
 JNIEXPORT jboolean JNICALL
-Java_io_buzincast_fireos3probe_ProbeActivity_replayVideoFrame(
+Java_io_buzincast_fireos3probe_NativeReceiver_replayVideoFrame(
         JNIEnv *env, jclass activity, jobject callback, jobject input, jint length, jlong time_ns) {
     unsigned char *bytes = (*env)->GetDirectBufferAddress(env, input);
     jlong capacity = (*env)->GetDirectBufferCapacity(env, input);

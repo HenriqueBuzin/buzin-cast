@@ -443,14 +443,14 @@ public final class ProbeActivity extends Activity {
         }
     }
 
-    private static native boolean checkNativeParser();
-    private static native long startReceiver(String keyPath, VideoFrameQueue callback);
-    static native long startNetworkReceiver(String keyPath, VideoFrameQueue callback, String identity, String address, int prefix);
-    static native String[] receiverTxt(long handle, boolean airplay);
-    static native int receiverPort(long handle);
-    static native void stopReceiver(long handle);
-    private static native boolean replayVideoFrame(AvcInput callback, ByteBuffer input, int length, long timeNs);
-    static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
-    static native boolean replayReceiverAudio(long handle, ByteBuffer input, int length, int codec, int spf,
-                                              long timeNs, float volume, boolean flush);
+    private static boolean checkNativeParser() { return NativeReceiver.checkNativeParser(); }
+    private static long startReceiver(String keyPath, VideoFrameQueue callback) { return NativeReceiver.startReceiver(keyPath,callback); }
+    static void stopReceiver(long handle) { NativeReceiver.stopReceiver(handle); }
+    static int receiverPort(long handle) { return NativeReceiver.receiverPort(handle); }
+    private static boolean replayVideoFrame(AvcInput callback, ByteBuffer input, int length, long timeNs) {
+        return NativeReceiver.replayVideoFrame(callback,input,length,timeNs);
+    }
+    static boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs) {
+        return NativeReceiver.replayReceiverVideo(handle,input,length,timeNs);
+    }
 }

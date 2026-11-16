@@ -22,6 +22,60 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **16/nov — primeira interface nativa API17:** `fireos3-runtime` agora
+  concentra JNI, descoberta e players, compartilhados por `fireos3-probe`
+  (autotestes sintéticos) e `fireos-legacy` (interface real em Views, sem
+  Compose/Media3). As duas ABIs são ARMv7/x86; os APKs de prévia têm IDs
+  isolados, sem assinatura de produção nem licença Amazon integrada.
+  O frontend copia strings e imagens diretamente do app atual durante o
+  build, sem manter traduções ou logos divergentes. Nome e porta configurados
+  chegam ao anúncio mDNS e ao servidor nativo; a string JNI usa UTF-8 padrão.
+  A captura real encontrou fallback para inglês no hebraico: a API17 busca
+  o código histórico `iw`. O gerador transforma somente `values-he` em
+  `values-iw`, preservando o texto da fonte e permitindo a seleção do idioma
+  real do sistema antigo. A automação continua pedindo `he` normalmente.
+  O Sobre usa uma camada na própria Activity: a janela Dialog da API17
+  deixava cantos pretos fora da forma arredondada. A camada prende o foco,
+  permite Voltar e preserva o destino ativo atrás. A edição de nome/porta
+  abre o teclado sem descartar o modal quando muda a área útil da tela.
+  Comandos reproduzíveis (APK de debug, não publicação):
+
+```powershell
+./tools/Build-FireOs.ps1 -Target legacy -PosixBin <MSYS2-bin> -Check
+python tools/test_legacy_app.py --adb <adb> --serial emulator-5560 --apk fireos-legacy/build/outputs/apk/debug/fireos-legacy-debug.apk
+./tools/Build-FireOs.ps1 -Target legacy -PosixBin <MSYS2-bin> -NoDownload -Check
+python tools/test_legacy_app.py --adb <adb> --serial emulator-5560 --apk fireos-legacy/build-nodownload/outputs/apk/debug/fireos-legacy-debug.apk --package com.buzincast.tv.deat.legacy.preview --locales de en
+```
+
+  Sem `--locales`, testa todos os idiomas próprios. O script confere o foco
+  por toque/controle, borda do destino ativo atrás do Sobre e cantos do modal,
+  além de comandos RTSP reais para nome, porta e parada. Remove seu pacote,
+  XML temporário e túneis ADB no fim. Não abre TVs físicas. A Activity ainda
+  encerra o receptor ao ir para segundo plano; serviço/boot são trabalho
+  pendente, assim como os protocolos e funções de mídia do app moderno.
+
+  Capturas reais desta prévia: [início](images/fireos3-native-home.png),
+  [configurações RTL com foco no conteúdo](images/fireos3-native-rtl-settings.png)
+  e Sobre em [português](images/fireos3-native-about-pt.png) e
+  [hebraico com destino ativo atrás](images/fireos3-native-about.png).
+  Não substituir as capturas da ficha Amazon por essa interface incompleta.
+
+  Evidência da rodada geral: sete idiomas passaram antes da falha de hebraico
+  (`outputs/legacy-ui-all-verified/report.json` preserva essa falha). Após a
+  correção do qualificador, os outros 15, incluindo hebraico, passaram em
+  `outputs/legacy-ui-remaining-verified/report.json`: 22 idiomas conferidos
+  no total, não uma execução única sem falhas desde o início. Os controles
+  reais de nome/porta/reinício passaram em árabe e hebraico. ARMv7/x86,
+  lint e 33 testes JVM passaram nas duas edições; build moderno x86_64,
+  lint e `receiver-core:check` passaram após a extração. A regressão do
+  receptor compartilhado completou dois ciclos API17 de DNS/RTSP, vídeo,
+  quatro formatos de áudio, volume/flush, idle/resume e relógio A/V
+  (`outputs/fireos3-shared-runtime-checks/report.json`). Esses fluxos usam
+  mídia sintética; não são negociação com um emissor Apple real.
+  A prévia regional também passou em alemão e inglês, incluindo
+  nome/porta/reinício/parada (`outputs/legacy-ui-nodownload-verified/report.json`).
+  Os testes removeram as duas instalações de prévia. Nenhuma TV foi usada.
+
 - **16/nov — protótipo 0.5 com relógio A/V:** o buffer temporal informa
   quais amostras foram realmente aceitas e lidas, separando silêncio de
   priming/underrun, lacunas inseridas, sobreposição descartada e trim.

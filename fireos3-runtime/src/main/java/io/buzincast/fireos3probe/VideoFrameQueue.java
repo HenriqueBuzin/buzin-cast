@@ -12,9 +12,11 @@ final class VideoFrameQueue {
     private String failure;
     private int generation;
     private final AudioPacketQueue audio;
+    private final Runnable reset;
 
     VideoFrameQueue() { this(null); }
-    VideoFrameQueue(AudioPacketQueue audio) { this.audio = audio; }
+    VideoFrameQueue(AudioPacketQueue audio) { this(audio,null); }
+    VideoFrameQueue(AudioPacketQueue audio, Runnable reset) { this.audio = audio; this.reset=reset; }
     @SuppressWarnings("unused") public boolean audioEnabled() { return audio != null; }
     @SuppressWarnings("unused") public void onAudioData(byte[] data, int codec, long timeNs) {
         if (audio != null) audio.offer(data, codec, timeNs);
@@ -54,6 +56,7 @@ final class VideoFrameQueue {
         bytes = 0;
         failure = null;
         generation++;
+        if (reset != null) reset.run();
         notifyAll();
     }
 

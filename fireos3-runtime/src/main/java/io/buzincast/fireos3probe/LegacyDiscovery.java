@@ -12,8 +12,8 @@ final class LegacyDiscovery {
     private JmDNS dns;
     private String name;
 
-    void start(Inet4Address address, String identity, int port, String[] airplayTxt, String[] raopTxt) throws IOException {
-        name = "Buzin Cast API17 "+identity.replace(":", "").substring(8);
+    void start(Inet4Address address, String identity, int port, String[] airplayTxt, String[] raopTxt, String serviceName) throws IOException {
+        name = serviceName == null ? "Buzin Cast API17 "+identity.replace(":", "").substring(8) : serviceName;
         dns = JmDNS.create(address, "buzin-api17-"+identity.replace(":", "").toLowerCase(java.util.Locale.US));
         try {
             Map<String,String> videoProperties = properties(airplayTxt);

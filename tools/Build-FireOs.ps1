@@ -1,9 +1,10 @@
 param(
-    [ValidateSet('modern','compat','probe')][string]$Target = 'modern',
+    [ValidateSet('modern','compat','probe','legacy')][string]$Target = 'modern',
     [string]$PosixBin,
     [string]$SdkRoot = $env:ANDROID_HOME,
     [string[]]$Abis,
-    [switch]$Check
+    [switch]$Check,
+    [switch]$NoDownload
 )
 $ErrorActionPreference = 'Stop'
 if (-not $SdkRoot) { $SdkRoot = Join-Path $env:LOCALAPPDATA 'Android/Sdk' }
@@ -26,7 +27,7 @@ try {
         }
     }
     $catalog = Get-Content -LiteralPath (Join-Path $repo 'gradle/libs.versions.toml') -Raw
-    $ndkVersion = if ($Target -eq 'probe') { '23.2.8568313' } else {
+    $ndkVersion = if ($Target -in @('probe','legacy')) { '23.2.8568313' } else {
         [regex]::Match($catalog, '(?m)^ndk\s*=\s*"([^"]+)"').Groups[1].Value
     }
     $env:ANDROID_NDK_ROOT = Join-Path $SdkRoot ('ndk/'+$ndkVersion)
@@ -34,10 +35,15 @@ try {
         throw "Required NDK $ndkVersion is not installed in the selected SDK."
     }
     $buildArguments = @('--no-daemon','--console=plain')
+    if ($NoDownload) { $buildArguments += '-PbuzinNoDownload=true' }
     if ($Target -eq 'probe') {
         if ($Abis) { throw 'The probe tests its fixed ARMv7/x86 pair; -Abis applies to the app targets.' }
         $buildArguments += @('-PbuzinFireOs3Probe=true',':fireos3-probe:assembleDebug')
-        if ($Check) { $buildArguments += @(':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug') }
+        if ($Check) { $buildArguments += @(':fireos3-runtime:testDebugUnitTest',':fireos3-runtime:lintDebug',':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug') }
+    } elseif ($Target -eq 'legacy') {
+        if ($Abis) { throw 'The API17 runtime uses its fixed ARMv7/x86 pair.' }
+        $buildArguments += @('-PbuzinFireOsLegacy=true',':fireos-legacy:assembleDebug')
+        if ($Check) { $buildArguments += @('-PbuzinFireOs3Probe=true',':fireos3-probe:assembleDebug',':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug',':fireos3-runtime:testDebugUnitTest',':fireos3-runtime:lintDebug',':fireos-legacy:lintDebug',':fireos-legacy:testDebugUnitTest') }
     } else {
         if ($Target -eq 'compat') { $buildArguments += '-PbuzinLegacy=true' }
         if ($Abis) { $buildArguments += '-PbuzinAbis='+($Abis -join ',') }

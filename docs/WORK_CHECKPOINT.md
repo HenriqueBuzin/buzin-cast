@@ -55,6 +55,47 @@ no VVD ARM64 passou com HTTP/cabeçalhos e todos os controles do subconjunto v2.
 Edição pelo teclado Vega e descoberta personalizada na rede física ainda
 pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
 
+## Alvo antigo — interface nativa em desenvolvimento
+
+- O backend API17 foi extraído para `fireos3-runtime`, compartilhado pela
+  prova `fireos3-probe` e pelo novo frontend `fireos-legacy`. O núcleo moderno
+  continua separado. JNI, filas, descoberta, áudio e vídeo mantêm os mesmos
+  caminhos da prova; nome/porta agora são opções reais de sessão.
+- Frontend em Views da plataforma, sem Compose/Media3: início, Ferramentas,
+  configurações, diagnóstico avançado e Sobre, com toque/controle, seleção
+  persistente do menu e foco preso ao modal. O Sobre é desenhado na própria
+  Activity para evitar cantos pretos que ocorreram com Dialog na API17.
+- Strings dos 22 idiomas e launcher/banner vêm diretamente dos recursos do
+  app atual durante o build. Não há novas versões das logos ou traduções
+  duplicadas. O rodapé usa o ano atual e `Buzin Solutions LTDA`.
+- Prévias isoladas `com.buzincast.tv.legacy.preview` e
+  `com.buzincast.tv.deat.legacy.preview`, versão `0.6.7-legacy-preview` e
+  sufixo `-nodownload` na regional. São debug, não assinadas para produção,
+  sem integração da licença Amazon. Não enviar esses APKs à loja.
+- Início/parada, nome/porta, autostart ao abrir e manter a tela durante vídeo
+  têm implementação real. Diagnóstico usa a sessão atual. Servidor encerra
+  ao sair da Activity: serviço de background/boot ainda não foi portado.
+- Regressão após extração: 33 testes JVM (32 runtime + um fixture no probe),
+  build ARMv7/x86 e lint passaram. Os dois ciclos completos do receptor
+  API17 passaram em `outputs/fireos3-shared-runtime-checks/report.json`.
+  Teste inicial da nova interface passou, incluindo teclado, nome/porta
+  confirmados via RTSP, parada, toque/D-pad e captura do Sobre sem cantos
+  pretos. Rodada completa e regional registradas em `docs/TESTING.md`.
+  Os 22 idiomas foram conferidos em duas rodadas; o hebraico precisou do
+  qualificador histórico `iw` na API17 e passou após a correção. A regional
+  passou em alemão/inglês, com controle RTSP real. Build moderno x86_64,
+  lint e núcleo também passaram. Capturas públicas em
+  `docs/images/fireos3-native-*.png`; nenhuma TV física foi controlada.
+- Script público `tools/test_legacy_app.py`: sem `--locales` percorre todos
+  os idiomas; com lista, somente os informados. Recusa aparelhos físicos,
+  usa IDs de prévia permitidos e limpa instalação/túneis/XML ao terminar.
+- Ainda faltam perfis/calibração, controles completos, DLNA/FCast/Cast V2,
+  URL/HLS/fotos/legendas, gravação/download/retransmissão na edição geral,
+  background/boot/rede, aprovação/PIN/DACP, licença/assinatura e validação
+  com emissores reais e Stick antigo. A meta permanece o mesmo app/funções
+  em todos os Fire Sticks com Fire OS; não considerar esta prévia paridade.
+  Próximo marco: calibração e perfis, reaproveitando a geometria e as regras
+  existentes, antes de portar os demais controles e protocolos.
 
 ## Fichas Amazon, traduções e artefatos atuais
 

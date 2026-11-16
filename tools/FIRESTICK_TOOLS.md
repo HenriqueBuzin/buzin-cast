@@ -60,9 +60,12 @@ da rede na tela Ferramentas antes de torná-los públicos.
 
 ### Desenvolvimento da próxima versão
 
-`Build-FireOs.ps1 -Target modern|compat|probe -PosixBin <bin-do-MSYS2> -Check`
+`Build-FireOs.ps1 -Target modern|compat|probe|legacy -PosixBin <bin-do-MSYS2> -Check`
 prepara o PATH e o NDK correspondente e compila debug; `-Abis x86_64` limita
-a ABI do app para teste em emulador. `probe` usa NDK r23 e suas duas ABIs fixas.
+a ABI do app moderno para teste em emulador. `probe` e `legacy` usam NDK r23
+e suas duas ABIs fixas (ARMv7/x86). `legacy -NoDownload` compila a prévia
+regional em diretório separado. As prévias têm IDs próprios e ainda não
+substituem os APKs de produção.
 O script exige as ferramentas instaladas, restaura o ambiente do shell no fim
 e não assina produção nem publica. Execute primeiro em um ambiente de build
 configurado; caches de CMake incompletos podem exigir reparo local.
@@ -85,6 +88,15 @@ Os scripts `test_focus_navigation.py` e `test_fireos3_probe.py` recusam TVs
 físicas e testam a nova indicação de foco e a ponte de vídeo API 17 em emulador.
 Comandos e limites em `docs/TESTING.md`. O protótipo API 17 não é uma edição
 publicável com paridade funcional.
+
+`test_legacy_app.py --adb <adb> --serial emulator-5560 --apk <apk>` testa a
+interface nativa API17. Sem `--locales`, percorre os 22 idiomas compartilhados;
+`--locales en pt-BR sv` limita a lista. Instala/limpa somente um dos dois IDs de
+prévia permitidos e desinstala ao terminar, inclusive após falha. A regional
+exige `--package com.buzincast.tv.deat.legacy.preview`. Confere toque, D-pad,
+seleção persistente atrás do Sobre, foco em Fechar, cantos do modal e comandos
+reais de início/parada/nome/porta via RTSP. Não aceita TV física nem valida
+espelhamento negociado com emissor real. PNGs e JSON ficam em `--output`.
 
 O teste percorre os APKs locais em `outputs`, abre início/configurações/Sobre,
 espera as animações e mede a estabilidade dos quadros. Mostra o foco do

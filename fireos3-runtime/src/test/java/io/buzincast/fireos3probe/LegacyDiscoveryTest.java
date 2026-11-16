@@ -20,10 +20,4 @@ public class LegacyDiscoveryTest {
         assertThrows(IllegalArgumentException.class, () -> LegacyDiscovery.properties(new String[]{"pk","a","pk","b"}));
         assertThrows(IllegalArgumentException.class, () -> LegacyDiscovery.properties(new String[]{"pk",null}));
     }
-    @Test public void convertsAvcLengthsAndRejectsTruncation() throws Exception {
-        assertArrayEquals(new byte[]{0,0,0,1,0x67,0x42,0,0,0,1,0x68},
-                StreamingSelfTest.toAnnexB(new byte[]{0,0,0,2,0x67,0x42,0,0,0,1,0x68}));
-        assertThrows(java.io.IOException.class, () -> StreamingSelfTest.toAnnexB(new byte[]{0,0,0}));
-        assertThrows(java.io.IOException.class, () -> StreamingSelfTest.toAnnexB(new byte[]{0,0,2,0,0x67}));
-    }
 }

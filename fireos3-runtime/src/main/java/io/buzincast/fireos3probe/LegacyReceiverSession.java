@@ -10,11 +10,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Owns native receiver, publisher, audio worker, video decoder and Surface. */
-final class LegacyReceiverSession {
-    interface Listener {
+public final class LegacyReceiverSession {
+    public interface Listener {
         void ready(String name);
         void failed(Exception error);
         void stopped();
+        default void videoStarted() {}
+        default void videoStopped() {}
+        default void videoSize(int width,int height) {}
     }
     private final Context context;
     private final Surface surface;
@@ -22,7 +25,9 @@ final class LegacyReceiverSession {
     private final Listener listener;
     private final Object nativeLock = new Object();
     private final AudioPacketQueue audioQueue = new AudioPacketQueue();
-    private final VideoFrameQueue queue = new VideoFrameQueue(audioQueue);
+    private final VideoFrameQueue queue;
+    private final ReceiverOptions options;
+    private final AtomicBoolean videoActive = new AtomicBoolean();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
     final LegacyAvcPlayer videoPlayer;
@@ -42,15 +47,28 @@ final class LegacyReceiverSession {
         this(context, surface, identity, listener, false);
     }
     LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, boolean muted) {
+        this(context,surface,identity,listener,muted,null);
+    }
+    public LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, ReceiverOptions options) {
+        this(context,surface,identity,listener,false,options);
+    }
+    private LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, boolean muted, ReceiverOptions options) {
         this.context = context.getApplicationContext(); this.surface = surface;
-        this.identity = identity; this.listener = listener;
+        this.identity = identity; this.listener = listener; this.options=options;
+        queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); });
         audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock);
-        videoPlayer = new LegacyAvcPlayer(surface, queue, decoded::countDown, playbackClock);
+        videoPlayer = new LegacyAvcPlayer(surface, queue, new LegacyAvcPlayer.Listener() {
+            @Override public void decodedFrame() {
+                decoded.countDown();
+                if (videoActive.compareAndSet(false,true)) listener.videoStarted();
+            }
+            @Override public void resized(int width,int height) { listener.videoSize(width,height); }
+        }, playbackClock);
         worker = new Thread(this::run, "fireos3-live-receiver");
     }
 
-    void start() { worker.start(); }
-    void stop() {
+    public void start() { worker.start(); }
+    public void stop() {
         if (!stopping.compareAndSet(false, true)) return;
         queue.close(); audioQueue.close(); worker.interrupt();
         Thread audio = audioWorker;
@@ -70,12 +88,13 @@ final class LegacyReceiverSession {
             }
             String[] video, audio;
             synchronized (nativeLock) {
-                handle = ProbeActivity.startNetworkReceiver(new File(context.getFilesDir(), "receiver.key").getAbsolutePath(),
-                        queue, identity, network.address.getHostAddress(), network.prefix);
+                handle = NativeReceiver.startNetworkReceiver(new File(context.getFilesDir(), "receiver.key").getAbsolutePath(),
+                        queue, identity, network.address.getHostAddress(), network.prefix,
+                        options == null ? null : options.name, options == null ? 0 : options.port);
                 if (handle == 0) throw new IOException("Native video receiver could not start");
-                port = ProbeActivity.receiverPort(handle);
-                video = ProbeActivity.receiverTxt(handle, true);
-                audio = ProbeActivity.receiverTxt(handle, false);
+                port = NativeReceiver.receiverPort(handle);
+                video = NativeReceiver.receiverTxt(handle, true);
+                audio = NativeReceiver.receiverTxt(handle, false);
             }
             if (stopping.get()) return;
             audioWorker = new Thread(() -> {
@@ -84,7 +103,7 @@ final class LegacyReceiverSession {
                 catch (LinkageError error) { if (!stopping.get()) audioFailure = new IOException("Legacy audio dependency failed", error); }
             }, "fireos3-live-audio");
             audioWorker.start();
-            discovery.start(network.address, identity, port, video, audio);
+            discovery.start(network.address, identity, port, video, audio,options == null ? null : options.name);
             if (stopping.get()) return;
             ready.countDown(); listener.ready(discovery.name());
             videoPlayer.run(() -> stopping.get() || audioFailure != null);
@@ -100,7 +119,7 @@ final class LegacyReceiverSession {
             Thread.interrupted();
             try { discovery.close(); } catch (IOException error) { if (failure == null) failure = error; }
             synchronized (nativeLock) {
-                if (handle != 0) { ProbeActivity.stopReceiver(handle); handle = 0; }
+                if (handle != 0) { NativeReceiver.stopReceiver(handle); handle = 0; }
             }
             audioQueue.close();
             if (audioWorker != null) {
@@ -124,7 +143,7 @@ final class LegacyReceiverSession {
     void replay(byte[] annexB, long timeNs) {
         ByteBuffer packet = ByteBuffer.allocateDirect(annexB.length); packet.put(annexB);
         synchronized (nativeLock) {
-            if (handle == 0 || stopping.get() || !ProbeActivity.replayReceiverVideo(handle, packet, annexB.length, timeNs)) {
+            if (handle == 0 || stopping.get() || !NativeReceiver.replayReceiverVideo(handle, packet, annexB.length, timeNs)) {
                 throw new IllegalStateException("Receiver stopped before replay");
             }
         }
@@ -133,9 +152,12 @@ final class LegacyReceiverSession {
     void replayAudio(byte[] encoded, int codec, int spf, long timeNs, float volume, boolean flush) {
         ByteBuffer packet = ByteBuffer.allocateDirect(encoded.length); packet.put(encoded);
         synchronized (nativeLock) {
-            if (handle == 0 || stopping.get() || !ProbeActivity.replayReceiverAudio(handle, packet, encoded.length,
+            if (handle == 0 || stopping.get() || !NativeReceiver.replayReceiverAudio(handle, packet, encoded.length,
                     codec, spf, timeNs, volume, flush)) throw new IllegalStateException("Audio receiver stopped before replay");
         }
     }
     double senderVolume() { return audioQueue.volumeDb(); }
+    public boolean isClosed() { return closed.getCount()==0; }
+    public int listeningPort() { return port; }
+    public String localAddress() { return network == null ? null : network.address.getHostAddress(); }
 }
