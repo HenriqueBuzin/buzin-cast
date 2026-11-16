@@ -28,7 +28,7 @@ jobs:
       - name: Preserve approved launcher artwork
         run: python3 tools/verify_brand.py
       - name: Compilar e executar lint
-        run: bash ./gradlew :receiver-core:check :receiver-core:jacocoTestReport :dlna-domain:test assembleDebug lintDebug --console=plain
+        run: bash ./gradlew :receiver-core:check :receiver-core:jacocoTestReport :dlna-domain:check assembleDebug lintDebug --console=plain
       - name: Compile native tests for ARM32 and ARM64
         run: |
           python3 tools/build_native_tests.py --abi armeabi-v7a --api 22 --output build/native-tests-arm32
@@ -64,10 +64,14 @@ jobs:
       max-parallel: 6
       matrix:
         api: [22, 25, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
+        edition: [normal, deat]
     env:
       BUZIN_LEGACY: ${{ matrix.api == 22 }}
-      APP_BUILD: ${{ matrix.api == 22 && 'build-legacy-coverage' || 'build-coverage' }}
-      CHECKS_DIR: ${{ matrix.api == 22 && 'emulator-checks-legacy' || 'emulator-checks' }}
+      BUZIN_NODOWNLOAD: ${{ matrix.edition == 'deat' }}
+      ORG_GRADLE_PROJECT_buzinNoDownload: ${{ matrix.edition == 'deat' }}
+      APP_PACKAGE: ${{ matrix.edition == 'deat' && 'com.buzincast.tv.deat' || 'com.buzincast.tv' }}
+      APP_BUILD: ${{ matrix.api == 22 && (matrix.edition == 'deat' && 'build-legacy-nodownload-coverage' || 'build-legacy-coverage') || (matrix.edition == 'deat' && 'build-nodownload-coverage' || 'build-coverage') }}
+      CHECKS_DIR: ${{ matrix.api == 22 && (matrix.edition == 'deat' && 'emulator-checks-legacy-nodownload' || 'emulator-checks-legacy') || (matrix.edition == 'deat' && 'emulator-checks-nodownload' || 'emulator-checks') }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -80,8 +84,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/install_cmake.py
+      - name: Prepare regional debug identity fixture
+        if: matrix.edition == 'deat'
+        run: |
+          mkdir -p build/ci-regional-assets
+          cp app/src/main/assets/AppstoreAuthenticationKey.pem build/ci-regional-assets/
+          echo "ORG_GRADLE_PROJECT_buzinRegionalAppstoreAssets=$GITHUB_WORKSPACE/build/ci-regional-assets" >> "$GITHUB_ENV"
+        # Public-key fixture for an isolated debug APK, not a regional store license test.
       - name: Instrument Android and app-owned C++
-        run: bash ./gradlew -PbuzinLegacy=$BUZIN_LEGACY -PbuzinCoverage=true -PbuzinAbis=x86_64 :receiver-core:check :dlna-domain:test :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+        run: bash ./gradlew -PbuzinLegacy=$BUZIN_LEGACY -PbuzinCoverage=true -PbuzinAbis=x86_64 :receiver-core:check :dlna-domain:check :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --console=plain
       - name: Build C++ unit tests with UBSan
         run: python3 tools/build_native_tests.py --abi x86_64 --api ${{ matrix.api == 22 && 22 || 25 }} --output app/$APP_BUILD/native-tests
       - name: Enable KVM
@@ -99,7 +110,7 @@ jobs:
           profile: tv_1080p
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 tools/test_emulator.py --serial emulator-5554 --apk app/$APP_BUILD/outputs/apk/debug/app-debug.apk --test-apk app/$APP_BUILD/outputs/apk/androidTest/debug/app-debug-androidTest.apk --native-tests app/$APP_BUILD/native-tests/native_core_tests --coverage --output build/$CHECKS_DIR
+          script: python3 tools/test_emulator.py --serial emulator-5554 --apk app/$APP_BUILD/outputs/apk/debug/app-debug.apk --test-apk app/$APP_BUILD/outputs/apk/androidTest/debug/app-debug-androidTest.apk --native-tests app/$APP_BUILD/native-tests/native_core_tests --coverage --extended --package $APP_PACKAGE ${{ matrix.edition == 'deat' && '--no-download' || '' }} --output build/$CHECKS_DIR
       - name: Android/JVM coverage report
         run: bash ./gradlew -PbuzinLegacy=$BUZIN_LEGACY -PbuzinCoverage=true -PbuzinAbis=x86_64 :app:fullCoverageReport --console=plain
       - name: Native coverage and consolidated metrics
@@ -107,7 +118,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: emulator-api-${{ matrix.api }}
+          name: emulator-${{ matrix.edition }}-api-${{ matrix.api }}
           path: |
             build/emulator-checks*/
             build/coverage-report/

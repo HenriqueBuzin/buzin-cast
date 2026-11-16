@@ -22,11 +22,28 @@ PKG = "com.buzincast.tv"
 BASE = "io.github.jqssun.airplay."
 
 
+class UiUnavailable(AssertionError):
+    """No trustworthy accessibility snapshot is available yet."""
+
+
+def validate_instrumentation_output(output, require_all=False):
+    completed=re.search(r"OK \(([1-9]\d*) tests?\)",output)
+    assert completed and "FAILURES" not in output,output
+    if require_all:
+        statuses=[int(value) for value in re.findall(r"INSTRUMENTATION_STATUS_CODE:\s*(-?\d+)",output)]
+        count=int(completed.group(1))
+        assert set(statuses)<= {0,1} and statuses.count(0)==count and statuses.count(1)==count, (
+            "Coverage runs must execute every selected instrumentation test without skips or assumptions:\n"+output)
+
+
 class Suite:
     def __init__(self, args):
         if not re.fullmatch(r"emulator-\d+", args.serial):
             raise ValueError("Only an emulator-<port> serial is allowed; physical TVs are forbidden")
         self.args = args
+        self.package = args.package
+        if self.package == "com.buzincast.tv.deat" and not args.no_download:
+            raise ValueError("DE/AT must be tested with --no-download")
         self.out = Path(args.output)
         self.out.mkdir(parents=True, exist_ok=True)
         self.results = []
@@ -53,22 +70,37 @@ class Suite:
         self.adb("shell", "input", "keyevent", code)
 
     def ui(self):
-        dumped=self.adb("shell", "uiautomator", "dump", "/data/local/tmp/buzin-test.xml")
-        if "dumped" not in dumped:
-            return ET.Element("hierarchy")
-        xml=self.adb("shell", "cat", "/data/local/tmp/buzin-test.xml")
-        if not xml.lstrip().startswith("<"):
-            return ET.Element("hierarchy")
-        return ET.fromstring(xml)
+        # An empty dump during a transition must not count as proof that a
+        # dialog/caption/keyboard disappeared. Never return a fabricated tree.
+        for attempt in range(3):
+            dumped=self.adb("shell", "uiautomator", "dump", "/data/local/tmp/buzin-test.xml")
+            if "dumped" in dumped:
+                xml=self.adb("shell", "cat", "/data/local/tmp/buzin-test.xml")
+                try:
+                    tree=ET.fromstring(xml)
+                    if len(list(tree.iter()))>1:
+                        return tree
+                except ET.ParseError:
+                    pass
+            if attempt<2:
+                time.sleep(.3)
+        raise UiUnavailable("Could not capture a nonempty accessibility hierarchy")
 
     def wait(self, predicate, message, timeout=25):
         deadline = time.monotonic() + timeout
+        unavailable = None
         while time.monotonic() < deadline:
-            value = predicate()
-            if value:
-                return value
+            try:
+                value = predicate()
+                unavailable = None
+                if value:
+                    return value
+            except UiUnavailable as error:
+                # Retry within the caller's startup/transition deadline, without
+                # letting a missing tree satisfy an absence assertion.
+                unavailable = str(error)
             time.sleep(.3)
-        raise AssertionError(message)
+        raise AssertionError(message + (": " + unavailable if unavailable else ""))
 
     def keyboard(self):
         # mIsInputViewShown in the IME's own dump can remain true while hidden.
@@ -98,6 +130,7 @@ class Suite:
             tree = self.ui()
             focused = next((n for n in tree.iter() if n.get("focused")=="true"), None)
             if focused is not None and any(label in labels for label in owned_labels(focused)):
+                print(f"ACTIVATE {labels} after {_} tabs",flush=True)
                 self.key(23)
                 return
             self.key(61)
@@ -111,11 +144,11 @@ class Suite:
         for filename in ("android.ec", "native.profraw"):
             target = self.out / "coverage" / f"{self.checkpoint}-{filename}"
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(self.adb("exec-out", "run-as", PKG, "cat", "files/coverage/"+filename, binary=True))
+            target.write_bytes(self.adb("exec-out", "run-as", self.package, "cat", "files/coverage/"+filename, binary=True))
 
     def start(self, screen):
         self.key(224)  # Wake the isolated emulator before waiting for Compose frames.
-        output=self.adb("shell","am","start","-W","-S","-n",f"{PKG}/{BASE}DebugTvPreviewActivity","--es","screen",screen)
+        output=self.adb("shell","am","start","-W","-S","-n",f"{self.package}/{BASE}DebugTvPreviewActivity","--es","screen",screen)
         assert "Error:" not in output,output
         self.wait(lambda: len(list(self.ui().iter()))>15, "Screen did not compose",45)
 
@@ -127,12 +160,12 @@ class Suite:
         raise AssertionError("Cannot reach profile by remote navigation")
 
     def setting(self, key, value):
-        result=self.adb("shell","am","broadcast","-n",f"{PKG}/{BASE}SettingsReceiver",
+        result=self.adb("shell","am","broadcast","-n",f"{self.package}/{BASE}SettingsReceiver",
                         "-a",BASE+"SET_SETTING","--es","key",key,"--es","value",str(value))
         assert "result=-1" in result, result
 
     def debug(self, command="state", **extras):
-        args=["shell","am","broadcast","-n",f"{PKG}/{BASE}DebugMediaReceiver","--es","command",command]
+        args=["shell","am","broadcast","-n",f"{self.package}/{BASE}DebugMediaReceiver","--es","command",command]
         for key,value in extras.items():
             args += ["--ez" if isinstance(value,bool) else "--es",key,str(value).lower() if isinstance(value,bool) else str(value)]
         output=self.adb(*args)
@@ -155,10 +188,12 @@ class Suite:
         self.shot("settings-advanced" if advanced else "settings-normal")
 
     def edit_cancel(self):
+        def name_has_focus():
+            label=self.focused().lower()
+            return "name" in label or "nome" in label
         for attempt in range(3):
             self.start("settings"); self.profile_focus();self.key(20)
-            initial_focus=self.focused()
-            assert ("name" in initial_focus.lower() or "nome" in initial_focus.lower()),initial_focus
+            self.wait(name_has_focus,"Remote Down did not focus server name",10)
             self.key(23)
             self.wait(self.keyboard,f"OK did not open keyboard (attempt {attempt+1})")
             self.adb("shell","input","text","_AUTOTEST")
@@ -166,7 +201,7 @@ class Suite:
             self.key(4)
             self.wait(lambda: not any(n.get("class")=="android.widget.EditText" for n in self.ui().iter()),"Dialog did not close")
             assert "_AUTOTEST" not in self.texts(self.ui()),"Cancel saved the draft"
-            assert ("name" in self.focused().lower() or "nome" in self.focused().lower()),"Focus did not return to name"
+            self.wait(name_has_focus,"Focus did not return to name",10)
             self.key(20);assert not self.keyboard()
 
     def relay_form(self):
@@ -209,19 +244,22 @@ class Suite:
                     if n.get("selected")=="true" or n.get("checked")=="true"
                     for c in n.iter() if c.get("text") in profile_by_label}
         def saved():
-            xml=self.adb("shell","run-as",PKG,"cat","shared_prefs/settings.xml")
+            xml=self.adb("shell","run-as",self.package,"cat","shared_prefs/settings.xml")
             return next((n.text for n in ET.fromstring(xml) if n.get("name")=="experience_profile"), "Padrão")
         self.start("settings")
-        assert selected()=={saved()}, "Settings did not show the saved or default profile"
+        self.wait(lambda: selected()=={saved()}, "Settings did not show the saved or default profile")
         for name, options in labels.items():
             self.activate(*options)
             self.wait(lambda: saved()==name,"Profile did not apply: "+name)
             self.wait(lambda: selected()=={name},"Profile selection was not highlighted: "+name)
             self.start("settings")
-            assert selected()=={name}, "Profile selection was lost after relaunch: "+name
+            # The activity can expose the settings hierarchy before the persisted
+            # preference Flow has emitted. Require the saved selection to render,
+            # rather than sampling the initial default composition once.
+            self.wait(lambda: selected()=={name}, "Profile selection was lost after relaunch: "+name)
 
     def about_version(self):
-        package=self.adb("shell","dumpsys","package",PKG)
+        package=self.adb("shell","dumpsys","package",self.package)
         version=re.search(r"\bversionName=(\S+)",package).group(1)
         self.start("home")
         self.activate("About BuzinCast","Sobre o BuzinCast")
@@ -246,25 +284,32 @@ class Suite:
 
     def audio_controls(self):
         self.start("audio")
-        for label,command in (("Reproduzir","play"),("Pausar","pause"),("Próxima","next"),("Anterior","previous")):
-            self.activate(label,description=True)
+        play_pause = ("Play/Pause", "Reproduzir ou pausar")
+        for labels,command in ((play_pause,"play"),(play_pause,"pause"),(("Next","Próxima"),"next"),(("Previous","Anterior"),"previous")):
+            self.activate(*labels,description=True)
             self.wait(lambda: "Comando: "+command in self.texts(self.ui()),"Audio command did not reach the player: "+command)
         assert "00:30" in self.texts(self.ui())
         self.shot("shared-audio-controls")
 
     def launcher_entry(self):
         self.setting("auto_start","true")
-        component=f"{PKG}/{BASE}MainActivity"
+        component=f"{self.package}/{BASE}MainActivity"
         self.adb("shell","am","start","-S","-n",component)
-        self.wait(lambda: len(list(self.ui().iter()))>15,"Launcher activity did not compose")
+        def home_ready():
+            return any(n.get("text") in ("About BuzinCast","Sobre o BuzinCast") for n in self.ui().iter())
+        self.wait(home_ready,"Launcher did not present the home controls",45)
         self.wait(lambda:self.debug().get("serverState")=="RUNNING","Launcher did not auto-start receiver")
         assert not self.keyboard(),"Launcher unexpectedly opened the keyboard"
         # Exercise real activity stop/start and service rebinding, not a preview.
         self.key(3)
         self.adb("shell","am","start","-n",component)
-        self.wait(lambda: len(list(self.ui().iter()))>15,"Launcher did not resume")
+        self.wait(home_ready,"Launcher did not resume its home controls",45)
         assert self.debug().get("serverState")=="RUNNING"
         self.shot("launcher-entry-resume")
+        self.activate("About BuzinCast","Sobre o BuzinCast")
+        self.wait(lambda:"buzin.solutions" in self.texts(self.ui()),"Launcher home controls are not interactive")
+        self.activate("Close","Fechar")
+        self.wait(lambda:home_ready() and "buzin.solutions" not in self.texts(self.ui()),"Launcher About did not close")
 
     def calibration(self):
         self.start("tools")
@@ -291,7 +336,7 @@ class Suite:
     def media_controls(self):
         # Silent PCM keeps this test deterministic without external media,
         # downloads or a dependency on video hardware in the host emulator.
-        self.adb("shell","am","start","-S","-n",f"{PKG}/{BASE}DebugTvPlaybackActivity")
+        self.adb("shell","am","start","-S","-n",f"{self.package}/{BASE}DebugTvPlaybackActivity")
         buffer=io.BytesIO()
         with wave.open(buffer,"wb") as wav:
             wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(8000);wav.writeframes(b"\0\0"*8000*120)
@@ -321,7 +366,10 @@ class Suite:
             self.activate("2.0")
             self.wait(lambda:sum(n.get("text")=="2.0" for n in self.ui().iter())>=2,"Speed did not update")
             assert not self.debug()["playing"],"Changing speed resumed paused media"
+            assert not self.keyboard(),"Unexpected IME before dismissing playback speed selector"
             self.key(4)
+            self.wait(lambda: not any(n.get("text") in ("Playback speed","Velocidade de reprodução") for n in self.ui().iter()),
+                      "Back did not dismiss the playback speed selector")
             assert self.debug()["activeVideo"],"Closing speed menu stopped playback"
             for kind in ("srt","vtt"):
                 caption="Legenda "+kind.upper()+" Buzin"
@@ -383,20 +431,33 @@ class Suite:
             server.shutdown();server.server_close()
 
     def native_capture(self):
-        self.adb("shell","am","start","-S","-n",f"{PKG}/{BASE}DebugTvPlaybackActivity")
+        self.adb("shell","am","start","-S","-n",f"{self.package}/{BASE}DebugTvPlaybackActivity")
         time.sleep(2)
         self.debug("startserver")
         self.wait(lambda:self.debug().get("serverState")=="RUNNING","Native receiver failed smoke startup")
+        before=self.debug()
+        previous_files={item["name"] for item in before["recordings"]}
+        assert before.get("recordingEnabled") == (not self.args.no_download),before
+        assert before.get("downloadEnabled") == (not self.args.no_download),before
         self.debug("record")
+        if self.args.no_download:
+            policy=self.debug()
+            assert not policy.get("captureArmed") and not policy.get("recording"),policy
         state=self.debug("nativefixture")
         assert state.get("sessionProtocol")=="AIRPLAY",state
         assert state.get("resolution")=="64x48",state
-        self.wait(lambda:self.debug().get("recording"),"Synthetic mirror was not recorded")
+        if not self.args.no_download:
+            self.wait(lambda:self.debug().get("recording"),"Synthetic mirror was not recorded")
         self.debug("stop")
-        self.wait(lambda:self.debug().get("captureMessage", "").startswith("Salvo:"),"Recording did not finalize")
+        if not self.args.no_download:
+            self.wait(lambda:not self.debug().get("captureArmed"),"Recording did not finalize")
         state=self.debug()
-        filename=state["captureMessage"][len("Salvo: "):]
-        assert any(file["name"]==filename and file["bytes"]>100 for file in state["recordings"]),state
+        if self.args.no_download:
+            assert not state.get("captureArmed") and not state.get("recording"),state
+            assert state["recordings"] == before["recordings"],state
+        else:
+            assert not state.get("recording"),state
+            assert any(file["name"] not in previous_files and file["bytes"]>100 for file in state["recordings"]),state
         state=self.debug("nativefixture",hevc=True)
         assert state.get("resolution")=="64x48",state
         self.debug("native-disconnect")
@@ -410,6 +471,13 @@ class Suite:
         self.key(4)  # Remote Back remains available when overlay icons are absent.
         self.wait(lambda:any(label in self.texts(self.ui()) for label in ("Ferramentas","Tools")),"Remote Back did not leave fullscreen")
         self.debug("native-disconnect")
+
+    def edition_policy(self):
+        self.start("tools")
+        text=self.texts(self.ui())
+        recording=any(label in text for label in ("Record mirroring","Gravar espelhamento","Prepare recording","Preparar gravação"))
+        assert recording == (not self.args.no_download),"Recording UI does not match the edition"
+        self.shot("edition-policy")
 
     def native_unit_tests(self):
         binary=str(Path(self.args.native_tests).resolve())
@@ -442,18 +510,18 @@ class Suite:
             # adb shell parses the remote command; quote a possible Class#method selector.
             import shlex
             command.extend(["-e", "class", shlex.quote(self.args.test_class)])
-        command.append("com.buzincast.tv.test/androidx.test.runner.AndroidJUnitRunner")
+        command.append(self.package+".test/androidx.test.runner.AndroidJUnitRunner")
         result=subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300, check=True)
         output=result.stdout.decode("utf-8","replace")
         (self.out/"instrumentation.txt").write_text(output,encoding="utf-8")
-        assert re.search(r"OK \([1-9]\d* tests?\)",output) and "FAILURES" not in output,output
+        validate_instrumentation_output(output,require_all=self.args.coverage)
         self.results.append({"test":"Android socket integration", "passed":True, "runner":output})
         if self.args.coverage:
             self.checkpoint += 1
             for filename in ("android.ec", "native.profraw"):
                 target=self.out/"coverage"/f"{self.checkpoint}-{filename}"
                 target.parent.mkdir(parents=True,exist_ok=True)
-                target.write_bytes(self.adb("exec-out","run-as",PKG,"cat","files/coverage/"+filename,binary=True))
+                target.write_bytes(self.adb("exec-out","run-as",self.package,"cat","files/coverage/"+filename,binary=True))
 
     def run(self):
         self.adb("wait-for-device")
@@ -464,8 +532,8 @@ class Suite:
                 apk=subprocess.check_output(["wslpath","-w",apk],text=True).strip()
             self.adb("install","--no-streaming","-r",apk)
         api=int(self.adb("shell","getprop","ro.build.version.sdk").strip())
-        if api>=33: self.adb("shell","pm","grant",PKG,"android.permission.POST_NOTIFICATIONS")
-        if api>=37: self.adb("shell","pm","grant",PKG,"android.permission.ACCESS_LOCAL_NETWORK")
+        if api>=33: self.adb("shell","pm","grant",self.package,"android.permission.POST_NOTIFICATIONS")
+        if api>=37: self.adb("shell","pm","grant",self.package,"android.permission.ACCESS_LOCAL_NETWORK")
         # First-run immersive hints obscure the fixture on API 35+; these are
         # emulator-only setup choices, not app permissions or skipped assertions.
         self.adb("shell","settings","put","secure","immersive_mode_confirmations","confirmed")
@@ -481,7 +549,7 @@ class Suite:
                 self.native_unit_tests()
             if self.args.test_apk:
                 self.instrumentation()
-            cases=[("normal settings",lambda:self.scan_settings(False)),("advanced/custom settings",lambda:self.scan_settings(True)),
+            cases=[("edition recording policy",self.edition_policy),("normal settings",lambda:self.scan_settings(False)),("advanced/custom settings",lambda:self.scan_settings(True)),
                    ("cancel and restore focus",self.edit_cancel),("single relay form",self.relay_form),
                    ("device-aware profiles",self.profiles),("about version",self.about_version),("shared audio controls",self.audio_controls),("native/player recovery and ownership",self.media_recovery),("native codecs and recording smoke",self.native_capture),("launcher entry and resume",self.launcher_entry),("guided calibration save/cancel and bounds",self.calibration)]
             extended=("media remote controls and rendered captions",self.media_controls)
@@ -500,7 +568,7 @@ class Suite:
         finally:
             (self.out/"results.json").write_text(json.dumps(self.results,indent=2,ensure_ascii=False),encoding="utf-8")
             (self.out/"logcat.txt").write_text(self.adb("logcat","-d","-t","1500"),encoding="utf-8")
-            self.adb("shell","am","force-stop",PKG)
+            self.adb("shell","am","force-stop",self.package)
             self.adb("shell","wm","size","reset");self.adb("shell","wm","density","reset")
 
 
@@ -509,6 +577,8 @@ if __name__=="__main__":
     parser.add_argument("--serial",required=True)
     parser.add_argument("--adb",default="adb")
     parser.add_argument("--apk")
+    parser.add_argument("--package", choices=["com.buzincast.tv","com.buzincast.tv.deat"], default=PKG)
+    parser.add_argument("--no-download", action="store_true", help="Assert recording/download policy is disabled")
     parser.add_argument("--native-tests", help="Standalone native C++ unit executable built for this emulator ABI")
     parser.add_argument("--test-apk", help="Run Android instrumentation integration suite first")
     parser.add_argument("--test-class", help="Select an AndroidJUnitRunner class or Class#method with --test-apk")

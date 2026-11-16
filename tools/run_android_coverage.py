@@ -1,0 +1,178 @@
+"""Build, install, test and measure the four current Android APK variants.
+
+Uses an already running, explicitly named emulator. Never connects to physical
+TVs, signs a release, or uses regional production credentials. A copied public
+key provides the DE/AT debug package identity, not an Appstore license test.
+"""
+import argparse
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+
+VARIANTS = {
+    "normal": (False, False),
+    "compat": (True, False),
+    "deat": (False, True),
+    "compat-deat": (True, True),
+}
+
+
+def coverage_identity(root, build, apk, test_apk):
+    """Fingerprint actual compiled inputs, independent of source mtimes or Git dirt."""
+    digest=hashlib.sha256()
+    roots={
+        "app":build/"intermediates/classes/debug/transformDebugClassesWithAsm/dirs",
+        "app-kotlin":build/"tmp/kotlin-classes/debug",
+        "core":root/"receiver-core/build/classes/kotlin/main",
+        "domain":root/"dlna-domain/build/classes/kotlin/main",
+    }
+    counts={}
+    for label,directory in roots.items():
+        files=sorted(directory.rglob("*.class"))
+        counts[label]=len(files)
+        for file in files:
+            digest.update((label+"/"+file.relative_to(directory).as_posix()+"\0").encode())
+            digest.update(hashlib.sha256(file.read_bytes()).digest())
+    if any(counts[label]==0 for label in ("app","core","domain")):
+        raise RuntimeError("Compiled application/core/domain classes are required for provenance")
+    binaries=list((build/"intermediates/cxx/Debug").glob("*/obj/x86_64/libairplay_native.so"))
+    if not binaries:
+        raise RuntimeError("Native application library is required for provenance")
+    native=max(binaries,key=lambda path:path.stat().st_mtime)
+    return {
+        "apk_sha256":hashlib.sha256(apk.read_bytes()).hexdigest(),
+        "test_apk_sha256":hashlib.sha256(test_apk.read_bytes()).hexdigest(),
+        "class_files_sha256":digest.hexdigest(),
+        "class_counts":counts,
+        "native_library_sha256":hashlib.sha256(native.read_bytes()).hexdigest(),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--serial", required=True)
+    parser.add_argument("--variant", action="append", choices=list(VARIANTS), help="Repeat to select variants; default: all four")
+    parser.add_argument("--sdk-root", type=Path)
+    parser.add_argument("--bash-dir", type=Path, help="Windows POSIX tool directory used by native Gradle tasks")
+    parser.add_argument("--output", type=Path, help="Separate report destination, for example build/coverage-api22")
+    parser.add_argument("--require-100", action="store_true", help="Fail unless every selected variant reaches all metrics")
+    args = parser.parse_args()
+    if not re.fullmatch(r"emulator-\d+", args.serial):
+        parser.error("Only an explicit emulator-<port> serial is permitted")
+    variants = list(dict.fromkeys(args.variant or VARIANTS))
+    root = Path(__file__).resolve().parents[1]
+    sdk_value = args.sdk_root or os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    if not sdk_value and platform.system() == "Windows":
+        sdk_value = Path(os.environ["LOCALAPPDATA"]) / "Android/Sdk"
+    if not sdk_value:
+        parser.error("Pass --sdk-root or set ANDROID_HOME")
+    sdk = Path(sdk_value).resolve()
+    adb = sdk / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
+    # Validate the entire selection before installing or changing emulator data.
+    api = int(subprocess.check_output([str(adb), "-s", args.serial, "shell", "getprop", "ro.build.version.sdk"], text=True).strip())
+    minimum = max(22 if VARIANTS[name][0] else 25 for name in variants)
+    if api < minimum:
+        parser.error(f"Selected variants require emulator API {minimum} or newer; got {api}")
+    env = os.environ.copy()
+    env["ANDROID_HOME"] = str(sdk)
+    ndk = re.search(r'^ndk = "([^"]+)"', (root / "gradle/libs.versions.toml").read_text(), re.M).group(1)
+    env["ANDROID_NDK_ROOT"] = str(sdk / "ndk" / ndk)
+    if args.bash_dir:
+        if not args.bash_dir.is_dir():
+            parser.error("--bash-dir must name an existing directory")
+        env["PATH"] = str(args.bash_dir.resolve()) + os.pathsep + env.get("PATH", "")
+    # Explicit flags below must determine the edition, even in a shell used for
+    # a previous regional/compat build. Never inherit an external signing asset.
+    for name in ("buzinLegacy", "buzinNoDownload", "buzinRegionalAppstoreAssets"):
+        env.pop("ORG_GRADLE_PROJECT_" + name, None)
+    output = (args.output or root / "build/android-coverage-matrix").resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    fixture = output / "regional-debug-assets"
+    fixture.mkdir(exist_ok=True)
+    shutil.copyfile(root / "app/src/main/assets/AppstoreAuthenticationKey.pem", fixture / "AppstoreAuthenticationKey.pem")
+    gradle = [str(root / "gradlew.bat")] if os.name == "nt" else ["bash", str(root / "gradlew")]
+    results = {"emulator_api": api, "selected_variants": variants, "variants": {}, "all_four_target_met": False}
+
+    def run(command, logfile):
+        print("Running " + logfile.name, flush=True)
+        with logfile.open("w", encoding="utf-8") as log:
+            subprocess.run(list(map(str, command)), cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+
+    def save():
+        results["all_four_target_met"] = set(results["variants"]) == set(VARIANTS) and all(value.get("target_met") for value in results["variants"].values())
+        (output / "matrix.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+
+    try:
+        for name in variants:
+            legacy, regional = VARIANTS[name]
+            suffix = ("-legacy" if legacy else "") + ("-nodownload" if regional else "")
+            build = root / ("app/build" + suffix + "-coverage")
+            profiles = root / ("build/emulator-checks" + suffix)
+            report = output / name
+            report.mkdir(exist_ok=True)
+            flags = ["-PbuzinCoverage=true", "-PbuzinAbis=x86_64", "-PbuzinLegacy=" + str(legacy).lower(), "-PbuzinNoDownload=" + str(regional).lower()]
+            if regional:
+                flags.append("-PbuzinRegionalAppstoreAssets=" + str(fixture))
+            run(gradle + flags + [":receiver-core:check", ":dlna-domain:check", ":app:assembleDebug", ":app:assembleDebugAndroidTest", ":app:lintDebug", "--console=plain"], report / "build.log")
+            native = build / "native-tests"
+            run([sys.executable, root / "tools/build_native_tests.py", "--abi", "x86_64", "--api", 22 if legacy else 25, "--sdk-root", sdk, "--output", native], report / "native-build.log")
+            apk = build / "outputs/apk/debug/app-debug.apk"
+            test_apk = build / "outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+            identity=coverage_identity(root,build,apk,test_apk)
+            package = "com.buzincast.tv.deat" if regional else "com.buzincast.tv"
+            # Modern and compat share a package but have different version codes.
+            # Use clean emulator installs instead of relying on downgrade flags or
+            # carrying settings/database state from a different APK variant.
+            installed = set(subprocess.check_output([str(adb), "-s", args.serial, "shell", "pm", "list", "packages", package], env=env, text=True).splitlines())
+            for candidate in (package + ".test", package):
+                if "package:" + candidate in installed:
+                    run([adb, "-s", args.serial, "uninstall", candidate], report / ("uninstall-test.log" if candidate.endswith(".test") else "uninstall-app.log"))
+            command = [sys.executable, root / "tools/test_emulator.py", "--serial", args.serial, "--adb", adb, "--apk", apk, "--test-apk", test_apk, "--native-tests", native / "native_core_tests", "--coverage", "--extended", "--package", package, "--output", profiles]
+            if regional:
+                command.append("--no-download")
+            run(command, report / "runtime.log")
+            run(gradle + flags + [":app:fullCoverageReport", "--console=plain"], report / "jacoco.log")
+            command = [sys.executable, root / "tools/collect_native_coverage.py", "--profiles", profiles, "--output", report]
+            if legacy:
+                command.append("--legacy")
+            if regional:
+                command.append("--no-download")
+            # Set both booleans explicitly; the collector also accepts CI env defaults.
+            env["BUZIN_LEGACY"] = str(legacy).lower()
+            env["BUZIN_NODOWNLOAD"] = str(regional).lower()
+            run(command, report / "native-report.log")
+            shutil.copyfile(build / "reports/jacoco/fullCoverageReport/fullCoverageReport.xml", report / "android.xml")
+            measured = json.loads((report / "summary.json").read_text(encoding="utf-8"))
+            if coverage_identity(root,build,apk,test_apk)!=identity:
+                raise RuntimeError("Compiled inputs changed during testing/reporting; rebuild and rerun "+name)
+            snapshot=report/"raw"/uuid.uuid4().hex
+            shutil.copytree(profiles/"coverage",snapshot)
+            shutil.copyfile(profiles/"results.json",snapshot/"results.json")
+            manifest={"variant":name,"emulator_api":api,**identity}
+            (snapshot/"manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
+            results["variants"][name] = {
+                "target_met": measured["target_met"],
+                "package": package,
+                **identity,
+                "raw_snapshot":snapshot.relative_to(output).as_posix(),
+                "android_and_jvm": measured["android_and_jvm"],
+                "native": measured["native"],
+            }
+            save()
+            print(name + ": target_met=" + str(measured["target_met"]), flush=True)
+    finally:
+        save()
+    if args.require_100 and not all(results["variants"][name]["target_met"] for name in variants):
+        raise SystemExit("100% target not met; inspect build/android-coverage-matrix/matrix.json")
+
+
+if __name__ == "__main__":
+    main()

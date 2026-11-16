@@ -246,7 +246,9 @@ if (legacyEdition) {
     }
 }
 
-val coverageFolder = if (legacyEdition) "emulator-checks-legacy" else "emulator-checks"
+val coverageFolder = "emulator-checks" + (if (legacyEdition) "-legacy" else "") + (if (noDownloadEdition) "-nodownload" else "")
+val coverageInputDirectory = providers.gradleProperty("buzinCoverageData").orNull?.let { file(it) }
+    ?: rootProject.layout.buildDirectory.dir(coverageFolder).get().asFile
 val productionClasses = files(
     fileTree(layout.buildDirectory.dir("intermediates/classes/debug/transformDebugClassesWithAsm/dirs")) {
         exclude("**/DebugMediaReceiver*", "**/DebugNativeBridge*", "**/DebugCoverage*", "**/DebugTvPreviewActivity*", "**/DebugTvPlaybackActivity*", "**/DebugNativeFixture*")
@@ -260,9 +262,9 @@ tasks.register<JacocoReport>("fullCoverageReport") {
     dependsOn(":receiver-core:test", ":dlna-domain:test")
     doFirst {
         check(layout.buildDirectory.file("intermediates/classes/debug/transformDebugClassesWithAsm/dirs/io/github/jqssun/airplay/ui/MainScreenKt.class").get().asFile.isFile) { "Build the coverage APK before reporting" }
-        check(fileTree(rootProject.layout.buildDirectory.dir(coverageFolder)) { include("**/*.ec") }.files.isNotEmpty()) { "Android execution coverage is missing" }
+        check(fileTree(coverageInputDirectory) { include("**/*.ec") }.files.isNotEmpty()) { "Android execution coverage is missing" }
     }
-    executionData(fileTree(rootProject.layout.buildDirectory.dir(coverageFolder)) { include("**/*.ec", "**/*.exec") },
+    executionData(fileTree(coverageInputDirectory) { include("**/*.ec", "**/*.exec") },
         project(":receiver-core").layout.buildDirectory.file("jacoco/test.exec"),
         project(":dlna-domain").layout.buildDirectory.file("jacoco/test.exec"))
     classDirectories.setFrom(productionClasses)

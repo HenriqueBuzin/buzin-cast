@@ -1,0 +1,91 @@
+# Current Android coverage matrix
+
+The acceptance target is 100% of every applicable measured metric for each of
+the four current APK variants independently. A passing unit-test module does not
+establish whole-app coverage. Vega and the API17 frontend are separate targets.
+
+The variants are `normal`, `compat`, `deat`, and `compat-deat`. The regional
+variants use the DE/AT package identity and must reject recording and download.
+Compatibility builds have API22 as their minimum; modern builds require API25.
+
+## Run all four
+
+Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial
+explicitly; physical devices are rejected before any installation or UI action.
+Use the repository JDK, SDK, NDK and POSIX build tools as for a normal Android
+build. On Windows, set `JAVA_HOME` and pass the POSIX tools directory when the
+default `bash` points to WSL rather than the native build environment.
+
+```powershell
+python tools/run_android_coverage.py --serial emulator-5558 --bash-dir C:/msys64/usr/bin
+```
+
+On Linux or macOS, omit `--bash-dir`. `--sdk-root` overrides SDK environment
+variables. The script copies the tracked **public** Appstore verification key
+into an ignored debug fixture directory. It does not load regional signing
+credentials, validate Amazon DRM, sign production APKs, or submit a release.
+
+The command builds and lints each edition, removes any previous installation of
+that package on the emulator, installs its debug APK and test APK,
+runs native tests with UBSan, runs Android instrumentation and all UI/media
+scenarios including extended playback tests, and writes separate JaCoCo/LLVM
+reports. Runtime assertions fail immediately; insufficient coverage is reported
+as `target_met: false` while the remaining selected variants are measured.
+
+Select a subset by repeating `--variant`:
+
+```powershell
+python tools/run_android_coverage.py --serial emulator-5558 --variant deat --variant compat-deat --bash-dir C:/msys64/usr/bin
+```
+
+Use an API22 emulator with only compatibility variants to exercise their minimum
+platform. Also test compatibility APKs on newer APIs to cover platform-dependent
+behavior. Use `--output build/coverage-api22` to keep a separate report directory.
+Each completed variant also preserves raw execution data in a unique snapshot
+with APK, test APK, class-file and native-library fingerprints. Testing fails if
+those compiled inputs change before the report finishes. Separate API runs
+produce separate reports; percentages must never be averaged.
+
+To combine API runs, use the `raw_snapshot` paths recorded in their matrix JSON
+files (relative to each run's report directory). Replace the two snapshot names
+below with those directories:
+
+```powershell
+python tools/merge_android_coverage.py --snapshot SNAPSHOT_API22 --snapshot SNAPSHOT_API28 --output build/coverage-merged/compat --require-100
+```
+
+The merger requires the same edition and compiled fingerprints, successful
+instrumentation/native/extended UI results, and raw Java/native profiles. It
+also checks the current compiled mappings before and after reporting. JaCoCo
+and LLVM recalculate coverage from the union of execution data. Each edition
+is merged independently, and incomplete coverage still fails `--require-100`.
+
+## Read and enforce results
+
+`build/android-coverage-matrix/matrix.json` contains the API, selected variants,
+APK hashes, all measured counters, and a target result per variant. Each variant
+directory retains build/runtime logs, Android XML, native JSON and the detailed
+summary. Runtime screenshots and raw profiles remain under
+`build/emulator-checks[-legacy][-nodownload]`.
+
+The core and protocol JVM modules enforce 100% of their six metrics through
+`:receiver-core:check` and `:dlna-domain:check`. Full-app acceptance additionally
+requires every Android/JVM and native metric to be present, with nonempty
+mapping inventories. Missing branch or MC/DC metrics cannot count as success.
+
+`all_four_target_met` is true only when all four variants were measured in that
+run and every reported counter is fully covered. Files from earlier runs are not
+used to fill missing variants. Add `--require-100` for a failing exit status when
+any selected variant misses the target. LLVM MC/DC, branches, regions, functions,
+instantiations and lines are all included; Android/JVM reports instructions,
+branches, lines, complexity, methods and classes.
+
+These are debug-instrumented execution results. They complement physical-device
+testing and store-distributed license checks; they do not prove those checks ran.
+
+Native profiles from the unit executable contribute to the functions also
+compiled into the app. The instrumented APK library defines the native mapping
+inventory. The test executable is not supplied as an additional coverage object:
+that would add helpers belonging only to the separate API17 frontend. This was
+checked with the real LLVM tools: unit profiles covered all 196 mapped timeline
+lines while the API17-only clock stayed outside the APK's source inventory.
