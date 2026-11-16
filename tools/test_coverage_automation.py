@@ -10,12 +10,44 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from test_emulator import Suite, UiUnavailable, validate_instrumentation_output
-from run_android_coverage import archive_compiled_inputs, coverage_identity
+from run_android_coverage import archive_compiled_inputs, coverage_identity, source_identity
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
 from report_coverage import coverage_target_met
 
 
 class CoverageAutomationTest(unittest.TestCase):
+    def test_archived_source_changes_cannot_keep_a_valid_compilation_fingerprint(self):
+        with TemporaryDirectory(prefix="coverage-source-fingerprint-") as directory:
+            snapshot = Path(directory)
+            for name in ("app", "core", "domain"):
+                classes = snapshot/"classes"/name
+                classes.mkdir(parents=True)
+                (classes/"Fixture.class").write_bytes(b"compiled fixture")
+                sources = snapshot/"sources"/name
+                sources.mkdir(parents=True)
+                (sources/"Fixture.kt").write_text("// source fixture", encoding="utf-8")
+            native = snapshot/"sources/native/bridge.cpp"
+            native.parent.mkdir()
+            native.write_text("// native fixture", encoding="utf-8")
+            inputs = snapshot/"inputs"
+            inputs.mkdir()
+            for name in ("app.apk", "test.apk", "libairplay_native.so"):
+                (inputs/name).write_bytes(name.encode())
+            identity = coverage_identity(snapshot,snapshot,inputs/"app.apk",inputs/"test.apk",archive=snapshot)
+            (snapshot/"manifest.json").write_text(json.dumps({"variant":"compat","emulator_api":22,
+                "archived_mappings":True,"source_files_sha256":source_identity(snapshot,archive=snapshot),**identity}),encoding="utf-8")
+            runner = "INSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS_CODE: 0\nOK (1 test)\n"
+            results = [{"test":name,"passed":True,"runner":runner} for name in
+                ("Android socket integration","C++ unit concurrency and timing","media remote controls and rendered captions")]
+            (snapshot/"results.json").write_text(json.dumps(results),encoding="utf-8")
+            # This gate checks identities; the report tools parse execution bytes later.
+            for name in ("android.ec","native.profraw","core.exec","domain.exec"):
+                (snapshot/name).write_bytes(b"execution fixture")
+            validate_snapshots([snapshot])
+            native.write_text("// changed after compilation",encoding="utf-8")
+            with self.assertRaisesRegex(ValueError,"Archived production sources"):
+                validate_snapshots([snapshot])
+
     @patch("test_emulator.time.sleep")
     def test_wait_does_not_accept_an_empty_xml_element_as_ready(self, _sleep):
         suite = Suite.__new__(Suite)
@@ -110,8 +142,17 @@ class CoverageAutomationTest(unittest.TestCase):
             native_source.write_text("// native production source",encoding="utf-8")
             snapshot=root/"snapshot"
             snapshot.mkdir()
-            archive_compiled_inputs(root,build,apk,test_apk,snapshot,baseline)
+            source_fingerprint = source_identity(root)
+            archive_compiled_inputs(root,build,apk,test_apk,snapshot,baseline,expected_sources=source_fingerprint)
             self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk,archive=snapshot))
+            self.assertEqual(source_fingerprint,source_identity(root,archive=snapshot))
+            native_source.write_text("// changed during compilation",encoding="utf-8")
+            changed_snapshot=root/"changed-snapshot"
+            changed_snapshot.mkdir()
+            with self.assertRaisesRegex(RuntimeError,"Production sources changed during compilation"):
+                archive_compiled_inputs(root,build,apk,test_apk,changed_snapshot,baseline,expected_sources=source_fingerprint)
+            self.assertFalse((changed_snapshot/"inputs").exists())
+            native_source.write_text("// native production source",encoding="utf-8")
             for file in [apk,test_apk,native,*classes]:
                 file.write_bytes(b"changed compiled content")
                 self.assertNotEqual(baseline,coverage_identity(root,build,apk,test_apk))

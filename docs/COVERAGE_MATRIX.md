@@ -84,6 +84,12 @@ any selected variant misses the target. LLVM MC/DC, branches, regions, functions
 instantiations and lines are all included; Android/JVM reports instructions,
 branches, lines, complexity, methods and classes.
 
+New runs fingerprint the mapped production sources before compilation and check
+them again before and after archiving. A source edit during that interval fails
+the run instead of pairing edited text with an intermediate APK. Snapshots record
+the source fingerprint alongside the compiled-input identities; the merge tool
+rejects changes to those archived sources.
+
 These are debug-instrumented execution results. They complement physical-device
 testing and store-distributed license checks; they do not prove those checks ran.
 

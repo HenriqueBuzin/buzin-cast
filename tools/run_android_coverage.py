@@ -71,8 +71,27 @@ def coverage_identity(root, build, apk, test_apk, archive=None):
     }
 
 
-def archive_compiled_inputs(root,build,apk,test_apk,snapshot,expected):
+def source_identity(root, archive=None):
+    """Hash precisely the owned source trees copied with compiled mappings."""
+    groups = ({name:archive/"sources"/name for name in ("app","core","domain","native")}
+              if archive is not None else {
+                  "app":root/"app/src/main/kotlin", "core":root/"receiver-core/src/main/kotlin",
+                  "domain":root/"dlna-domain/src/main/kotlin", "native":root/"app/src/main/cpp"})
+    digest = hashlib.sha256()
+    for name, directory in groups.items():
+        files = directory.glob("*") if name == "native" else directory.rglob("*")
+        for file in sorted(files):
+            if not file.is_file() or file.suffix not in (".kt", ".java", ".c", ".cpp", ".h"):
+                continue
+            digest.update((name+"/"+file.relative_to(directory).as_posix()+"\0").encode())
+            digest.update(hashlib.sha256(file.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def archive_compiled_inputs(root,build,apk,test_apk,snapshot,expected,expected_sources=None):
     """Keep mappings before Gradle switches editions and removes stale outputs."""
+    if expected_sources is not None and source_identity(root) != expected_sources:
+        raise RuntimeError("Production sources changed during compilation; rebuild after edits settle")
     inputs=snapshot/"inputs"
     inputs.mkdir()
     for name,file in (("app.apk",apk),("test.apk",test_apk),("libairplay_native.so",native_library(build))):
@@ -92,6 +111,8 @@ def archive_compiled_inputs(root,build,apk,test_apk,snapshot,expected):
         shutil.copyfile(root/module/"build/jacoco/test.exec",snapshot/(name+".exec"))
     if coverage_identity(root,build,apk,test_apk,archive=snapshot)!=expected:
         raise RuntimeError("Archived compiled inputs do not match the tested APK")
+    if expected_sources is not None and source_identity(root,archive=snapshot) != expected_sources:
+        raise RuntimeError("Production sources changed while archiving compiled mappings")
 
 
 def main():
@@ -159,6 +180,7 @@ def main():
             flags = ["-PbuzinCoverage=true", "-PbuzinAbis=x86_64", "-PbuzinLegacy=" + str(legacy).lower(), "-PbuzinNoDownload=" + str(regional).lower(), "-PbuzinCoverageData="+str(profiles)]
             if regional:
                 flags.append("-PbuzinRegionalAppstoreAssets=" + str(fixture))
+            sources_before_build = source_identity(root)
             run(gradle + flags + [":receiver-core:check", ":dlna-domain:check", ":app:assembleDebug", ":app:assembleDebugAndroidTest", ":app:lintDebug", "--console=plain"], report / "build.log")
             native = build / "native-tests"
             run([sys.executable, root / "tools/build_native_tests.py", "--abi", "x86_64", "--api", 22 if legacy else 25, "--sdk-root", sdk, "--output", native], report / "native-build.log")
@@ -167,7 +189,7 @@ def main():
             identity=coverage_identity(root,build,apk,test_apk)
             snapshot=report/"raw"/uuid.uuid4().hex
             snapshot.mkdir(parents=True)
-            archive_compiled_inputs(root,build,apk,test_apk,snapshot,identity)
+            archive_compiled_inputs(root,build,apk,test_apk,snapshot,identity,expected_sources=sources_before_build)
             shutil.copyfile(native/"native_core_tests",snapshot/"inputs/native_core_tests")
             package = "com.buzincast.tv.deat" if regional else "com.buzincast.tv"
             # Modern and compat share a package but have different version codes.
@@ -202,7 +224,7 @@ def main():
                 if file.suffix in (".ec",".exec",".profraw"):
                     shutil.copyfile(file,snapshot/file.name)
             shutil.copyfile(profiles/"results.json",snapshot/"results.json")
-            manifest={"variant":name,"emulator_api":api,"archived_mappings":True,**identity}
+            manifest={"variant":name,"emulator_api":api,"archived_mappings":True,"source_files_sha256":sources_before_build,**identity}
             (snapshot/"manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
             results["variants"][name] = {
                 "target_met": measured["target_met"],

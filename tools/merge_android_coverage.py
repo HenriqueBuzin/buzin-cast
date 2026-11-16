@@ -14,7 +14,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from run_android_coverage import VARIANTS, coverage_identity
+from run_android_coverage import VARIANTS, coverage_identity, source_identity
 from test_emulator import validate_instrumentation_output
 
 
@@ -44,6 +44,8 @@ def validate_snapshots(snapshots):
         if not list(snapshot.glob("*.ec")) or not list(snapshot.glob("*.profraw")):
             raise ValueError("Snapshot is missing raw Android or native execution data")
         if manifest.get("archived_mappings"):
+            if manifest.get("source_files_sha256") and source_identity(snapshot,archive=snapshot) != manifest["source_files_sha256"]:
+                raise ValueError("Archived production sources do not match the compilation fingerprint")
             identity=coverage_identity(snapshot,snapshot,snapshot/"inputs/app.apk",snapshot/"inputs/test.apk",archive=snapshot)
             if any(identity[key]!=manifest[key] for key in IDENTITY_KEYS):
                 raise ValueError("Archived compiled inputs do not match snapshot identity")
