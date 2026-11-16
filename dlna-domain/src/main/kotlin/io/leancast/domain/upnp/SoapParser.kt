@@ -1,6 +1,7 @@
 package io.leancast.domain.upnp
 
 import java.io.StringReader
+import java.io.StringWriter
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
@@ -88,21 +89,33 @@ object SoapParser {
      */
     private fun captureArgText(parser: XmlPullParser): String {
         val depth = parser.depth
-        val out = StringBuilder()
+        val out = StringWriter()
+        val serializer = XmlPullParserFactory.newInstance().newSerializer().apply { setOutput(out) }
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             when (parser.eventType) {
-                XmlPullParser.TEXT -> out.append(parser.text)
+                XmlPullParser.TEXT -> if (parser.depth == depth) {
+                    // Plain SOAP values are decoded once, including already
+                    // escaped DIDL strings. Text inside raw child XML is escaped.
+                    serializer.flush()
+                    out.append(parser.text)
+                } else serializer.text(parser.text)
                 XmlPullParser.START_TAG -> {
-                    out.append('<').append(parser.name)
+                    val start = if (parser.depth == depth + 1) 0 else parser.getNamespaceCount(parser.depth - 1)
+                    val namespaces = linkedMapOf<String, String>()
+                    for (i in start until parser.getNamespaceCount(parser.depth))
+                        namespaces[parser.getNamespacePrefix(i) ?: ""] = parser.getNamespaceUri(i)
+                    for ((prefix, uri) in namespaces) serializer.setPrefix(prefix, uri)
+                    serializer.startTag(parser.namespace, parser.name)
                     for (i in 0 until parser.attributeCount) {
-                        out.append(' ').append(parser.getAttributeName(i))
-                            .append("=\"").append(parser.getAttributeValue(i)).append('"')
+                        serializer.attribute(parser.getAttributeNamespace(i), parser.getAttributeName(i), parser.getAttributeValue(i))
                     }
-                    out.append('>')
                 }
                 XmlPullParser.END_TAG -> {
-                    if (parser.depth == depth) return out.toString()
-                    out.append("</").append(parser.name).append('>')
+                    if (parser.depth == depth) {
+                        serializer.flush()
+                        return out.toString()
+                    }
+                    serializer.endTag(parser.namespace, parser.name)
                 }
                 else -> throw XmlPullParserException("Unexpected event inside SOAP argument")
             }

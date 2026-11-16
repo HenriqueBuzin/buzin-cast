@@ -48,7 +48,17 @@ class SoapBoundaryTest {
         val body=envelope(action("SetAVTransportURI",args="<CurrentURI/><CurrentURIMetaData><item id=\"42\"><title>Example</title><empty/></item></CurrentURIMetaData>"))
         val request=SoapParser.parse(null,body)!!
         assertEquals("",request.args["CurrentURI"])
-        assertEquals("<item id=\"42\"><title>Example</title><empty></empty></item>",request.args["CurrentURIMetaData"])
+        val metadata = request.args.getValue("CurrentURIMetaData")
+        val document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(org.xml.sax.InputSource(java.io.StringReader(metadata)))
+        assertEquals("item", document.documentElement.tagName)
+        assertEquals("42", document.documentElement.getAttribute("id"))
+        assertEquals("Example", document.getElementsByTagName("title").item(0).textContent)
+        assertEquals(1, document.getElementsByTagName("empty").length)
+        assertEquals(2, document.documentElement.childNodes.length)
+        assertEquals("title", document.documentElement.firstChild.nodeName)
+        assertEquals("empty", document.documentElement.lastChild.nodeName)
+        assertFalse(document.documentElement.lastChild.hasChildNodes())
     }
 
     @Test fun `comments and cdata are accepted but unexpected provider events cannot dispatch`() {

@@ -100,6 +100,11 @@ actions, transport failures, and commands queued across a sender change. Each
 command retains its resolved endpoint and token; reset and sender updates
 invalidate earlier discovery callbacks.
 
+SOAP metadata contracts cover escaping, inherited and rebound namespaces,
+default-namespace resets, raw XML fragments and already escaped argument text.
+The protocol JVM tests use an independent DOM parser to check the reconstructed
+XML; instrumented contracts also exercise the Android XML provider.
+
 Native profiles from the unit executable contribute to the functions also
 compiled into the app. The instrumented APK library defines the native mapping
 inventory. The test executable is not supplied as an additional coverage object:
