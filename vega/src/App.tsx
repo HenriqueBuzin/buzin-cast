@@ -139,7 +139,7 @@ export default function App() {
           </Text>
           <Text style={styles.details}>
             {page === 'status'
-              ? 'AirPlay, DLNA e Cast V2 ainda não estão disponíveis no Vega. FCast tem recepção manual experimental de URLs. Nenhum receptor é anunciado na rede.'
+              ? 'AirPlay, DLNA e Cast V2 ainda não estão disponíveis no Vega. FCast v2 oferece recepção experimental de URLs e descoberta DNS-SD enquanto ativado.'
               : page === 'media'
               ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Use a amostra para testar a reprodução.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}

@@ -8,6 +8,7 @@
 
 #include "generated/BuzinNetworkSpec.h"
 #include "FCastTransport.h"
+#include "FCastDiscovery.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -28,6 +29,7 @@ public:
   std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
 private:
   FCastTransport fcast;
+  FCastDiscovery discovery;
 };
 
 } // namespace BuzinNetworkTurboModule

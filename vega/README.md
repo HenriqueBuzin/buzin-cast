@@ -3,9 +3,12 @@
 Port separado com SDK oficial 2.0.13986, React Native 0.83 e integrações C++23.
 Identidade `com.buzincast.tv`; logo e ícone aprovados preservados. As duas
 edições Fire OS mantêm sua interface nativa e o código já testado.
-O Vega ainda é uma prévia: não recebe nem anuncia AirPlay, DLNA, FCast ou Cast V2.
+O Vega ainda está em desenvolvimento: recebe FCast v2 experimental por URLs e
+tem anúncio DNS-SD implementado para `_fcast._tcp.local`. AirPlay, DLNA e Cast
+V2 não estão disponíveis. O anúncio DNS-SD foi compilado, mas ainda aguarda
+teste no VVD e com emissores físicos.
 
-## Estado verificado em 5 de novembro de 2026
+## Estado verificado em 16 de novembro de 2026
 
 - VPKGs release ARM64, ARMv7 e x86_64 compilados e aprovados na validação ABI.
 - Aplicativo instalado e executado no VVD ARM64; controle, foco, páginas de
@@ -22,6 +25,10 @@ O Vega ainda é uma prévia: não recebe nem anuncia AirPlay, DLNA, FCast ou Cas
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
 - Lint sem avisos, TypeScript, doctor e 12 testes Jest passaram.
+- FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
+  `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
+  build Release das três ABIs passaram após a integração. A descoberta ainda
+  não foi observada em runtime nesta sessão.
 
 ## Ambiente e build
 
@@ -67,8 +74,8 @@ sem mídia ou endereços. O runner `build/<arquitetura>-release/bin/buzin-networ
 
 ## Trabalho restante
 
-Integrar amostras AirPlay/MSSE, relógios, descoberta e receptores;
-portar configurações e os demais recursos Fire OS. Recepção com emissores reais,
+Integrar amostras AirPlay/MSSE, relógios e receptores; portar configurações e os
+demais recursos Fire OS. Recepção com emissores reais,
 sincronismo e sessões longas dependem de validação em Fire TV Vega físico.
 Somente ARM64 foi executada no simulador. O build mantém o aviso dlopen do
 OpenSSL e a auditoria npm tem pendências nas ferramentas Amazon; não está

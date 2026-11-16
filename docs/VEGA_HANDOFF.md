@@ -1,5 +1,24 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Avanço no Vega — 16 de novembro de 2026
+
+- A `main` foi sincronizada com `origin/main` e ficou como a única branch local
+  e remota, conforme solicitado por Henrique.
+- O módulo nativo agora inclui anúncio e resposta DNS-SD em `_fcast._tcp.local`
+  durante a sessão FCast, com registros PTR/SRV/TXT/A, porta TCP real, endereço
+  IPv4 ativo, TXT `v=2` e `appName=Buzin Cast`, além de goodbye ao sair. O
+  anúncio só começa quando FCast é ativado pelo usuário.
+- Depois desta mudança, lint sem avisos, TypeScript e build Release das ABIs
+  ARM64, ARMv7 e x86_64 passaram; a validação ABI do pacote passou. O aviso
+  conhecido de uso de `dlopen` em `libBuzinNetwork.so` permanece.
+- O VVD inicia e informa `ready`, mas encerra logo depois e não aparece em
+  `vega device list`/ADB. O smoke `tools/test_vega.py` não pôde alcançar o
+  simulador; portanto a nova descoberta foi compilada, mas ainda não foi
+  exercitada em runtime. Logs do VVD mostram avisos de renderização OpenGL.
+- Permanecem pendentes validação do anúncio no VVD e com emissores reais, HLS/
+  DASH, AirPlay com áudio/vídeo, DLNA, Cast V2, configurações, perfis e demais
+  recursos do inventário. Não declarar paridade Vega ou prontidão de loja.
+
 Alvo de versões: Vega OS 1.0 a 2.0. Matriz, SDKs e linhas em paralelo em
 [VEGA_OS_VERSIONS.md](VEGA_OS_VERSIONS.md).
 
