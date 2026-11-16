@@ -12,7 +12,8 @@ import java.util.LinkedHashMap;
 final class LegacyAvcPlayer {
     interface StopSignal { boolean stopped(); }
     interface Listener { void decodedFrame(); default void resized(int width,int height) {} }
-    private final Surface surface;
+    private final OwnedTargetSlot<Surface> targets=new OwnedTargetSlot<>();
+    private OwnedTargetSlot.Target<Surface> target;
     private final VideoFrameQueue queue;
     private final Listener listener;
     private final AudioPlaybackClock clock;
@@ -23,6 +24,7 @@ final class LegacyAvcPlayer {
     volatile long lastRenderDelayNs = AudioPlaybackClock.UNKNOWN;
     volatile long lastQueueDelayNs,lastDecodeDelayNs;
     volatile int queuedFrames, outputFrames;
+    volatile int skippedWithoutTarget,skippedUntilIdr;
     // The codec gets small relative tags; Unix NTP stays outside the platform codec.
     // This also preserves nanoseconds and separates resets/clock jumps from decoder time.
     private static final class Pending {
@@ -41,29 +43,49 @@ final class LegacyAvcPlayer {
         this(surface,queue,listener,clock,false);
     }
     LegacyAvcPlayer(Surface surface,VideoFrameQueue queue,Listener listener,AudioPlaybackClock clock,boolean lowLatency) {
-        this.surface = surface; this.queue = queue; this.listener = listener; this.clock = clock;
+        setSurface(surface,null);this.queue = queue; this.listener = listener; this.clock = clock;
         this.lowLatency=lowLatency;
+    }
+
+    void setSurface(Surface surface,Runnable whenReleased) {
+        targets.request(surface,surface==null?null:()-> {
+            try {surface.release();} finally {if(whenReleased!=null)whenReleased.run();}
+        });
+    }
+    void closeSurface() { targets.close(); }
+    private void applyTarget() {
+        if(!targets.changed())return;
+        releaseCodec();target=targets.activate();
     }
 
     void run(StopSignal stop) throws IOException, InterruptedException {
         try {
             while (!stop.stopped()) {
                 int current = queue.generation();
-                if (current != generation) { releaseCodec(); generation = current; }
-                VideoFrameQueue.Frame frame = queue.take(codec == null ? 1000 : 10);
+                if (current != generation) { releaseCodec();config=null;generation = current; }
+                applyTarget();
+                VideoFrameQueue.Frame frame = queue.take(codec == null ? 50 : 10);
+                applyTarget();
                 if (frame != null) {
                     if (frame.generation != generation) {
-                        releaseCodec(); generation = frame.generation;
+                        releaseCodec();config=null;generation = frame.generation;
                     }
                     AvcConfig received = AvcConfig.fromAnnexB(frame.data);
                     if (received != null && (config == null || !config.matches(received))) {
-                        configure(received);
+                        releaseCodec();config=received;
+                    }
+                    if(target==null) {skippedWithoutTarget++;continue;}
+                    // A fresh API17 codec cannot resume from dependent P/B frames.
+                    // Keep the parameter sets across display changes, not stream resets.
+                    if(codec==null) {
+                        if(config==null || !AvcConfig.containsIdr(frame.data)) {skippedUntilIdr++;continue;}
+                        configure(config);
                     }
                     if (codec != null) enqueue(frame, stop);
                 }
                 drain(stop);
             }
-        } finally { releaseCodec(); }
+        } finally { try {releaseCodec();} finally {closeSurface();} }
     }
 
     private void configure(AvcConfig next) throws IOException {
@@ -74,7 +96,7 @@ final class LegacyAvcPlayer {
         format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, VideoFrameQueue.MAX_BYTES);
         if(lowLatency && android.os.Build.VERSION.SDK_INT>=30)format.setInteger("low-latency",1);
         codec = MediaCodec.createDecoderByType("video/avc");
-        codec.configure(format, surface, null, 0);
+        codec.configure(format, target.value, null, 0);
         codec.start();
         inputs = codec.getInputBuffers();
         config = next;
@@ -84,6 +106,7 @@ final class LegacyAvcPlayer {
     private void enqueue(VideoFrameQueue.Frame frame, StopSignal stop) throws InterruptedException {
         long deadline = SystemClock.elapsedRealtime()+1000;
         while (!stop.stopped()) {
+            if(targets.changed())return;
             int index = codec.dequeueInputBuffer(10000);
             if (index >= 0) {
                 ByteBuffer buffer = inputs[index]; buffer.clear();
@@ -104,6 +127,7 @@ final class LegacyAvcPlayer {
     private void drain(StopSignal stop) throws InterruptedException {
         if (codec == null) return;
         for (int attempt=0; attempt<32; attempt++) {
+            if(targets.changed())return;
             int index = codec.dequeueOutputBuffer(output, 0);
             if (index >= 0) {
                 boolean frame = output.size > 0 && (output.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0;
@@ -115,7 +139,7 @@ final class LegacyAvcPlayer {
                         Pending pending = timestamps.remove(output.presentationTimeUs);
                         if (pending == null) throw new IllegalStateException("H.264 output has no source timestamp");
                         sourcePts = pending.pts;lastDecodeDelayNs=System.nanoTime()-pending.queuedNs;
-                        render = readyToRender(sourcePts,stop);
+                        render = readyToRender(sourcePts,stop) && !targets.changed();
                     }
                 }
                 finally { codec.releaseOutputBuffer(index, render); }
@@ -134,7 +158,7 @@ final class LegacyAvcPlayer {
         long started = System.nanoTime();
         long unknownSince=0;
         boolean waited = false;
-        while (!stop.stopped() && generation == queue.generation()) {
+        while (!stop.stopped() && generation == queue.generation() && !targets.changed()) {
             long now = System.nanoTime(), delay = clock.delayNs(ptsNs, now);
             lastDelayNs = delay;
             if (delay == AudioPlaybackClock.UNKNOWN) {
@@ -159,7 +183,7 @@ final class LegacyAvcPlayer {
 
     private void releaseCodec() {
         MediaCodec previous = codec;
-        codec = null; config = null; inputs = null; timestamps.clear(); nextTokenUs=1000;
+        codec = null; inputs = null; timestamps.clear(); nextTokenUs=1000;
         if (previous != null) previous.release();
     }
 }

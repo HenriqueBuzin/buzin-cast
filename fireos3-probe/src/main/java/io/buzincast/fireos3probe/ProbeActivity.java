@@ -27,12 +27,14 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class ProbeActivity extends Activity {
     private static final String EMULATOR_SAMPLE_URL = "http://10.0.2.2:18765/h264_sample.mp4";
     private static final int MAX_SAMPLE_BYTES = 64 * 1024;
     private boolean decoding;
     private CountDownLatch previewFrame;
+    private final AtomicInteger previewUpdates=new AtomicInteger();
     private LegacyReceiverSession liveSession;
     private Thread stackCheckWorker;
     private TextureView previewView;
@@ -100,6 +102,7 @@ public final class ProbeActivity extends Activity {
 
             @Override
             public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+                previewUpdates.incrementAndGet();
                 if (previewFrame != null) {
                     previewFrame.countDown();
                 }
@@ -166,11 +169,12 @@ public final class ProbeActivity extends Activity {
             previewFrame = new CountDownLatch(1);
             CountDownLatch displayed = previewFrame;
             Surface surface = new Surface(preview.getSurfaceTexture());
+            SurfaceTexture targetTexture=preview.getSurfaceTexture();
             decoderResult.setText(R.string.probe_stream_checking);
             stackCheckWorker = new Thread(() -> {
                 String result;
                 try {
-                    StreamingSelfTest.run(this, surface, receiverIdentity(), displayed);
+                    StreamingSelfTest.run(this, surface,targetTexture,receiverIdentity(),displayed,previewUpdates);
                     result = getString(R.string.probe_stream_passed);
                 } catch (Exception | LinkageError error) {
                     result = getString(R.string.probe_stream_failed, error.getMessage());

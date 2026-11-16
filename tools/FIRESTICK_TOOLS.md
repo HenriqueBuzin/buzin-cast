@@ -112,6 +112,12 @@ servidor ADB separado durante testes concorrentes. A criação e o encerramento
 desse servidor ficam a cargo de quem executa; o script não reinicia o ADB
 global nem encerra outros emuladores. O número da porta não altera a recusa
 de aparelhos físicos ou os IDs permitidos.
+O autoteste nativo também inicia descoberta/RTSP/áudio sem display, conecta
+uma saída depois e verifica duas retiradas/substituições da Surface, mantendo
+o áudio e a mesma conexão RTSP. A retomada exige atualizações reais da
+TextureView com IDRs sem novos SPS/PPS. Isso prepara o ciclo de vida do
+serviço antigo, mas não comprova background/boot da Activity.
+
 
 
 O teste percorre os APKs locais em `outputs`, abre início/configurações/Sobre,

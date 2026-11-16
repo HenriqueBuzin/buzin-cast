@@ -130,6 +130,8 @@ def main():
             entry['native_audio_format_volume_flush_and_shutdown'] = 'pass'
             entry['audio_idle_release_and_resume'] = 'pass'
             entry['pcm_clock_video_wait_drop_and_flush'] = 'pass'
+            entry['display_detach_replace_pcm_and_persistent_rtsp'] = 'pass'
+            entry['headless_startup_discovery_rtsp_and_audio'] = 'pass'
             # API 17's adbd does not implement exec-out. Pull a PNG file intact.
             adb('shell', 'screencap', '-p', '/data/local/tmp/buzin-probe.png')
             picture = args.output/f'cycle-{cycle+1}.png'

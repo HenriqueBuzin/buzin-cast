@@ -5,6 +5,14 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class AvcConfigTest {
+    @Test public void displayResumeRequiresAnIdrRatherThanOnlyParameterSetsOrDeltaVideo() {
+        assertTrue(AvcConfig.containsIdr(hex("000000016701000001650203")));
+        assertTrue(AvcConfig.containsIdr(hex("000001650203")));
+        assertFalse(AvcConfig.containsIdr(hex("00000001610102030000000168cb83")));
+        assertFalse(AvcConfig.containsIdr(hex("00000001e5010203")));
+        assertFalse(AvcConfig.containsIdr(hex("00000001")));
+        assertFalse(AvcConfig.containsIdr(new byte[0]));
+    }
     private static byte[] hex(String value) {
         byte[] result = new byte[value.length()/2];
         for(int i=0;i<result.length;i++) result[i]=(byte)Integer.parseInt(value.substring(i*2,i*2+2),16);

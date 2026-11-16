@@ -141,6 +141,26 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   desinstalados. Nova opção `--adb-server-port` isola o capturador dos testes
   concorrentes. O emulador próprio foi encerrado; nenhuma TV foi usada.
 
+- Troca da saída de vídeo implementada em `setVideoSurface`: o worker só
+  libera a Surface/SurfaceTexture anterior depois de soltar o codec. Alvos
+  pendentes substituídos e ofertas após encerramento também são liberados.
+  Na API17, recria o codec, conserva SPS/PPS nas trocas de display e aguarda
+  IDR; reset do stream limpa a configuração. Sem display, drena vídeo e
+  mantém áudio/conexão. O ensaio verifica duas trocas com áudio avançando,
+  mesmo socket RTSP e atualizações reais da TextureView na retomada, usando
+  IDRs sem novos SPS/PPS. Relatório diagnóstico aprovado em
+  `outputs/legacy-surface-diagnostic`; a tentativa isolada inicial que não
+  retomou a tela está preservada em `outputs/legacy-surface-regression`.
+  A Activity ainda encerra a sessão ao sair: falta transferir a posse ao
+  serviço; este marco apenas prepara e testa a base de renderização.
+  A rodada final passou em `outputs/legacy-surface-headless-final/report.json`:
+  dois ciclos com duas sessões cada, iniciando RTSP/descoberta/áudio sem display
+  antes da primeira Surface e repetindo as retiradas/trocas. Passaram 45 testes
+  do alvo antigo (41 runtime, um probe, três frontend), builds ARMv7/x86 e lint
+  do probe e das duas edições. Prévia removida e emulador próprio encerrado;
+  nenhuma TV física foi controlada. Próximo passo: serviço dono da sessão,
+  vínculo/desvínculo da Activity e preferências de background/boot reais.
+
 - Ainda faltam controles completos, DLNA/FCast/Cast V2,
   URL/HLS/fotos/legendas, gravação/download/retransmissão na edição geral,
   background/boot/rede, aprovação/PIN/DACP, licença/assinatura e validação
@@ -148,7 +168,7 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   em todos os Fire Sticks com Fire OS; não considerar esta prévia paridade.
   Próximo marco: execução em segundo plano e retomada sem perder a sessão,
   antes dos demais controles e protocolos. Separar a posse do receptor da
-  Activity e tratar a troca de Surface no decoder antigo.
+  Activity e conectar a troca de Surface já implementada no decoder antigo.
 
 ## Fichas Amazon, traduções e artefatos atuais
 

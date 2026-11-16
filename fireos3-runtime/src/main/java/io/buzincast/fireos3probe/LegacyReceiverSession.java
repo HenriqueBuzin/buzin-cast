@@ -20,7 +20,6 @@ public final class LegacyReceiverSession {
         default void videoSize(int width,int height) {}
     }
     private final Context context;
-    private final Surface surface;
     private final String identity;
     private final Listener listener;
     private final Object nativeLock = new Object();
@@ -53,7 +52,7 @@ public final class LegacyReceiverSession {
         this(context,surface,identity,listener,false,options);
     }
     LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, boolean muted, ReceiverOptions options) {
-        this.context = context.getApplicationContext(); this.surface = surface;
+        this.context = context.getApplicationContext();
         this.identity = identity; this.listener = listener; this.options=options;
         queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); });
         audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options);
@@ -68,6 +67,11 @@ public final class LegacyReceiverSession {
     }
 
     public void start() { worker.start(); }
+    /** Transfers ownership. Release the TextureView's SurfaceTexture in whenReleased,
+     * never before the decoder has retired its old Surface. Null detaches video only. */
+    public void setVideoSurface(Surface surface,Runnable whenReleased) {
+        videoPlayer.setSurface(surface,whenReleased);
+    }
     public void stop() {
         if (!stopping.compareAndSet(false, true)) return;
         queue.close(); audioQueue.close(); worker.interrupt();
@@ -133,7 +137,7 @@ public final class LegacyReceiverSession {
                     Thread.currentThread().interrupt();
                 }
             }
-            queue.close(); surface.release();
+            queue.close();videoPlayer.closeSurface();
             if (multicast != null && multicast.isHeld()) multicast.release();
             port = 0;
             ready.countDown(); closed.countDown(); listener.stopped();

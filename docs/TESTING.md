@@ -22,6 +22,38 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Troca da saída de vídeo API17:** `LegacyReceiverSession.setVideoSurface`
+  transfere a posse da Surface ao worker do decoder. O alvo ativo só é liberado
+  depois do codec; substituições ainda não usadas são descartadas sem esperar
+  o worker. O callback de liberação permite ao frontend reter a SurfaceTexture
+  antiga até ser seguro liberá-la. Encerramento, falha no início e ofertas
+  tardias também liberam os recursos. Três testes JVM exercitam a posse dos alvos.
+  Como `MediaCodec.setOutputSurface` só existe a partir da API23, a implementação
+  recria o codec antigo, preserva SPS/PPS apenas nas trocas de display e aguarda
+  um IDR antes de retomar. Reset do stream invalida essa configuração. Sem
+  display, a fila de vídeo continua sendo consumida sem renderizar, mantendo
+  áudio e conexão independentes. Um teste JVM adicional verifica a identificação
+  de IDR, incluindo cabeçalho inválido e start codes de três/quatro bytes.
+  O autoteste real de runtime tira e recoloca a saída duas vezes, verifica
+  avanço do AudioTrack sem reset, continuidade da mesma conexão RTSP, liberação
+  dos wrappers antigos e novos callbacks de atualização da TextureView.
+  Retoma com IDRs reais sem reenviar SPS/PPS. A primeira tentativa, que injetava
+  um único quadro e não obteve atualização da tela, foi preservada em
+  `outputs/legacy-surface-regression`; o fluxo limitado a três IDRs passou em
+  `outputs/legacy-surface-diagnostic`. O ensaio não mede desempenho físico nem
+  simula um emissor Apple completo. O serviço/boot e a migração da Activity
+  ainda são etapas seguintes; este mecanismo não os implementa sozinho.
+  A rodada final `outputs/legacy-surface-headless-final/report.json` passou
+  em dois ciclos, com duas sessões completas por ciclo. Cada sessão iniciou
+  descoberta/RTSP e reproduziu os quatro formatos de áudio sem display antes
+  da primeira conexão da Surface. As retiradas/trocas, a continuidade do áudio,
+  do socket e a retomada real da imagem passaram nas quatro sessões. Passaram
+  41 testes JVM do runtime, um do probe e três do frontend (45 do alvo antigo),
+  builds ARMv7/x86 e lint do probe e das duas edições do frontend. O capturador
+  removeu a instalação temporária; o emulador próprio foi encerrado.
+
+
+
 - **Perfis no alvo API17:** `LegacyProfiles` usa `QualityProfiles` do
   `receiver-core`, com as mesmas chaves persistidas e os mesmos percentis
   adaptativos do frontend moderno. Uma edição atômica das preferências

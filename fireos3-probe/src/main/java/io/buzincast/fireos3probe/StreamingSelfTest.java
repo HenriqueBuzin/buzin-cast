@@ -2,6 +2,7 @@ package io.buzincast.fireos3probe;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.graphics.SurfaceTexture;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.os.SystemClock;
@@ -21,6 +22,7 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.jmdns.ServiceInfo;
 import javax.jmdns.impl.DNSIncoming;
 import javax.jmdns.impl.DNSRecord;
@@ -30,13 +32,14 @@ import org.json.JSONObject;
 
 /** Real DNS/RTSP and registered audio/video callbacks with synthetic packets, not an Apple sender. */
 final class StreamingSelfTest {
-    static void run(Context context, Surface surface, String identity, CountDownLatch displayed) throws Exception {
-        LegacyReceiverSession session = new LegacyReceiverSession(context, surface, identity, new LegacyReceiverSession.Listener() {
+    static void run(Context context, Surface surface, SurfaceTexture texture,String identity, CountDownLatch displayed,AtomicInteger displayedFrames) throws Exception {
+        LegacyReceiverSession session = new LegacyReceiverSession(context, null, identity, new LegacyReceiverSession.Listener() {
             @Override public void ready(String name) {}
             @Override public void failed(Exception error) {}
             @Override public void stopped() {}
         }, true,new ReceiverOptions("Buzin Cast API17 Stream",17002,1280,720,30,false,25,90));
         session.start();
+        boolean attached=false;
         int port = 0;
         try {
             AudioSelfTest.run(context);
@@ -50,15 +53,20 @@ final class StreamingSelfTest {
             checkRtsp(port, "GET /info RTSP/1.0\r\nCSeq: 2\r\nContent-Length: 0\r\n\r\n");
             checkVolume(port, session);
             replayAudio(context, session);
+            // Boot/background startup has no Activity or video Surface yet.
+            session.setVideoSurface(surface,null);attached=true;
             checkAvSync(context, session);
+            checkSurfaceTransitions(context,session,surface,texture,displayedFrames);
             replaySample(context, session);
             if (!session.decoded.await(5, TimeUnit.SECONDS)) throw new IOException("Live decoder produced no frame");
             if (!displayed.await(5, TimeUnit.SECONDS)) throw new IOException("Live video Surface was not updated");
         } finally {
-            session.stop();
-            if (!session.closed.await(10, TimeUnit.SECONDS)) throw new IOException("Receiver shutdown timed out");
-            if (session.failure != null) throw session.failure;
-            if (session.audioPlayer.running || session.audioPlayer.outputActive) throw new IOException("Audio survived receiver stop");
+            try {
+                session.stop();
+                if (!session.closed.await(10, TimeUnit.SECONDS)) throw new IOException("Receiver shutdown timed out");
+                if (session.failure != null) throw session.failure;
+                if (session.audioPlayer.running || session.audioPlayer.outputActive) throw new IOException("Audio survived receiver stop");
+            } finally {if(!attached)surface.release();}
         }
         // A successful stop must close the RTSP listener, rather than merely hide the UI.
         try (Socket connection = new Socket()) {
@@ -66,6 +74,84 @@ final class StreamingSelfTest {
             catch (java.net.ConnectException expected) { return; }
             throw new IOException("RTSP listener remained open after stop");
         }
+    }
+
+    private static void checkSurfaceTransitions(Context context,LegacyReceiverSession session,Surface initial,
+            SurfaceTexture texture,AtomicInteger displayedFrames) throws Exception {
+        JSONObject fixture=AudioSelfTest.fixtures(context).getJSONObject(0);
+        byte[] audio=Base64.decode(fixture.getJSONArray("packets").getString(0),Base64.DEFAULT);
+        byte[] complete=firstVideoPacket(context),idr=firstVideoPacket(context,false);
+        AtomicInteger released=new AtomicInteger();Surface previous=initial;
+        try(PacedAudio feed=new PacedAudio(session,audio);Socket connection=new Socket("127.0.0.1",session.port)) {
+            connection.setSoTimeout(2000);checkPersistentRtsp(connection);
+            long deadline=SystemClock.elapsedRealtime()+3000;
+            while(session.playbackClock.positionNs(System.nanoTime())==AudioPlaybackClock.UNKNOWN && SystemClock.elapsedRealtime()<deadline) {
+                feed.check();Thread.sleep(5);
+            }
+            if(session.playbackClock.positionNs(System.nanoTime())==AudioPlaybackClock.UNKNOWN)throw new IOException("No PCM clock before display handoff");
+            long generation=session.playbackClock.generation();
+            for(int cycle=0;cycle<2;cycle++) {
+                session.setVideoSurface(null,null);
+                deadline=SystemClock.elapsedRealtime()+2000;
+                while(previous.isValid() && SystemClock.elapsedRealtime()<deadline) {feed.check();Thread.sleep(5);}
+                if(previous.isValid())throw new IOException("Detached display Surface was not retired");
+                int rendered=session.videoPlayer.renderedFrames,skipped=session.videoPlayer.skippedWithoutTarget;
+                long played=session.audioPlayer.playedFrames;
+                for(int frame=0;frame<20;frame++) {session.replay(frame==0?complete:idr,0);Thread.sleep(20);}
+                deadline=SystemClock.elapsedRealtime()+2000;
+                while(session.videoPlayer.skippedWithoutTarget-skipped<20 && SystemClock.elapsedRealtime()<deadline) {
+                    feed.check();Thread.sleep(5);
+                }
+                if(session.videoPlayer.renderedFrames!=rendered || session.videoPlayer.skippedWithoutTarget-skipped<20)
+                    throw new IOException("Detached receiver failed to drain video without rendering");
+                if(session.audioPlayer.playedFrames<=played || session.playbackClock.generation()!=generation)
+                    throw new IOException("Display detach interrupted the audio timeline");
+                checkPersistentRtsp(connection);
+                int updated=displayedFrames.get();Surface replacement=new Surface(texture);
+                session.setVideoSurface(replacement,released::incrementAndGet);previous=replacement;
+                // Real IDRs without repeated SPS/PPS. A bounded continuing source
+                // also allows old codecs to buffer output during startup.
+                for(int frame=0;frame<3;frame++)session.replay(idr,0);
+                deadline=SystemClock.elapsedRealtime()+3000;
+                while((session.videoPlayer.renderedFrames==rendered || displayedFrames.get()<=updated) && SystemClock.elapsedRealtime()<deadline) {
+                    feed.check();if(session.failure!=null)throw session.failure;Thread.sleep(5);
+                }
+                if(session.videoPlayer.renderedFrames==rendered || displayedFrames.get()<=updated)
+                    throw new IOException("Replacement display did not receive a decoded IDR: cycle="+cycle+
+                        ", renders="+session.videoPlayer.renderedFrames+"/"+rendered+", updates="+displayedFrames.get()+"/"+updated+
+                        ", queued="+session.videoPlayer.queuedFrames+", output="+session.videoPlayer.outputFrames+
+                        ", dropped="+session.videoPlayer.droppedFrames+", skipped="+session.videoPlayer.skippedUntilIdr+
+                        ", delay="+session.videoPlayer.lastDelayNs);
+                if(released.get()!=cycle)throw new IOException("Surface release callback ownership mismatch");
+                checkPersistentRtsp(connection);
+            }
+            session.setVideoSurface(null,null);deadline=SystemClock.elapsedRealtime()+2000;
+            while(released.get()!=2 && SystemClock.elapsedRealtime()<deadline)Thread.sleep(5);
+            if(released.get()!=2 || previous.isValid())throw new IOException("Final display lease leaked");
+            session.setVideoSurface(new Surface(texture),null);
+        }
+        // The following fixture uses relative media timestamps, unlike the live
+        // PCM source above. End that source explicitly before replaying the MP4.
+        long generation=session.playbackClock.generation();
+        session.replayAudio(new byte[0],2,0,0,-144,true);
+        long deadline=SystemClock.elapsedRealtime()+500;
+        while(session.playbackClock.generation()==generation && SystemClock.elapsedRealtime()<deadline)Thread.sleep(5);
+        if(session.playbackClock.generation()==generation || session.playbackClock.positionNs(System.nanoTime())!=AudioPlaybackClock.UNKNOWN)
+            throw new IOException("Display fixture failed to flush its live PCM source");
+    }
+
+    private static void checkPersistentRtsp(Socket socket) throws IOException {
+        socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nContent-Length: 0\r\n\r\n".getBytes("US-ASCII"));
+        ByteArrayOutputStream header=new ByteArrayOutputStream();int matched=0;
+        byte[] ending={13,10,13,10};
+        while(matched<4 && header.size()<16384) {
+            int value=socket.getInputStream().read();if(value<0)throw new IOException("Display handoff closed the active RTSP socket");
+            header.write(value);matched=value==ending[matched]?matched+1:value==13?1:0;
+        }
+        String response=header.toString("US-ASCII");
+        if(matched!=4 || !response.startsWith("RTSP/1.0 200 OK\r\n"))throw new IOException("Persistent RTSP exchange failed");
+        for(String line:response.split("\r\n"))if(line.toLowerCase(java.util.Locale.US).startsWith("content-length:") &&
+                !line.substring(line.indexOf(':')+1).trim().equals("0"))throw new IOException("Unexpected OPTIONS body");
     }
 
     private static void checkRtsp(int port, String request) throws IOException {
@@ -333,6 +419,9 @@ final class StreamingSelfTest {
     }
 
     private static byte[] firstVideoPacket(Context context) throws IOException {
+        return firstVideoPacket(context,true);
+    }
+    private static byte[] firstVideoPacket(Context context,boolean parameters) throws IOException {
         MediaExtractor extractor=new MediaExtractor();
         try {
             try (AssetFileDescriptor sample=context.getResources().openRawResourceFd(R.raw.h264_sample)) {
@@ -341,14 +430,15 @@ final class StreamingSelfTest {
             extractor.selectTrack(0);
             MediaFormat format=extractor.getTrackFormat(0);
             ByteArrayOutputStream frame=new ByteArrayOutputStream();
-            frame.write(copy(format.getByteBuffer("csd-0"))); frame.write(copy(format.getByteBuffer("csd-1")));
+            if(parameters) {frame.write(copy(format.getByteBuffer("csd-0")));frame.write(copy(format.getByteBuffer("csd-1")));}
             ByteBuffer buffer=ByteBuffer.allocateDirect(64*1024);
             int length=extractor.readSampleData(buffer,0);
             if (length<=0) throw new IOException("Missing synthetic IDR frame");
             byte[] bytes=new byte[length]; buffer.position(0); buffer.get(bytes);
             frame.write(toAnnexB(bytes));
             byte[] result=frame.toByteArray();
-            if (AvcConfig.fromAnnexB(result) == null) throw new IOException("Missing synthetic video configuration");
+            if ((AvcConfig.fromAnnexB(result)!=null)!=parameters || !AvcConfig.containsIdr(result))
+                throw new IOException("Unexpected synthetic IDR/configuration layout");
             return result;
         } finally { extractor.release(); }
     }
