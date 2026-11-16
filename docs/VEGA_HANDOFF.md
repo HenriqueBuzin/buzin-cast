@@ -1,5 +1,31 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Núcleo AirPlay isolado e reproduzível — 16 de novembro de 2026
+
+- Identificada dependência acidental do build Vega nas modificações que o
+  Gradle Android já havia aplicado ao submódulo UxPlay neste checkout.
+- `tools/prepare_vega_airplay.py` agora extrai o objeto Git fixado
+  `df67c212a433cf6dda3676dd40c097900d24e645`, aplica os 11 patches Buzin e gera
+  a cópia `vega/generated/UxPlay`. O CMake Vega compila essa cópia; os hooks de
+  Release/Debug a preparam antes do build, sem modificar o submódulo Android.
+- Manifesto local registra SHA-256 de cada patch e da árvore resultante. Cache
+  alterado manualmente é rejeitado para preservar as alterações. O teste de
+  staging usa uma pasta temporária real, aplica todos os patches, repete a
+  preparação e verifica a rejeição de uma edição sem apagá-la. O CI passa a
+  verificar esse caminho e a reagir a alterações dos patches compartilhados.
+- Teste de staging, lint, TypeScript, 49 testes Jest e build/validação ABI das
+  três arquiteturas passaram. A regressão completa ARM64 no VVD passou em
+  `build/vega-isolated-core-smoke-retry/result.json`: sete diagnósticos nativos,
+  amostra, pausa/retomada, reabertura, fim, liberação no segundo plano e
+  repetição pelo controle.
+- Uma tentativa anterior detectou interface multicast ainda ausente ao boot.
+  O runner repete apenas `multicastStage=interface`/`errno=19`, com limite de
+  dez tentativas e mantendo a exigência final de todos os diagnósticos true.
+  Falhas de permissão, join/leave ou protocolo não são ignoradas.
+- Próximo: implementar a sessão nativa UxPlay e o adaptador de callbacks,
+  conectando mídia/relógios ao Vega antes de anunciar recepção AirPlay. A
+  existência da biblioteca compilada ainda não significa um receptor ativo.
+
 ## Primeira execução HLS e DASH no MSE — 16 de novembro de 2026
 
 - `tools/generate_vega_adaptive_samples.py` gera HLS VOD MPEG-TS e DASH fMP4

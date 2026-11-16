@@ -1,5 +1,14 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — UxPlay isolado — 16 de novembro de 2026
+
+O build Vega prepara uma cópia UxPlay do commit fixado, com os 11 patches Buzin,
+independente das alterações do submódulo Android. Testes de preparação/cache,
+lint/TypeScript, 49 testes, builds das três ABIs e smoke completo ARM64 no VVD
+passaram. A sessão receptora AirPlay e sua saída de mídia ainda precisam ser integradas. Detalhes em
+[VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+
 ## Vega — HLS e DASH locais — 16 de novembro de 2026
 
 As duas fixtures VOD passaram individualmente no VVD ARM64 via FCast e

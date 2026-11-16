@@ -40,7 +40,10 @@ add_dependencies(buzin_crypto buzin_openssl)
 
 set(_third_party "${CMAKE_CURRENT_LIST_DIR}/../../app/src/main/cpp/third_party")
 set(_plist "${_third_party}/libplist")
-set(_ux "${_third_party}/UxPlay/lib")
+set(_ux "${CMAKE_CURRENT_LIST_DIR}/../generated/UxPlay/lib")
+if(NOT EXISTS "${_ux}/raop.c")
+  message(FATAL_ERROR "Run npm run prepare:airplay before configuring the Vega native core")
+endif()
 set(_plist_files common base64 bplist bytearray hashtable jplist jsmn oplist
   out-default out-limd out-plutil plist ptrarray time64 xplist)
 set(_plist_sources)

@@ -63,6 +63,25 @@ def main():
                 if attempt == 9:
                     raise
                 time.sleep(0.5)
+        # VVD ready does not guarantee that its LAN interface is ready. Retry
+        # only the diagnosed missing-interface condition, never other failures.
+        for readiness_attempt in range(10):
+            if not (native.get("multicastMembership") is False
+                    and native.get("multicastStage") == "interface"
+                    and native.get("multicastErrno") == 19):
+                break
+            time.sleep(1)
+            app_shell("rm", "-f", "/data/network-probe.json")
+            shell("inputd-cli", "button_press", "KEY_ENTER")
+            for read_attempt in range(10):
+                try:
+                    native = json.loads(app_shell("cat", "/data/network-probe.json"))
+                    break
+                except (RuntimeError, json.JSONDecodeError):
+                    if read_attempt == 9:
+                        raise
+                    time.sleep(0.25)
+            report["checks"]["networkReadinessRetries"] = readiness_attempt + 1
         expected = ["tcpLoopback", "udpLoopback", "wildcardBind", "multicastMembership",
                     "rtspParser", "malformedRtspRejected", "aesCtrVector"]
         if any(native.get(key) is not True for key in expected):

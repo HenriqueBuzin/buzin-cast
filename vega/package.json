@@ -19,8 +19,9 @@
     "release": "npm-run-all lint test build:app",
     "codegen:network": "keplerscript-turbomodule-api codegen src/turbo-modules/BuzinNetwork.ts -o kepler/turbo-modules/ -s BuzinNetworkTurboModule",
     "prepare:adaptive": "python3 ../tools/prepare_vega_shaka.py --build",
-    "prebuild:release": "npm run prepare:adaptive",
-    "prebuild:debug": "npm run prepare:adaptive"
+    "prebuild:release": "npm run prepare:airplay && npm run prepare:adaptive",
+    "prebuild:debug": "npm run prepare:airplay && npm run prepare:adaptive",
+    "prepare:airplay": "python3 ../tools/prepare_vega_airplay.py"
   },
   "dependencies": {
     "@amazon-devices/keplermediadescriptor": "~1.1.0",
