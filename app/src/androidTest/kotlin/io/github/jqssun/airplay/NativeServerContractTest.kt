@@ -16,6 +16,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.nio.Buffer
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Real initialized JNI contexts; the callbacks never open UI or publish NSD services. */
@@ -174,7 +175,7 @@ class NativeServerContractTest {
         assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 0, 90, 192, false, false, true, true, true))
     }
 
-    @Test fun softwareAacDecodesExactPcmAcrossReconfigurationAndCaptureToggle() {
+    private fun aacFrames(): List<ByteArray> {
         val encoded = context.assets.open("mirror/sample.aac").use { it.readBytes() }
         val frames = mutableListOf<ByteArray>()
         var offset = 0
@@ -192,6 +193,11 @@ class NativeServerContractTest {
         // Independent ffmpeg decoding of this checked-in silence fixture yields
         // 88 x 1024 stereo PCM16 frames (360448 bytes), all zero.
         assertEquals(88, frames.size)
+        return frames
+    }
+
+    @Test fun softwareAacDecodesExactPcmAcrossReconfigurationAndCaptureToggle() {
+        val frames = aacFrames()
         val handle = create()
         val callback = callbacks.getValue(handle)
         NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
@@ -214,5 +220,53 @@ class NativeServerContractTest {
             assertEquals(base + index * 1024L * 1_000_000_000L / 44100, record.pts)
         }
         assertTrue("Decoder latency callback was not delivered", callback.logs.any { it.contains("decode latency:") })
+    }
+
+    @Test fun platformAacDecodesPcmOnItsDrainThreadAndStopsCaptureCleanly() {
+        val frames = aacFrames()
+        for (fast in listOf(false, true)) {
+            val handle = create()
+            val callback = callbacks.getValue(handle)
+            NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
+            assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 0, true, false, fast, fast, false))
+            NativeBridge.nativeSetCaptureEnabled(handle, true)
+            val base = System.nanoTime() / 1000 * 1000
+            fun pts(index: Int) = (base + index * 1024L * 1_000_000_000L / 44100) / 1000 * 1000
+            // A live MediaCodec stream has no EOS here. Supply a silent tail so
+            // decoder lookahead can release every frame of the original fixture.
+            val supplied = frames.size + 8
+            for (index in 0 until supplied) {
+                DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
+                Thread.sleep(10) // pace input so this is not an input-buffer-overflow test
+            }
+            val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
+            while (callback.pcm.size < frames.size && System.nanoTime() < deadline) Thread.sleep(10)
+            assertTrue("Platform AAC output count=${callback.pcm.size}; logs=${callback.logs}",
+                callback.pcm.size in frames.size..supplied)
+            var observed = callback.pcm.size
+            var stableSince = System.nanoTime()
+            while (System.nanoTime() - stableSince < 100_000_000L) {
+                assertTrue("Platform output did not settle", System.nanoTime() < deadline)
+                Thread.sleep(10)
+                if (callback.pcm.size != observed) { observed = callback.pcm.size; stableSince = System.nanoTime() }
+            }
+            assertTrue("Platform decoder was not selected: ${callback.logs}",
+                callback.logs.any { it.contains("audio/mp4a-latm decoder started (") && !it.contains("ffmpeg") })
+            if (android.os.Build.VERSION.SDK_INT < 23)
+                assertFalse("Lollipop attempted the optional named decoder", callback.logs.any { it.contains("c2.android.inproc.aac.decoder") })
+            NativeBridge.nativeSetCaptureEnabled(handle, false)
+            repeat(8) { index -> DebugNativeBridge.nativeFeedAudio(handle, frames[index], pts(supplied + index)); Thread.sleep(10) }
+            NativeBridge.nativeServerAudioStop(handle) // joins the drain thread before comparing callbacks
+            assertEquals("Disabled capture still delivered PCM", observed, callback.pcm.size)
+            for ((index, record) in callback.pcm.withIndex()) {
+                assertEquals(44100, record.rate); assertEquals(2, record.channels)
+                assertEquals(4096, record.bytes.size)
+                assertTrue(record.bytes.all { it == 0.toByte() })
+                assertEquals("AAC timestamp $index", pts(index), record.pts)
+            }
+            val debug = ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder())
+            assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
+            assertEquals("Native decoder reported rejected packets", 0, debug.getInt(34))
+        }
     }
 }

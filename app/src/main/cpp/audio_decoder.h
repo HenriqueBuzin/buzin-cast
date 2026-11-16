@@ -3,6 +3,7 @@
 
 #include <android/log.h>
 #ifndef BUZIN_SOFTWARE_AUDIO_ONLY
+#include <android/api-level.h>
 #include <media/NdkMediaCodec.h>
 #include <media/NdkMediaFormat.h>
 #endif
@@ -425,6 +426,16 @@ static inline AMediaCodec *startCodec(const char *mime, const char *name, AMedia
 // tries c.preferName first if set, then platform default
 static inline AMediaCodec *startMediaCodec(const CodecConfig &c, LogSink &log, bool realtimePriority,
                                            bool lowLatency) {
+    bool tryPreferred = c.preferName != nullptr;
+#if __ANDROID_API__ < 23
+    if (android_get_device_api_level() < 23) {
+        // Lollipop's NDK can return a non-null wrapper for a missing codec;
+        // configuring that wrapper dereferences a null MediaCodec internally.
+        // Keep the required AAC decoder by MIME, and use FFmpeg for ALAC.
+        if (c.ffmpegId == AV_CODEC_ID_ALAC) return nullptr;
+        tryPreferred = false;
+    }
+#endif
     AMediaFormat *fmt = AMediaFormat_new();
     AMediaFormat_setString(fmt, "mime", c.mime);
     AMediaFormat_setInt32(fmt, "sample-rate", c.sampleRate);
@@ -437,7 +448,7 @@ static inline AMediaCodec *startMediaCodec(const CodecConfig &c, LogSink &log, b
     if (realtimePriority) AMediaFormat_setInt32(fmt, "priority", 0);
     if (lowLatency) AMediaFormat_setInt32(fmt, "low-latency", 1);
     AMediaFormat_setBuffer(fmt, "csd-0", c.csd, c.csdLen);
-    AMediaCodec *codec = c.preferName ? startCodec(c.mime, c.preferName, fmt, log) : nullptr;
+    AMediaCodec *codec = tryPreferred ? startCodec(c.mime, c.preferName, fmt, log) : nullptr;
     if (!codec) codec = startCodec(c.mime, nullptr, fmt, log);
     AMediaFormat_delete(fmt);
     return codec;
