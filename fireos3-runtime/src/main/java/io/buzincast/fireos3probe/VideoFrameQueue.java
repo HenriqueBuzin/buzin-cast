@@ -15,6 +15,15 @@ final class VideoFrameQueue {
     private int generation;
     private final AudioPacketQueue audio;
     private final Runnable reset;
+    interface Controls {void identity(String id,String token);void stopped();}
+    private volatile Controls controls;
+    void controls(Controls controls) {this.controls=controls;}
+    @SuppressWarnings("unused") public void onDacpId(String id,String token) {
+        Controls target=controls;if(target!=null)target.identity(id,token);
+    }
+    @SuppressWarnings("unused") public void onSenderStopped() {
+        Controls target=controls;if(target!=null)target.stopped();
+    }
 
     VideoFrameQueue() { this(null); }
     VideoFrameQueue(AudioPacketQueue audio) { this(audio,null); }
@@ -81,6 +90,7 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        controls=null;
         frames.clear();
         bytes = 0;
         notifyAll();

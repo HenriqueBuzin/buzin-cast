@@ -18,6 +18,7 @@ public final class LegacyReceiverSession {
         default void videoStarted() {}
         default void videoStopped() {}
         default void videoSize(int width,int height) {}
+        default void controlsChanged() {}
     }
     private final Context context;
     private final String identity;
@@ -27,6 +28,7 @@ public final class LegacyReceiverSession {
     private final VideoFrameQueue queue;
     private final ReceiverOptions options;
     private LegacyNetwork requestedNetwork;
+    private volatile LegacyDacp controls;
     private final AtomicBoolean videoActive = new AtomicBoolean();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
@@ -85,11 +87,21 @@ public final class LegacyReceiverSession {
 
     private void run() {
         LegacyDiscovery discovery = new LegacyDiscovery();
+        CountDownLatch discoveryReady=new CountDownLatch(1);
         WifiManager.MulticastLock multicast = null;
         try {
             System.loadLibrary("fireos3_probe");
             network = LegacyNetwork.select(requestedNetwork);
             if(requestedNetwork!=null && !requestedNetwork.equals(network))throw new java.net.SocketException("Selected local network changed before startup");
+            controls=new LegacyDacp(service-> {
+                try {if(!discoveryReady.await(10,java.util.concurrent.TimeUnit.SECONDS))throw new IOException("Discovery is not ready");}
+                catch(InterruptedException interrupted) {Thread.currentThread().interrupt();throw new IOException("Discovery cancelled",interrupted);}
+                return discovery.resolveControl(service,network);
+            },listener::controlsChanged);
+            queue.controls(new VideoFrameQueue.Controls() {
+                @Override public void identity(String id,String token) {LegacyDacp target=controls;if(target!=null)target.update(id,token);}
+                @Override public void stopped() {LegacyDacp target=controls;if(target!=null)target.senderStopped();}
+            });
             WifiManager wifi = (WifiManager)context.getSystemService(Context.WIFI_SERVICE);
             if (wifi != null) {
                 multicast = wifi.createMulticastLock("buzin-api17-probe");
@@ -114,6 +126,7 @@ public final class LegacyReceiverSession {
             }, "fireos3-live-audio");
             audioWorker.start();
             discovery.start(network.address, identity, port, video, audio,options == null ? null : options.name);
+            discoveryReady.countDown();
             if (stopping.get()) return;
             ready.countDown(); listener.ready(discovery.name());
             videoPlayer.run(() -> stopping.get() || audioFailure != null);
@@ -127,6 +140,8 @@ public final class LegacyReceiverSession {
             stopping.set(true);
             // An interrupted start must still unregister records and join native workers.
             Thread.interrupted();
+            discoveryReady.countDown();
+            LegacyDacp previous=controls;controls=null;if(previous!=null)previous.close();
             try { discovery.close(); } catch (IOException error) { if (failure == null) failure = error; }
             synchronized (nativeLock) {
                 if (handle != 0) { NativeReceiver.stopReceiver(handle); handle = 0; }
@@ -173,4 +188,10 @@ public final class LegacyReceiverSession {
     public boolean isClosed() { return closed.getCount()==0; }
     public int listeningPort() { return port; }
     public String localAddress() { return network == null ? null : network.address.getHostAddress(); }
+    public LegacyDacp.State controls() {LegacyDacp current=controls;return current==null?LegacyDacp.inactive():current.state();}
+    public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
+        LegacyDacp current=controls;
+        if(current==null) {if(completion!=null)completion.complete(new IOException("Receiver is stopped"));}
+        else current.command(command,completion);
+    }
 }

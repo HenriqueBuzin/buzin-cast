@@ -1,5 +1,33 @@
 # Retomada — 16 de novembro de 2026
 
+## Alvo antigo — comandos ao transmissor
+
+O receptor API17 recebe a identificação DACP do UxPlay, resolve o transmissor
+na descoberta da sessão e envia os nove comandos por HTTP fora da UI. A tela
+mostra anterior, pausa/reprodução, próxima e volume após resolver o endpoint;
+as teclas de mídia também funcionam. Credenciais e respostas ficam vinculadas
+à sessão. Fila limitada, cancelamento, timeouts, erros e redirecionamentos são
+tratados; uma resposta atrasada não desfaz um encerramento nativo posterior.
+
+O teste completo da geral passou em `outputs/legacy-dacp-focus-verified`, com
+identificação RTSP nativa, DNS-SD/HTTP reais, toque/foco, teclas, erro HTTP e
+troca entre dois transmissores de teste. A captura de rede encontrou o anúncio
+tardio que invalidava uma consulta única; há agora até três consultas limitadas.
+O mesmo teste encontrou perda de foco ao tocar Parar: esse clique passou a
+atualizar os widgets existentes. A regressão de áudio/vídeo passou em
+`outputs/legacy-dacp-native-regression`, e a de gestos da geral passou em
+`outputs/legacy-dacp-general-gestures`. 55 testes JVM do alvo antigo passaram.
+Na regional, os mesmos controles e gestos passaram em
+`outputs/legacy-dacp-regional-verified` e `outputs/legacy-dacp-regional-gestures`.
+Build/lint e os 55 testes passaram também nessa edição. As rodadas removeram
+seus APKs temporários, sem usar TVs físicas.
+Detalhes, comandos e tentativas anteriores em [TESTING.md](TESTING.md).
+
+A meta de paridade continua ativa. Ainda faltam metadados/capa e integração
+com a sessão de mídia do sistema antigo, reprodução/protocolos restantes,
+gravação/download, segurança/licença de produção e testes físicos. Os APKs
+continuam prévias debug com IDs separados; não publicar como versão pronta.
+
 ## Alvo antigo — recuperação de rede
 
 O serviço API17 aguarda uma interface local antes de iniciar, observa mudanças

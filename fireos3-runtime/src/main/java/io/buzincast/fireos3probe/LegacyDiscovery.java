@@ -31,6 +31,25 @@ final class LegacyDiscovery {
 
     String name() { return name; }
 
+    LegacyDacp.Endpoint resolveControl(String name,LegacyNetwork network) throws IOException {
+        JmDNS current=dns;if(current==null)throw new IOException("Discovery is closed");
+        ServiceInfo info=null;
+        // A sender can deliver RTSP headers before its DNS probing/announcement
+        // finishes. Re-query rather than permanently lose controls at that race.
+        for(int attempt=0;attempt<3 && info==null;attempt++) {
+            if(Thread.currentThread().isInterrupted() || dns!=current)throw new IOException("Sender discovery cancelled");
+            info=current.getServiceInfo("_dacp._tcp.local.",name,4000);
+        }
+        if(info==null)throw new IOException("Sender control service was not found");
+        for(Inet4Address address:info.getInet4Addresses()) {
+            byte[] candidate=address.getAddress(),local=network.address.getAddress();boolean same=true;
+            for(int bit=0;bit<network.prefix;bit++)
+                if(((candidate[bit/8]^local[bit/8]) & (1<<(7-bit%8)))!=0) {same=false;break;}
+            if(same)return new LegacyDacp.Endpoint(address,info.getPort());
+        }
+        throw new IOException("Sender control service is outside the local network");
+    }
+
     static boolean advertisesAudio(Map<String,String> records) {
         String features = records.get("features");
         if (features == null) return false;

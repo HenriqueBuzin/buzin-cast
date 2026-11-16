@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import io.buzincast.fireos3probe.LegacyReceiverSession;
 import io.buzincast.fireos3probe.LegacyNetwork;
+import io.buzincast.fireos3probe.LegacyDacp;
 
 /** Main-thread owner of the receiver. Native/codec work stays in runtime workers. */
 public final class LegacyReceiverService extends Service {
@@ -33,12 +34,14 @@ public final class LegacyReceiverService extends Service {
         final int port,width,height;
         final Exception failure;
         final List<String> events;
+        final LegacyDacp.State controls;
         State(LegacyReceiverService service) {
             desired=service.desired;running=service.running;busy=service.busy;video=service.video;
             networkWaiting=service.wanted() && service.reconnect.initialized() && !service.reconnect.online();
             name=service.name;failure=service.failure;width=service.width;height=service.height;
             address=service.session==null?null:service.session.localAddress();
             port=service.session==null?0:service.session.listeningPort();
+            controls=service.session==null || service.stopping?LegacyDacp.inactive():service.session.controls();
             events=new ArrayList<>(service.events);
         }
     }
@@ -63,6 +66,7 @@ public final class LegacyReceiverService extends Service {
     private int generation,width,height;
     private String name;
     private Exception failure;
+    private Exception controlFailure;
 
     static void dispatch(Context context,String action) {
         Intent intent=new Intent(context,LegacyReceiverService.class).setAction(action);
@@ -91,6 +95,15 @@ public final class LegacyReceiverService extends Service {
     void showSurface(Object owner,TextureTarget next) {
         if(client!=owner || target==next)return;
         target=next;bindSurface();
+    }
+    void control(LegacyDacp.Command command,Runnable failed) {
+        if(session==null || stopping)return;
+        int owner=generation;
+        session.control(command,error->main.post(()-> {
+            if(destroyed || owner!=generation || stopping)return;
+            if(error!=null) {record("DACP "+command+": "+error.getClass().getSimpleName());if(failed!=null)failed.run();}
+            publish();
+        }));
     }
     void detach(Object owner) {
         if(client!=owner)return;
@@ -173,6 +186,12 @@ public final class LegacyReceiverService extends Service {
             @Override public void videoStarted() {post(()-> {if(!stopping) {video=true;publish();}});}
             @Override public void videoStopped() {post(()-> {video=false;publish();});}
             @Override public void videoSize(int w,int h) {post(()-> {if(!stopping) {width=w;height=h;publish();}});}
+            @Override public void controlsChanged() {post(()-> {
+                if(stopping)return;
+                Exception current=session==null?null:session.controls().failure;
+                if(current!=null && current!=controlFailure)record("DACP: "+current.getClass().getSimpleName());
+                controlFailure=current;publish();
+            });}
         },prefs.options(),selectedNetwork);
         bindSurface();session.start();
     }

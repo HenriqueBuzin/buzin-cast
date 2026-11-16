@@ -1,6 +1,7 @@
 package io.buzincast.legacy;
 
 import android.app.Activity;
+import io.buzincast.fireos3probe.LegacyDacp;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
@@ -22,6 +23,7 @@ import android.text.InputType;
 import android.text.style.RelativeSizeSpan;
 import android.text.style.SuperscriptSpan;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.TextureView;
 import android.view.View;
 import android.view.Window;
@@ -43,6 +45,8 @@ import static io.buzincast.legacy.LegacyUi.*;
 
 /** Native TV frontend for the same API17 receiver exercised by the separate probe APK. */
 public final class LegacyActivity extends Activity {
+    private LegacyDacp.State controlState=LegacyDacp.inactive();
+    private LinearLayout senderControls;
     private LegacyPreferences prefs;
     private FrameLayout root,pane;
     private LinearLayout shell,sidebar;
@@ -60,7 +64,7 @@ public final class LegacyActivity extends Activity {
             service=((LegacyReceiverService.LocalBinder)binder).service();startIfNeeded();
         }
         @Override public void onServiceDisconnected(ComponentName component) {
-            service=null;running=busy=video=false;shell.setVisibility(View.VISIBLE);refreshReceiverUi();updateAwake();
+            service=null;running=busy=video=false;controlState=LegacyDacp.inactive();shell.setVisibility(View.VISIBLE);refreshReceiverUi();updateAwake();
         }
     };
     private LegacyCalibrationView calibration;
@@ -130,11 +134,42 @@ public final class LegacyActivity extends Activity {
         if (!destination.equals("overview")) { destination="overview";render();return; }
         super.onBackPressed();
     }
+    private void senderCommand(LegacyDacp.Command command) {
+        if(service!=null && controlState.ready)service.control(command,()-> {
+            if(foreground && !isFinishing())Toast.makeText(this,R.string.error_label,Toast.LENGTH_SHORT).show();
+        });
+    }
+    private LegacyDacp.Command mediaCommand(int key) {
+        switch(key) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:return controlState.playing?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY;
+            case KeyEvent.KEYCODE_MEDIA_PLAY:return LegacyDacp.Command.PLAY;
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:case KeyEvent.KEYCODE_MEDIA_STOP:return LegacyDacp.Command.PAUSE;
+            case KeyEvent.KEYCODE_MEDIA_NEXT:return LegacyDacp.Command.NEXT;
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:return LegacyDacp.Command.PREVIOUS;
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:return LegacyDacp.Command.FAST_FORWARD;
+            case KeyEvent.KEYCODE_MEDIA_REWIND:return LegacyDacp.Command.REWIND;
+            default:return null;
+        }
+    }
+    @Override public boolean onKeyDown(int key,KeyEvent event) {
+        LegacyDacp.Command command=mediaCommand(key);
+        if(controlState.ready && command!=null) {if(event.getRepeatCount()==0)senderCommand(command);return true;}
+        return super.onKeyDown(key,event);
+    }
+    @Override public boolean onKeyUp(int key,KeyEvent event) {
+        if(controlState.ready && mediaCommand(key)!=null) {
+            if(key==KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || key==KeyEvent.KEYCODE_MEDIA_REWIND)
+                senderCommand(LegacyDacp.Command.RESUME);
+            return true;
+        }
+        return super.onKeyUp(key,event);
+    }
     private void startIfNeeded() {
         if(!foreground || service==null)return;
         service.attach(serviceOwner,state-> {
             receiverState=state;desired=state.desired;running=state.running;busy=state.busy;shownName=state.name;
             networkWaiting=state.networkWaiting;
+            controlState=state.controls;
             error=state.failure==null?null:getString(R.string.error_starting_server);
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
@@ -145,7 +180,7 @@ public final class LegacyActivity extends Activity {
     }
     private void toggleReceiver() {
         if(busy && !desired)return;
-        desired=!desired;busy=true;render();
+        desired=!desired;busy=true;refreshReceiverUi();
         LegacyReceiverService.dispatch(this,desired?LegacyReceiverService.START:LegacyReceiverService.STOP);
     }
     private void restart() {
@@ -157,6 +192,11 @@ public final class LegacyActivity extends Activity {
     }
     // Runtime callbacks must not replace controls between ACTION_DOWN and UP.
     private void refreshReceiverUi() {
+        if(senderControls!=null) {
+            if(!controlState.ready && senderControls.hasFocus()) {View nav=shell.findViewWithTag("nav-overview");if(nav!=null)nav.requestFocus();}
+            senderControls.setVisibility(controlState.ready?View.VISIBLE:View.GONE);
+            Button toggle=senderControls.findViewWithTag("sender-1");if(toggle!=null)toggle.setText(controlState.playing?"Ⅱ":"▶");
+        }
         if(receiverStatus!=null) {receiverStatus.setText(statusLabel());receiverStatus.setTextColor(error!=null?0xffffab91:MINT);}
         if(receiverLabel!=null)receiverLabel.setText(shownName);
         if(receiverToggle!=null) {
@@ -191,6 +231,7 @@ public final class LegacyActivity extends Activity {
     private void render() {
         if(pane==null)return;
         receiverStatus=receiverLabel=diagnosticView=null;receiverToggle=null;
+        senderControls=null;
         View previous=getCurrentFocus();if(previous!=null && previous.getTag() instanceof String)lastFocus=(String)previous.getTag();
         sidebar.removeAllViews();
         nav("overview",R.string.tab_overview);nav("tools",R.string.tab_tools);nav("settings",R.string.tab_settings);
@@ -239,6 +280,20 @@ public final class LegacyActivity extends Activity {
         int[] lines={R.string.buzin_step_wifi,R.string.buzin_step_mirror,R.string.buzin_step_choose};
         for(int i=0;i<lines.length;i++)addSpaced(steps,text(this,String.format(Locale.getDefault(),"%02d  ",i+1)+getString(lines[i]),13,MUTED,false),-2);
         page.addView(columns);
+        senderControls=column(this);senderControls.setVisibility(controlState.ready?View.VISIBLE:View.GONE);
+        LinearLayout transport=new LinearLayout(this);
+        int[] labels={R.string.media_previous,R.string.cd_play_pause,R.string.media_next,R.string.volume_client,R.string.volume_client};
+        LegacyDacp.Command[] commands={LegacyDacp.Command.PREVIOUS,null,
+            LegacyDacp.Command.NEXT,LegacyDacp.Command.VOLUME_DOWN,LegacyDacp.Command.VOLUME_UP};
+        for(int i=0;i<labels.length;i++) {
+            final int index=i;Button control=button(this,labels[i],false,()->senderCommand(commands[index]==null?
+                (controlState.playing?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY):commands[index]));
+            control.setTag("sender-"+i);
+            if(i==1) {control.setText(controlState.playing?"Ⅱ":"▶");control.setContentDescription(getString(R.string.cd_play_pause));}
+            if(i>=3) {String label=getString(R.string.volume_client)+(i==3?" âˆ’":" +");control.setText(label);control.setContentDescription(label);}
+            LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(this,54),1);size.setMarginEnd(dp(this,8));transport.addView(control,size);
+        }
+        senderControls.addView(transport);page.addView(senderControls);
     }
     private void settings() {
         LinearLayout body=page(R.string.tab_settings);
@@ -266,7 +321,7 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
     }
     private void toggle(LinearLayout body,int title,int detail,String key,boolean value) {
-        LinearLayout row=row(this,getString(title)+" · "+getString(value?R.string.chip_on:R.string.chip_off),getString(detail),()-> {
+        LinearLayout row=row(this,getString(title)+" Â· "+getString(value?R.string.chip_on:R.string.chip_off),getString(detail),()-> {
             prefs.bool(key,!value);updateAwake();render();
             LegacyReceiverService.dispatch(this,LegacyReceiverService.CONFIGURE);
         });row.setTag(key);addSpaced(body,row,-2);
@@ -338,11 +393,11 @@ public final class LegacyActivity extends Activity {
         LinearLayout names=column(this);names.setPaddingRelative(dp(this,12),0,0,0);names.addView(text(this,getString(R.string.app_name),22,WHITE,true));
         names.addView(text(this,getString(R.string.buzin_about_tagline),12,MUTED,false));names.addView(text(this,getString(R.string.buzin_version,"\u202a"+BuildConfig.VERSION_NAME+"\u202c"),11,MINT,true));heading.addView(names);card.addView(heading);
         divider(card);LinearLayout company=column(this);company.setPadding(dp(this,16),dp(this,12),dp(this,16),dp(this,12));company.addView(text(this,getString(R.string.buzin_maintained_by),11,MUTED,false));
-        SpannableString brand=new SpannableString("Buzin Solutions\u2009®");brand.setSpan(new SuperscriptSpan(),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);brand.setSpan(new RelativeSizeSpan(.7f),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);company.addView(text(this,brand,14,WHITE,true));card.addView(company);
+        SpannableString brand=new SpannableString("Buzin Solutions\u2009Â®");brand.setSpan(new SuperscriptSpan(),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);brand.setSpan(new RelativeSizeSpan(.7f),brand.length()-1,brand.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);company.addView(text(this,brand,14,WHITE,true));card.addView(company);
         aboutLink(card,R.string.buzin_website,"buzin.solutions",()->open("https://buzin.solutions"));
-        aboutLink(card,R.string.buzin_source,"GitHub · HenriqueBuzin/buzin-cast",()->open("https://github.com/HenriqueBuzin/buzin-cast"));
+        aboutLink(card,R.string.buzin_source,"GitHub Â· HenriqueBuzin/buzin-cast",()->open("https://github.com/HenriqueBuzin/buzin-cast"));
         aboutLink(card,R.string.buzin_licenses,getString(R.string.buzin_licenses_detail),()->message(R.string.buzin_licenses,getString(R.string.buzin_credits)));
-        TextView footer=text(this,"© "+Calendar.getInstance().get(Calendar.YEAR)+" Buzin Solutions LTDA",10,MUTED,false);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(this,10),0,dp(this,10));outer.addView(footer);
+        TextView footer=text(this,"Â© "+Calendar.getInstance().get(Calendar.YEAR)+" Buzin Solutions LTDA",10,MUTED,false);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(this,10),0,dp(this,10));outer.addView(footer);
         Button close=button(this,R.string.buzin_close,true,dialog::dismiss);outer.addView(close,new LinearLayout.LayoutParams(-1,dp(this,48)));show(dialog);close.requestFocus();
     }
     private void aboutLink(LinearLayout card,int title,String detail,Runnable click) {divider(card);LinearLayout row=row(this,getString(title),detail,click);focus(row,false,0,0);LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(-1,-2);size.setMargins(dp(this,4),dp(this,5),dp(this,4),dp(this,5));card.addView(row,size);}

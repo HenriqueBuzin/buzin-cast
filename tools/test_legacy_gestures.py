@@ -1,4 +1,4 @@
-"""Keep touch/DPAD pressed across a real receiver restart on an isolated API17 emulator."""
+"""Exercise held touch/DPAD gestures or native sender controls on an isolated API17 emulator."""
 import argparse
 import hashlib
 import json
@@ -14,6 +14,7 @@ def main():
     parser.add_argument('--serial',required=True)
     parser.add_argument('--apk',type=Path,required=True)
     parser.add_argument('--test-apk',type=Path,required=True)
+    parser.add_argument('--controls',action='store_true',help='Exercise native sender identity, real mDNS/HTTP and UI/remote controls instead of held restart gestures.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
@@ -25,7 +26,7 @@ def main():
     if adb('shell','getprop','ro.build.version.sdk').strip()!='17' or adb('shell','getprop','ro.kernel.qemu').strip()!='1':
         parser.error('Use the isolated Android API17 emulator.')
     args.output.mkdir(parents=True,exist_ok=True)
-    report={'status':'running','scope':'Real touch/DPAD gestures during a native receiver stop/start; not a sender interoperability test',
+    report={'status':'running','scope':('Native RTSP identity, real multicast DNS/HTTP, touch/media keys and replacement sender' if args.controls else 'Real touch/DPAD gestures during a native receiver stop/start')+'; not a physical sender interoperability test',
         'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         'test_apk_sha256':hashlib.sha256(args.test_apk.read_bytes()).hexdigest()}
     installed=[]
@@ -34,11 +35,12 @@ def main():
         for package,path in [(args.package,args.apk),(args.package+'.test',args.test_apk)]:
             adb('install','-r',path.resolve());installed.append(package)
         adb('shell','pm','clear',args.package)
-        result=adb('shell','am','instrument','-w',args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=150)
+        options=['-e','checks','controls'] if args.controls else []
+        result=adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
-            raise AssertionError('Gesture instrumentation did not pass; inspect instrumentation.txt')
-        report['status']='pass';report['touch_and_dpad_across_receiver_restart']='pass'
+            raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
+        report['status']='pass';report['sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
     except Exception as error:
         report['status']='failed';report['error']=str(error);raise
     finally:

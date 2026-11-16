@@ -24,6 +24,7 @@ typedef struct {
     jmethodID on_video_data;
     jmethodID on_video_reset;
     jmethodID on_audio_data, on_audio_format, on_audio_flush, on_audio_volume, get_audio_volume;
+    jmethodID on_dacp_id, on_sender_stopped;
     bool audio_enabled;
     uint32_t network;
     uint32_t netmask;
@@ -98,6 +99,23 @@ static int allow_local_peer(void *context, const char *peer) {
 }
 
 static void noop(void *context) {}
+static void control_identity(void *context,const char *id,const char *token) {
+    receiver_probe_t *probe=context;
+    if(!id || !token || strnlen(id,512)>=512 || strnlen(token,512)>=512)return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jstring name=(*env)->NewStringUTF(env,id);
+    jstring secret=(*env)->ExceptionCheck(env)?NULL:(*env)->NewStringUTF(env,token);
+    if(name && secret)(*env)->CallVoidMethod(env,probe->video_callback,probe->on_dacp_id,name,secret);
+    if(name)(*env)->DeleteLocalRef(env,name);
+    if(secret)(*env)->DeleteLocalRef(env,secret);
+    finish_callback(probe,env,attached);
+}
+static void export_control_identity(void *context,const char *token,const char *id) {control_identity(context,id,token);}
+static void sender_stopped(void *context) {
+    receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_sender_stopped);
+    finish_callback(probe,env,attached);
+}
 static double client_volume(void *context) {
     receiver_probe_t *probe = context;
     bool attached;
@@ -195,11 +213,13 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         probe->on_audio_flush = (*env)->GetMethodID(env, callback_type, "onAudioFlush", "()V");
         probe->on_audio_volume = (*env)->GetMethodID(env, callback_type, "onAudioVolume", "(F)V");
         probe->get_audio_volume = (*env)->GetMethodID(env, callback_type, "getAudioVolume", "()D");
+        probe->on_dacp_id = (*env)->GetMethodID(env, callback_type, "onDacpId", "(Ljava/lang/String;Ljava/lang/String;)V");
+        probe->on_sender_stopped = (*env)->GetMethodID(env, callback_type, "onSenderStopped", "()V");
         jmethodID enabled = (*env)->GetMethodID(env, callback_type, "audioEnabled", "()Z");
         if (enabled) probe->audio_enabled = (*env)->CallBooleanMethod(env, video_callback, enabled);
         (*env)->DeleteLocalRef(env, callback_type);
         if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
-            !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !enabled ||
+            !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !probe->on_dacp_id || !probe->on_sender_stopped || !enabled ||
             (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
         if (!probe->video_callback) { free(probe); return 0; }
@@ -223,6 +243,9 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         .video_flush = noop,
         .audio_flush = audio_flush,
         .audio_set_client_volume = client_volume,
+        .audio_remote_control_id = control_identity,
+        .export_dacp = export_control_identity,
+        .audio_stop_coverart_rendering = sender_stopped,
         .conn_feedback = noop,
     };
     raop_t *receiver = raop_init(&callbacks);

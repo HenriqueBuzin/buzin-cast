@@ -22,6 +22,49 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Controles do transmissor API17:** os callbacks de identificação DACP e
+  fim do áudio chegam do UxPlay ao runtime. O controlador usa a descoberta
+  JmDNS da própria sessão e aceita um endpoint IPv4 da mesma rede local.
+  Os botões aparecem após resolver o transmissor; incluem anterior, pausa/
+  reprodução, próxima e volume do transmissor. As teclas de mídia também
+  enviam comandos, com retomada ao soltar avanço/retrocesso. O observer
+  atualiza os widgets existentes, preservando toque e foco.
+  HTTP acontece num worker com fila limitada e timeouts. O token de controle
+  fica ligado ao endpoint e à geração capturados; respostas antigas não
+  alteram outra sessão nem desfazem um encerramento nativo posterior. Erros
+  e redirecionamentos não mudam o estado de reprodução. Identificações
+  repetidas compartilham uma resolução em andamento. Parar cancela a fila.
+  O corpo HTTP não é baixado: só o status confirma o comando.
+  Os testes JVM usam sockets HTTP reais, incluindo todos os nove comandos,
+  redirecionamento, erro, troca durante resolução/comando, encerramento e
+  injeção de cabeçalhos. O modo `tools/test_legacy_gestures.py --controls`
+  usa um transmissor local no APK de teste: publica DNS-SD, entrega as
+  credenciais por uma requisição RTSP ao receptor nativo e verifica HTTP
+  gerado por toque/teclas, foco, falha e troca do transmissor.
+  Esse ensaio não comprova interoperabilidade com um emissor físico, nem
+  implementa sozinho metadados/capa ou a sessão de mídia do sistema antigo.
+  A captura `outputs/legacy-dacp-packets.pcap` mostrou a consulta correta
+  antes de os anúncios terminarem; uma consulta única de quatro segundos
+  perdia os controles. A descoberta agora faz até três consultas limitadas,
+  sem alterar o anúncio tardio do teste. As primeiras reprovações ficam em
+  `outputs/legacy-dacp-general-controls`, `outputs/legacy-dacp-regional-diagnostic`
+  e `outputs/legacy-dacp-packet-diagnostic`. A próxima rodada
+  (`outputs/legacy-dacp-requery-controls`) passou pelos comandos e troca de
+  transmissor, mas encontrou perda de foco ao tocar Parar. O clique agora
+  atualiza os widgets existentes, em vez de reconstruir a tela. O roteiro
+  completo passou em `outputs/legacy-dacp-focus-verified`, com remoção dos
+  APKs ao final. Os sete testes JVM do controlador, os demais 48 testes do
+  alvo antigo, build ARMv7/x86 e lint passaram na edição geral.
+  A edição regional repetiu o roteiro completo com sucesso em
+  `outputs/legacy-dacp-regional-verified`; build/lint e os 55 testes do alvo
+  antigo passaram nela também. A regressão nativa em
+  `outputs/legacy-dacp-native-regression` passou em um ciclo completo, com
+  duas sessões, áudio, vídeo, relógio, descoberta e troca de display.
+  Os gestos durante reinício passaram em `outputs/legacy-dacp-general-gestures`
+  e `outputs/legacy-dacp-regional-gestures`. Os APKs exportados permaneceram
+  iguais entre o teste de controles e o de gestos de cada edição. Todos os
+  roteiros removeram suas instalações temporárias; nenhuma TV física foi usada.
+
 - **Recuperação de rede API17:** o serviço observa a interface IPv4 em um
   worker, com verificações periódicas e sinal de conectividade do sistema.
   Sinais repetidos não encerram a sessão. Uma mudança de interface/endereço
