@@ -1,5 +1,15 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — ponto pausado: áudio MSSE nativo
+
+A saída AAC pelo SDK nativo passou em dois ciclos no VVD ARM64: 376 frames por
+ciclo, relógio até aproximadamente 7,95 s e liberação confirmada. Três ABIs
+compilaram e passaram a validação. O sink ainda não está conectado ao UxPlay;
+vídeo, NTP/A-V, outros codecs e validação física continuam pendentes. Runner,
+comando e evidências em [VEGA_HANDOFF.md](VEGA_HANDOFF.md). Henrique pediu pausa
+e commit/push neste ponto. Não declarar o app finalizado.
+
+
 ## Vega — seleção do menu e foco por toque — 16 de novembro de 2026
 
 O menu permanece nas páginas de consulta/configurações, com seleção semântica

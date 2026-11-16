@@ -1,5 +1,32 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Ponto pausado — áudio MSSE nativo — 16 de novembro de 2026
+
+- `MsseAudioPlayer` usa os bindings oficiais APMF/W3C gerados pelo CMake,
+  com inicialização/liberação assíncronas e espera limitada, AAC bruto,
+  configuração ASC, timestamps em milissegundos, backpressure e retenção
+  limitada dos buffers até o consumo. Ainda não está ligado ao UxPlay.
+- `buzin-msse-probe` é um executável de desenvolvimento separado do VPKG.
+  Extrai unidades AAC-LC de uma fixture ADTS limitada e verifica dois ciclos
+  de reprodução e liberação. O runner Python recusa TVs físicas, gera a
+  fixture com FFmpeg a partir da amostra própria e a transmite ao sandbox.
+- Build/validação ABI das três arquiteturas passou. O teste real ARM64 passou
+  em `build/vega-msse-audio-format/result.json`: dois ciclos de 376 frames,
+  relógios de 7,955 s e 7,948 s e liberação confirmada. Isso não comprova som
+  audível, recepção AirPlay, AAC-ELD/ALAC, vídeo ou sincronismo A/V.
+- A configuração validada usa MIME `audio/aac`, RAW_AAC, criptografia
+  desativada e prepara a trilha antes de adicioná-la à fonte. As tentativas
+  anteriores deram SOURCE_NOT_SUPPORTED. Não reutilizar seus relatórios como
+  resultados aprovados nem atribuir a causa exclusivamente a um dos ajustes.
+- Com VVD iniciado, repetir da raiz:
+  `python3 tools/test_vega_msse.py --serial emulator-5554 --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg --runner vega/build/aarch64-release/bin/buzin-msse-probe --output build/vega-msse-audio`.
+- Próximo: ligar formatos/amostras/flush/volume UxPlay ao worker de áudio,
+  alinhar os timestamps NTP e integrar vídeo/superfície; preservar validação
+  explícita dos demais codecs e dos emissores reais. A meta completa segue
+  pendente. Trabalho pausado por Henrique após esse teste aprovado.
+- A integração remota foi concluída em `0258add`, preservando ambos os lados
+  do conflito de checkpoint e as atualizações Fire OS.
+
 ## Menu selecionado e foco por ativação — 16 de novembro de 2026
 
 - Conferido o Fire OS atual: `TvSidebar` mantém a página selecionada marcada
