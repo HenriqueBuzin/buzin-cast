@@ -106,19 +106,61 @@ std::vector<uint8_t> announcement(const std::string& service,
   return out;
 }
 
-bool asksForFCast(const uint8_t* packet, size_t length) {
-  if (length < 12 || (packet[2] & 0x80)) return false; // QR must be zero
-  static constexpr uint8_t service[] = {6, '_', 'f', 'c', 'a', 's', 't', 4, '_', 't', 'c', 'p', 5, 'l', 'o', 'c', 'a', 'l'};
-  for (size_t i = 12; i + sizeof(service) <= length; ++i) {
-    size_t j = 0;
-    for (; j < sizeof(service); ++j) {
-      auto actual = packet[i + j];
-      if (actual >= 'A' && actual <= 'Z') actual = static_cast<uint8_t>(actual + ('a' - 'A'));
-      if (actual != service[j]) break;
+// Read only DNS questions, including compressed names; never search arbitrary
+// payload bytes for a service string. Bound pointer traversal to reject cycles.
+bool dnsName(const uint8_t* packet, size_t length, size_t& cursor, std::string& result) {
+  size_t position = cursor;
+  bool jumped = false;
+  for (size_t hops = 0; hops < 128; ++hops) {
+    if (position >= length) return false;
+    const auto label = packet[position++];
+    if ((label & 0xc0) == 0xc0) {
+      if (position >= length) return false;
+      const size_t target = ((label & 0x3f) << 8) | packet[position++];
+      if (!jumped) cursor = position;
+      jumped = true;
+      // DNS compression references prior names only.
+      if (target >= position - 2) return false;
+      position = target;
+      continue;
     }
-    if (j == sizeof(service)) return true;
+    if (label & 0xc0 || position + label > length) return false;
+    if (!label) {
+      if (!jumped) cursor = position;
+      return true;
+    }
+    if (!result.empty()) result += '.';
+    for (size_t n = 0; n < label; ++n) {
+      auto c = packet[position++];
+      if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+      result += static_cast<char>(c);
+    }
+    if (result.size() > 253) return false;
   }
   return false;
+}
+
+bool asksForFCast(const uint8_t* packet, size_t length,
+                  const std::string& service, const std::string& host) {
+  if (length < 12 || (packet[2] & 0xf8) || (packet[3] & 0x0f)) return false;
+  const size_t count = (packet[4] << 8) | packet[5];
+  if (count > 64) return false;
+  size_t cursor = 12;
+  bool matched = false;
+  std::string lowerService = service;
+  for (auto& c : lowerService) if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+  for (size_t q = 0; q < count; ++q) {
+    std::string question;
+    if (!dnsName(packet, length, cursor, question) || cursor + 4 > length) return false;
+    const auto type = (packet[cursor] << 8) | packet[cursor + 1];
+    const auto klass = ((packet[cursor + 2] << 8) | packet[cursor + 3]) & 0x7fff;
+    cursor += 4;
+    if (klass != 1 && klass != 255) continue;
+    matched |= (question == "_fcast._tcp.local" && (type == 12 || type == 255)) ||
+        (question == lowerService && (type == 16 || type == 33 || type == 255)) ||
+        (question == host && (type == 1 || type == 255));
+  }
+  return matched;
 }
 }
 
@@ -212,8 +254,10 @@ void FCastDiscovery::run() noexcept {
     socklen_t peerLength = sizeof(peer);
     const auto size = recvfrom(socketFd, packet, sizeof(packet), 0,
         reinterpret_cast<sockaddr*>(&peer), &peerLength);
-    if (size > 0 && asksForFCast(packet, static_cast<size_t>(size))) {
-      const auto& destination = peer.sin_port == htons(MdnsPort) ? multicast : peer;
+    if (size > 0 && asksForFCast(packet, static_cast<size_t>(size), serviceName, hostName)) {
+      // Legacy unicast DNS is not implemented; answer mDNS clients only.
+      if (peer.sin_port != htons(MdnsPort)) continue;
+      const auto& destination = multicast;
       if (!sendRecords(destination, RecordTtl)) break;
       lastAnnouncement = std::chrono::steady_clock::now();
     }

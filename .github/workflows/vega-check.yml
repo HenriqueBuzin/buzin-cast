@@ -34,6 +34,11 @@ jobs:
           mkdir -p ../build/vega-native-tests
           clang++ -std=c++23 -Wall -Wextra -Werror -pthread -Ikepler/turbo-modules test/FCastTransportTest.cpp kepler/turbo-modules/FCastTransport.cpp -o ../build/vega-native-tests/fcast-transport
           ../build/vega-native-tests/fcast-transport
+      - name: Testar pacotes DNS-SD sem anúncios na rede
+        run: |
+          mkdir -p ../build/vega-native-tests
+          clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/FCastDiscoveryTest.cpp -o ../build/vega-native-tests/fcast-discovery
+          ../build/vega-native-tests/fcast-discovery
       - name: Conferir cópia da arte aprovada
         run: cmp src/assets/buzin_banner.png ../app/src/main/res/drawable-nodpi/buzin_banner.png
       - name: Conferir ícone aprovado

@@ -1,5 +1,24 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Revisão de pacotes DNS-SD — 16 de novembro de 2026
+
+- Corrigida a detecção de perguntas mDNS: leitura limitada da seção de perguntas,
+  nomes comprimidos, comparação sem distinção entre maiúsculas/minúsculas,
+  validação de classe e tipo e consultas SRV/TXT/A do serviço/host. Pacotes
+  truncados e ponteiros inválidos são rejeitados. Texto solto no payload não
+  dispara uma resposta.
+- Teste C++ independente exercita o codec real sem anunciar serviços na LAN e
+  confere registros PTR/SRV/TXT/A, porta, endereço de documentação, consultas
+  comprimidas e rejeição de truncamento. Esse teste também integra o CI Vega.
+- Atualizado o teste de interface que ainda esperava a mensagem anterior.
+- Verificação desta revisão: teste nativo de pacotes, lint, TypeScript, os 39
+  testes Jest e build Release/validação ABI das três arquiteturas passaram.
+- Limites ainda abertos do anúncio: probing e resolução de conflitos de nomes,
+  supressão de respostas conhecidas, tratamento completo de QU/consultas legadas
+  e troca de interface. Consultas legadas fora da porta 5353 são ignoradas para
+  evitar respostas com ID/pergunta incorretos. Ainda não é uma implementação
+  completa do RFC 6762 nem uma descoberta validada no Vega físico.
+
 ## Avanço no Vega — 16 de novembro de 2026
 
 - A `main` foi sincronizada com `origin/main` e ficou como a única branch local
