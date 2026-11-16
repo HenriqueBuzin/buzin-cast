@@ -231,6 +231,18 @@ class Suite:
         assert not self.keyboard()
         self.shot("relay-one-form")
 
+    def saved_profile(self):
+        xml = self.adb("shell", "run-as", self.package, "cat", "shared_prefs/settings.xml")
+        try:
+            settings = ET.fromstring(xml)
+        except ET.ParseError as error:
+            # SharedPreferences rewrites the file while a profile changes. An
+            # incomplete read cannot prove either the old or the new selection.
+            raise UiUnavailable("Profile preferences are not readable yet") from error
+        if settings.tag != "map":
+            raise UiUnavailable("Profile preferences have an unexpected root")
+        return next((node.text for node in settings if node.get("name") == "experience_profile"), "Padrão")
+
     def profiles(self):
         labels = {
             "Cinema": ("Cinema",),
@@ -243,9 +255,7 @@ class Suite:
             return {profile_by_label[c.get("text")] for n in self.ui().iter()
                     if n.get("selected")=="true" or n.get("checked")=="true"
                     for c in n.iter() if c.get("text") in profile_by_label}
-        def saved():
-            xml=self.adb("shell","run-as",self.package,"cat","shared_prefs/settings.xml")
-            return next((n.text for n in ET.fromstring(xml) if n.get("name")=="experience_profile"), "Padrão")
+        saved = self.saved_profile
         self.start("settings")
         self.wait(lambda: selected()=={saved()}, "Settings did not show the saved or default profile")
         for name, options in labels.items():

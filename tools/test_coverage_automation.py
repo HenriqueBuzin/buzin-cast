@@ -15,6 +15,22 @@ from report_coverage import coverage_target_met
 
 
 class CoverageAutomationTest(unittest.TestCase):
+    @patch("test_emulator.time.sleep")
+    def test_profile_transition_requires_a_complete_persisted_value(self, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.package = "com.buzincast.tv"
+        suite.adb = Mock(side_effect=["", "<map><string", '<map><string name="experience_profile">Cinema</string></map>'])
+        self.assertTrue(suite.wait(lambda: suite.saved_profile() == "Cinema", "Profile not saved"))
+        self.assertEqual(3, suite.adb.call_count)
+        suite.adb = Mock(return_value="<map/>")
+        self.assertEqual("Padrão", suite.saved_profile())
+        suite.adb = Mock(return_value="<unexpected/>")
+        with self.assertRaises(UiUnavailable):
+            suite.saved_profile()
+        suite.adb = Mock(side_effect=RuntimeError("device disconnected"))
+        with self.assertRaisesRegex(RuntimeError, "device disconnected"):
+            suite.saved_profile()
+
     def test_acceptance_requires_every_metric_and_real_nonzero_mapping(self):
         jvm={name:{"covered":1,"total":1} for name in ("INSTRUCTION","BRANCH","LINE","COMPLEXITY","METHOD","CLASS")}
         native={name:{"covered":1,"total":1} for name in ("branches","functions","instantiations","lines","mcdc","regions")}
