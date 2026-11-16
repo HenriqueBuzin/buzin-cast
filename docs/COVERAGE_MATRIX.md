@@ -94,6 +94,12 @@ video, keepalives, malformed input, stream takeover and session teardown. The
 paired-relay test allows 45 seconds for two real PBKDF2 derivations on software
 emulators; it still requires successful authentication and delivered video.
 
+DACP contracts supply discovery callbacks and use real HTTP sender fixtures.
+They check stale and invalid resolution results, sender changes, all remote
+actions, transport failures, and commands queued across a sender change. Each
+command retains its resolved endpoint and token; reset and sender updates
+invalidate earlier discovery callbacks.
+
 Native profiles from the unit executable contribute to the functions also
 compiled into the app. The instrumented APK library defines the native mapping
 inventory. The test executable is not supplied as an additional coverage object:

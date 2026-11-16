@@ -15,22 +15,29 @@ import java.util.concurrent.Executors
  * Sends DACP (Digital Audio Control Protocol) commands back to the AirPlay sender.
  * Resolves the sender's control port via mDNS, then sends HTTP GET requests.
  */
-class DacpController(ctx: Context) {
+class DacpController internal constructor(
+    private val resolveService: (NsdServiceInfo, NsdManager.ResolveListener) -> Unit,
+) {
 
-    private val nsdManager = ctx.getSystemService(Context.NSD_SERVICE) as NsdManager
+    constructor(ctx: Context) : this((ctx.getSystemService(Context.NSD_SERVICE) as NsdManager)::resolveService)
+
     private val exec = Executors.newSingleThreadExecutor()
 
     @Volatile var dacpId = ""
     @Volatile var activeRemote = ""
     @Volatile private var host = ""
     @Volatile private var port = 0
+    private var resolutionGeneration = 0L
 
-    val ready: Boolean get() = host.isNotEmpty() && activeRemote.isNotEmpty()
+    val ready: Boolean get() = synchronized(this) { host.isNotEmpty() && activeRemote.isNotEmpty() }
 
-    fun update(dacpId: String, activeRemote: String) {
+    @Synchronized fun update(dacpId: String, activeRemote: String) {
+        resolutionGeneration++
+        host = ""
+        port = 0
         this.dacpId = dacpId
         this.activeRemote = activeRemote
-        _resolve()
+        _resolve(resolutionGeneration)
     }
 
     fun play() = _send("/ctrl-int/1/play")
@@ -43,7 +50,8 @@ class DacpController(ctx: Context) {
     fun beginRewind() = _send("/ctrl-int/1/beginrew")
     fun playResume() = _send("/ctrl-int/1/playresume")
 
-    fun reset() {
+    @Synchronized fun reset() {
+        resolutionGeneration++
         dacpId = ""
         activeRemote = ""
         host = ""
@@ -55,7 +63,7 @@ class DacpController(ctx: Context) {
         exec.shutdownNow()
     }
 
-    private fun _resolve() {
+    private fun _resolve(generation: Long) {
         if (dacpId.isEmpty()) return
         val serviceName = "iTunes_Ctrl_$dacpId"
         val info = NsdServiceInfo().apply {
@@ -63,14 +71,20 @@ class DacpController(ctx: Context) {
             this.serviceName = serviceName
         }
         try {
-            nsdManager.resolveService(info, object : NsdManager.ResolveListener {
+            resolveService(info, object : NsdManager.ResolveListener {
                 override fun onResolveFailed(si: NsdServiceInfo, code: Int) {
                     Log.w(TAG, "DACP resolve failed: $code")
                 }
                 override fun onServiceResolved(si: NsdServiceInfo) {
-                    host = si.host.hostAddress ?: return
-                    port = si.port
-                    Log.i(TAG, "DACP resolved: $host:$port")
+                    synchronized(this@DacpController) {
+                        if (generation != resolutionGeneration) return
+                        val address = si.host?.hostAddress ?: return
+                        val servicePort = si.port
+                        if (servicePort !in 1..65535) return
+                        host = address
+                        port = servicePort
+                        Log.i(TAG, "DACP resolved: $host:$port")
+                    }
                 }
             })
         } catch (e: Exception) {
@@ -80,18 +94,21 @@ class DacpController(ctx: Context) {
 
     private fun _send(path: String): ListenableFuture<Unit> {
         val result = SettableFuture.create<Unit>()
-        if (!ready) {
+        val target = synchronized(this) {
+            if (ready) Triple(host, port, activeRemote) else null
+        }
+        if (target == null) {
             result.setException(IOException("dacp endpoint not resolved"))
             return result
         }
         try {
             exec.execute {
                 try {
-                    val url = "http://$host:$port$path"
+                    val url = "http://${target.first}:${target.second}$path"
                     val conn = URL(url).openConnection() as HttpURLConnection
                     conn.requestMethod = "GET"
-                    conn.setRequestProperty("Active-Remote", activeRemote)
-                    conn.setRequestProperty("Host", "$host:$port")
+                    conn.setRequestProperty("Active-Remote", target.third)
+                    conn.setRequestProperty("Host", "${target.first}:${target.second}")
                     conn.connectTimeout = 2000
                     conn.readTimeout = 2000
                     val code = conn.responseCode
