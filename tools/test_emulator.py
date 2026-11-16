@@ -472,8 +472,7 @@ class Suite:
         assert state.get("resolution")=="64x48",state
         self.debug("native-disconnect")
         self.debug("mirror-start")
-        time.sleep(.4)
-        tree=self.ui()
+        tree=self.wait(self.ui,"Fullscreen did not expose a complete accessibility hierarchy",45)
         descriptions=[node.get("content-desc","").lower() for node in tree.iter()]
         assert not any("picture-in-picture" in text or "sair da tela cheia" in text or "exit fullscreen" in text for text in descriptions),descriptions
         self.shot("native-recording-smoke")
