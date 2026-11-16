@@ -76,10 +76,15 @@
 - Privacidade: IPs domésticos e caminhos pessoais encontrados em três
   documentos antigos. Arquivos atuais sanitizados; buscas por padrões de
   chaves privadas/tokens não acharam ocorrências. O PEM do app é público.
-  Cópia do histórico reescrita e validada em área ignorada. Henrique autorizou
-  expressamente atualizar também o histórico no GitHub, incluindo os dois
-  branches publicados. Aplicar após este commit e atualizar o link de política
-  regional que aponta para um commit antigo. Não usar push --mirror.
+  Henrique autorizou reescrever os dois branches publicados. Atualização
+  atômica com leases concluída no GitHub: main sanitizado em `8b6cb28` e
+  codex/privacy-de-at em `5ab9365beac0db74b23243f7a4e5f4b8eb5ef2b8`.
+  As árvores dos arquivos atuais foram comparadas antes da troca e eram
+  idênticas; auditoria de arquivos e histórico passou depois do push. Bundle
+  privado de recuperação em área ignorada. Não usar push --mirror. O checkout
+  do Mac precisa de sincronização preservando trabalho local antes de novo
+  push; não mesclar automaticamente o histórico antigo de volta.
+  Atualizar a política regional no console para o commit sanitizado acima.
 
 ## Registro anterior — 5 de novembro de 2026
 

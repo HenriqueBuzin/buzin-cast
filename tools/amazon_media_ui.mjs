@@ -33,6 +33,10 @@ async function waitDetached(tab, locator, retries = 10) {
 async function clickDelete(tab, selector) {
   // The tiny SVG wrapper can fail locator actionability. Use fresh UI-backed
   // geometry and small scroll increments; never click outside the viewport.
+  // Native activation can change the tab viewport. Activate/read before
+  // measuring, rather than measuring a background tab and clicking after resize.
+  await tab.getAXState({ emit: false });
+  await tab.getScreenshot({ emit: false });
   for (let attempt = 0; attempt < 12; attempt++) {
     const position = await tab.playwright.evaluate(input => {
       const node = document.querySelector(input.selector);
