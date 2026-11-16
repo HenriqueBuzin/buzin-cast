@@ -217,7 +217,7 @@ def main():
     finally:
         save()
     if args.require_100 and not all(results["variants"][name]["target_met"] for name in variants):
-        raise SystemExit("100% target not met; inspect build/android-coverage-matrix/matrix.json")
+        raise SystemExit("100% target not met; inspect " + str(output / "matrix.json"))
 
 
 if __name__ == "__main__":
