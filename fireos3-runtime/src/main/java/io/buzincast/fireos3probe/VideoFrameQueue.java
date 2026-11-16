@@ -15,14 +15,17 @@ final class VideoFrameQueue {
     private int generation;
     private final AudioPacketQueue audio;
     private final Runnable reset;
+    interface Mirror {void changed(boolean active);}
+    private final Mirror mirror;
+    private boolean mirroring;
     interface Controls {void identity(String id,String token);void stopped();}
     private volatile Controls controls;
     interface Media {void metadata(byte[] bytes);void artwork(byte[] bytes);void progress(long start,long current,long end);}
     private volatile Media media;
     void media(Media media) {this.media=media;}
-    @SuppressWarnings("unused") public void onMetadata(byte[] bytes) {Media target=media;if(target!=null)target.metadata(bytes);}
-    @SuppressWarnings("unused") public void onArtwork(byte[] bytes) {Media target=media;if(target!=null)target.artwork(bytes);}
-    @SuppressWarnings("unused") public void onProgress(long start,long current,long end) {Media target=media;if(target!=null)target.progress(start,current,end);}
+    @SuppressWarnings("unused") public synchronized void onMetadata(byte[] bytes) {Media target=media;if(target!=null)target.metadata(bytes);}
+    @SuppressWarnings("unused") public synchronized void onArtwork(byte[] bytes) {Media target=media;if(target!=null)target.artwork(bytes);}
+    @SuppressWarnings("unused") public synchronized void onProgress(long start,long current,long end) {Media target=media;if(target!=null)target.progress(start,current,end);}
     void controls(Controls controls) {this.controls=controls;}
     @SuppressWarnings("unused") public void onDacpId(String id,String token) {
         Controls target=controls;if(target!=null)target.identity(id,token);
@@ -33,7 +36,12 @@ final class VideoFrameQueue {
 
     VideoFrameQueue() { this(null); }
     VideoFrameQueue(AudioPacketQueue audio) { this(audio,null); }
-    VideoFrameQueue(AudioPacketQueue audio, Runnable reset) { this.audio = audio; this.reset=reset; }
+    VideoFrameQueue(AudioPacketQueue audio, Runnable reset) { this(audio,reset,null); }
+    VideoFrameQueue(AudioPacketQueue audio,Runnable reset,Mirror mirror) {this.audio=audio;this.reset=reset;this.mirror=mirror;}
+    private void mirrorMode(boolean active) {
+        if(mirroring==active)return;
+        mirroring=active;if(mirror!=null)mirror.changed(active);
+    }
     @SuppressWarnings("unused") public boolean audioEnabled() { return audio != null; }
     @SuppressWarnings("unused") public void onAudioData(byte[] data, int codec, long timeNs) {
         if (audio != null) audio.offer(data, codec, timeNs);
@@ -60,6 +68,7 @@ final class VideoFrameQueue {
         } else if (frames.size() >= MAX_FRAMES || data.length > MAX_BYTES - bytes) {
             failure = "Receiver video queue exceeded its budget";
         } else {
+            mirrorMode(true);
             frames.addLast(new Frame(data, timeNs, generation));
             bytes += data.length;
         }
@@ -74,6 +83,7 @@ final class VideoFrameQueue {
         bytes = 0;
         failure = null;
         generation++;
+        mirrorMode(false);
         if (reset != null) reset.run();
         notifyAll();
     }
@@ -96,6 +106,7 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        mirrorMode(false);
         controls=null;
         media=null;
         frames.clear();

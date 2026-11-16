@@ -1,5 +1,35 @@
 # Retomada — 16 de novembro de 2026
 
+## Alvo antigo — isolamento entre música e espelhamento
+
+O modo de espelhamento agora começa no recebimento do vídeo codificado,
+independentemente de existir Surface ou quadro renderizado. O estado visual
+de vídeo continua separado. Ao entrar no modo, a fila de metadados é
+invalidada, capa/faixa/progresso são limpos e pacotes de música são ignorados
+até o reset nativo. O serviço retira o cliente do Android e os controles de
+música nesse intervalo. O reset permite novos metadados sem restaurar a
+faixa anterior nem reiniciar o receptor. Eventos de metadados e mudança de
+modo passam pela mesma trava na fila de callbacks.
+
+`--system-media` passou em `outputs/legacy-mirror-general-tv` e
+`outputs/legacy-mirror-regional-tv`, em API17 com display 1280×720. Cada edição
+exercitou três ciclos de pacote de vídeo sintético sem tela, TEARDOWN RTSP
+real e metadados novos, preservando a instância/porta/endereço do receptor.
+`return-ui.xml` confirma a faixa nova ao voltar pelo launcher. Builds
+ARMv7/x86, lint e 62 testes JVM passaram; a regressão com H.264 e áudio
+sintéticos passou em `outputs/legacy-mirror-native-regression`.
+As primeiras execuções usavam o display 640×320 padrão do AVD; a conferência
+da tela encontrou o título fora da área visível pela rolagem. O roteiro agora
+exige formato de TV antes de instalar. Os hashes da cópia usada durante o
+lint foram conferidos contra a exportação final. APKs temporários removidos;
+nenhuma TV física usada. Logos e auditoria pública continuam aprovadas.
+
+Isso comprova o isolamento de modos pelos callbacks e o retorno à interface;
+não certifica uma sessão real de espelhamento com transmissor Apple.
+Permanecem no objetivo o foco de áudio durante espelhamento, transições com
+vídeo real e validação física, demais protocolos/player, gravação/download e
+segurança/licença de produção. As prévias continuam debug, não publicáveis.
+
 ## Alvo antigo — cliente de mídia do Android
 
 O serviço API17 publica faixa e capa em `RemoteControlClient` e recebe

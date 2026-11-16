@@ -36,7 +36,7 @@ public final class LegacyMedia implements java.io.Closeable {
     private Bitmap artwork;
     private Exception failure;
     private Thread worker;
-    private boolean closed;
+    private boolean closed,mirroring;
     private long generation;
     private String senderId="",senderToken="";
     LegacyMedia(Runnable changed) {this.changed=changed;}
@@ -55,8 +55,16 @@ public final class LegacyMedia implements java.io.Closeable {
     void artwork(byte[] bytes) {if(bytes!=null && bytes.length>0 && bytes.length<=MAX_ART_BYTES)offer(ART,bytes,0,0,0);}
     void progress(long start,long current,long end) {offer(PROGRESS,null,start,current,end);}
     void playing(boolean playing) {offer(PLAYING,null,playing?1:0,0,0);}
+    void mirroring(boolean active) {
+        synchronized(this) {
+            if(closed || mirroring==active)return;
+            mirroring=active;generation++;pending.clear();track=LegacyTrack.empty();artwork=null;failure=null;
+            timeline.clear(SystemClock.elapsedRealtime());
+        }
+        changed.run();
+    }
     private synchronized void offer(int type,byte[] bytes,long a,long b,long c) {
-        if(closed)return;
+        if(closed || mirroring)return;
         // Only the newest pending packet of each kind matters. At most one
         // encoded cover is queued and one is being decoded, never an album's worth.
         for(Iterator<Event> events=pending.iterator();events.hasNext();)if(events.next().type==type)events.remove();

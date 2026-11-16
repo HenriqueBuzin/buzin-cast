@@ -22,6 +22,40 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Isolamento música/espelhamento API17:** o primeiro pacote de vídeo aceito
+  inicia o modo de espelhamento antes da decodificação, inclusive sem tela
+  anexada. O estado de vídeo efetivamente exibido é separado. Entrar/sair
+  invalida trabalho de metadados em andamento, remove capa/faixa/progresso e
+  controla a aceitação de novos pacotes. Metadados e transições de modo são
+  serializados na fila de callbacks. O serviço suspende os controles de
+  música e o cliente de mídia do Android enquanto o modo estiver ativo.
+  Após o reset, novos metadados são aceitos sem ressuscitar os anteriores.
+  `tools/test_legacy_gestures.py --system-media` acrescenta três ciclos sem
+  Surface, usando o callback nativo de vídeo e um TEARDOWN RTSP com plist de
+  stream 110. Verifica isolamento de metadados/imagem/progresso, retirada e
+  retorno do cliente do sistema, novos dados de música e preservação da
+  instância/porta/endereço do receptor. O XML da interface após abrir pelo
+  launcher deve conter o título novo da fixture, `Test`.
+  Requer emulador API17 com pelo menos 1280×720; iniciar com
+  `-skin 1280x720 -dpi-device 160`. A resolução é registrada no relatório,
+  e o roteiro recusa displays pequenos antes de instalar os APKs.
+  Geral aprovada em `outputs/legacy-mirror-general-tv`, regional em
+  `outputs/legacy-mirror-regional-tv`, com `return-ui.xml` preservado.
+  Builds ARMv7/x86, lint e 62 testes JVM passaram nas duas edições. A regressão
+  de decodificação/áudio/display passou em `outputs/legacy-mirror-native-regression`.
+  A cópia de APKs usada para começar o teste enquanto o lint terminava tem
+  os mesmos hashes da exportação final. APKs temporários removidos.
+  A fixture de transição usa pacote codificado sem SPS, sem alegar decodificar
+  esse pacote nem negociar uma sessão de um transmissor real. A regressão
+  separada usa H.264 e áudio sintéticos; não é certificação física.
+  As tentativas `legacy-mirror-general-verified` e
+  `legacy-mirror-regional-verified` encontraram problemas do roteiro: caminho
+  de dump não disponível e display padrão de telefone com título fora da
+  área visível após rolagem. O caminho passou a `/data/local/tmp`, removido
+  ao concluir, e as duas rodadas completas posteriores em formato de TV passaram.
+  Foco durante espelhamento, transições com vídeo real e testes físicos ainda
+  precisam avançar, junto dos demais itens de paridade.
+
 - **Cliente de mídia do sistema API17:** o serviço registra um
   `RemoteControlClient` com receptor privado de teclas e identificação da
   ativação. Activity e receptor usam a mesma semântica de pressionar/soltar.

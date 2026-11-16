@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 
 
 def main():
@@ -18,7 +19,7 @@ def main():
     parser.add_argument('--test-apk',type=Path,required=True)
     parser.add_argument('--controls',action='store_true',help='Exercise native sender identity, real mDNS/HTTP and UI/remote controls instead of held restart gestures.')
     parser.add_argument('--metadata',action='store_true',help='Also exercise synthetic native metadata/art/progress packets and save a render of the actual native Views; implies --controls.')
-    parser.add_argument('--system-media',action='store_true',help='Also verify platform media metadata and shell-origin media keys while the app is behind Home; implies --metadata.')
+    parser.add_argument('--system-media',action='store_true',help='Also verify platform metadata, audio focus, background media keys and three native mirror teardown/recovery cycles; implies --metadata.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
@@ -31,10 +32,17 @@ def main():
         return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
     if adb('shell','getprop','ro.build.version.sdk').strip()!='17' or adb('shell','getprop','ro.kernel.qemu').strip()!='1':
         parser.error('Use the isolated Android API17 emulator.')
+    display=None
+    if args.system_media:
+        size=re.search(r'init=(\d+)x(\d+)',adb('shell','dumpsys','window'))
+        if not size or min(map(int,size.groups()))<720 or max(map(int,size.groups()))<1280:
+            parser.error('System/mirror UI checks need a TV-sized emulator: -skin 1280x720 -dpi-device 160.')
+        display=list(map(int,size.groups()))
     args.output.mkdir(parents=True,exist_ok=True)
     report={'status':'running','scope':('Native RTSP identity, real multicast DNS/HTTP, touch/media keys and replacement sender' if args.controls else 'Real touch/DPAD gestures during a native receiver stop/start')+'; not a physical sender interoperability test',
         'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         'test_apk_sha256':hashlib.sha256(args.test_apk.read_bytes()).hexdigest()}
+    if display:report['display_init']=display
     def capture_native_view():
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-metadata.b64',timeout=30))
         if not payload.startswith(b'\x89PNG\r\n\x1a\n'):raise AssertionError('Native View render was not a valid PNG')
@@ -62,6 +70,13 @@ def main():
                                     '-n',args.package+'/io.buzincast.legacy.LegacyActivity')
                                 (args.output/'return-launch.txt').write_text(launch,encoding='utf-8')
                                 (args.output/'return-window.txt').write_text(adb('shell','dumpsys','window'),encoding='utf-8')
+                                adb('shell','rm','-f','/data/local/tmp/buzin-legacy-return.xml')
+                                dump_result=adb('shell','uiautomator','dump','/data/local/tmp/buzin-legacy-return.xml')
+                                (args.output/'return-dump.txt').write_text(dump_result,encoding='utf-8')
+                                tree=adb('shell','cat','/data/local/tmp/buzin-legacy-return.xml')
+                                (args.output/'return-ui.xml').write_text(tree,encoding='utf-8')
+                                if not any(node.get('text')=='Test' for node in ET.fromstring(tree).iter('node')):
+                                    raise AssertionError('Fresh audio metadata was not visible after returning from mirror mode')
                             elif stage in ('state','stopped'):
                                 dump=adb('shell','dumpsys','audio')
                                 (args.output/('audio-'+stage+'.txt')).write_text(dump,encoding='utf-8')
@@ -113,6 +128,9 @@ def main():
         if args.system_media:
             if 'INSTRUMENTATION_RESULT: system_media=platform_metadata_artwork_background_keys_and_cleanup' not in result:
                 raise AssertionError('Test APK did not run system media checks')
+            if 'INSTRUMENTATION_RESULT: mirror_modes=three_headless_native_packet_rtsp_teardown_metadata_isolation_cycles' not in result:
+                raise AssertionError('Test APK did not run mirror transition checks')
+            report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, fresh audio metadata recovery, same native receiver; not decoded video or a real sender'
             report['system_media']='platform client metadata/artwork ownership, audio focus duck/loss/gain, real background media keys, launcher return, unregister and no RTSP resurrection after stop'
         report['status']='pass';report['sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
     except Exception as error:
@@ -124,6 +142,7 @@ def main():
                 except Exception as error:report['ui_render_error']=type(error).__name__
             if args.package in installed:adb('shell','am','force-stop',args.package)
             for package in reversed(installed):adb('uninstall',package)
+            if args.system_media:adb('shell','rm','-f','/data/local/tmp/buzin-legacy-return.xml')
             report['cleanup']='uninstalled'
         except Exception as error:
             report['status']='failed';report['cleanup_error']=str(error);raise

@@ -6,6 +6,26 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 
 public class VideoFrameQueueTest {
+    @Test public void encodedVideoChangesModeWithoutWaitingForADisplay() {
+        java.util.List<Boolean> modes=new java.util.ArrayList<>();
+        VideoFrameQueue queue=new VideoFrameQueue(null,null,modes::add);
+        queue.onVideoData(new byte[]{1},0,false);
+        queue.onVideoData(new byte[]{2},1,false);
+        assertEquals(java.util.Arrays.asList(true),modes);
+        queue.onVideoReset();queue.onVideoReset();
+        assertEquals(java.util.Arrays.asList(true,false),modes);
+        queue.onVideoData(new byte[]{3},2,false);queue.close();
+        queue.onVideoData(new byte[]{4},3,false);queue.onVideoReset();
+        assertEquals(java.util.Arrays.asList(true,false,true,false),modes);
+    }
+    @Test public void rejectedVideoCannotEnterMirrorMode() {
+        java.util.List<Boolean> modes=new java.util.ArrayList<>();
+        VideoFrameQueue queue=new VideoFrameQueue(null,null,modes::add);
+        queue.onVideoData(null,0,false);queue.onVideoReset();
+        queue.onVideoData(new byte[]{1},0,true);queue.onVideoReset();
+        queue.onVideoData(new byte[]{1},-1,false);queue.onVideoReset();
+        assertTrue(modes.isEmpty());
+    }
     @Test public void buffersQuarterSecondOfSixtyFpsInOrder() throws Exception {
         VideoFrameQueue queue=new VideoFrameQueue();
         for(int i=0;i<15;i++)queue.onVideoData(new byte[]{(byte)i},i*1000000000L/60,false);

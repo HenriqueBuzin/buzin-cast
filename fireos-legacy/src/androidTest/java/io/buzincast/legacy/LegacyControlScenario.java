@@ -97,6 +97,7 @@ final class LegacyControlScenario {
             LegacySystemMediaScenario.host(activity,stages[i]);
             for(String path:paths[i])peer.expect(index++,path);
         }
+        LegacyMirrorScenario.check(runner,activity);
         LegacySystemMediaScenario.host(activity,"background_done");
         try {await(runner,()->activity.hasWindowFocus() && text(activity,"sender-1").equals("Ⅱ"));}
         catch(AssertionError error) {throw new AssertionError(error.getMessage()+"; focus="+activity.hasWindowFocus()+

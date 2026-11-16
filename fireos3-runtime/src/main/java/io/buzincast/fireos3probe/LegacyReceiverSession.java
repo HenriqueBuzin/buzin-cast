@@ -20,6 +20,7 @@ public final class LegacyReceiverSession {
         default void videoSize(int width,int height) {}
         default void controlsChanged() {}
         default void mediaChanged() {}
+        default void streamChanged() {}
     }
     private final Context context;
     private final String identity;
@@ -32,6 +33,7 @@ public final class LegacyReceiverSession {
     private volatile LegacyDacp controls;
     private final LegacyMedia media;
     private final AtomicBoolean videoActive = new AtomicBoolean();
+    private final AtomicBoolean mirrorActive = new AtomicBoolean();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
     final LegacyAvcPlayer videoPlayer;
@@ -63,12 +65,14 @@ public final class LegacyReceiverSession {
         this.context = context.getApplicationContext();
         this.identity = identity; this.listener = listener; this.options=options;
         media=new LegacyMedia(listener::mediaChanged);
-        queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); });
+        queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); },active-> {
+            mirrorActive.set(active);media.mirroring(active);listener.streamChanged();
+        });
         queue.media(new VideoFrameQueue.Media() {
             @Override public void metadata(byte[] bytes) {media.metadata(bytes);}
             @Override public void artwork(byte[] bytes) {media.artwork(bytes);}
             @Override public void progress(long start,long current,long end) {
-                if(LegacyTrackTimeline.validProgress(start,current,end)) {LegacyDacp target=controls;if(target!=null)target.senderPlaying(true);}
+                if(!mirrorActive.get() && LegacyTrackTimeline.validProgress(start,current,end)) {LegacyDacp target=controls;if(target!=null)target.senderPlaying(true);}
                 media.progress(start,current,end);
             }
         });
@@ -210,6 +214,7 @@ public final class LegacyReceiverSession {
     public String localAddress() { return network == null ? null : network.address.getHostAddress(); }
     public LegacyDacp.State controls() {LegacyDacp current=controls;return current==null?LegacyDacp.inactive():current.state();}
     public LegacyMedia.State media() {return media.state();}
+    public boolean mirroring() {return mirrorActive.get();}
     public void audioFocusGain(float gain) {audioPlayer.focusGain=Math.max(0,Math.min(1,gain));}
     public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
         LegacyDacp current=controls;

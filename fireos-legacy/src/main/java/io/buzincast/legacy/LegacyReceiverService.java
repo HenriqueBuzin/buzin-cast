@@ -44,7 +44,7 @@ public final class LegacyReceiverService extends Service {
             name=service.name;failure=service.failure;width=service.width;height=service.height;
             address=service.session==null?null:service.session.localAddress();
             port=service.session==null?0:service.session.listeningPort();
-            controls=service.session==null || service.stopping?LegacyDacp.inactive():service.session.controls();
+            controls=service.controlState();
             media=service.mediaState();
             events=new ArrayList<>(service.events);
         }
@@ -73,7 +73,8 @@ public final class LegacyReceiverService extends Service {
     private Exception controlFailure;
     private Exception mediaFailure;
     private LegacySystemMedia systemMedia;
-    LegacyMedia.State mediaState() {return session==null || stopping?LegacyMedia.inactive():session.media();}
+    LegacyMedia.State mediaState() {return session==null || stopping || session.mirroring()?LegacyMedia.inactive():session.media();}
+    private LegacyDacp.State controlState() {return session==null || stopping || session.mirroring()?LegacyDacp.inactive():session.controls();}
 
     static void dispatch(Context context,String action) {
         Intent intent=new Intent(context,LegacyReceiverService.class).setAction(action);
@@ -118,7 +119,7 @@ public final class LegacyReceiverService extends Service {
         target=next;bindSurface();
     }
     void control(LegacyDacp.Command command,Runnable failed) {
-        if(session==null || stopping)return;
+        if(session==null || stopping || session.mirroring())return;
         if(!systemMedia.prepare(command)) {if(failed!=null)failed.run();return;}
         int owner=generation;
         session.control(command,error->main.post(()-> {
@@ -207,6 +208,7 @@ public final class LegacyReceiverService extends Service {
             });}
             @Override public void videoStarted() {post(()-> {if(!stopping) {video=true;publish();}});}
             @Override public void videoStopped() {post(()-> {video=false;publish();});}
+            @Override public void streamChanged() {post(()-> {if(!stopping)publish();});}
             @Override public void videoSize(int w,int h) {post(()-> {if(!stopping) {width=w;height=h;publish();}});}
             @Override public void controlsChanged() {post(()-> {
                 if(stopping)return;
@@ -226,7 +228,7 @@ public final class LegacyReceiverService extends Service {
     private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
-        systemMedia.update(mediaState(),session==null || stopping?LegacyDacp.inactive():session.controls(),running && !stopping && !video);
+        systemMedia.update(mediaState(),controlState(),running && !stopping && session!=null && !session.mirroring());
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
