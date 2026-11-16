@@ -22,6 +22,28 @@ class SoapBoundaryTest {
             assertNull(SoapParser.parse("$avt#Play",body))
     }
 
+    @Test fun `only first action is dispatched and provider failures cannot dispatch partial requests`() {
+        val body=envelope(action()+action("Stop"))
+        assertEquals("Play",SoapParser.parse(null,body)?.action)
+        assertNull(SoapParser.parse(null,body) { throw java.io.IOException("Parser provider unavailable") })
+        val argumentBody=envelope(action(args="<CurrentURI>http://example.invalid/movie</CurrentURI>"))
+        assertNull(SoapParser.parse(null,argumentBody) { xml->
+            val parser=org.kxml2.io.KXmlParser().apply {
+                setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES,true)
+                setInput(java.io.StringReader(xml))
+            }
+            object:org.xmlpull.v1.XmlPullParser by parser {
+                var truncated=false
+                override fun next():Int {
+                    if(truncated) return org.xmlpull.v1.XmlPullParser.END_DOCUMENT
+                    val event=parser.next()
+                    if(event==org.xmlpull.v1.XmlPullParser.START_TAG && parser.name=="CurrentURI") truncated=true
+                    return event
+                }
+            }
+        })
+    }
+
     @Test fun `raw nested argument xml and empty arguments are preserved`() {
         val body=envelope(action("SetAVTransportURI",args="<CurrentURI/><CurrentURIMetaData><item id=\"42\"><title>Example</title><empty/></item></CurrentURIMetaData>"))
         val request=SoapParser.parse(null,body)!!
@@ -29,10 +51,39 @@ class SoapBoundaryTest {
         assertEquals("<item id=\"42\"><title>Example</title><empty></empty></item>",request.args["CurrentURIMetaData"])
     }
 
+    @Test fun `comments and cdata are accepted but unexpected provider events cannot dispatch`() {
+        val body=envelope(action(args="<CurrentURI><!-- sender comment --><![CDATA[http://example.invalid/movie]]></CurrentURI>"))
+        assertEquals("http://example.invalid/movie",SoapParser.parse(null,body)?.args?.get("CurrentURI"))
+        assertNull(SoapParser.parse(null,body) { xml->
+            val parser=org.kxml2.io.KXmlParser().apply {
+                setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES,true)
+                setInput(java.io.StringReader(xml))
+            }
+            object:org.xmlpull.v1.XmlPullParser by parser {
+                var event=org.xmlpull.v1.XmlPullParser.START_DOCUMENT
+                override fun getEventType()=event
+                override fun next():Int {
+                    val actual=parser.next()
+                    event=if(actual==org.xmlpull.v1.XmlPullParser.TEXT) org.xmlpull.v1.XmlPullParser.PROCESSING_INSTRUCTION else actual
+                    return event
+                }
+            }
+        })
+    }
+
     @Test fun `didl skips blank titles and title like tags and catches broken nested titles`() {
         for (metadata in listOf(""," ","<item/>","<item><subtitle>Other</subtitle></item>","<item><dc:title><child/></dc:title></item>"))
             assertNull(DidlParser.extractTitle(metadata))
         assertEquals("Second",DidlParser.extractTitle("<item><dc:title> </dc:title><dc:title> Second </dc:title></item>"))
         assertEquals("Plain",DidlParser.extractTitle("<item><title>Plain</title></item>"))
+    }
+
+    @Test fun `didl honors declared namespaces while preserving undeclared dc compatibility`() {
+        assertNull(DidlParser.extractTitle("<item xmlns:x=\"urn:foreign\"><x:title>Wrong title</x:title></item>"))
+        assertEquals("Right title",DidlParser.extractTitle("<item xmlns:x=\"http://purl.org/dc/elements/1.1/\"><x:title>Right title</x:title></item>"))
+        assertEquals("Legacy",DidlParser.extractTitle("<item><dc:title>Legacy</dc:title></item>"))
+        assertNull(DidlParser.extractTitle("<item><x:title>Undeclared foreign prefix</x:title></item>"))
+        assertEquals("Bare title",DidlParser.extractTitle("<legacy:item><title>Bare title</title></legacy:item>"))
+        assertNull(DidlParser.extractTitle("<item/>") { _,_->throw java.io.IOException("Provider unavailable") })
     }
 }

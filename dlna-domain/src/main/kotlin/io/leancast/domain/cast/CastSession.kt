@@ -196,7 +196,9 @@ class CastSession(
         elapsedAccumulatedMs + (elapsedRunningSinceMs?.let { (clockMs() - it).coerceAtLeast(0) } ?: 0L)
 
     private fun markElapsedRunning() {
-        if (elapsedRunningSinceMs == null) elapsedRunningSinceMs = clockMs()
+        // Callers enter playback after resetElapsed() or a pause, both of which
+        // clear the old anchor. Starting a new interval always sets its clock.
+        elapsedRunningSinceMs = clockMs()
     }
 
     private fun markElapsedPaused() {

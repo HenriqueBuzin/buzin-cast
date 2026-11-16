@@ -88,4 +88,20 @@ class MatroskaBoundaryTest {
             assertEquals(3,(0..bytes.size-cluster.size).count { bytes.copyOfRange(it,it+cluster.size).contentEquals(cluster) })
         } finally { file.delete() }
     }
+
+    @Test fun `relative file paths and exact signed cluster boundaries remain valid`() {
+        val file=File("buzin-recording-${java.util.UUID.randomUUID()}.mkv")
+        assertFalse(file.exists())
+        try {
+            MatroskaRecorder(file).use { recorder ->
+                val nals=parameters(false)+listOf(key(false))
+                for(ms in listOf(0L,5000L,5001L,40000L,8000L,7999L))
+                    recorder.write(packet(nals,1_000_000_000L+ms*1_000_000L))
+                assertEquals(6L,recorder.videoFrames)
+            }
+            val bytes=file.readBytes()
+            val cluster=byteArrayOf(0x1f,0x43,0xb6.toByte(),0x75)
+            assertEquals(4,(0..bytes.size-cluster.size).count { bytes.copyOfRange(it,it+cluster.size).contentEquals(cluster) })
+        } finally { file.delete() }
+    }
 }
