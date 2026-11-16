@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--jacoco", type=Path, required=True)
     parser.add_argument("--native-object", type=Path, action="append", default=[], help="Additional production binaries; never unit-test executables")
     parser.add_argument("--native-binary", type=Path, required=True)
+    parser.add_argument("--native-source-dir",type=Path,help="Matching archived app-owned native source inventory")
     parser.add_argument("--profiles", type=Path, required=True)
     parser.add_argument("--llvm-bin", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -52,7 +53,7 @@ def main():
     if not profiles: raise SystemExit("No native runtime profiles collected")
     merged=args.output/"native.profdata"
     subprocess.run([str(args.llvm_bin/"llvm-profdata"),"merge","-sparse",*map(str,profiles),"-o",str(merged)],check=True)
-    source_dir=Path(__file__).resolve().parents[1]/"app/src/main/cpp"
+    source_dir=(args.native_source_dir or Path(__file__).resolve().parents[1]/"app/src/main/cpp").resolve()
     command=[str(args.llvm_bin/"llvm-cov"),"export",str(args.native_binary),"-instr-profile="+str(merged),"--compilation-dir="+str(source_dir)]
     command += ["--object="+str(binary) for binary in args.native_object]
     native=json.loads(subprocess.check_output(command,cwd=source_dir))

@@ -2,7 +2,8 @@
 
 Requires immutable snapshots produced by run_android_coverage.py. Refuses to
 combine editions or compiled inputs; percentages are never averaged. Reuses
-the current matching class/native mappings to recalculate every metric.
+archived class/native mappings (or matching live mappings for older snapshots)
+to recalculate every metric.
 """
 import argparse
 import json
@@ -42,6 +43,12 @@ def validate_snapshots(snapshots):
             raise ValueError("Snapshot instrumentation contains missing, failed or skipped tests") from error
         if not list(snapshot.glob("*.ec")) or not list(snapshot.glob("*.profraw")):
             raise ValueError("Snapshot is missing raw Android or native execution data")
+        if manifest.get("archived_mappings"):
+            identity=coverage_identity(snapshot,snapshot,snapshot/"inputs/app.apk",snapshot/"inputs/test.apk",archive=snapshot)
+            if any(identity[key]!=manifest[key] for key in IDENTITY_KEYS):
+                raise ValueError("Archived compiled inputs do not match snapshot identity")
+            if not all((snapshot/file).is_file() for file in ("core.exec","domain.exec")):
+                raise ValueError("Archived JVM execution data is missing")
         manifests.append(manifest)
     first=manifests[0]
     for manifest in manifests[1:]:
@@ -67,7 +74,10 @@ def main():
     apk=build/"outputs/apk/debug/app-debug.apk"
     test_apk=build/"outputs/apk/androidTest/debug/app-debug-androidTest.apk"
     expected={key:manifest[key] for key in IDENTITY_KEYS}
-    if coverage_identity(root,build,apk,test_apk)!=expected:
+    archived=next((snapshot for snapshot in snapshots if (snapshot/"inputs/libairplay_native.so").is_file()),None)
+    if manifest.get("archived_mappings") and archived is None:
+        raise SystemExit("Snapshot declares archived mappings but its compiled inputs are missing")
+    if coverage_identity(root,build,apk,test_apk,archive=archived)!=expected:
         raise SystemExit("Current compiled mappings do not match the snapshots; restore/rebuild the matching APK")
     output=args.output.resolve()
     execution=output/"execution"/uuid.uuid4().hex
@@ -75,7 +85,7 @@ def main():
     for index,snapshot in enumerate(snapshots):
         target=execution/str(index)
         target.mkdir()
-        for pattern in ("*.ec","*.profraw"):
+        for pattern in ("*.ec","*.profraw","*.exec"):
             for file in snapshot.glob(pattern):
                 shutil.copyfile(file,target/file.name)
     env=os.environ.copy()
@@ -86,6 +96,8 @@ def main():
     env["BUZIN_LEGACY"]=str(legacy).lower()
     env["BUZIN_NODOWNLOAD"]=str(regional).lower()
     flags=["-PbuzinCoverage=true","-PbuzinAbis=x86_64","-PbuzinLegacy="+str(legacy).lower(),"-PbuzinNoDownload="+str(regional).lower(),"-PbuzinCoverageData="+str(execution)]
+    if archived is not None:
+        flags.append("-PbuzinCoverageMappings="+str(archived))
     if regional:
         fixture=output/"regional-debug-assets"
         fixture.mkdir(exist_ok=True)
@@ -93,11 +105,14 @@ def main():
         flags.append("-PbuzinRegionalAppstoreAssets="+str(fixture))
     gradle=[str(root/"gradlew.bat")] if os.name=="nt" else ["bash",str(root/"gradlew")]
     with (output/"jacoco.log").open("w",encoding="utf-8") as log:
-        subprocess.run(gradle+flags+[":receiver-core:check",":dlna-domain:check",":app:fullCoverageReport","--console=plain"],cwd=root,env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
-    if coverage_identity(root,build,apk,test_apk)!=expected:
+        checks=[] if archived is not None else [":receiver-core:check",":dlna-domain:check"]
+        subprocess.run(gradle+flags+checks+[":app:fullCoverageReport","--console=plain"],cwd=root,env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+    if coverage_identity(root,build,apk,test_apk,archive=archived)!=expected:
         raise SystemExit("Compiled mappings changed while reporting; merged result is invalid")
     shutil.copyfile(build/"reports/jacoco/fullCoverageReport/fullCoverageReport.xml",output/"android.xml")
     command=[sys.executable,str(root/"tools/collect_native_coverage.py"),"--profiles",str(execution),"--output",str(output)]
+    if archived is not None:
+        command += ["--native-binary",str(archived/"inputs/libairplay_native.so"),"--native-source-dir",str(archived/"sources/native"),"--jacoco",str(output/"android.xml")]
     if legacy: command.append("--legacy")
     if regional: command.append("--no-download")
     if args.require_100: command.append("--require-100")

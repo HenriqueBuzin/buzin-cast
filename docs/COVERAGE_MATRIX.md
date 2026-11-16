@@ -56,7 +56,11 @@ python tools/merge_android_coverage.py --snapshot SNAPSHOT_API22 --snapshot SNAP
 
 The merger requires the same edition and compiled fingerprints, successful
 instrumentation/native/extended UI results, and raw Java/native profiles. It
-also checks the current compiled mappings before and after reporting. JaCoCo
+also checks the compiled mappings before and after reporting. New snapshots
+archive the APKs, class trees, unstripped native library, source trees and JVM
+execution data before installing the app. Switching build variants therefore
+cannot remove the mappings needed to replay a completed run. Older snapshots
+without these archives still require the matching live build outputs. JaCoCo
 and LLVM recalculate coverage from the union of execution data. Each edition
 is merged independently, and incomplete coverage still fails `--require-100`.
 

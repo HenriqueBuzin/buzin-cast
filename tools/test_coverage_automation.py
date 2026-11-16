@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from test_emulator import Suite, UiUnavailable, validate_instrumentation_output
-from run_android_coverage import coverage_identity
+from run_android_coverage import archive_compiled_inputs, coverage_identity
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
 from report_coverage import coverage_target_met
 
@@ -72,6 +72,21 @@ class CoverageAutomationTest(unittest.TestCase):
                 file.parent.mkdir(parents=True,exist_ok=True)
                 file.write_bytes(b"original compiled content")
             baseline=coverage_identity(root,build,apk,test_apk)
+            for name,module in (("app","app"),("core","receiver-core"),("domain","dlna-domain")):
+                source=root/module/"src/main/kotlin/Source.kt"
+                source.parent.mkdir(parents=True,exist_ok=True)
+                source.write_text("// production source",encoding="utf-8")
+                if name!="app":
+                    execution=root/module/"build/jacoco/test.exec"
+                    execution.parent.mkdir(parents=True,exist_ok=True)
+                    execution.write_bytes(b"unit execution data")
+            native_source=root/"app/src/main/cpp/native_bridge.cpp"
+            native_source.parent.mkdir(parents=True)
+            native_source.write_text("// native production source",encoding="utf-8")
+            snapshot=root/"snapshot"
+            snapshot.mkdir()
+            archive_compiled_inputs(root,build,apk,test_apk,snapshot,baseline)
+            self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk,archive=snapshot))
             for file in [apk,test_apk,native,*classes]:
                 file.write_bytes(b"changed compiled content")
                 self.assertNotEqual(baseline,coverage_identity(root,build,apk,test_apk))
@@ -79,6 +94,7 @@ class CoverageAutomationTest(unittest.TestCase):
             (build/"irrelevant.log").write_text("diagnostic only",encoding="utf-8")
             self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk))
             classes[1].unlink()
+            self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk,archive=snapshot))
             with self.assertRaisesRegex(RuntimeError,"Compiled application/core/domain classes"):
                 coverage_identity(root,build,apk,test_apk)
 

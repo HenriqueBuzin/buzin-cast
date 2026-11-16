@@ -25,15 +25,28 @@ VARIANTS = {
 }
 
 
-def coverage_identity(root, build, apk, test_apk):
-    """Fingerprint actual compiled inputs, independent of source mtimes or Git dirt."""
-    digest=hashlib.sha256()
-    roots={
+def class_roots(root, build, archive=None):
+    if archive is not None:
+        return {name:archive/"classes"/name for name in ("app","app-kotlin","core","domain")}
+    return {
         "app":build/"intermediates/classes/debug/transformDebugClassesWithAsm/dirs",
         "app-kotlin":build/"tmp/kotlin-classes/debug",
         "core":root/"receiver-core/build/classes/kotlin/main",
         "domain":root/"dlna-domain/build/classes/kotlin/main",
     }
+
+
+def native_library(build):
+    binaries=list((build/"intermediates/cxx/Debug").glob("*/obj/x86_64/libairplay_native.so"))
+    if not binaries:
+        raise RuntimeError("Native application library is required for provenance")
+    return max(binaries,key=lambda path:path.stat().st_mtime)
+
+
+def coverage_identity(root, build, apk, test_apk, archive=None):
+    """Fingerprint actual compiled inputs, independent of source mtimes or Git dirt."""
+    digest=hashlib.sha256()
+    roots=class_roots(root,build,archive)
     counts={}
     for label,directory in roots.items():
         files=sorted(directory.rglob("*.class"))
@@ -43,10 +56,12 @@ def coverage_identity(root, build, apk, test_apk):
             digest.update(hashlib.sha256(file.read_bytes()).digest())
     if any(counts[label]==0 for label in ("app","core","domain")):
         raise RuntimeError("Compiled application/core/domain classes are required for provenance")
-    binaries=list((build/"intermediates/cxx/Debug").glob("*/obj/x86_64/libairplay_native.so"))
-    if not binaries:
-        raise RuntimeError("Native application library is required for provenance")
-    native=max(binaries,key=lambda path:path.stat().st_mtime)
+    if archive is not None:
+        apk=archive/"inputs/app.apk"
+        test_apk=archive/"inputs/test.apk"
+        native=archive/"inputs/libairplay_native.so"
+    else:
+        native=native_library(build)
     return {
         "apk_sha256":hashlib.sha256(apk.read_bytes()).hexdigest(),
         "test_apk_sha256":hashlib.sha256(test_apk.read_bytes()).hexdigest(),
@@ -54,6 +69,29 @@ def coverage_identity(root, build, apk, test_apk):
         "class_counts":counts,
         "native_library_sha256":hashlib.sha256(native.read_bytes()).hexdigest(),
     }
+
+
+def archive_compiled_inputs(root,build,apk,test_apk,snapshot,expected):
+    """Keep mappings before Gradle switches editions and removes stale outputs."""
+    inputs=snapshot/"inputs"
+    inputs.mkdir()
+    for name,file in (("app.apk",apk),("test.apk",test_apk),("libairplay_native.so",native_library(build))):
+        shutil.copyfile(file,inputs/name)
+    for name,directory in class_roots(root,build).items():
+        if directory.exists():
+            shutil.copytree(directory,snapshot/"classes"/name)
+    sources={"app":root/"app/src/main/kotlin","core":root/"receiver-core/src/main/kotlin","domain":root/"dlna-domain/src/main/kotlin"}
+    for name,directory in sources.items():
+        shutil.copytree(directory,snapshot/"sources"/name)
+    native_sources=snapshot/"sources/native"
+    native_sources.mkdir()
+    for file in (root/"app/src/main/cpp").iterdir():
+        if file.suffix in (".c",".cpp",".h"):
+            shutil.copyfile(file,native_sources/file.name)
+    for name,module in (("core","receiver-core"),("domain","dlna-domain")):
+        shutil.copyfile(root/module/"build/jacoco/test.exec",snapshot/(name+".exec"))
+    if coverage_identity(root,build,apk,test_apk,archive=snapshot)!=expected:
+        raise RuntimeError("Archived compiled inputs do not match the tested APK")
 
 
 def main():
@@ -115,10 +153,10 @@ def main():
             legacy, regional = VARIANTS[name]
             suffix = ("-legacy" if legacy else "") + ("-nodownload" if regional else "")
             build = root / ("app/build" + suffix + "-coverage")
-            profiles = root / ("build/emulator-checks" + suffix)
+            profiles = output/"execution"/name if args.output else root / ("build/emulator-checks" + suffix)
             report = output / name
             report.mkdir(exist_ok=True)
-            flags = ["-PbuzinCoverage=true", "-PbuzinAbis=x86_64", "-PbuzinLegacy=" + str(legacy).lower(), "-PbuzinNoDownload=" + str(regional).lower()]
+            flags = ["-PbuzinCoverage=true", "-PbuzinAbis=x86_64", "-PbuzinLegacy=" + str(legacy).lower(), "-PbuzinNoDownload=" + str(regional).lower(), "-PbuzinCoverageData="+str(profiles)]
             if regional:
                 flags.append("-PbuzinRegionalAppstoreAssets=" + str(fixture))
             run(gradle + flags + [":receiver-core:check", ":dlna-domain:check", ":app:assembleDebug", ":app:assembleDebugAndroidTest", ":app:lintDebug", "--console=plain"], report / "build.log")
@@ -127,6 +165,10 @@ def main():
             apk = build / "outputs/apk/debug/app-debug.apk"
             test_apk = build / "outputs/apk/androidTest/debug/app-debug-androidTest.apk"
             identity=coverage_identity(root,build,apk,test_apk)
+            snapshot=report/"raw"/uuid.uuid4().hex
+            snapshot.mkdir(parents=True)
+            archive_compiled_inputs(root,build,apk,test_apk,snapshot,identity)
+            shutil.copyfile(native/"native_core_tests",snapshot/"inputs/native_core_tests")
             package = "com.buzincast.tv.deat" if regional else "com.buzincast.tv"
             # Modern and compat share a package but have different version codes.
             # Use clean emulator installs instead of relying on downgrade flags or
@@ -135,12 +177,15 @@ def main():
             for candidate in (package + ".test", package):
                 if "package:" + candidate in installed:
                     run([adb, "-s", args.serial, "uninstall", candidate], report / ("uninstall-test.log" if candidate.endswith(".test") else "uninstall-app.log"))
-            command = [sys.executable, root / "tools/test_emulator.py", "--serial", args.serial, "--adb", adb, "--apk", apk, "--test-apk", test_apk, "--native-tests", native / "native_core_tests", "--coverage", "--extended", "--package", package, "--output", profiles]
+            command = [sys.executable, root / "tools/test_emulator.py", "--serial", args.serial, "--adb", adb, "--apk", snapshot/"inputs/app.apk", "--test-apk", snapshot/"inputs/test.apk", "--native-tests", snapshot/"inputs/native_core_tests", "--coverage", "--extended", "--package", package, "--output", profiles]
             if regional:
                 command.append("--no-download")
             run(command, report / "runtime.log")
-            run(gradle + flags + [":app:fullCoverageReport", "--console=plain"], report / "jacoco.log")
-            command = [sys.executable, root / "tools/collect_native_coverage.py", "--profiles", profiles, "--output", report]
+            for execution_name in ("core.exec","domain.exec"):
+                shutil.copyfile(snapshot/execution_name,profiles/"coverage"/execution_name)
+            run(gradle + flags + ["-PbuzinCoverageMappings="+str(snapshot), ":app:fullCoverageReport", "--console=plain"], report / "jacoco.log")
+            command = [sys.executable, root / "tools/collect_native_coverage.py", "--profiles", profiles, "--output", report,
+                       "--native-binary",snapshot/"inputs/libairplay_native.so","--native-source-dir",snapshot/"sources/native"]
             if legacy:
                 command.append("--legacy")
             if regional:
@@ -151,12 +196,13 @@ def main():
             run(command, report / "native-report.log")
             shutil.copyfile(build / "reports/jacoco/fullCoverageReport/fullCoverageReport.xml", report / "android.xml")
             measured = json.loads((report / "summary.json").read_text(encoding="utf-8"))
-            if coverage_identity(root,build,apk,test_apk)!=identity:
-                raise RuntimeError("Compiled inputs changed during testing/reporting; rebuild and rerun "+name)
-            snapshot=report/"raw"/uuid.uuid4().hex
-            shutil.copytree(profiles/"coverage",snapshot)
+            if coverage_identity(root,build,apk,test_apk,archive=snapshot)!=identity:
+                raise RuntimeError("Archived inputs changed during testing/reporting; rebuild and rerun "+name)
+            for file in (profiles/"coverage").iterdir():
+                if file.suffix in (".ec",".exec",".profraw"):
+                    shutil.copyfile(file,snapshot/file.name)
             shutil.copyfile(profiles/"results.json",snapshot/"results.json")
-            manifest={"variant":name,"emulator_api":api,**identity}
+            manifest={"variant":name,"emulator_api":api,"archived_mappings":True,**identity}
             (snapshot/"manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
             results["variants"][name] = {
                 "target_met": measured["target_met"],
