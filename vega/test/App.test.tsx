@@ -35,7 +35,7 @@ test('identifica a prévia e informa que o receptor está em desenvolvimento', (
 test('abre o estado com descoberta FCast opcional e permite voltar pelo controle', () => {
   const screen = render(<App />);
   fireEvent.press(screen.getByRole('button', {name: 'Estado do port'}));
-  expect(screen.getByText(/descoberta DNS-SD enquanto ativado/)).toBeTruthy();
+  expect(screen.getByText(/FCast v2 recebe URLs/)).toBeTruthy();
   fireEvent.press(screen.getByRole('button', {name: 'Voltar'}));
   fireEvent.press(screen.getByRole('button', {name: 'Sobre'}));
   expect(screen.getByText(/Buzin Cast 0.6.0/)).toBeTruthy();

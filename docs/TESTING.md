@@ -522,3 +522,19 @@ de eventos atrasados e saída no segundo plano. O smoke executado está em
 audível, sincronismo, sessões longas e recepção permanecem sem validação física.
 O contador de quadros do SDK falhou com código 50001 neste VVD; foi retirado do
 diagnóstico em vez de apresentar zero como evidência de vídeo inexistente.
+
+
+### AirPlay por URL no Vega — 16 de novembro de 2026
+
+```sh
+python3 tools/test_vega_airplay_url.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --output build/vega-airplay-url
+```
+
+O runner recusa TVs físicas, serve somente a amostra local com Range/206 e
+encaminha a porta UxPlay dinâmica pelo VVD. Exercita `/play`, `/playback-info`,
+`/rate`, `/scrub` e `/stop`, exigindo relógio avançando, pausa estável, busca,
+retomada e liberação nativa ao Voltar. Resultado aprovado em
+`build/vega-airplay-url-clock/result.json`. Esta rodada não valida espelhamento,
+emissores Apple, descoberta, PIN, áudio audível ou sincronismo em hardware.

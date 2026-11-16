@@ -307,6 +307,7 @@ test('troca de fonte cancela um manifesto pendente antes de aguardar sua carga',
   await session.load({url: 'https://example.com/new.mp4', headers: {}, position: 0, speed: 1});
   await previous.catch(() => {});
   expect(engine.stop).toHaveBeenCalledTimes(1);
-  expect(player.setSrcWithCustomHeaders).toHaveBeenCalledWith('https://example.com/new.mp4', {});
+  expect(player.src).toBe('https://example.com/new.mp4');
+  expect(player.setSrcWithCustomHeaders).not.toHaveBeenCalled();
   await session.stop();
 });

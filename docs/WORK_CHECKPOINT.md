@@ -1,5 +1,16 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — AirPlay por URL no player — 16 de novembro de 2026
+
+O caminho UxPlay → fila nativa → player → playback-info passou no VVD ARM64 com
+MP4 HTTP: posição inicial com relógio avançando, pausa, busca, retomada, Stop e
+liberação ao Voltar. Teste manual na página Estado do port; sem descoberta ou
+espelhamento AirPlay. Corrigido também carregamento sem cabeçalhos no SDK.
+51 testes Jest, lint/TypeScript, builds das três ABIs, regressão FCast MP4 e
+smoke completo passaram. Evidências e
+limites em [VEGA_HANDOFF.md](VEGA_HANDOFF.md). A meta completa segue pendente.
+
+
 ## Vega — sessão AirPlay nativa — 16 de novembro de 2026
 
 UxPlay agora tem classe de sessão C++ com fila limitada de callbacks e ciclo de

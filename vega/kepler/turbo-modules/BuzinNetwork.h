@@ -9,6 +9,7 @@
 #include "generated/BuzinNetworkSpec.h"
 #include "FCastTransport.h"
 #include "FCastDiscovery.h"
+#include "AirPlaySession.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -19,6 +20,10 @@ public:
 
   std::string getReceiverName() override;
   void setReceiverName(std::string name) override;
+  double startAirPlayUrl() override;
+  void stopAirPlayUrl() override;
+  std::string pollAirPlayCommand() override;
+  void updateAirPlayState(double position, double duration, double rate, bool ready) override;
   double startFCast() override;
   void stopFCast() override;
   std::string pollFCastCommand() override;
@@ -30,6 +35,7 @@ public:
   void recordPlaybackState(std::string state, double seconds) override;
   std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
 private:
+  AirPlaySession airplay;
   FCastTransport fcast;
   FCastDiscovery discovery;
 };

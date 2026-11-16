@@ -28,6 +28,7 @@ public:
   void stop() noexcept;
   bool poll(AirPlayEvent& event);
   bool healthy() const;
+  void updatePlayback(double position, double duration, double rate, bool ready);
 private:
   struct Impl;
   std::unique_ptr<Impl> impl;

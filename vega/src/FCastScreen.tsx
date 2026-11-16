@@ -3,10 +3,12 @@ import React, {useEffect, useRef, useState} from 'react';
 import {AppState, Pressable, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createFCastReceiver} from './fcastReceiver';
+import {createAirPlayReceiver} from './airplayReceiver';
 import type {PlaybackSnapshot} from './playbackSession';
 
-export default function FCastScreen({onBack}: {onBack: () => void}) {
+export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: 'fcast' | 'airplay'}) {
   const receiver = useRef<ReturnType<typeof createFCastReceiver> | null>(null);
+  const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
   const [listening, setListening] = useState(false);
@@ -14,11 +16,11 @@ export default function FCastScreen({onBack}: {onBack: () => void}) {
   const [focus, setFocus] = useState('back');
   useEffect(() => {
     try {
-      receiver.current = createFCastReceiver(
+      receiver.current = (protocol === 'fcast' ? createFCastReceiver : createAirPlayReceiver)(
         setToken,
         setSnapshot,
         () => setFailed(true),
-        () => setListening(true),
+        (activePort?: number) => {setPort(activePort || 46899); setListening(true);},
       );
     } catch {
       setFailed(true);
@@ -33,23 +35,23 @@ export default function FCastScreen({onBack}: {onBack: () => void}) {
       receiver.current?.stop();
       receiver.current = null;
     };
-  }, [onBack]);
+  }, [onBack, protocol]);
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>FCast v2 experimental</Text>
+      <Text style={styles.title}>{protocol === 'fcast' ? 'FCast v2 experimental' : 'AirPlay por URL experimental'}</Text>
       {token === null ? (
         <View style={styles.waiting}>
           <Text style={styles.details}>
             {failed
-              ? 'Não foi possível iniciar o receptor FCast.'
+              ? 'Não foi possível iniciar o receptor.'
               : listening
-              ? 'Aguardando uma URL de áudio ou vídeo na porta TCP 46899.'
+              ? `Aguardando mídia na porta TCP ${port}.`
               : 'Preparando reprodução…'}
           </Text>
           <Text style={styles.details}>
-            Conexão manual pela rede local, sem PIN ou TLS. Descoberta
-            automática FCast v2 ativa por DNS-SD. Áudio, vídeo e HLS/DASH
-            experimentais.
+            {protocol === 'fcast'
+              ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
+              : 'Somente URLs por conexão manual na rede local. Sem descoberta, PIN ou espelhamento de tela/áudio nesta etapa.'}
           </Text>
           <Text style={styles.details}>Voltar desativa este receptor.</Text>
         </View>
@@ -88,7 +90,7 @@ export default function FCastScreen({onBack}: {onBack: () => void}) {
             role="button"
             accessibilityHint={
               id === 'back'
-                ? 'Desativa FCast e retorna ao início'
+                ? 'Desativa o receptor e retorna ao início'
                 : 'Pausa ou retoma a transmissão'
             }
             hasTVPreferredFocus={id === 'back'}

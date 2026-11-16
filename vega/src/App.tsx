@@ -15,7 +15,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const [focused, setFocused] = useState('status');
@@ -38,6 +38,10 @@ export default function App() {
 
   if (page === 'settings') {
     return <SettingsScreen onBack={goHome} />;
+  }
+
+  if (page === 'airplay') {
+    return <FCastScreen onBack={goHome} protocol="airplay" />;
   }
 
   if (page === 'fcast') {
@@ -145,7 +149,7 @@ export default function App() {
           </Text>
           <Text style={styles.details}>
             {page === 'status'
-              ? 'AirPlay, DLNA e Cast V2 ainda não estão disponíveis no Vega. FCast v2 oferece recepção experimental de URLs e descoberta DNS-SD enquanto ativado.'
+              ? 'Espelhamento AirPlay, DLNA e Cast V2 ainda não estão disponíveis. FCast v2 recebe URLs com descoberta DNS-SD; o teste AirPlay por URL usa conexão manual.'
               : page === 'media'
               ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Use a amostra para testar a reprodução.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}
@@ -194,6 +198,7 @@ export default function App() {
               true,
             )}
           {page === 'status' && <Text style={styles.details}>{report}</Text>}
+          {page === 'status' && action('airplay', 'Testar AirPlay por URL', () => setPage('airplay'), false)}
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}

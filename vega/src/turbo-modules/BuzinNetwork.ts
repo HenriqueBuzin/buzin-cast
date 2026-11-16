@@ -5,6 +5,10 @@ export interface BuzinNetwork extends KeplerTurboModule {
   getReport: () => string;
   getReceiverName: () => string;
   setReceiverName: (name: string) => void;
+  startAirPlayUrl: () => number;
+  stopAirPlayUrl: () => void;
+  pollAirPlayCommand: () => string;
+  updateAirPlayState: (position: number, duration: number, rate: number, ready: boolean) => void;
   startFCast: () => number;
   stopFCast: () => void;
   pollFCastCommand: () => string;
