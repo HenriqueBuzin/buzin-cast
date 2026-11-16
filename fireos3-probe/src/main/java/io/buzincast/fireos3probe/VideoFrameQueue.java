@@ -11,6 +11,18 @@ final class VideoFrameQueue {
     private boolean closed;
     private String failure;
     private int generation;
+    private final AudioPacketQueue audio;
+
+    VideoFrameQueue() { this(null); }
+    VideoFrameQueue(AudioPacketQueue audio) { this.audio = audio; }
+    @SuppressWarnings("unused") public boolean audioEnabled() { return audio != null; }
+    @SuppressWarnings("unused") public void onAudioData(byte[] data, int codec, long timeNs) {
+        if (audio != null) audio.offer(data, codec, timeNs);
+    }
+    @SuppressWarnings("unused") public void onAudioFormat(int codec, int spf) { if (audio != null) audio.format(codec, spf); }
+    @SuppressWarnings("unused") public void onAudioFlush() { if (audio != null) audio.flush(); }
+    @SuppressWarnings("unused") public void onAudioVolume(float db) { if (audio != null) audio.volume(db); }
+    @SuppressWarnings("unused") public double getAudioVolume() { return audio == null ? 0 : audio.volumeDb(); }
 
     static final class Frame {
         final byte[] data;

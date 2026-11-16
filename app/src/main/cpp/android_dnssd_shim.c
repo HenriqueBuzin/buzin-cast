@@ -42,6 +42,7 @@ struct dnssd_s {
     unsigned char pin_pw;
 
     char codec_cn[16]; /* dynamic "cn" value, e.g. "0,1,2,3" */
+    int compressed_only;
 
     char raop_servname[MAX_SERVNAME];
 };
@@ -112,7 +113,7 @@ dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
     _txt_set(rec, "vv", RAOP_VV);
     _txt_set(rec, "ft", features);
     _txt_set(rec, "am", GLOBAL_MODEL);
-    _txt_set(rec, "md", RAOP_MD);
+    if (!dnssd->compressed_only) _txt_set(rec, "md", RAOP_MD);
     _txt_set(rec, "rhd", RAOP_RHD);
 
     switch (dnssd->pin_pw) {
@@ -273,6 +274,12 @@ void android_dnssd_set_codecs(dnssd_t *dnssd, int alac, int aac) {
     if (alac) pos += snprintf(buf + pos, sizeof(buf) - pos, ",1");
     if (aac) pos += snprintf(buf + pos, sizeof(buf) - pos, ",2,3");
     strncpy(dnssd->codec_cn, buf, sizeof(dnssd->codec_cn) - 1);
+}
+
+/* API17 backend supports compressed stereo audio, not raw PCM or metadata UI. */
+void android_dnssd_set_compressed_audio_only(dnssd_t *dnssd) {
+    dnssd->compressed_only = 1;
+    strcpy(dnssd->codec_cn, "1,2,3");
 }
 
 const char *android_dnssd_get_raop_servname(dnssd_t *dnssd) {

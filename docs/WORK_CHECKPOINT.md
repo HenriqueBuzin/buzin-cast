@@ -139,7 +139,28 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   `outputs/fireos3-audio-checks/report.json`; prova pública em
   `docs/images/fireos3-audio-probe.png`. Pacote removido e emulador fechado;
   nenhuma TV física usada. O receptor de rede ainda anuncia somente vídeo.
-  Próximo marco: integrar áudio da sessão de rede, sincronismo A/V,
+  **Avanço seguinte — protótipo 0.4/código 4:** áudio do receptor ligado a
+  uma fila de 64 pacotes/256 KiB e ao worker AudioTrack/FFmpeg; formato,
+  volume, consulta de volume e flush encaminhados por JNI. Gerações isolam
+  formatos e descartam áudio antigo. A saída é liberada por flush/stop e
+  após dois segundos sem entrada; novos pacotes a recriam. Stop idempotente.
+  Anúncios `_raop`/ALAC/AAC ativados somente na sessão com player, sem PCM
+  bruto ou metadados. O perfil padrão do app moderno permanece preservado.
+  Autoteste: mesmos callbacks registrados invocados em pthreads, quatro
+  formatos, avanço real do PCM, volume SET/GET_PARAMETER por RTSP, anúncios
+  multicast dos dois serviços, limpeza e retomada. O teste é silenciado.
+  Dois ciclos completos passaram na API 17 x86 com duas baterias de
+  streaming por ciclo. ARMv7/x86, lint e 24 testes JVM aprovados; build
+  moderno x86_64/lint/núcleo também aprovados. Relatório ignorado em
+  `outputs/fireos3-live-audio-verified-checks/report.json`, captura pública
+  em `docs/images/fireos3-live-audio-probe.png`. Pacote removido, emulador
+  fechado e nenhuma TV física usada. Nenhum APK foi publicado nesta etapa.
+  Ainda não há sessão negociada/criptografada/RTP com emissor Apple real.
+  Para sincronismo, vincular o PTS do PCM efetivamente lido (incluindo
+  priming, gaps e trims) à posição do AudioTrack, tratando o wrap de 32 bits.
+  NTP local do UxPlay é tempo Unix; não compará-lo diretamente a nanoTime.
+  Os contadores atuais são diagnósticos e ainda não formam esse relógio.
+  Próximo marco: sincronismo A/V,
   sessão com emissor real e migração das
   funções/telas restantes; não declarar paridade ou publicar este protótipo.
 

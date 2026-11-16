@@ -1,0 +1,103 @@
+package io.buzincast.fireos3probe;
+
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
+import android.os.Process;
+import java.io.IOException;
+
+/** Single owner for codec, jitter reads and legacy AudioTrack. No audio work on network threads. */
+final class LegacyAudioPlayer {
+    interface StopSignal { boolean stopped(); }
+    private final AudioPacketQueue queue;
+    private final boolean muted;
+    volatile long decodedSamples, writtenFrames, playedFrames;
+    volatile int playEvents;
+    volatile boolean running, outputActive;
+
+    LegacyAudioPlayer(AudioPacketQueue queue, boolean muted) { this.queue = queue; this.muted = muted; }
+
+    void run(StopSignal stop) throws Exception {
+        Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
+        LegacyAudioDecoder decoder = null;
+        AudioTrack track = null;
+        int generation = -1;
+        short[] pcm = new short[882]; // 10 ms stereo
+        long firstSignalFrame = -1;
+        boolean signalled = false;
+        float lastGain = 0;
+        long lastPacketNs = 0;
+        AudioPacketQueue.Packet pending = null;
+        try {
+            running = true;
+            while (!stop.stopped()) {
+                // A sender can disappear without a flush/teardown callback.
+                // Release output after silence on the encoded input, then rebuild on demand.
+                if (generation != queue.generation() || (decoder != null && System.nanoTime()-lastPacketNs > 2000000000L)) {
+                    if (decoder != null) { decoder.close(); decoder = null; }
+                    if (track != null) { release(track); track = null; outputActive = false; }
+                    generation = queue.generation(); writtenFrames = playedFrames = decodedSamples = 0;
+                    firstSignalFrame = -1; signalled = false;
+                }
+                AudioPacketQueue.Packet packet = pending != null ? pending : queue.take(decoder == null ? 1000 : 0);
+                pending = null;
+                for (int budget = 0; packet != null && budget < 8; budget++) {
+                    if (packet.generation != queue.generation()) {
+                        packet = budget == 7 ? null : queue.take(0); continue;
+                    }
+                    if (packet.generation != generation) { pending = packet; break; }
+                    if (decoder == null) {
+                        decoder = new LegacyAudioDecoder(packet.codec, packet.spf);
+                        track = createTrack();
+                        track.setStereoVolume(0, 0); // apply sender volume before the first PCM write
+                        lastGain = 0;
+                        track.play();
+                        outputActive = true;
+                    }
+                    decoder.decode(packet.data, packet.timeNs);
+                    lastPacketNs = System.nanoTime();
+                    decodedSamples = decoder.stats()[0];
+                    // Do not remove a ninth packet without processing it.
+                    packet = budget == 7 ? null : queue.take(0);
+                }
+                if (decoder == null || generation != queue.generation()) continue;
+                decoder.read(pcm, 441);
+                if (firstSignalFrame < 0) {
+                    for (int i=0; i<pcm.length; i++) if (pcm[i] != 0) {
+                        firstSignalFrame = writtenFrames + i/2; break;
+                    }
+                }
+                float gain = muted ? 0 : queue.gain();
+                if (gain != lastGain) { track.setStereoVolume(gain, gain); lastGain = gain; }
+                int offset = 0;
+                while (offset < pcm.length && !stop.stopped() && generation == queue.generation()) {
+                    int wrote = track.write(pcm, offset, pcm.length-offset);
+                    if (wrote <= 0) throw new IOException("Receiver AudioTrack write failed: " + wrote);
+                    offset += wrote;
+                }
+                writtenFrames += offset/2;
+                // Unsigned 32-bit head; each format generation starts a new track.
+                playedFrames = track.getPlaybackHeadPosition() & 0xffffffffL;
+                if (!signalled && firstSignalFrame >= 0 && playedFrames > firstSignalFrame) {
+                    signalled = true; playEvents++;
+                }
+            }
+        } finally {
+            try { if (track != null) release(track); }
+            finally { if (decoder != null) decoder.close(); outputActive = false; running = false; }
+        }
+    }
+
+    private static AudioTrack createTrack() throws IOException {
+        int minimum = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
+        if (minimum <= 0) throw new IOException("Legacy PCM output unsupported");
+        AudioTrack track = new AudioTrack(AudioManager.STREAM_MUSIC, 44100, AudioFormat.CHANNEL_OUT_STEREO,
+                AudioFormat.ENCODING_PCM_16BIT, Math.max(minimum, 17640), AudioTrack.MODE_STREAM);
+        if (track.getState() != AudioTrack.STATE_INITIALIZED) { track.release(); throw new IOException("Legacy PCM output init failed"); }
+        return track;
+    }
+    private static void release(AudioTrack track) {
+        try { if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) track.stop(); }
+        finally { track.release(); }
+    }
+}

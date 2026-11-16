@@ -22,6 +22,32 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **16/nov — protótipo 0.4 com áudio do receptor integrado:** os callbacks
+  UxPlay `audio_process`, `audio_get_format`, `audio_set_volume`,
+  `audio_set_client_volume` e `audio_flush` chegam a uma fila Java limitada
+  (64 pacotes/256 KiB; cada pacote até 64 KiB). Um worker próprio possui
+  FFmpeg, buffer temporal e AudioTrack; formato/flush descartam a geração
+  anterior e liberam o áudio antigo. O stop é idempotente, acorda as filas e
+  espera a saída de áudio antes de concluir o encerramento.
+  A sessão experimental agora anuncia `_raop` e ALAC/AAC, sem PCM bruto,
+  fotos, HLS ou metadados. O alvo moderno preserva seus anúncios anteriores.
+  O autoteste usa exatamente os callbacks registrados, em pthreads nativas,
+  e exige reprodução do PCM não nulo pelo relógio do AudioTrack silenciado,
+  nos quatro formatos. Também consulta os dois serviços por multicast,
+  confere volume SET_PARAMETER/GET_PARAMETER em sockets RTSP reais e
+  verifica flush sem novo pacote e encerramento do worker.
+  Sem pacotes novos por dois segundos, a saída também é liberada; a suíte
+  exige que volte a reproduzir sem receber nova negociação de formato.
+  ARMv7/x86, lint e os 24 testes JVM passaram. Dois ciclos completos da
+  API 17 x86 passaram, com a bateria de streaming repetida por ciclo e
+  remoção do pacote no fim. Relatório local:
+  `outputs/fireos3-live-audio-verified-checks/report.json`;
+  [captura do emulador](images/fireos3-live-audio-probe.png).
+  Build moderno x86_64, lint e verificação do núcleo também passaram após a
+  alteração do shim compartilhado de descoberta.
+  Isso ainda **não** testa negociação, criptografia e RTP com um emissor
+  Apple real. O relógio de reprodução está exposto ao proprietário da sessão;
+  sincronização A/V e migração das telas/funções completas continuam pendentes.
 - **16/nov — protótipo 0.3 de áudio para API 17:** o mesmo `FfmpegDecoder`
   e `TimelineBuffer` da produção agora podem ser compilados sem os headers e
   as fábricas de `libmediandk`. O app moderno continua usando seu backend

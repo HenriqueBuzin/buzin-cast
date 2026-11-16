@@ -16,8 +16,6 @@ static int message_complete(llhttp_t *parser) {
     return 0;
 }
 
-static void discard_audio(void *context, raop_ntp_t *ntp, audio_decode_struct *audio) {}
-
 typedef struct {
     raop_t *receiver;
     dnssd_t *discovery;
@@ -25,9 +23,65 @@ typedef struct {
     jobject video_callback;
     jmethodID on_video_data;
     jmethodID on_video_reset;
+    jmethodID on_audio_data, on_audio_format, on_audio_flush, on_audio_volume, get_audio_volume;
+    bool audio_enabled;
     uint32_t network;
     uint32_t netmask;
 } receiver_probe_t;
+
+static JNIEnv *callback_env(receiver_probe_t *probe, bool *attached) {
+    JNIEnv *env = NULL;
+    *attached = false;
+    if (!probe->video_callback) return NULL;
+    if ((*probe->vm)->GetEnv(probe->vm, (void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED) {
+        if ((*probe->vm)->AttachCurrentThread(probe->vm, &env, NULL) != JNI_OK) return NULL;
+        *attached = true;
+    }
+    return env;
+}
+static void finish_callback(receiver_probe_t *probe, JNIEnv *env, bool attached) {
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+    if (attached) (*probe->vm)->DetachCurrentThread(probe->vm);
+}
+static void forward_audio(void *context, raop_ntp_t *ntp, audio_decode_struct *audio) {
+    receiver_probe_t *probe = context;
+    if (!probe->audio_enabled || !audio || !audio->data || audio->data_len <= 0 || audio->data_len > 64*1024) return;
+    bool attached;
+    JNIEnv *env = callback_env(probe, &attached);
+    if (!env) return;
+    jbyteArray payload = (*env)->NewByteArray(env, audio->data_len);
+    if (payload) {
+        (*env)->SetByteArrayRegion(env, payload, 0, audio->data_len, (const jbyte *)audio->data);
+        if (!(*env)->ExceptionCheck(env)) (*env)->CallVoidMethod(env, probe->video_callback, probe->on_audio_data,
+                payload, (jint)audio->ct, (jlong)audio->ntp_time_local);
+        (*env)->DeleteLocalRef(env, payload);
+    }
+    finish_callback(probe, env, attached);
+}
+static void audio_format(void *context, unsigned char *ct, unsigned short *spf, bool *screen, bool *media, uint64_t *format) {
+    receiver_probe_t *probe = context;
+    bool attached;
+    JNIEnv *env = callback_env(probe, &attached);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, probe->video_callback, probe->on_audio_format, (jint)*ct, (jint)*spf);
+    finish_callback(probe, env, attached);
+}
+static void audio_flush(void *context) {
+    receiver_probe_t *probe = context;
+    bool attached;
+    JNIEnv *env = callback_env(probe, &attached);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, probe->video_callback, probe->on_audio_flush);
+    finish_callback(probe, env, attached);
+}
+static void audio_volume(void *context, float volume) {
+    receiver_probe_t *probe = context;
+    bool attached;
+    JNIEnv *env = callback_env(probe, &attached);
+    if (!env) return;
+    (*env)->CallVoidMethod(env, probe->video_callback, probe->on_audio_volume, (jfloat)volume);
+    finish_callback(probe, env, attached);
+}
 
 static int allow_local_peer(void *context, const char *peer) {
     receiver_probe_t *probe = context;
@@ -44,13 +98,22 @@ static int allow_local_peer(void *context, const char *peer) {
 }
 
 static void noop(void *context) {}
-static double client_volume(void *context) { return 0; }
+static double client_volume(void *context) {
+    receiver_probe_t *probe = context;
+    bool attached;
+    JNIEnv *env = callback_env(probe, &attached);
+    if (!env) return 0;
+    double result = (*env)->CallDoubleMethod(env, probe->video_callback, probe->get_audio_volume);
+    finish_callback(probe, env, attached);
+    return result;
+}
 static int set_codec(void *context, video_codec_t codec) { return codec == VIDEO_CODEC_H264 ? 0 : -1; }
 
 static void reset_video(void *context, reset_type_t reason) {
     if (reason != RESET_TYPE_NOHOLD && reason != RESET_TYPE_RTP_SHUTDOWN &&
         reason != RESET_TYPE_RTP_TO_HLS_TEARDOWN) return;
     receiver_probe_t *probe = context;
+    if (probe->audio_enabled) audio_flush(context);
     if (!probe->video_callback) return;
     JNIEnv *env = NULL;
     bool attached = false;
@@ -94,7 +157,7 @@ static void forward_video(void *context, raop_ntp_t *ntp, video_decode_struct *v
 static void destroy_receiver(receiver_probe_t *probe) {
     if (!probe) return;
     // raop_destroy stops/joins workers before releasing the callback reference.
-    raop_destroy(probe->receiver);
+    if (probe->receiver) raop_destroy(probe->receiver);
     if (probe->discovery) {
         dnssd_destroy(probe->discovery);
     }
@@ -125,8 +188,17 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         jclass callback_type = (*env)->GetObjectClass(env, video_callback);
         probe->on_video_data = (*env)->GetMethodID(env, callback_type, "onVideoData", "([BJZ)V");
         if (probe->on_video_data) probe->on_video_reset = (*env)->GetMethodID(env, callback_type, "onVideoReset", "()V");
+        probe->on_audio_data = (*env)->GetMethodID(env, callback_type, "onAudioData", "([BIJ)V");
+        probe->on_audio_format = (*env)->GetMethodID(env, callback_type, "onAudioFormat", "(II)V");
+        probe->on_audio_flush = (*env)->GetMethodID(env, callback_type, "onAudioFlush", "()V");
+        probe->on_audio_volume = (*env)->GetMethodID(env, callback_type, "onAudioVolume", "(F)V");
+        probe->get_audio_volume = (*env)->GetMethodID(env, callback_type, "getAudioVolume", "()D");
+        jmethodID enabled = (*env)->GetMethodID(env, callback_type, "audioEnabled", "()Z");
+        if (enabled) probe->audio_enabled = (*env)->CallBooleanMethod(env, video_callback, enabled);
         (*env)->DeleteLocalRef(env, callback_type);
-        if (!probe->on_video_data || !probe->on_video_reset) { free(probe); return 0; }
+        if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
+            !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !enabled ||
+            (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
         if (!probe->video_callback) { free(probe); return 0; }
     }
@@ -137,7 +209,9 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
     }
     raop_callbacks_t callbacks = {
         .cls = probe,
-        .audio_process = discard_audio,
+        .audio_process = forward_audio,
+        .audio_get_format = audio_format,
+        .audio_set_volume = audio_volume,
         .video_process = forward_video,
         .conn_admit = allow_local_peer,
         .video_set_codec = set_codec,
@@ -145,7 +219,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         .video_resume = noop,
         .video_reset = reset_video,
         .video_flush = noop,
-        .audio_flush = noop,
+        .audio_flush = audio_flush,
         .audio_set_client_volume = client_volume,
         .conn_feedback = noop,
     };
@@ -168,11 +242,16 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         return 0;
     }
     raop_set_dnssd(receiver, probe->discovery);
-    // This experimental target only renders H.264 mirroring; no HLS, photos,
-    // audio playback, metadata or H.265 is advertised.
+    // Enable audio only when a bounded Java queue and player belong to this session.
     const int unsupported[] = { 0, 1, 3, 4, 5, 8, 9, 11, 13, 15, 16, 17, 18, 19, 20, 21, 42 };
     for (unsigned i = 0; i < sizeof(unsupported)/sizeof(unsupported[0]); i++)
         dnssd_set_airplay_features(probe->discovery, unsupported[i], 0);
+    if (probe->audio_enabled) {
+        const int audio_bits[] = {9, 19, 20, 21};
+        for (unsigned i=0; i<sizeof(audio_bits)/sizeof(audio_bits[0]); i++)
+            dnssd_set_airplay_features(probe->discovery, audio_bits[i], 1);
+        android_dnssd_set_compressed_audio_only(probe->discovery);
+    }
     raop_set_plist(receiver, "width", 1280);
     raop_set_plist(receiver, "height", 720);
     raop_set_plist(receiver, "maxFPS", 30);
@@ -259,6 +338,41 @@ Java_io_buzincast_fireos3probe_ProbeActivity_replayReceiverVideo(
         .ntp_time_local = (uint64_t)time_ns, .is_h265 = false } };
     pthread_t worker;
     if (pthread_create(&worker, NULL, replay_on_worker, &replay) != 0) return JNI_FALSE;
+    pthread_join(worker, NULL);
+    return JNI_TRUE;
+}
+
+typedef struct {
+    receiver_probe_t *probe;
+    audio_decode_struct packet;
+    unsigned short spf;
+    float volume;
+    bool flush;
+} audio_replay_t;
+
+static void *replay_audio_on_worker(void *context) {
+    audio_replay_t *replay = context;
+    bool screen = true, media = false;
+    uint64_t format = 0;
+    if (replay->flush) audio_flush(replay->probe);
+    if (replay->spf) audio_format(replay->probe, &replay->packet.ct, &replay->spf, &screen, &media, &format);
+    audio_volume(replay->probe, replay->volume);
+    if (replay->packet.data_len) forward_audio(replay->probe, NULL, &replay->packet);
+    return NULL;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_io_buzincast_fireos3probe_ProbeActivity_replayReceiverAudio(JNIEnv *env, jclass type, jlong handle,
+        jobject input, jint length, jint codec, jint spf, jlong time_ns, jfloat volume, jboolean flush) {
+    receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
+    unsigned char *bytes = (*env)->GetDirectBufferAddress(env, input);
+    jlong capacity = (*env)->GetDirectBufferCapacity(env, input);
+    if (!probe || !probe->audio_enabled || (!bytes && length != 0) || length < 0 || length > 64*1024 || length > capacity ||
+        time_ns < 0 || codec < 0 || codec > 255 || spf < 0 || spf > 65535) return JNI_FALSE;
+    audio_replay_t replay = {.probe=probe, .packet={.data=bytes, .ct=(unsigned char)codec,
+        .data_len=length, .ntp_time_local=(uint64_t)time_ns}, .spf=(unsigned short)spf, .volume=volume, .flush=flush};
+    pthread_t worker;
+    if (pthread_create(&worker, NULL, replay_audio_on_worker, &replay) != 0) return JNI_FALSE;
     pthread_join(worker, NULL);
     return JNI_TRUE;
 }

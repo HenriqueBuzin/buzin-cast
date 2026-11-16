@@ -55,7 +55,7 @@ def main():
         deadline = time.monotonic()+25
         while time.monotonic() < deadline:
             texts = [n.get('text', '') for n in ui().iter()]
-            if any('experimental H.264 video only' in text for text in texts): return
+            if any('experimental H.264 + ALAC/AAC receiver' in text for text in texts): return
             failures = [text for text in texts if 'receiver failed:' in text]
             if failures: raise AssertionError(failures[0])
             time.sleep(.3)
@@ -82,17 +82,19 @@ def main():
             expect('Receiver callback H.264: frame displayed')
             entry['callback_surface'] = 'pass'
             tap('Run streaming stack checks')
-            expect('Streaming stack: DNS-SD + RTSP + H.264 + ALAC/AAC + PCM passed', timeout=45)
-            tap('Start experimental video receiver')
+            expect('Streaming stack: DNS-SD + RTSP + H.264 + native audio callbacks passed', timeout=45)
+            tap('Start experimental AV receiver')
             expect_live_ready()
             tap('Stop experimental receiver')
             expect('Experimental receiver stopped.', timeout=15)
             # Restart the streaming self-test after a full live start/stop.
             tap('Run streaming stack checks')
-            expect('Streaming stack: DNS-SD + RTSP + H.264 + ALAC/AAC + PCM passed', timeout=45)
+            expect('Streaming stack: DNS-SD + RTSP + H.264 + native audio callbacks passed', timeout=45)
             entry['dns_rtsp_live_decoder'] = 'pass'
             entry['live_start_stop'] = 'pass'
             entry['alac_aac_lc_aac_eld_timeline_pcm_output'] = 'pass'
+            entry['native_audio_format_volume_flush_and_shutdown'] = 'pass'
+            entry['audio_idle_release_and_resume'] = 'pass'
             # API 17's adbd does not implement exec-out. Pull a PNG file intact.
             adb('shell', 'screencap', '-p', '/data/local/tmp/buzin-probe.png')
             picture = args.output/f'cycle-{cycle+1}.png'

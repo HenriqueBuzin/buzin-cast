@@ -63,7 +63,9 @@ a execução e `--keep-installed` mantém a cópia parada para investigação.
 Não equivale a espelhamento de um iPhone/Mac real nem à aplicação completa.
 Na prova 0.3 também decodifica ALAC, AAC-LC e AAC-ELD (480/512), confere o
 buffer temporal e o relógio de saída AudioTrack com volume zero. Os pacotes
-são sintéticos; não anuncia áudio no receptor persistente. Para regenerar as
+são sintéticos. A prova 0.4 acrescenta a fila/player do receptor persistente,
+anúncios `_raop`, volume por RTSP e testes da ponte nativa de formato, áudio,
+volume, flush e encerramento. Sincronismo A/V ainda pendente. Para regenerar as
 amostras, consulte `LEGACY_AUDIO_FIXTURES.md`.
 
 Os scripts `test_focus_navigation.py` e `test_fireos3_probe.py` recusam TVs

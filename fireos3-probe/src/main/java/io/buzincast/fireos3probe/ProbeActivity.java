@@ -451,4 +451,6 @@ public final class ProbeActivity extends Activity {
     static native void stopReceiver(long handle);
     private static native boolean replayVideoFrame(AvcInput callback, ByteBuffer input, int length, long timeNs);
     static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
+    static native boolean replayReceiverAudio(long handle, ByteBuffer input, int length, int codec, int spf,
+                                              long timeNs, float volume, boolean flush);
 }

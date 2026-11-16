@@ -38,7 +38,7 @@ Java_io_buzincast_fireos3probe_LegacyAudioDecoder_decodePacket(JNIEnv *env, jcla
     auto *audio = reinterpret_cast<LegacyAudio *>(handle);
     if (!audio || !bytes) return JNI_FALSE;
     const jsize count = env->GetArrayLength(bytes);
-    if (count <= 0 || count > 64 * 1024 || pts <= 0) return JNI_FALSE;
+    if (count <= 0 || count > 64 * 1024 || pts < 0) return JNI_FALSE;
     // FFmpeg bit readers require zero padding beyond the encoded payload.
     audio->packet.assign(count + AV_INPUT_BUFFER_PADDING_SIZE, 0);
     env->GetByteArrayRegion(bytes, 0, count, reinterpret_cast<jbyte *>(audio->packet.data()));

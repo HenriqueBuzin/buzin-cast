@@ -15,12 +15,19 @@ import org.json.JSONObject;
 /** Real native decoding and API17 AudioTrack playback, muted during automated checks. */
 final class AudioSelfTest {
     static void run(Context context) throws Exception {
+        JSONArray fixtures = fixtures(context);
+        checkFixtures(fixtures);
+    }
+
+    static JSONArray fixtures(Context context) throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (InputStream input = context.getAssets().open("audio_samples.json")) {
             byte[] chunk = new byte[4096]; int count;
             while ((count = input.read(chunk)) >= 0) bytes.write(chunk, 0, count);
         }
-        JSONArray fixtures = new JSONArray(bytes.toString("UTF-8"));
+        return new JSONArray(bytes.toString("UTF-8"));
+    }
+    private static void checkFixtures(JSONArray fixtures) throws Exception {
         if (fixtures.length() != 4) throw new IOException("Missing legacy audio fixtures");
         for (int i = 0; i < fixtures.length(); i++) {
             JSONObject fixture = fixtures.getJSONObject(i);

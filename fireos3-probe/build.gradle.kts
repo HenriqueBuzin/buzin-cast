@@ -45,8 +45,8 @@ android {
         applicationId = "io.buzincast.fireos3probe"
         minSdk = 17
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
         multiDexEnabled = true
         ndk {
             abiFilters += setOf("armeabi-v7a", "x86")
