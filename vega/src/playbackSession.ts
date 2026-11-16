@@ -31,6 +31,8 @@ export function createPlaybackSession(
   const previousRelease = releaseBarrier;
   let player: VideoPlayer | undefined;
   let initialized = false;
+  let surface: string | undefined;
+  let sourceGeneration = 0;
   let failed = false;
   let closed = false;
   let closing: Promise<void> | undefined;
@@ -54,6 +56,7 @@ export function createPlaybackSession(
     if (!player || !initialized || closed) {
       throw new Error('Player is not ready');
     }
+    ++sourceGeneration;
     failed = false;
     hasSource = true;
     position = source.position;
@@ -160,8 +163,14 @@ export function createPlaybackSession(
       if (!closed && initialized && player) {
         try {
           player.setSurfaceHandle(handle);
+          surface = handle;
           if (hasSource) {
-            player.play().catch(fail);
+            const generation = sourceGeneration;
+            player.play().catch(() => {
+              if (generation === sourceGeneration) {
+                fail();
+              }
+            });
           }
         } catch {
           fail();
@@ -169,8 +178,9 @@ export function createPlaybackSession(
       }
     },
     detachSurface(handle: string) {
-      if (!closed && initialized && player) {
+      if (!closed && initialized && player && surface === handle) {
         player.clearSurfaceHandle(handle);
+        surface = undefined;
       }
     },
     togglePause() {
@@ -188,7 +198,10 @@ export function createPlaybackSession(
     },
     stop(): Promise<void> {
       if (closing) {
-        return closing;
+        // Cleanup failure is reported above. The next session must still be
+      // allowed to initialize once this attempt has finished.
+      releaseBarrier = closing;
+      return closing;
       }
       closed = true;
       if (timer) {
@@ -222,7 +235,6 @@ export function createPlaybackSession(
         Network.recordPlaybackState('released', snapshot.seconds);
       });
       // A failed release is reported, but does not leave an unhandled rejection.
-      releaseBarrier = releasing;
       closing = releasing.catch(() => {
         try {
           Network.recordPlaybackState('error', snapshot.seconds);
@@ -230,6 +242,9 @@ export function createPlaybackSession(
           // No further writes are possible if the sandbox storage failed.
         }
       });
+      // Cleanup failure is reported above. The next session must still be
+      // allowed to initialize once this attempt has finished.
+      releaseBarrier = closing;
       return closing;
     },
   };

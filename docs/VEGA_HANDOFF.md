@@ -1,5 +1,24 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Ciclo de reprodução — 16 de novembro de 2026
+
+- Corrigida a barreira de liberação: falha em `deinitialize` continua registrada,
+  mas a promessa resolvida após o tratamento permite abrir outra sessão.
+- O player guarda a superfície atual e ignora destruição atrasada de uma
+  superfície anterior. Rejeições assíncronas de Play são vinculadas à geração
+  da fonte para não derrubar uma mídia carregada depois.
+- Os 42 testes Jest passaram, incluindo as três regressões, assim como lint,
+  TypeScript e build Release/validação ABI em ARM64, ARMv7 e x86_64.
+- Nova tentativa de runtime iniciou o VVD e executou o diagnóstico no sandbox.
+  `tcpLoopback`, `udpLoopback`, `wildcardBind`, `rtspParser`,
+  `malformedRtspRejected` e `aesCtrVector` retornaram true, mas
+  `multicastMembership` retornou false. O smoke abortou nesse gate antes de
+  exercitar a reprodução. Relatório local em
+  `build/vega-lifecycle-smoke/result.json`; não declarar validação de runtime
+  das correções de player ou da descoberta com base nesta execução.
+- Próximo: investigar a falha de adesão multicast no sandbox e voltar a rodar
+  os cenários de player; continuar os receptores e a paridade do inventário.
+
 ## Revisão de pacotes DNS-SD — 16 de novembro de 2026
 
 - Corrigida a detecção de perguntas mDNS: leitura limitada da seção de perguntas,

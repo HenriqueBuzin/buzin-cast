@@ -164,3 +164,57 @@ test('Voltar cancela initialize pendente pela API do SDK sem esperar seu retorno
   expect(player.deinitialize).toHaveBeenCalledTimes(1);
   expect(ready).not.toHaveBeenCalled();
 });
+
+test('falha ao liberar uma sessão não impede a próxima inicialização', async () => {
+  const first = fakePlayer();
+  const second = fakePlayer();
+  first.deinitialize.mockRejectedValue(new Error('native release failed'));
+  jest.mocked(VideoPlayer)
+    .mockImplementationOnce(() => first as unknown as VideoPlayer)
+    .mockImplementationOnce(() => second as unknown as VideoPlayer);
+  let opened!: () => void;
+  const ready = new Promise<void>((resolve) => {opened = resolve;});
+  const oldSession = createPlaybackSession(opened, jest.fn());
+  await ready;
+  await oldSession.stop();
+  expect(Network.recordPlaybackState).toHaveBeenLastCalledWith('error', 0);
+  const nextReady = new Promise<void>((resolve) => {opened = resolve;});
+  const newSession = createPlaybackSession(opened, jest.fn());
+  await nextReady;
+  expect(second.initialize).toHaveBeenCalledTimes(1);
+  await newSession.stop();
+});
+
+test('destruição atrasada da superfície antiga preserva a superfície atual', async () => {
+  const player = fakePlayer();
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let opened!: () => void;
+  const ready = new Promise<void>((resolve) => {opened = resolve;});
+  const session = createPlaybackSession(opened, jest.fn());
+  await ready;
+  session.attachSurface('old');
+  session.attachSurface('new');
+  session.detachSurface('old');
+  expect(player.clearSurfaceHandle).not.toHaveBeenCalled();
+  session.detachSurface('new');
+  expect(player.clearSurfaceHandle).toHaveBeenCalledWith('new');
+  await session.stop();
+});
+
+test('rejeição atrasada do Play antigo não derruba a nova mídia', async () => {
+  const player = {...fakePlayer(), setSrcWithCustomHeaders: jest.fn()};
+  let rejectPlay!: (reason: Error) => void;
+  player.play.mockReturnValueOnce(new Promise<void>((_resolve, reject) => {rejectPlay = reject;}));
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let opened!: () => void;
+  const ready = new Promise<void>((resolve) => {opened = resolve;});
+  const changed = jest.fn();
+  const session = createPlaybackSession(opened, changed);
+  await ready;
+  session.attachSurface('old');
+  session.load({url: 'https://example.com/new.mp4', headers: {}, position: 0, speed: 1});
+  rejectPlay(new Error('previous playback cancelled'));
+  await Promise.resolve();
+  expect(changed).toHaveBeenLastCalledWith({state: 'loading', seconds: 1.5});
+  await session.stop();
+});
