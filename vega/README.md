@@ -81,7 +81,7 @@ python3 tools/test_vega.py --serial emulator-5554 \
   --output build/vega-media-checks
 ```
 
-O script recusa TVs físicas. Exercita o controle real, os sete resultados
+O script recusa TVs físicas. Exercita o controle real, os oito resultados
 nativos, consulta de mídia, Sobre/Voltar e repetição. Resultados e comandos ficam
 no diretório indicado. Também verifica a amostra local, pausa/retomada,
 fim, reabertura e segundo plano. Os relatórios do sandbox
@@ -92,7 +92,7 @@ sem mídia ou endereços. O runner `build/<arquitetura>-release/bin/buzin-networ
 
 ## Trabalho restante
 
-Integrar amostras AirPlay/MSSE, relógios e receptores; portar configurações e os
+Integrar saída AirPlay/MSSE, relógios e receptores; portar configurações e os
 demais recursos Fire OS. Recepção com emissores reais,
 sincronismo e sessões longas dependem de validação em Fire TV Vega físico.
 Somente ARM64 foi executada no simulador. O build mantém o aviso dlopen do

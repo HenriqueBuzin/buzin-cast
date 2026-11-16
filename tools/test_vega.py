@@ -83,7 +83,7 @@ def main():
                     time.sleep(0.25)
             report["checks"]["networkReadinessRetries"] = readiness_attempt + 1
         expected = ["tcpLoopback", "udpLoopback", "wildcardBind", "multicastMembership",
-                    "rtspParser", "malformedRtspRejected", "aesCtrVector"]
+                    "rtspParser", "malformedRtspRejected", "aesCtrVector", "airplaySessionLifecycle"]
         if any(native.get(key) is not True for key in expected):
             raise RuntimeError(f"Diagnóstico nativo reprovado: {native}")
         report["checks"]["remoteToNativeSandbox"] = native

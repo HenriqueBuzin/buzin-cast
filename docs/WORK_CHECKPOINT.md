@@ -1,5 +1,14 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — sessão AirPlay nativa — 16 de novembro de 2026
+
+UxPlay agora tem classe de sessão C++ com fila limitada de callbacks e ciclo de
+vida. OPTIONS RTSP e Play HTTP chegaram ao callback em dois ciclos no sandbox;
+smoke completo ARM64 passou. Ainda não há reprodução ou anúncio AirPlay.
+Paridade inclui também seleção persistente e toque do Fire OS atual, conforme
+reafirmado por Henrique. Próximos passos em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+
 ## Vega — UxPlay isolado — 16 de novembro de 2026
 
 O build Vega prepara uma cópia UxPlay do commit fixado, com os 11 patches Buzin,

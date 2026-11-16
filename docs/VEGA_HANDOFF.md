@@ -1,5 +1,36 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Sessão UxPlay nativa — 16 de novembro de 2026
+
+- Adicionada `AirPlaySession` C++ com propriedade RAII de UxPlay/identidade,
+  início/encerramento repetíveis, admissão de loopback ou IPv4 privado e fila
+  limitada para callbacks. Amostras comprimidas são copiadas com codec e
+  timestamps local/remoto; eventos URL, posição, taxa, flush/reset seguem uma
+  fila com limite de 128 eventos, 8 MiB e 2 MiB por amostra.
+- A classe não anuncia DNS-SD e não declara capacidade de renderização: os
+  bits de funções permanecem zerados. O construtor de registros compartilhado
+  com Android é C sem JNI; a saída de mídia Vega ainda precisa consumi-los.
+- O diagnóstico nativo instancia a sessão, faz OPTIONS RTSP e Play HTTP real
+  para uma URL de documentação (sem fazer download), confere URL/posição no
+  callback e repete dois ciclos com liberação e fila vazia. O modo testado
+  admite somente loopback. A chave de teste permanece no sandbox.
+- Build/validação ABI das três arquiteturas e smoke completo ARM64 passaram:
+  `build/vega-airplay-lifecycle/result.json` tem `passed: true` e
+  `airplaySessionLifecycle: true`, além dos demais diagnósticos e cenários de
+  reprodução da amostra. O smoke exige agora o novo diagnóstico como gate.
+- Isto prova transporte e callback de URL, não reprodução AirPlay. Faltam
+  conexão desses eventos ao player, saída das amostras comprimidas, relógio A/V,
+  descoberta compatível e validação com emissores reais.
+
+## Escopo reafirmado — interface atual do Fire OS
+
+A referência de paridade passa a ser a versão Fire OS atual, incluindo seleção
+persistente e navegação por toque mencionadas por Henrique nesta retomada.
+Esses dois comportamentos ainda são pendentes no Vega; nome do receptor salvo
+e foco básico pelo controle não os comprovam. A estimativa informal de cerca
+de 20% é de paridade funcional, não de tempo restante, e não conta esses itens
+como entregues.
+
 ## Núcleo AirPlay isolado e reproduzível — 16 de novembro de 2026
 
 - Identificada dependência acidental do build Vega nas modificações que o

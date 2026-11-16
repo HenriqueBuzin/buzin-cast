@@ -1,0 +1,34 @@
+#pragma once
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
+struct AirPlayEvent {
+  enum class Kind {Audio, Video, PlayUrl, Seek, Rate, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
+  Kind kind = Kind::Stop;
+  int codec = 0;
+  uint64_t localTime = 0;
+  uint64_t remoteTime = 0;
+  double value = 0;
+  std::string url;
+  std::vector<uint8_t> bytes;
+};
+
+// Owns UxPlay and copies callback payloads into a bounded consumer queue.
+// Does not advertise DNS-SD or claim that captured samples were rendered.
+class AirPlaySession {
+public:
+  AirPlaySession();
+  ~AirPlaySession();
+  AirPlaySession(const AirPlaySession&) = delete;
+  AirPlaySession& operator=(const AirPlaySession&) = delete;
+  uint16_t start(const std::string& keyPath, const std::string& name,
+                 const std::string& identity, bool loopbackOnly = true);
+  void stop() noexcept;
+  bool poll(AirPlayEvent& event);
+  bool healthy() const;
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl;
+};

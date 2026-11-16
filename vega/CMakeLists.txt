@@ -22,6 +22,8 @@ add_executable(buzin-network-probe
 install(TARGETS buzin-network-probe RUNTIME DESTINATION bin)
 
 include(cmake/AirPlayCore.cmake)
-target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp)
+target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
+  kepler/turbo-modules/AirPlaySession.cpp
+  "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c")
 target_link_libraries(BuzinNetwork PRIVATE BuzinAirPlayCore)
 target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")
