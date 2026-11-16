@@ -103,13 +103,41 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   `outputs/legacy-calibration-nodownload-verified/report.json`. Prévias
   removidas, emulador próprio fechado, nenhuma TV física usada. Captura
   pública: `docs/images/fireos3-native-calibration.png`.
-- Ainda faltam perfis, controles completos, DLNA/FCast/Cast V2,
+- Perfis ligados ao `QualityProfiles` compartilhado: mesmos nomes persistidos,
+  edição atômica de resolução/FPS e buffers, seguida de um reinício. JNI aplica
+  os modos ao plist; áudio usa buffer fixo/adaptativo e percentil efetivos.
+  AFTM anterior à API21 usa modos AVC publicados pela Amazon; APIs novas
+  consultam o codec. Emulador API17 debug usa 720p/30. Validação física dos
+  modos anunciados no firmware original continua pendente.
+  Dois ciclos finais passaram em `outputs/legacy-profiles-final-verified`,
+  incluindo buffer real de 25 ms, três políticas nos quatro codecs,
+  anúncios 1080p/30 e 720p/60 e espera/descarte/flush/retomada de áudio.
+  A mídia sintética pequena não comprova desempenho físico nesses modos.
+  O relógio AudioTrack agora preserva a referência ao reler um contador
+  sem avanço; previsão fica dentro do PCM aceito e expira após 250 ms
+  sem atualização. Lacunas curtas de metadados aguardam até 100 ms, sem
+  relaxar os limites A/V. Fila limitada a 16 quadros e 4 MiB, para acomodar
+  250 ms a 60 fps. A fixture envia áudio em tempo real sem criar uma thread
+  nativa por pacote; testes separados de callbacks nativos permanecem.
+  Relatórios das falhas anteriores de clock e ADB foram preservados.
+  UI passou em inglês/português/árabe e regional em alemão, incluindo os
+  quatro perfis, preferências, `/info`, nome/porta e calibração. Builds
+  ARMv7/x86, lint, 41 testes do alvo antigo, 34 do núcleo e 181 do domínio
+  aprovados. Captura: `docs/images/fireos3-native-profiles.png`.
+  APKs finais repetiram o roteiro completo de UI em português e alemão:
+  `outputs/legacy-profiles-packaged-normal-private-retry` e
+  `outputs/legacy-profiles-packaged-regional-private`, ambos aprovados e
+  desinstalados. Nova opção `--adb-server-port` isola o capturador dos testes
+  concorrentes. O emulador próprio foi encerrado; nenhuma TV foi usada.
+
+- Ainda faltam controles completos, DLNA/FCast/Cast V2,
   URL/HLS/fotos/legendas, gravação/download/retransmissão na edição geral,
   background/boot/rede, aprovação/PIN/DACP, licença/assinatura e validação
   com emissores reais e Stick antigo. A meta permanece o mesmo app/funções
   em todos os Fire Sticks com Fire OS; não considerar esta prévia paridade.
-  Próximo marco: perfis, aplicando as regras existentes à configuração
-  efetiva do receptor/áudio/vídeo, antes dos demais controles e protocolos.
+  Próximo marco: execução em segundo plano e retomada sem perder a sessão,
+  antes dos demais controles e protocolos. Separar a posse do receptor da
+  Activity e tratar a troca de Surface no decoder antigo.
 
 ## Fichas Amazon, traduções e artefatos atuais
 

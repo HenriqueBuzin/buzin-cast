@@ -6,6 +6,15 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 
 public class VideoFrameQueueTest {
+    @Test public void buffersQuarterSecondOfSixtyFpsInOrder() throws Exception {
+        VideoFrameQueue queue=new VideoFrameQueue();
+        for(int i=0;i<15;i++)queue.onVideoData(new byte[]{(byte)i},i*1000000000L/60,false);
+        for(int i=0;i<15;i++) {
+            VideoFrameQueue.Frame frame=queue.take(0);
+            assertEquals(i,frame.data[0]);assertEquals(i*1000000000L/60,frame.timeNs);
+        }
+        assertNull(queue.take(0));
+    }
     @Test public void resetSeparatesSessionsAndDiscardsOldFrames() throws Exception {
         VideoFrameQueue queue = new VideoFrameQueue();
         queue.onVideoData(new byte[]{1}, 0, false);

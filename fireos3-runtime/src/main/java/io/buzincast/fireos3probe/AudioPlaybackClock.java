@@ -11,15 +11,26 @@ final class AudioPlaybackClock {
     private long raw, wrap, head, stamp, lastEnd;
     private long generation;
     private boolean initialized, invalid;
+    private boolean hasKnown;
+    private long knownStamp;
     private static final class Span {
         final long first, end, pts;
         Span(long first, long frames, long pts) { this.first=first; this.end=first+frames; this.pts=pts; }
     }
     synchronized void reset() {
         generation++;
-        spans.clear(); raw=wrap=head=stamp=lastEnd=0; initialized=invalid=false;
+        spans.clear(); raw=wrap=head=stamp=lastEnd=knownStamp=0; initialized=invalid=hasKnown=false;
     }
     synchronized long generation() { return generation; }
+    synchronized boolean recentlyActive(long nowNs) {
+        return hasKnown && !invalid && nowNs>=knownStamp && nowNs-knownStamp<=STALE_NS;
+    }
+    private long known(long position,long nowNs) { hasKnown=true;knownStamp=nowNs;return position; }
+    synchronized String describe(long nowNs) {
+        return "generation="+generation+", initialized="+initialized+", invalid="+invalid+
+            ", head="+head+", raw="+raw+", end="+lastEnd+", spans="+spans.size()+
+            ", first="+(spans.isEmpty()?-1:spans.peekFirst().first)+", ageMs="+(nowNs-stamp)/1000000;
+    }
     synchronized void submit(long firstFrame, long frames, long ptsNs) {
         if (firstFrame < 0 || frames <= 0 || frames > 4096 || firstFrame > Long.MAX_VALUE-frames ||
                 ptsNs <= 0 || ptsNs > Long.MAX_VALUE-1000000000L || firstFrame < lastEnd) return;
@@ -32,25 +43,32 @@ final class AudioPlaybackClock {
             if (raw-value > 0x80000000L) wrap += 1L<<32;
             else invalid=true; // an unexpected reset cannot safely reuse old frame indices
         }
-        raw=value; head=wrap+value; stamp=nowNs; initialized=true;
+        // Old AudioTrack implementations publish the counter in coarse blocks.
+        // Re-reading the same counter must not rewind the extrapolated clock or
+        // indefinitely refresh a stalled device's timestamp.
+        if(!initialized || value!=raw)stamp=nowNs;
+        raw=value; head=wrap+value; initialized=true;
         while (!spans.isEmpty() && spans.peekFirst().end <= head) spans.removeFirst();
         return head;
     }
     synchronized long positionNs(long nowNs) {
         long elapsed = nowNs-stamp;
         if (!initialized || invalid || spans.isEmpty() || elapsed < 0 || elapsed > STALE_NS) return UNKNOWN;
-        long estimated = Math.min(lastEnd, head + elapsed*RATE/1000000000L);
+        // Keep the prediction on accepted timestamped PCM until a fresh hardware
+        // count confirms that playback crossed its end. A coarse count alone
+        // cannot prove an underrun. STALE_NS still bounds a stationary counter.
+        long estimated = Math.min(lastEnd-1, head + elapsed*RATE/1000000000L);
         for (Span span : spans) {
             if (estimated < span.first) {
                 // Count down toward known upcoming PCM, also after an underrun.
                 // Use that block's sample rate, never interpolate between discontinuous PTS.
                 if (span.first-estimated <= RATE/4) {
                     long predicted = span.pts-duration(span.first-estimated);
-                    return predicted > 0 ? predicted : UNKNOWN;
+                    return predicted > 0 ? known(predicted,nowNs) : UNKNOWN;
                 }
                 return UNKNOWN;
             }
-            if (estimated < span.end) return span.pts+duration(estimated-span.first);
+            if (estimated < span.end) return known(span.pts+duration(estimated-span.first),nowNs);
         }
         return UNKNOWN;
     }

@@ -88,6 +88,7 @@ tasks.named("preBuild") { dependsOn(sharedResources) }
 dependencies {
     implementation(project(":fireos3-runtime"))
     implementation(project(":dlna-domain"))
+    implementation(project(":receiver-core"))
     implementation("androidx.multidex:multidex:2.0.1")
     coreLibraryDesugaring(libs.desugar)
     testImplementation(libs.junit4)

@@ -154,7 +154,10 @@ public final class ProbeActivity extends Activity {
                                 }
                             });
                         }
-                    });
+                    },new ReceiverOptions("Buzin Cast API17 Profile",17001,
+                            getIntent().getBooleanExtra("probe_games",false)?1280:1920,
+                            getIntent().getBooleanExtra("probe_games",false)?720:1080,
+                            getIntent().getBooleanExtra("probe_games",false)?60:30,false,25,90));
             liveSession.start();
         });
         streamChecks.setOnClickListener(view -> {

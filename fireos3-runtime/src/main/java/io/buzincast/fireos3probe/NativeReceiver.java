@@ -8,17 +8,17 @@ final class NativeReceiver {
     static native boolean checkNativeParser();
     static native long startReceiver(String keyPath, VideoFrameQueue callback);
     static long startNetworkReceiver(String keyPath, VideoFrameQueue callback, String identity,
-                                    String address, int prefix, String name, int port) {
+                                    String address, int prefix, String name, int port, int width,int height,int fps) {
         return createNetworkReceiver(keyPath,callback,identity,address,prefix,
-                name == null ? null : name.getBytes(Charset.forName("UTF-8")),port);
+                name == null ? null : name.getBytes(Charset.forName("UTF-8")),port,width,height,fps);
     }
     private static native long createNetworkReceiver(String keyPath, VideoFrameQueue callback, String identity,
-                                                     String address, int prefix, byte[] utf8Name, int port);
+                                                     String address, int prefix, byte[] utf8Name, int port,int width,int height,int fps);
     static native String[] receiverTxt(long handle, boolean airplay);
     static native int receiverPort(long handle);
     static native void stopReceiver(long handle);
     static native boolean replayVideoFrame(Object callback, ByteBuffer input, int length, long timeNs);
     static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
     static native boolean replayReceiverAudio(long handle, ByteBuffer input, int length, int codec, int spf,
-                                              long timeNs, float volume, boolean flush);
+                                              long timeNs, float volume, boolean flush,boolean nativeThread);
 }

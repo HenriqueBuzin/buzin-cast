@@ -5,7 +5,9 @@ import java.util.ArrayDeque;
 /** Bounded handoff from native receiver threads to the API 17 decoder worker. */
 final class VideoFrameQueue {
     static final int MAX_BYTES = 4 * 1024 * 1024;
-    static final int MAX_FRAMES = 8;
+    // A quarter-second at 60 fps fits the scheduler's maximum wait. Encoded
+    // memory remains independently capped at 4 MiB, including large IDRs.
+    static final int MAX_FRAMES = 16;
     private final ArrayDeque<Frame> frames = new ArrayDeque<>();
     private int bytes;
     private boolean closed;
@@ -29,6 +31,7 @@ final class VideoFrameQueue {
     static final class Frame {
         final byte[] data;
         final long timeNs;
+        final long receivedNs=System.nanoTime();
         final int generation;
         Frame(byte[] data, long timeNs, int generation) { this.data = data; this.timeNs = timeNs; this.generation = generation; }
     }

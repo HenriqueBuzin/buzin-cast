@@ -12,12 +12,18 @@ final class LegacyAudioPlayer {
     private final AudioPacketQueue queue;
     private final boolean muted;
     private final AudioPlaybackClock clock;
+    private final int cushionMs,percentile;
     volatile long decodedSamples, writtenFrames, playedFrames;
     volatile int playEvents;
+    volatile int tunedCushionMs;
     volatile boolean running, outputActive;
 
     LegacyAudioPlayer(AudioPacketQueue queue, boolean muted, AudioPlaybackClock clock) {
+        this(queue,muted,clock,null);
+    }
+    LegacyAudioPlayer(AudioPacketQueue queue,boolean muted,AudioPlaybackClock clock,ReceiverOptions options) {
         this.queue = queue; this.muted = muted; this.clock = clock;
+        cushionMs=options==null?20:options.cushionMs;percentile=options==null?95:options.percentile;
     }
 
     void run(StopSignal stop) throws Exception {
@@ -51,7 +57,7 @@ final class LegacyAudioPlayer {
                     }
                     if (packet.generation != generation) { pending = packet; break; }
                     if (decoder == null) {
-                        decoder = new LegacyAudioDecoder(packet.codec, packet.spf);
+                        decoder = new LegacyAudioDecoder(packet.codec, packet.spf,cushionMs,percentile);
                         track = createTrack();
                         track.setStereoVolume(0, 0); // apply sender volume before the first PCM write
                         lastGain = 0;
@@ -60,7 +66,7 @@ final class LegacyAudioPlayer {
                     }
                     decoder.decode(packet.data, packet.timeNs);
                     lastPacketNs = System.nanoTime();
-                    decodedSamples = decoder.stats()[0];
+                    long[] stats=decoder.stats();decodedSamples=stats[0];tunedCushionMs=(int)stats[2];
                     // Do not remove a ninth packet without processing it.
                     packet = budget == 7 ? null : queue.take(0);
                 }

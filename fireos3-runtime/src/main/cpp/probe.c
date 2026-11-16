@@ -172,8 +172,8 @@ static void destroy_receiver(receiver_probe_t *probe) {
 
 static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callback,
                              const char *device_id, const char *network_address, int prefix,
-                             const char *service_name, int requested_port) {
-    if (requested_port < 0 || requested_port > 65535) return 0;
+                             const char *service_name, int requested_port, int width,int height,int fps) {
+    if (requested_port < 0 || requested_port > 65535 || width<16 || width>4096 || height<16 || height>4096 || fps<1 || fps>240) return 0;
     receiver_probe_t *probe = calloc(1, sizeof(*probe));
     if (!probe) return 0;
     unsigned int octets[6];
@@ -255,9 +255,9 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
             dnssd_set_airplay_features(probe->discovery, audio_bits[i], 1);
         android_dnssd_set_compressed_audio_only(probe->discovery);
     }
-    raop_set_plist(receiver, "width", 1280);
-    raop_set_plist(receiver, "height", 720);
-    raop_set_plist(receiver, "maxFPS", 30);
+    raop_set_plist(receiver, "width", width);
+    raop_set_plist(receiver, "height", height);
+    raop_set_plist(receiver, "maxFPS", fps);
     unsigned short port = (unsigned short)requested_port;
     if (raop_start_httpd(receiver, &port) < 0 || !port) {
         destroy_receiver(probe);
@@ -272,13 +272,13 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
 
 JNIEXPORT jlong JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject callback) {
-    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0);
+    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0, 1280,720,30);
 }
 
 JNIEXPORT jlong JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env, jclass type,
         jstring key_path, jobject callback, jstring identity, jstring network_address, jint prefix,
-        jbyteArray utf8_name, jint requested_port) {
+        jbyteArray utf8_name, jint requested_port,jint width,jint height,jint fps) {
     char name[64]={0};
     if (utf8_name) {
         jsize length=(*env)->GetArrayLength(env,utf8_name);
@@ -291,7 +291,7 @@ Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env,
     const char *address = (*env)->GetStringUTFChars(env, network_address, NULL);
     if (!address) { (*env)->ReleaseStringUTFChars(env, identity, id); return 0; }
     jlong result = create_receiver(env, key_path, callback, id, address, prefix,
-                                   utf8_name ? name : NULL, requested_port);
+                                   utf8_name ? name : NULL, requested_port,width,height,fps);
     (*env)->ReleaseStringUTFChars(env, network_address, address);
     (*env)->ReleaseStringUTFChars(env, identity, id);
     return result;
@@ -375,7 +375,7 @@ static void *replay_audio_on_worker(void *context) {
 
 JNIEXPORT jboolean JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverAudio(JNIEnv *env, jclass type, jlong handle,
-        jobject input, jint length, jint codec, jint spf, jlong time_ns, jfloat volume, jboolean flush) {
+        jobject input, jint length, jint codec, jint spf, jlong time_ns, jfloat volume, jboolean flush,jboolean native_thread) {
     receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
     unsigned char *bytes = (*env)->GetDirectBufferAddress(env, input);
     jlong capacity = (*env)->GetDirectBufferCapacity(env, input);
@@ -383,6 +383,9 @@ Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverAudio(JNIEnv *env, j
         time_ns < 0 || codec < 0 || codec > 255 || spf < 0 || spf > 65535) return JNI_FALSE;
     audio_replay_t replay = {.probe=probe, .packet={.data=bytes, .ct=(unsigned char)codec,
         .data_len=length, .ntp_time_local=(uint64_t)time_ns}, .spf=(unsigned short)spf, .volume=volume, .flush=flush};
+    // The timed fixture uses its existing managed sender thread. The separate
+    // callback/format/flush tests retain the native-created worker and VM attach.
+    if (!native_thread) { replay_audio_on_worker(&replay); return JNI_TRUE; }
     pthread_t worker;
     if (pthread_create(&worker, NULL, replay_audio_on_worker, &replay) != 0) return JNI_FALSE;
     pthread_join(worker, NULL);

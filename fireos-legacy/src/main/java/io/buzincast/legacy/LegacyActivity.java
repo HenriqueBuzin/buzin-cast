@@ -212,6 +212,20 @@ public final class LegacyActivity extends Activity {
     }
     private void settings() {
         LinearLayout body=page(R.string.tab_settings);
+        addSpaced(body,text(this,getString(R.string.setting_streaming_profile),18,WHITE,true),-2);
+        addSpaced(body,text(this,getString(R.string.setting_streaming_profile_desc),12,MUTED,false),-2);
+        LinearLayout profiles=new LinearLayout(this);
+        int[] labels={R.string.setting_profile_default,R.string.setting_profile_cinema,R.string.setting_profile_presentation,R.string.setting_profile_games};
+        for(int i=0;i<labels.length;i++) {
+            final String key=LegacyProfiles.KEYS[i];
+            Button choice=button(this,labels[i],false,()-> {
+                try {prefs.profile(key);restart();}catch(IllegalArgumentException | IllegalStateException unavailable) {
+                    Toast.makeText(this,R.string.setting_profile_unavailable,Toast.LENGTH_LONG).show();
+                }
+            });choice.setTag("profile-"+i);choice.setSelected(prefs.profile().equals(key));
+            LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(this,50),1);size.setMargins(0,0,dp(this,8),0);profiles.addView(choice,size);
+        }
+        addSpaced(body,profiles,-2);
         LinearLayout name=row(this,getString(R.string.setting_server_name),prefs.name(),()->edit(false));name.setTag("server-name");addSpaced(body,name,-2);
         LinearLayout port=row(this,getString(R.string.setting_server_port),String.valueOf(prefs.port()),()->edit(true));port.setTag("server-port");addSpaced(body,port,-2);
         toggle(body,R.string.setting_auto_start,R.string.setting_auto_start_desc,"auto_start",prefs.autoStart());

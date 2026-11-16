@@ -16,6 +16,7 @@ from PIL import Image
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--adb',default='adb')
+    parser.add_argument('--adb-server-port',type=int,default=5037,help='ADB server port; isolate concurrent emulator runs when needed.')
     parser.add_argument('--serial',required=True)
     parser.add_argument('--apk',type=Path,required=True)
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
@@ -23,6 +24,7 @@ def main():
     parser.add_argument('--locales',nargs='+',help='Omit to capture every app locale.')
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-ui-checks'))
     args=parser.parse_args()
+    if not 1 <= args.adb_server_port <= 65535: parser.error('Invalid ADB server port.')
     if not args.serial.startswith('emulator-'): parser.error('Only an isolated emulator is accepted.')
     root=Path(__file__).resolve().parents[1]
     resources=root/'app/src/main/res'
@@ -37,7 +39,7 @@ def main():
     forwards=[]
 
     def adb(*command):
-        return subprocess.check_output([args.adb,'-s',args.serial,*map(str,command)],timeout=60).decode('utf-8','replace')
+        return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=60).decode('utf-8','replace')
 
     def labels(locale):
         result={}
@@ -247,7 +249,8 @@ def main():
             with Image.open(picture) as dimensions: direction=21 if (x1+x2)/2>dimensions.width/2 else 22
             adb('shell','input','keyevent',direction)
             tree=ui()
-            focused=[n for n in tree.iter() if n.get('focused')=='true' and n.get('clickable')=='true' and n.get('selected')!='true']
+            focused=[n for n in tree.iter() if n.get('focused')=='true' and n.get('clickable')=='true' and
+                     n.get('text') not in {strings['tab_overview'],strings['tab_tools'],strings['tab_settings'],strings['tab_logs']}]
             if len(focused)!=1:raise AssertionError('D-pad did not move focus into settings content')
             capture(args.output/(locale+'-settings.png'))
             if index==0:
@@ -264,6 +267,24 @@ def main():
                     tap(strings[field]);adb('shell','input','text',value);tap(strings['tv_edit_save'])
                     tap(strings['tab_overview']);expect(strings['buzin_ready'],'Buzin Cast');tap(strings['tab_settings'])
                 report['native_configuration_restart']='pass'
+                for label,key,automatic,cushion,step in [
+                    ('setting_profile_cinema','Cinema',True,80,4),
+                    ('setting_profile_presentation','Apresentação',True,80,2),
+                    ('setting_profile_games','Jogos',False,25,2),
+                    ('setting_profile_default','Padrão',True,40,3)]:
+                    print('Checking profile '+key,flush=True)
+                    tap(strings[label]);tap(strings['tab_overview']);expect(strings['buzin_ready'])
+                    display=rtsp(7000)['displays'][0]
+                    if (display['width'],display['height'],display['maxFPS'])!=(1280,720,30):
+                        raise AssertionError('Emulator profile invented an unsupported mode')
+                    prefs=ET.fromstring(adb('shell','run-as',args.package,'cat','shared_prefs/settings.xml'))
+                    values={node.get('name'):node.get('value') if node.tag!='string' else node.text for node in prefs}
+                    if (values.get('experience_profile'),values.get('audio_auto_buffer'),values.get('audio_cushion_ms'),values.get('audio_adaptive_step'))!=(key,str(automatic).lower(),str(cushion),str(step)):
+                        raise AssertionError('Profile media preferences were not applied atomically')
+                    tap(strings['tab_settings']);tree=expect(strings[label])
+                    chosen=[n for n in tree.iter() if n.get('text')==strings[label] and n.get('selected')=='true']
+                    if len(chosen)!=1:raise AssertionError('Profile selection lost its persistent state')
+                report['profiles_preferences_restart_native_dimensions']='pass'
             calibrate(strings,locale,index==0)
             tap(strings['tab_overview']);expect(strings['buzin_ready']);tap(strings['btn_stop']);expect(strings['btn_start'],strings['buzin_stopped'])
             if index==0:rtsp(7000,False)

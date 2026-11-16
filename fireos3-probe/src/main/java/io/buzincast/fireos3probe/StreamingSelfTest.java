@@ -35,7 +35,7 @@ final class StreamingSelfTest {
             @Override public void ready(String name) {}
             @Override public void failed(Exception error) {}
             @Override public void stopped() {}
-        }, true);
+        }, true,new ReceiverOptions("Buzin Cast API17 Stream",17002,1280,720,30,false,25,90));
         session.start();
         int port = 0;
         try {
@@ -171,6 +171,7 @@ final class StreamingSelfTest {
                 if (session.failure != null) throw session.failure;
                 Thread.sleep(20);
             }
+            if(Math.abs(session.audioPlayer.tunedCushionMs-25)>1)throw new IOException("Receiver ignored the configured audio cushion");
             if (session.audioPlayer.playEvents <= baseline || session.audioPlayer.decodedSamples <= 0 ||
                     session.senderVolume() != -12 || session.audioPlayer.playedFrames == 0)
                 throw new IOException("Native receiver audio did not play: " + codec + "/" + spf);
@@ -238,48 +239,97 @@ final class StreamingSelfTest {
         if (session.videoPlayer.renderedFrames == initial) throw new IOException("H.264 clock test decoder did not warm up");
         JSONObject fixture = AudioSelfTest.fixtures(context).getJSONObject(0);
         byte[] packet = Base64.decode(fixture.getJSONArray("packets").getString(0), Base64.DEFAULT);
-        long pts = System.currentTimeMillis()*1000000L;
-        // Bounded bursts build about a second of timestamped PCM without flooding
-        // the network handoff. No wall-clock comparison is used by the renderer.
-        for (int i=0;i<150;i++) {
-            session.replayAudio(packet,2,i==0?352:0,pts,-12,i==0);
-            pts += 352*1000000000L/44100;
-            if (i%4==3) Thread.sleep(5);
-        }
-        long deadline=SystemClock.elapsedRealtime()+3000;
-        while (session.playbackClock.positionNs(System.nanoTime()) == AudioPlaybackClock.UNKNOWN &&
-                SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
-        long audio=session.playbackClock.positionNs(System.nanoTime());
-        if (audio == AudioPlaybackClock.UNKNOWN) throw new IOException("Live PCM has no playback clock");
-        int waited=session.videoPlayer.waitedFrames, rendered=session.videoPlayer.renderedFrames;
-        long target=audio+150000000L;
-        for (int i=0;i<3;i++) session.replay(video,target+i*1000000L);
-        deadline=SystemClock.elapsedRealtime()+2000;
-        while ((session.videoPlayer.waitedFrames<=waited || session.videoPlayer.lastRenderedPtsNs<target) &&
-                SystemClock.elapsedRealtime()<deadline) {
-            if (session.failure != null) throw session.failure;
-            Thread.sleep(5);
-        }
-        if (session.videoPlayer.waitedFrames<=waited || session.videoPlayer.renderedFrames<=rendered || session.videoPlayer.lastRenderedPtsNs<target ||
-                session.videoPlayer.lastRenderDelayNs == AudioPlaybackClock.UNKNOWN || Math.abs(session.videoPlayer.lastRenderDelayNs)>25000000L)
-            throw new IOException("Ahead-of-audio video was not synchronized: waited="+session.videoPlayer.waitedFrames+
-                    ", rendered="+session.videoPlayer.renderedFrames+", dropped="+session.videoPlayer.droppedFrames+
-                    ", queued="+session.videoPlayer.queuedFrames+", outputs="+session.videoPlayer.outputFrames+
-                    ", delay="+session.videoPlayer.lastDelayNs+", clock="+session.playbackClock.positionNs(System.nanoTime()));
-        int dropped=session.videoPlayer.droppedFrames;
-        audio=session.playbackClock.positionNs(System.nanoTime());
-        if (audio == AudioPlaybackClock.UNKNOWN) throw new IOException("Audio clock expired before late-frame test");
-        for (int i=0;i<3;i++) session.replay(video,audio-500000000L+i*1000000L);
-        deadline=SystemClock.elapsedRealtime()+2000;
-        while (session.videoPlayer.droppedFrames == dropped && SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
-        if (session.videoPlayer.droppedFrames<=dropped) throw new IOException("Late video was not dropped");
+        // Keep timestamped PCM arriving throughout the scheduling measurement.
+        // A finite accelerated burst can finish during decoder scheduling, where
+        // the receiver intentionally switches to video-only on an unknown clock.
+        int played=session.audioPlayer.playEvents;
+        try (PacedAudio feed=new PacedAudio(session,packet)) {
+            long deadline=SystemClock.elapsedRealtime()+3000;
+            while ((session.playbackClock.positionNs(System.nanoTime()) == AudioPlaybackClock.UNKNOWN || session.audioPlayer.playEvents<=played) &&
+                    SystemClock.elapsedRealtime()<deadline) { feed.check();if(session.failure!=null)throw session.failure;Thread.sleep(5); }
+            long audio=session.playbackClock.positionNs(System.nanoTime());
+            if (audio == AudioPlaybackClock.UNKNOWN || session.audioPlayer.playEvents<=played) throw new IOException("Live PCM has no active playback clock: "+
+                session.playbackClock.describe(System.nanoTime())+", sent="+feed.sent+", active="+session.audioPlayer.outputActive+
+                ", decoded="+session.audioPlayer.decodedSamples+", written="+session.audioPlayer.writtenFrames+", played="+session.audioPlayer.playedFrames+
+                ", events="+session.audioPlayer.playEvents+"/"+played);
+            int waited=session.videoPlayer.waitedFrames, rendered=session.videoPlayer.renderedFrames;
+            long target=audio+150000000L;
+            for (int i=0;i<3;i++) session.replay(video,target+i*1000000L);
+            deadline=SystemClock.elapsedRealtime()+2000;
+            while ((session.videoPlayer.waitedFrames<=waited || session.videoPlayer.lastRenderedPtsNs<target) &&
+                    SystemClock.elapsedRealtime()<deadline) {
+                feed.check();
+                if (session.failure != null) throw session.failure;
+                Thread.sleep(5);
+            }
+            feed.check();
+            if (session.videoPlayer.waitedFrames<=waited || session.videoPlayer.renderedFrames<=rendered || session.videoPlayer.lastRenderedPtsNs<target ||
+                    session.videoPlayer.lastRenderDelayNs == AudioPlaybackClock.UNKNOWN || Math.abs(session.videoPlayer.lastRenderDelayNs)>25000000L)
+                throw new IOException("Ahead-of-audio video was not synchronized: waited="+session.videoPlayer.waitedFrames+
+                        ", rendered="+session.videoPlayer.renderedFrames+", dropped="+session.videoPlayer.droppedFrames+
+                        ", queued="+session.videoPlayer.queuedFrames+", outputs="+session.videoPlayer.outputFrames+
+                        ", delay="+session.videoPlayer.lastDelayNs+", clock="+session.playbackClock.positionNs(System.nanoTime())+
+                        ", "+session.playbackClock.describe(System.nanoTime())+", sent="+feed.sent+
+                        ", audioRunning="+session.audioPlayer.running+", output="+session.audioPlayer.outputActive+
+                        ", written="+session.audioPlayer.writtenFrames+", played="+session.audioPlayer.playedFrames+
+                        ", queueMs="+session.videoPlayer.lastQueueDelayNs/1000000+
+                        ", decodeMs="+session.videoPlayer.lastDecodeDelayNs/1000000+", target="+target);
+            int dropped=session.videoPlayer.droppedFrames;
+            audio=session.playbackClock.positionNs(System.nanoTime());
+            if (audio == AudioPlaybackClock.UNKNOWN) throw new IOException("Audio clock expired before late-frame test");
+            for (int i=0;i<3;i++) session.replay(video,audio-500000000L+i*1000000L);
+            deadline=SystemClock.elapsedRealtime()+2000;
+            while (session.videoPlayer.droppedFrames == dropped && SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
+            if (session.videoPlayer.droppedFrames<=dropped) throw new IOException("Late video was not dropped");
+        } // Join the sender before testing flush: no new packet may re-prime it.
         long beforeFlush=session.playbackClock.generation();
         session.replayAudio(new byte[0],2,0,0,-144,true);
-        deadline=SystemClock.elapsedRealtime()+200;
+        long deadline=SystemClock.elapsedRealtime()+200;
         while (session.playbackClock.generation() == beforeFlush &&
                 SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
         if (session.playbackClock.generation() == beforeFlush || session.playbackClock.positionNs(System.nanoTime()) != AudioPlaybackClock.UNKNOWN)
             throw new IOException("Flush preserved the old audio clock");
+    }
+
+    /** Real-time four-packet bursts; bounded handoff, no catch-up flood after host stalls. */
+    private static final class PacedAudio implements java.io.Closeable {
+        private volatile boolean closed;
+        private volatile Exception failure;
+        volatile int sent;
+        private final Thread producer;
+        PacedAudio(LegacyReceiverSession session,byte[] packet) {
+            producer=new Thread(()-> {
+                long pts=System.currentTimeMillis()*1000000L;
+                long duration=352L*1000000000L/44100, due=System.nanoTime();
+                boolean first=true;
+                try {
+                    while(!closed) {
+                        for(int i=0;i<4 && !closed;i++) {
+                            // Avoid creating/attaching a pthread for every 8 ms
+                            // packet in the timed source. Native-thread callbacks
+                            // are exercised separately by replayAudio above.
+                            session.replayAudio(packet,2,first?352:0,pts,-12,first,false);
+                            sent++;
+                            first=false;pts+=duration;
+                        }
+                        due+=duration*4;
+                        long remaining=due-System.nanoTime();
+                        if(remaining>0)Thread.sleep(remaining/1000000L,(int)(remaining%1000000L));
+                        else if(remaining < -duration*4)due=System.nanoTime();
+                    }
+                } catch(InterruptedException stopped) { if(!closed)failure=stopped; }
+                catch(Exception error) { failure=error; }
+            },"paced-synthetic-audio");
+            producer.start();
+        }
+        @Override public void close() throws IOException {
+            closed=true;producer.interrupt();
+            try { producer.join(1000); }
+            catch(InterruptedException interrupted) { Thread.currentThread().interrupt();throw new IOException("Sender cleanup interrupted",interrupted); }
+            if(producer.isAlive())throw new IOException("Synthetic audio sender did not stop");
+            if(failure!=null)throw new IOException("Synthetic audio sender failed",failure);
+        }
+        void check() throws IOException { if(failure!=null)throw new IOException("Synthetic audio sender failed: "+failure,failure); }
     }
 
     private static byte[] firstVideoPacket(Context context) throws IOException {

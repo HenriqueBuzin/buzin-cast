@@ -8,8 +8,11 @@ final class LegacyAudioDecoder implements Closeable {
     private long handle;
 
     LegacyAudioDecoder(int codec, int samplesPerFrame) throws IOException {
+        this(codec,samplesPerFrame,20,95);
+    }
+    LegacyAudioDecoder(int codec,int samplesPerFrame,int cushionMs,int percentile) throws IOException {
         System.loadLibrary("fireos3_probe");
-        handle = create(codec, samplesPerFrame);
+        handle = create(codec, samplesPerFrame,cushionMs,percentile);
         if (handle == 0) throw new IOException("Unsupported legacy audio format: " + codec + "/" + samplesPerFrame);
     }
 
@@ -23,14 +26,14 @@ final class LegacyAudioDecoder implements Closeable {
         return count;
     }
 
-    synchronized long[] stats() { return handle == 0 ? new long[]{0, 0} : statistics(handle); }
+    synchronized long[] stats() { return handle == 0 ? new long[]{0, 0, 0} : statistics(handle); }
     synchronized long[] timing() { return handle == 0 ? new long[0] : readTiming(handle); }
 
     @Override public synchronized void close() {
         if (handle != 0) { destroy(handle); handle = 0; }
     }
 
-    private static native long create(int codec, int samplesPerFrame);
+    private static native long create(int codec, int samplesPerFrame,int cushionMs,int percentile);
     private static native boolean decodePacket(long handle, byte[] packet, long ptsNs);
     private static native int readPcm(long handle, short[] output, int frames);
     private static native long[] statistics(long handle);

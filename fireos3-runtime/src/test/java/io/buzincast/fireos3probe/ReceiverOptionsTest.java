@@ -4,6 +4,14 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ReceiverOptionsTest {
+    @Test public void validatesMediaBoundsBeforeCrossingJni() {
+        ReceiverOptions config=new ReceiverOptions("TV",7000,1920,1080,30,false,0,99);
+        assertEquals(1920,config.width);assertEquals(0,config.cushionMs);assertEquals(99,config.percentile);
+        assertThrows(IllegalArgumentException.class,()->new ReceiverOptions("TV",7000,0,720,30,false,20,95));
+        assertThrows(IllegalArgumentException.class,()->new ReceiverOptions("TV",7000,1280,720,0,false,20,95));
+        assertThrows(IllegalArgumentException.class,()->new ReceiverOptions("TV",7000,1280,720,30,false,-1,95));
+        assertThrows(IllegalArgumentException.class,()->new ReceiverOptions("TV",7000,1280,720,30,false,20,101));
+    }
     @Test public void rejectsBlankAndControlCharacters() {
         assertFalse(ReceiverOptions.validName("")); assertFalse(ReceiverOptions.validName("\u2003"));
         assertFalse(ReceiverOptions.validName("TV\nRoom")); assertFalse(ReceiverOptions.validName(null));

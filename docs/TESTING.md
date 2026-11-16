@@ -22,6 +22,70 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Perfis no alvo API17:** `LegacyProfiles` usa `QualityProfiles` do
+  `receiver-core`, com as mesmas chaves persistidas e os mesmos percentis
+  adaptativos do frontend moderno. Uma edição atômica das preferências
+  provoca um reinício da sessão. Resolução/FPS chegam ao plist nativo;
+  buffer automático usa `TimelineBuffer` adaptativo (cushion 0), enquanto
+  Jogos usa 25 ms fixos. O player passa esses valores ao decoder e mede o
+  cushion realmente usado pelo buffer. A opção de codec `low-latency` só
+  é enviada a partir da API30 e quando a consulta do codec informa suporte.
+  Em API21+, os modos vêm de `MediaCodecList`/VideoCapabilities. Antes disso,
+  o AFTM/Amazon usa os modos AVC documentados pela Amazon: 1080p/30 e
+  720p/30/60. A [ficha de hardware oficial](https://developer.amazon.com/docs/device-specs/device-specifications-fire-tv-streaming-media-player.html?v=ftvstickgen1)
+  não substitui validação do firmware original nem mede desempenho real.
+  No emulador API17 debug, a capacidade de teste é 720p/30; modelos antigos
+  desconhecidos não recebem modos de perfil inventados. Padrão preserva a
+  configuração de base 720p/30 quando não há capacidades conhecidas.
+  O autoteste de áudio agora decodifica os quatro formatos com buffers
+  20 ms, 25 ms e adaptativo, confere o cushion nativo e exige PCM não nulo.
+  A bateria do receptor usa 25 ms também no player real e verifica a medida.
+  O modo persistente separado anuncia 1080p/30 na porta de teste 17001;
+  o script consulta `/info` para verificar a passagem da configuração pelo
+  JNI. A verificação de 1080p/30 cobre metadados; a mídia decodificada
+  continua sintética e pequena, sem medição de desempenho 1080p/60 físico.
+  A rodada final passou em dois ciclos completos em
+  `outputs/legacy-profiles-final-verified/report.json`: anúncio alternado
+  1080p/30 e 720p/60, áudio real com 25 ms, espera/descarte de vídeo,
+  flush e recuperação de áudio após inatividade. São metadados de modos;
+  os quadros H.264 da fixture continuam pequenos, sem comprovar desempenho
+  físico dessas resoluções.
+  O teste revelou que reler um contador AudioTrack antigo sem avanço
+  reiniciava a extrapolação. O relógio agora mantém a referência até o
+  contador mudar, limita a previsão ao PCM aceito e considera obsoleto um
+  contador estacionário após 250 ms. Uma lacuna curta de metadados aguarda
+  até 100 ms antes de abandonar a sincronização; vídeo sem áudio e flush
+  explícito continuam imediatos. Os limites de descarte e de tolerância
+  A/V do teste não foram relaxados. A fila de vídeo comporta 16 quadros,
+  suficiente para 250 ms a 60 fps, mantendo o limite independente de 4 MiB.
+  A fonte sintética passou a enviar áudio no tempo real por uma thread Java
+  existente, sem criar uma pthread a cada pacote; os testes separados de
+  callbacks em thread nativa continuam ativos. Isso não altera a anexação
+  JNI dos callbacks de rede reais nem substitui teste com emissor físico.
+  Tentativas anteriores com falhas de sincronização e interrupção do ADB
+  foram preservadas em `outputs/legacy-profiles-*`, incluindo
+  `runtime-verified`, `paced-verified` e `clock-diagnostic`; não são evidência
+  de aprovação. A rodada final acima foi feita após as correções.
+  A interface passou em inglês/português/árabe em
+  `outputs/legacy-profiles-ui-verified`: quatro perfis, preferências,
+  reinício, seleção persistente, `/info` e calibração/edição de nome/porta.
+  A regional passou em alemão em
+  `outputs/legacy-profiles-regional-ui-verified`. Passaram 41 testes do alvo
+  antigo (37 runtime, um probe, três frontend), 34 do núcleo e 181 do domínio
+  compartilhado na verificação; builds ARMv7/x86 e lint das duas edições
+  também passaram. [Captura real dos perfis](images/fireos3-native-profiles.png).
+  Após o último build, o APK geral repetiu o cenário completo em português
+  e passou em `outputs/legacy-profiles-packaged-normal-private-retry`.
+  O capturador ganhou `--adb-server-port` para isolar o servidor dos demais
+  testes; a primeira tentativa no servidor separado também sofreu uma
+  interrupção de transporte e está preservada como `packaged-normal-private`.
+  A repetição passou sem reiniciar o emulador, com limpeza da instalação.
+  O APK regional final passou no mesmo roteiro em alemão em
+  `outputs/legacy-profiles-packaged-regional-private`. Os dois relatórios
+  confirmam desinstalação; nenhuma TV física foi controlada.
+
+
+
 - **Calibração nativa API17:** a prévia agora depende do mesmo `DisplayFit`
   de `dlna-domain` usado no app moderno. A geometria da calibração e o ajuste
   da TextureView usam esse cálculo comum, incluindo proporção, centralização

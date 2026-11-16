@@ -29,10 +29,11 @@ final class AudioSelfTest {
     }
     private static void checkFixtures(JSONArray fixtures) throws Exception {
         if (fixtures.length() != 4) throw new IOException("Missing legacy audio fixtures");
-        for (int i = 0; i < fixtures.length(); i++) {
+        for (int cushion : new int[]{20,25,0}) for (int i = 0; i < fixtures.length(); i++) {
             JSONObject fixture = fixtures.getJSONObject(i);
             int ct = fixture.getInt("codec"), spf = fixture.getInt("samplesPerFrame");
-            try (LegacyAudioDecoder decoder = new LegacyAudioDecoder(ct, spf)) {
+            try (LegacyAudioDecoder decoder = new LegacyAudioDecoder(ct, spf,cushion,cushion==0?99:cushion==20?95:90)) {
+                if(Math.abs(decoder.stats()[2]-cushion)>1)throw new IOException("Native cushion policy was not applied");
                 JSONArray packets = fixture.getJSONArray("packets");
                 long pts = System.nanoTime();
                 for (int p = 0; p < packets.length(); p++) {

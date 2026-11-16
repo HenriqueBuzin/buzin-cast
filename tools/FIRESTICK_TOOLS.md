@@ -102,6 +102,17 @@ confere limites de 0–10%, mudança real das quatro pontas por pixels,
 Salvar/Cancelar/Voltar por toque e controle, preferências em disco e uma
 mesma conexão RTSP antes/durante/depois do ajuste. Desbloqueia o emulador
 API17 recém-iniciado antes de abrir o app.
+No primeiro idioma também percorre os quatro perfis, confere a seleção
+persistente, as preferências atômicas de áudio, o reinício e os modos
+anunciados em `/info`. `test_fireos3_probe.py` testa configurações nativas
+não padrão e os buffers FFmpeg fixo/adaptativo, mantendo os pacotes sintéticos
+e AudioTrack silenciado. O teste não mede 1080p/60 numa TV física.
+Os dois scripts aceitam `--adb-server-port` (padrão 5037), para usar um
+servidor ADB separado durante testes concorrentes. A criação e o encerramento
+desse servidor ficam a cargo de quem executa; o script não reinicia o ADB
+global nem encerra outros emuladores. O número da porta não altera a recusa
+de aparelhos físicos ou os IDs permitidos.
+
 
 O teste percorre os APKs locais em `outputs`, abre início/configurações/Sobre,
 espera as animações e mede a estabilidade dos quadros. Mostra o foco do
