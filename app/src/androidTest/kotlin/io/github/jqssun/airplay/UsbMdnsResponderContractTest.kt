@@ -248,4 +248,20 @@ class UsbMdnsResponderContractTest {
         assertFalse("Stopping discovery left a running worker", worker.isAlive)
         fixture.advertiser.stop()
     }
+
+    @Test fun truncatedProbeDoesNotWithdrawAnActiveResponder() {
+        val socket = CapturedSocket(); val fixture = fixture(socket)
+        fixture.state("ACTIVE")
+        val question = query(instance to 33, authority = 1)
+        val shortRecord = bytes { name(instance); write(ByteArray(9)) }
+        val missingPayload = bytes {
+            name(instance); writeShort(33); writeShort(1); writeInt(120); writeShort(100); writeByte(0)
+        }
+        for (packet in listOf(question, question.dropLast(3).toByteArray(), question + shortRecord,
+            question + missingPayload, question + byteArrayOf(192.toByte()))) {
+            fixture.packet(packet)
+            assertEquals("Malformed DNS probe withdrew the active service", "ACTIVE", fixture.state())
+            assertTrue("Malformed probe emitted goodbye records", socket.sent.isEmpty())
+        }
+    }
 }

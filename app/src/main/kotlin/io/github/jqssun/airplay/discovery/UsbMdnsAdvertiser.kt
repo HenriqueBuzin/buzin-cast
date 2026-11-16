@@ -179,8 +179,11 @@ class UsbMdnsAdvertiser(
         val data = packet.data.copyOf(packet.length)
         if ((_rd16(data, 2) and 0x8000) == 0) {
             // a probe for our names means another responder is about to claim them
-            if (_probes(data)) _foreignSeen(l)
-            else if (state == State.ACTIVE) _answer(l, InetSocketAddress(src, packet.port), data)
+            when (_probes(data)) {
+                true -> _foreignSeen(l)
+                false -> if (state == State.ACTIVE) _answer(l, InetSocketAddress(src, packet.port), data)
+                null -> {} // malformed probe: do not withdraw or answer it
+            }
             return
         }
         // rfc 6762 6 responses not sent from 5353 ignored
@@ -208,15 +211,25 @@ class UsbMdnsAdvertiser(
     }
 
     // rfc 6762 8.1
-    private fun _probes(d: ByteArray): Boolean {
+    private fun _probes(d: ByteArray): Boolean? {
         if (_rd16(d, 8) == 0) return false
         var pos = 12
+        var matches = false
         repeat(_rd16(d, 4)) {
-            val (name, next) = _readName(d, pos) ?: return false
-            if (services.any { _eq(name, _instance(it)) }) return true
+            val (name, next) = _readName(d, pos) ?: return null
+            if (next + 4 > d.size) return null
+            if (services.any { _eq(name, _instance(it)) }) matches = true
             pos = next + 4
         }
-        return false
+        // A declared authority count is insufficient: require complete records
+        // before letting a malformed probe withdraw an active advertisement.
+        repeat(_rd16(d, 6) + _rd16(d, 8) + _rd16(d, 10)) {
+            val next = (_readName(d, pos) ?: return null).second
+            if (next + 10 > d.size) return null
+            pos = next + 10 + _rd16(d, next + 8)
+            if (pos > d.size) return null
+        }
+        return matches
     }
 
     // true: live, false: goodbye, null: none

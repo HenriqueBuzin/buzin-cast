@@ -147,6 +147,12 @@ foreign responders and goodbye records. Deterministic timestamps exercise probe,
 announcement and retry intervals without waiting for real time to pass. A
 separate emulator-only lifecycle case checks that idle discovery stops its worker.
 
+Malformed-probe regression cases declare authority records but truncate the
+question, record header, payload or compressed name. The responder validates
+their framing before acting: malformed probes neither withdraw an active service
+nor emit answers. Valid foreign probes and ordinary discovery queries retain
+their existing behavior.
+
 The native unit suite also supplies controlled JNI function tables to the real
 log sink. It checks VM-query and thread-attachment failures, reference ownership,
 class/method lookup errors, string-allocation failures and throwing callbacks.
