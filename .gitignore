@@ -18,6 +18,7 @@
 __pycache__/
 .kotlin/
 /outputs/
+/tools/firesticks.local.json
 
 /app/build-legacy/
 /app/build-legacy-nodownload/

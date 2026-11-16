@@ -2,14 +2,15 @@
 
 ## Fichas Amazon, traduções e artefatos atuais
 
-- Geral: enviada à Amazon em 15/nov/2026, status `SUBMITTED`, versão
+- Geral: envio de 15/nov/2026 retirado para corrigir as capturas; rascunho
+  em edição de mídia, versão
   0.6.6 (principal código 42; compatível código 40),
   com sueco. Release `amzn1.devportal.apprelease.5f0aca6e049d405994dee3ab957a1512`.
   A versão 0.6.4 continua publicada até aprovação da atualização.
 - DE/AT: mantém os APKs 0.6.5-nodownload (39) e
   0.6.5-compat-nodownload (38), com a chave pública da ficha regional.
-  A submissão foi retirada da análise para corrigir as imagens e reenviada
-  em 15/nov/2026; status `SUBMITTED` confirmado. Ficha em alemão e inglês US obrigatório, sem adicionar
+  A submissão foi reenviada em 15/nov/2026 e retirada novamente para corrigir
+  as capturas. Ficha em alemão e inglês US obrigatório, sem adicionar
   sueco à descrição regional.
 - Cobertura configurada no console: 232 países/territórios no geral,
   excluindo Alemanha e Áustria; os dois países somente na edição regional.
@@ -27,9 +28,12 @@
   `store/amazon/images/screenshots/deat`. Início, configurações e Sobre,
   sem Diagnóstico visível. O conjunto sueco é validação adicional local;
   não há localização sueca de imagens no console. Logos aprovadas preservadas.
-- Apenas o Stick do quarto foi usado. APK de produção 0.6.6 reinstalado
-  depois das capturas; usuário retomou o uso da TV. Não voltar a controlá-la
-  sem coordenar com Henrique. Outras TVs não foram alteradas.
+- Quarto: execução automática concluída, com 54 capturas (36 de idiomas do
+  geral, seis regionais e 12 das quatro variantes finais). Produção 0.6.6
+  reinstalada e usuário retomou a TV. Cozinha: uso autorizado posteriormente
+  para refazer seis capturas regionais com identificação 0.6.5; auxiliar
+  removido e instalação principal preservada. As duas TVs estão liberadas;
+  não voltar a controlá-las sem coordenar com Henrique. Sala não foi usada.
 - Seleção nova: sete Sticks na principal e dois na compatível, sem tablets,
   Automotive ou TVs integradas. Uma Xiaomi indevidamente selecionada na
   ficha geral anterior foi retirada da próxima versão. Não criar regras
@@ -40,25 +44,42 @@
   classes Amazon conferidos; código temporário de captura ausente nos
   binários finais. A validação de licença pela Appstore continua dependendo
   da instalação oficial/LAT e da análise da Amazon.
-- Envios concluídos após autorização explícita de Henrique para os dois
+- Os envios anteriores foram concluídos após autorização de Henrique para os dois
   aplicativos e a declaração de conformidade de exportação. Notas da
   0.6.6 completas nas 15 localizações. As duas páginas de status confirmaram
   `SUBMITTED`, com estimativa do console de 20/nov/2026 às 17:30 PST.
-  Essa estimativa não garante aprovação ou publicação; aguardar a Amazon.
+  Foram cancelados depois dessa confirmação para corrigir a mídia. As datas
+  anteriores não são o estado atual: concluir a edição e reenviar as fichas.
 - Conferência final de mídia: 13 conjuntos completos (11 geral + 2 DE/AT),
   78 posições de capturas e 52 posições de artes. Dimensões e ordem
   conferidas após reabrir as fichas. O ícone de 114 px foi alinhado em
   todos os conjuntos. As quatro artes canônicas de cada ficha foram
   exportadas do console e coincidem pixel a pixel com os arquivos locais.
   English (U.K.) foi recriado e conferido após a confirmação de remoção.
-- Algumas capturas iniciais pegaram a abertura; foram refeitas esperando
-  as mensagens traduzidas de receptor pronto e Sobre antes de capturar.
+- A primeira revisão visual falhou: algumas capturas ainda tinham abertura
+  sobreposta ou conteúdo em transição. Agora as 42 fontes foram refeitas
+  esperando a renderização, usando foco real do controle e verificação de
+  quadros, menu completo, brilho e dimensão. Conferência visual das folhas
+  de contato concluída, sem novas falhas. O Sobre mantém foco em Fechar;
+  a borda do menu ao fundo fica para a próxima versão, junto do toque.
   As 42 capturas locais definitivas são RGB 1920×1080. As 15 descrições,
   recursos, palavras-chave e notas gerais coincidem com os JSONs do Git;
   os dois textos regionais estão em `store/amazon/deat`.
 - Limpeza no quarto: cópia temporária de captura `com.buzincast.tv.deat`
   0.6.6/código 43 removida enquanto estava inativa. Permanece instalada a
   edição principal final de produção 0.6.6/código 42.
+- Scripts públicos em `tools/FIRESTICK_TOOLS.md`: ações de ADB, capturas,
+  cache, auditoria de privacidade e etapas de mídia da Amazon pelo CUA.
+  `tools/firesticks.local.json` contém os três apelidos/IPs, é ignorado e
+  não pode ser commitado. Sem lista de idiomas, o capturador seleciona todos
+  os idiomas próprios e variantes da loja; uma lista limita as capturas.
+- Privacidade: IPs domésticos e caminhos pessoais encontrados em três
+  documentos antigos. Arquivos atuais sanitizados; buscas por padrões de
+  chaves privadas/tokens não acharam ocorrências. O PEM do app é público.
+  Cópia do histórico reescrita e validada em área ignorada. Henrique autorizou
+  expressamente atualizar também o histórico no GitHub, incluindo os dois
+  branches publicados. Aplicar após este commit e atualizar o link de política
+  regional que aponta para um commit antigo. Não usar push --mirror.
 
 ## Registro anterior — 5 de novembro de 2026
 
@@ -67,6 +88,15 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
 [VEGA_OS_VERSIONS.md](VEGA_OS_VERSIONS.md).
 
 ## Tarefas futuras registradas por Henrique
+
+- [ ] Próxima versão: revisar suporte a toque e fazer a borda de indicação
+  acompanhar também o item tocado. A revisão atual dos prints usa foco real
+  do controle: menu lateral nas telas e Fechar no Sobre. Não declarar suporte
+  adicional a dispositivos de toque antes de implementar e validar.
+  Henrique também confirmou deixar para essa próxima versão uma borda
+  persistente no item ativo do menu lateral, inclusive atrás do Sobre.
+  Atualmente o foco passa para Fechar e o item ativo ao fundo mantém somente
+  o preenchimento. Não editar artificialmente os prints para simular a borda.
 
 - [~] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
   Appstore. Não ativar DRM apenas para suprimir o aviso: definir primeiro o

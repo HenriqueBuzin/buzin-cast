@@ -26,15 +26,32 @@ Stick físicos com Fire OS. Nenhum VPKG Vega integra esta submissão.
   Sobre, sem Diagnóstico no menu. O conjunto sueco adicional valida a
   tradução dentro do app; o console não oferece uma localização sueca de
   imagens.
-  As pastas `en-US` e `en-GB` compartilham o conjunto inglês salvo no
-  console, incluindo exatamente os mesmos arquivos de captura.
+  As variantes inglesas usam a mesma tradução do app; as capturas atuais
+  são nativas, com o foco do controle no menu lateral. No Sobre, Fechar
+  recebe o foco e o menu ao fundo mantém apenas o preenchimento do item ativo.
 - `images/screenshots/deat/<localidade>`: capturas da edição regional
   0.6.5-nodownload em alemão e inglês US (padrão obrigatório do console).
-  Todas foram obtidas no Stick do quarto em 15/nov/2026 e salvas em PNG RGB
+  As capturas regionais foram refeitas no Stick da cozinha, autorizado pelo
+  usuário, em 15/nov/2026. Foram salvas em PNG RGB
   1920×1080, sem composição ou tradução artificial sobre a imagem.
 - [Política de privacidade em português e inglês](../../docs/PRIVACY.md).
 
 Para regenerar os formatos gráficos a partir das capturas originais locais:
+
+Para instalar, capturar e remover as variantes automaticamente em um Stick
+livre e autorizado via ADB, use `tools/Test-FireStick.ps1 -Fire quarto` ou
+`-Fire <IP:5555>`. O padrão `-Suite all` captura os idiomas das duas edições
+com APKs auxiliares locais e testa as quatro variantes finais compatíveis
+com a API do dispositivo. `-Suite store` executa apenas os idiomas;
+`-Suite production` testa os quatro APKs finais no idioma do sistema.
+O processo usa as setas do controle para mostrar o foco no menu e Fechar
+no Sobre, aguarda estabilização visual e rejeita imagens vazias ou sem foco.
+Os resultados e `report.json` ficam em `outputs/firestick-captures`.
+Revisão visual continua necessária antes de substituir imagens da loja.
+O padrão desinstala os dois pacotes ao terminar e apaga seus dados locais;
+`-RestoreProduction` reinstala a edição geral 0.6.6 no final. O modo store
+exige os dois `buzin-capture-*.apk` auxiliares; eles nunca devem ser enviados
+à loja. Nenhum comando desse script altera automaticamente o console Amazon.
 
 ```powershell
 powershell.exe -NoProfile -File ./tools/PrepareAmazonAssets.ps1 -CaptureDirectory '<pasta com as três capturas>'
