@@ -218,3 +218,35 @@ test('rejeição atrasada do Play antigo não derruba a nova mídia', async () =
   expect(changed).toHaveBeenLastCalledWith({state: 'loading', seconds: 1.5});
   await session.stop();
 });
+
+test('stop repetido numa sessão antiga preserva a liberação pendente da atual', async () => {
+  const first = fakePlayer();
+  const second = fakePlayer();
+  const third = fakePlayer();
+  let finishRelease!: () => void;
+  second.deinitialize.mockReturnValue(new Promise<void>((resolve) => {finishRelease = resolve;}));
+  jest.mocked(VideoPlayer)
+    .mockImplementationOnce(() => first as unknown as VideoPlayer)
+    .mockImplementationOnce(() => second as unknown as VideoPlayer)
+    .mockImplementationOnce(() => third as unknown as VideoPlayer);
+  async function open() {
+    let ready!: () => void;
+    const opened = new Promise<void>((resolve) => {ready = resolve;});
+    const session = createPlaybackSession(ready, jest.fn());
+    await opened;
+    return session;
+  }
+  const oldSession = await open();
+  await oldSession.stop();
+  const current = await open();
+  const releasing = current.stop();
+  await oldSession.stop();
+  const pending = open();
+  for (let n = 0; n < 10; ++n) {await Promise.resolve();}
+  expect(third.initialize).not.toHaveBeenCalled();
+  finishRelease();
+  await releasing;
+  const next = await pending;
+  expect(third.initialize).toHaveBeenCalledTimes(1);
+  await next.stop();
+});

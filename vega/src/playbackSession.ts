@@ -198,10 +198,7 @@ export function createPlaybackSession(
     },
     stop(): Promise<void> {
       if (closing) {
-        // Cleanup failure is reported above. The next session must still be
-      // allowed to initialize once this attempt has finished.
-      releaseBarrier = closing;
-      return closing;
+        return closing;
       }
       closed = true;
       if (timer) {

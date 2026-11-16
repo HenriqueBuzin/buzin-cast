@@ -1,5 +1,23 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Primeira recepção FCast no VVD — 16 de novembro de 2026
+
+- `tools/test_vega_fcast.py` conectou por TCP ao receptor real, negociou
+  versão 2 e completou ping/pong. O Play por URL não atingiu estado Playing
+  no prazo. Relatório local: `build/vega-fcast-runtime/result.json`.
+- Testar callbacks estáveis da superfície não resolveu; essa tentativa foi
+  removida. A causa do Play pendente ainda não está comprovada.
+- O runner agora conserva as últimas 24 observações de estado/volume, resumo
+  de pedidos HTTP da amostra e diagnóstico de reprodução nas falhas. Esses
+  dados são locais e não incluem URLs pessoais ou mídia recebida do usuário.
+- Corrigido `stop()` idempotente de sessão antiga: chamadas repetidas retornam
+  sua promessa sem substituir a barreira de liberação de outra sessão. O teste
+  de regressão segura deinitialize da segunda sessão e verifica que a terceira
+  só inicializa depois da liberação. Os 43 testes Jest passaram.
+- Próximo: repetir o FCast com os novos diagnósticos e corrigir o Play pendente,
+  antes de afirmar recepção por URL validada. Ainda faltam os demais receptores
+  e a paridade do inventário Vega.
+
 ## Multicast e smoke de reprodução recuperados — 16 de novembro de 2026
 
 - O diagnóstico identificou `IP_ADD_MEMBERSHIP` falhando com `ENODEV` (19)

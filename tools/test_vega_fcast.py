@@ -30,7 +30,7 @@ def main():
     if not args.vpkg.is_file():
         parser.error("Build the VVD architecture VPKG first")
     args.output.mkdir(parents=True, exist_ok=True)
-    history, requests = [], []
+    history, requests, observations = [], [], []
     result = {"serial": args.serial, "physicalValidation": False, "checks": {}}
 
     def run(arguments, timeout=30):
@@ -138,7 +138,11 @@ def main():
             if not 1 <= size <= 32000:
                 raise RuntimeError("Invalid receiver frame")
             packet = read_exact(size)
-            return packet[0], json.loads(packet[1:]) if size > 1 else None
+            body = json.loads(packet[1:]) if size > 1 else None
+            if packet[0] in (6, 7):
+                observations.append({"opcode": packet[0], "state": body})
+                del observations[:-24]
+            return packet[0], body
 
         def send(opcode, body=None, fragmented=False):
             payload = bytes([opcode]) + (json.dumps(body, ensure_ascii=False).encode() if body is not None else b"")
@@ -204,7 +208,12 @@ def main():
         result["passed"] = True
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as error:
-        result.update(passed=False, error=str(error))
+        result.update(passed=False, error=str(error), observations=observations,
+                      mediaRequests=requests)
+        try:
+            result["playbackDiagnostic"] = json.loads(shell("-c", COMPONENT, "cat", "/data/playback-state.json"))
+        except (RuntimeError, json.JSONDecodeError):
+            result["playbackDiagnostic"] = None
         try:
             (args.output / "receiver.log").write_text(shell("loggingctl", "log", "-v", "com.buzincast.tv"))
             shell("vlcm", "terminate-app", "--pkg-id", "com.buzincast.tv")
