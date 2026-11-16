@@ -48,9 +48,9 @@ function Invoke-AdbQuiet {
 }
 
 Write-Host "Conectando ao Fire TV selecionado..." -ForegroundColor Cyan
-& $adb connect $device | Out-Host
-if ($LASTEXITCODE -ne 0) {
-    throw "Não foi possível conectar ao Fire TV."
+if ($device.Contains(':')) {
+    & $adb connect $device | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Não foi possível conectar ao Fire TV." }
 }
 
 $version = Invoke-Adb shell dumpsys package com.buzincast.tv |
@@ -92,7 +92,7 @@ if ($Restart) {
 
     $connected = $false
     for ($attempt = 1; $attempt -le 24; $attempt++) {
-        & $adb connect $device | Out-Null
+        if ($device.Contains(':')) { & $adb connect $device | Out-Null }
         $state = "$(Invoke-AdbQuiet get-state)".Trim()
         if ($state -eq "device") {
             $connected = $true

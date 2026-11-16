@@ -39,6 +39,11 @@ de três arquivos e conferir contagem/dimensões. É carregado pelo agente em
 uma sessão autenticada no console. Cada chamada é limitada para permitir
 conferência entre etapas. Não usa APIs privadas, não armazena credenciais,
 não publica apps e não confirma declarações legais.
+Depois de importar o módulo no REPL CUA, chame
+`media.setPointFactory((x, y) => [x, y])` para construir as coordenadas no
+mesmo contexto das chamadas nativas. O helper sempre obtém uma observação
+atual antes de clicar; após mudança de rolagem/foco ele pode conferir e
+recalcular o alvo, sem reutilizar coordenadas antigas.
 
 ## Capturas e verificação de abertura
 

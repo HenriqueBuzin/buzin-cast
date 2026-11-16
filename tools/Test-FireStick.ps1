@@ -4,6 +4,7 @@ param(
     [ValidateSet('both','normal','deat')][string]$Edition = 'both',
     [Alias('Idiomas')][string[]]$Locales,
     [string]$OutputDirectory,
+    [string]$AdbPath,
     [switch]$RestoreProduction
 )
 $ErrorActionPreference = 'Stop'
@@ -22,6 +23,7 @@ if (-not $pythonForCapture) { throw 'Python com Pillow precisa estar instalado.'
 $captureArguments = @((Join-Path $PSScriptRoot 'capture_store_screenshots.py'), '--device', $Fire, '--suite', $Suite, '--edition', $Edition)
 if ($Locales) { $captureArguments += '--locales'; $captureArguments += $Locales }
 if ($OutputDirectory) { $captureArguments += @('--output', $OutputDirectory) }
+if ($AdbPath) { $captureArguments += @('--adb', $AdbPath) }
 if ($RestoreProduction) { $captureArguments += '--restore-production' }
 & $pythonForCapture @captureArguments
 exit $LASTEXITCODE

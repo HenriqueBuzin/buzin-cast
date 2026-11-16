@@ -1,16 +1,15 @@
-# Retomada — 15 de novembro de 2026
+# Retomada — 16 de novembro de 2026
 
 ## Fichas Amazon, traduções e artefatos atuais
 
-- Geral: envio de 15/nov/2026 retirado para corrigir as capturas; rascunho
-  em edição de mídia, versão
+- Geral: mídia corrigida e reenvio concluído; status `SUBMITTED`, versão
   0.6.6 (principal código 42; compatível código 40),
   com sueco. Release `amzn1.devportal.apprelease.5f0aca6e049d405994dee3ab957a1512`.
   A versão 0.6.4 continua publicada até aprovação da atualização.
 - DE/AT: mantém os APKs 0.6.5-nodownload (39) e
   0.6.5-compat-nodownload (38), com a chave pública da ficha regional.
-  A submissão foi reenviada em 15/nov/2026 e retirada novamente para corrigir
-  as capturas. Ficha em alemão e inglês US obrigatório, sem adicionar
+  Capturas corrigidas e reenvio concluído; status `SUBMITTED`.
+  Ficha em alemão e inglês US obrigatório, sem adicionar
   sueco à descrição regional.
 - Cobertura configurada no console: 232 países/territórios no geral,
   excluindo Alemanha e Áustria; os dois países somente na edição regional.
@@ -44,12 +43,14 @@
   classes Amazon conferidos; código temporário de captura ausente nos
   binários finais. A validação de licença pela Appstore continua dependendo
   da instalação oficial/LAT e da análise da Amazon.
-- Os envios anteriores foram concluídos após autorização de Henrique para os dois
-  aplicativos e a declaração de conformidade de exportação. Notas da
-  0.6.6 completas nas 15 localizações. As duas páginas de status confirmaram
-  `SUBMITTED`, com estimativa do console de 20/nov/2026 às 17:30 PST.
-  Foram cancelados depois dessa confirmação para corrigir a mídia. As datas
-  anteriores não são o estado atual: concluir a edição e reenviar as fichas.
+- Os dois reenvios foram concluídos após a correção da mídia, sob autorização
+  de Henrique. Notas da 0.6.6 completas nas 15 localizações. As duas páginas
+  confirmaram `SUBMITTED`, com estimativa de 20/nov/2026 às 20:00 PST.
+  O histórico da Amazon registra a submissão às 19:57 GMT-8 de 15/nov
+  (16/nov no Brasil). Isso confirma o envio, não aprovação/publicação.
+  Provas locais ignoradas: `outputs/amazon-normal-submitted-final.jpg` e
+  `outputs/amazon-deat-submitted-final.jpg`. DRM Yes nos quatro APKs;
+  mantidos os sete Sticks da principal e dois da compatível, sem outros tipos.
 - Conferência final de mídia: 13 conjuntos completos (11 geral + 2 DE/AT),
   78 posições de capturas e 52 posições de artes. Dimensões e ordem
   conferidas após reabrir as fichas. O ícone de 114 px foi alinhado em
@@ -84,7 +85,8 @@
   privado de recuperação em área ignorada. Não usar push --mirror. O checkout
   do Mac precisa de sincronização preservando trabalho local antes de novo
   push; não mesclar automaticamente o histórico antigo de volta.
-  Atualizar a política regional no console para o commit sanitizado acima.
+  Política regional atualizada no console para o commit sanitizado acima e
+  confirmada na revisão antes do envio.
 
 ## Registro anterior — 5 de novembro de 2026
 

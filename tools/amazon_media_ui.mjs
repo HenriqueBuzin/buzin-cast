@@ -4,11 +4,37 @@
  */
 const screenshots = 'img[alt^="screenshot"]';
 const inFlight = new Map();
+let point = (x, y) => [x, y];
+
+// Allow coordinate arrays to be constructed in the caller's CUA realm.
+export function setPointFactory(factory) {
+  if (typeof factory !== 'function') throw new Error('Provide a coordinate factory.');
+  point = factory;
+}
 
 export async function assets(tab) {
   return tab.playwright.locator(screenshots).evaluateAll(nodes => nodes.map(node => ({
     alt: node.alt, src: node.src, width: node.naturalWidth, height: node.naturalHeight,
   })));
+}
+
+export async function brands(tab) {
+  return tab.playwright.locator('img[alt="tablet_large_icon"],img[alt="tablet_small_icon"],img[alt="fire_tv_icon"],img[alt="tablet_background_image"]').evaluateAll(nodes =>
+    nodes.map(node => ({ alt: node.alt, src: node.src, width: node.naturalWidth, height: node.naturalHeight })));
+}
+
+export async function auditBrands(tab, expected) {
+  const current = await brands(tab);
+  const failures = [];
+  for (const reference of expected) {
+    const matches = current.filter(item => item.alt === reference.alt);
+    if (matches.length !== 1 || matches[0].src !== reference.src ||
+        matches[0].width !== reference.width || matches[0].height !== reference.height) {
+      failures.push(reference.alt);
+    }
+  }
+  if (current.length !== 4 || expected.length !== 4) failures.push('expected four brand assets');
+  return { pass: failures.length === 0, failures, current };
 }
 
 async function page(tab) {
@@ -45,10 +71,10 @@ async function clickDelete(tab, selector) {
     if (!position) throw new Error('Screenshot control was removed; inspect current state.');
     const rect = position.rect;
     if (rect.y >= 100 && rect.bottom <= position.height - 20 && rect.x >= 0 && rect.right <= position.width) {
-      await tab.click([Math.round(rect.x + rect.width / 2), Math.round(rect.y + rect.height / 2)]);
+      await tab.click(point(Math.round(rect.x + rect.width / 2), Math.round(rect.y + rect.height / 2)));
       return;
     }
-    await tab.scroll([Math.round(position.width * .6), Math.round(position.height * .65)], rect.y < 100 ? 'up' : 'down', .25);
+    await tab.scroll(point(Math.round(position.width * .6), Math.round(position.height * .65)), rect.y < 100 ? 'up' : 'down', .25);
     await tab.playwright.domSnapshot();
   }
   throw new Error('Could not bring screenshot control into the viewport.');
@@ -83,8 +109,17 @@ export async function removeBatch(tab, limit = 2) {
       throw new Error('Unexpected screenshot identifier; inspect the page.');
     }
     const selector = `div:has(> div > img[alt="${alt}"]) > div[style*="cursor: pointer"]`;
-    await clickDelete(tab, selector);
-    const confirmation = await tab.playwright.domSnapshot();
+    let confirmation = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await clickDelete(tab, selector);
+      confirmation = await tab.playwright.domSnapshot();
+      if (confirmation.includes('Are you sure you want to delete the image?')) break;
+      if (confirmation.includes('- dialog:') || confirmation.includes('Deleting..') || confirmation.includes('Uploading...')) {
+        throw new Error('Unexpected dialog or background operation; inspect the page.');
+      }
+      // A native activation/scroll can move the tiny control. The next attempt
+      // takes another rendered observation and fresh geometry before input.
+    }
     if (!confirmation.includes('Are you sure you want to delete the image?')) {
       throw new Error('Expected image-only confirmation was not displayed.');
     }
@@ -131,4 +166,18 @@ export async function status(tab) {
     firetv: current.filter(item => item.alt.startsWith('screenshot_')).length,
     assets: current,
   };
+}
+
+export async function waitForUpload(tab, attempts = 10) {
+  if (attempts < 1 || attempts > 10) throw new Error('Use one to ten bounded waits.');
+  const group = inFlight.get(tab.id);
+  if (!group) return status(tab);
+  const selector = group === 'tablet' ? 'img[alt^="screenshot "]' : 'img[alt^="screenshot_"]';
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      await tab.playwright.locator(selector).nth(2).waitFor({ state: 'visible', timeout: 10000 });
+      break;
+    } catch { /* Wait for the actual new image nodes, not a loading label. */ }
+  }
+  return status(tab);
 }

@@ -5,7 +5,6 @@ in outputs/. Does not build or upload application packages.
 """
 from pathlib import Path
 import argparse
-from datetime import datetime
 import json
 import io
 import re
@@ -158,7 +157,9 @@ def capture(edition, package, locales, apk=None, locale_hook=True):
         bounds = list(map(int, re.findall(r'\d+', candidates[0].get('bounds'))))
         tap((bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
         time.sleep(3)
-        if not any(str(datetime.now().year) in n.get('text', '') and 'Buzin Solutions' in n.get('text', '') for n in nodes()):
+        # Locales can render the year with non-Latin numerals. The copyright
+        # symbol and legal entity identify the visible About footer reliably.
+        if not any('©' in n.get('text', '') and 'Buzin Solutions' in n.get('text', '') for n in nodes()):
             raise RuntimeError(f'About not open: {edition}/{tag}')
         settled_shot(dest / '03-sobre.png', (450, 120, 1700, 950))
     adb('shell', 'am', 'force-stop', package)
@@ -183,12 +184,16 @@ def contact_sheets():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device', required=True, help='Local alias or ADB IP[:port]/serial')
+    parser.add_argument('--adb', type=Path, default=ADB, help='Path to the Android SDK adb executable')
     parser.add_argument('--suite', choices=['store', 'production', 'all'], default='all')
     parser.add_argument('--edition', choices=['both', 'normal', 'deat'], default='both')
     parser.add_argument('--locales', nargs='+', help='Override store languages for a quick check')
     parser.add_argument('--output', type=Path, default=OUTPUT)
     parser.add_argument('--restore-production', action='store_true')
     options = parser.parse_args()
+    ADB = options.adb.expanduser().resolve()
+    if not ADB.is_file():
+        parser.error('ADB executable not found. Provide --adb.')
     # Validate all requested languages before touching the selected device.
     if options.suite in ['store', 'all']:
         if options.edition != 'deat':
@@ -202,7 +207,8 @@ if __name__ == '__main__':
         DEVICE += ':5555'
     OUTPUT = options.output.resolve()
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    subprocess.run([str(ADB), 'connect', DEVICE], check=True, timeout=30)
+    if ':' in DEVICE:
+        subprocess.run([str(ADB), 'connect', DEVICE], check=True, timeout=30)
     api = int(adb('shell', 'getprop', 'ro.build.version.sdk').strip())
     report = {'device': DEVICE, 'api': api, 'status': 'running', 'screenshots': []}
     try:

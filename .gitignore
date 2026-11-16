@@ -11,6 +11,15 @@
 
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.key
+*.pem
+# This verification key is public and required by the Amazon SDK.
+!app/src/main/assets/AppstoreAuthenticationKey.pem
+.env
+.env.*
+!.env.example
 *.apk
 *.aab
 **/.buzin-patches.properties

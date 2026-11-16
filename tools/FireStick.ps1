@@ -17,7 +17,7 @@ if ($Action -eq 'Cache') {
     exit $LASTEXITCODE
 }
 if ($Action -eq 'Capture') {
-    $captureOptions = @{ Fire=$Fire; Suite=$Suite; Edition=$Edition; Locales=$Locales; OutputDirectory=$OutputDirectory; RestoreProduction=$RestoreProduction }
+    $captureOptions = @{ Fire=$Fire; Suite=$Suite; Edition=$Edition; Locales=$Locales; OutputDirectory=$OutputDirectory; AdbPath=$AdbPath; RestoreProduction=$RestoreProduction }
     & (Join-Path $PSScriptRoot 'Test-FireStick.ps1') @captureOptions
     exit $LASTEXITCODE
 }
@@ -41,8 +41,10 @@ function Invoke-Device {
 if ($Action -eq 'Install' -and (-not $ApkPath -or -not (Test-Path -LiteralPath $ApkPath -PathType Leaf))) {
     throw 'Informe -ApkPath apontando para um APK existente.'
 }
-& $AdbPath connect $device | Out-Host
-if ($LASTEXITCODE -ne 0) { throw 'Falha ao conectar ao aparelho selecionado.' }
+if ($device.Contains(':')) {
+    & $AdbPath connect $device | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao conectar ao aparelho selecionado.' }
+}
 switch ($Action) {
     Info {
         'Modelo: ' + ((Invoke-Device shell getprop ro.product.model) -join '').Trim()
