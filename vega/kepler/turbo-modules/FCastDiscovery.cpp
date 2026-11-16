@@ -1,4 +1,5 @@
 #include "FCastDiscovery.h"
+#include "ReceiverSettings.h"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -167,7 +168,8 @@ bool asksForFCast(const uint8_t* packet, size_t length,
 
 FCastDiscovery::~FCastDiscovery() { stop(); }
 
-void FCastDiscovery::start(uint16_t tcpPort) {
+void FCastDiscovery::start(uint16_t tcpPort, const std::string& receiverName) {
+  validateReceiverName(receiverName);
   if (worker.joinable() || active) throw std::runtime_error("FCast discovery already started");
   if (!tcpPort) throw std::invalid_argument("Invalid FCast TCP port");
   address = lanAddress();
@@ -175,7 +177,7 @@ void FCastDiscovery::start(uint16_t tcpPort) {
   std::random_device random;
   char suffix[7];
   std::snprintf(suffix, sizeof(suffix), "%06x", random() & 0xffffff);
-  serviceName = std::string("Buzin Cast-") + suffix + "._fcast._tcp.local";
+  serviceName = receiverName + "-" + suffix + "._fcast._tcp.local";
   hostName = std::string("buzincast-") + suffix + ".local";
   port = tcpPort;
 

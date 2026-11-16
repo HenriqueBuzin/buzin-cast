@@ -33,6 +33,8 @@ public:
   void aggregateMethods(com::amazon::kepler::turbomodule::MethodAggregator<KeplerTurboModule>& methodAggregator) const noexcept override;
 
   virtual std::string getReport() = 0;
+  virtual std::string getReceiverName() = 0;
+  virtual void setReceiverName(std::string name) = 0;
   virtual double startFCast() = 0;
   virtual void stopFCast() = 0;
   virtual std::string pollFCastCommand() = 0;

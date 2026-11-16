@@ -12,7 +12,7 @@ public:
   FCastDiscovery(const FCastDiscovery&) = delete;
   FCastDiscovery& operator=(const FCastDiscovery&) = delete;
 
-  void start(uint16_t tcpPort);
+  void start(uint16_t tcpPort, const std::string& receiverName = "Buzin Cast");
   void stop() noexcept;
   bool running() const noexcept { return active.load(); }
 

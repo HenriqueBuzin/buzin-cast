@@ -3,6 +3,8 @@ import {TurboModuleRegistry} from '@amazon-devices/keplerscript-turbomodule-api'
 
 export interface BuzinNetwork extends KeplerTurboModule {
   getReport: () => string;
+  getReceiverName: () => string;
+  setReceiverName: (name: string) => void;
   startFCast: () => number;
   stopFCast: () => void;
   pollFCastCommand: () => string;

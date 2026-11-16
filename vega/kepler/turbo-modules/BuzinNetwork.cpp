@@ -1,5 +1,6 @@
 #include "BuzinNetwork.h"
 #include "NetworkProbe.h"
+#include "ReceiverSettings.h"
 #include "ProtocolProbe.h"
 #include <cmath>
 #include <cstdio>
@@ -12,10 +13,12 @@
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() = default;
 BuzinNetwork::~BuzinNetwork() noexcept = default;
+std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
+void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
 double BuzinNetwork::startFCast() {
   const auto listeningPort = fcast.start();
   try {
-    discovery.start(static_cast<uint16_t>(listeningPort));
+    discovery.start(static_cast<uint16_t>(listeningPort), getReceiverName());
     return listeningPort;
   } catch (...) {
     fcast.stop();

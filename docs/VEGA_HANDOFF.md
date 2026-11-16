@@ -1,5 +1,25 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Nome persistido do receptor — 16 de novembro de 2026
+
+- A página Configurações edita o nome via Turbo Module real. O armazenamento
+  fica em `/data/receiver-name`, com validação UTF-8, limite de 48 bytes,
+  rejeição de controles/ponto/barra invertida e gravação por renomeação de
+  temporário. Arquivo ausente usa Buzin Cast; falha de escrita é visível.
+- O anúncio FCast lê o nome persistido ao iniciar e conserva o sufixo aleatório
+  para diferenciar instâncias. A troca de nome é aplicada na próxima ativação.
+- Codegen do módulo regenerado pela ferramenta oficial. Testes nativos cobrem
+  padrão, persistência, nome acentuado, entrada inválida, falha de escrita,
+  arquivo corrompido e recuperação; CI inclui o teste de armazenamento.
+- Passaram lint, TypeScript, 45 testes Jest, testes nativos de configuração e
+  pacotes DNS-SD e build/validação ABI das três arquiteturas. O FCast ARM64
+  completo passou novamente: `build/vega-settings-fcast-regression/result.json`.
+- A edição pelo teclado do Vega e a resolução do nome personalizado por um
+  emissor em LAN física ainda não foram exercitadas. Não confundir os testes
+  da tela com esse teste de interação real.
+- Próximos trabalhos continuam incluindo AirPlay áudio/vídeo, HLS/DASH, DLNA,
+  Cast V2, perfis, aprovação, legendas, biblioteca e as variantes regionais.
+
 ## Política HTTP e integração FCast — 16 de novembro de 2026
 
 - Os logs contínuos mostraram superfície criada, associação ao VideoPlayer e

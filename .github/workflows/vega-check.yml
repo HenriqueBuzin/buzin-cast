@@ -37,8 +37,13 @@ jobs:
       - name: Testar pacotes DNS-SD sem anúncios na rede
         run: |
           mkdir -p ../build/vega-native-tests
-          clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/FCastDiscoveryTest.cpp -o ../build/vega-native-tests/fcast-discovery
+          clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/FCastDiscoveryTest.cpp kepler/turbo-modules/ReceiverSettings.cpp -o ../build/vega-native-tests/fcast-discovery
           ../build/vega-native-tests/fcast-discovery
+      - name: Testar persistência do nome
+        run: |
+          mkdir -p ../build/vega-native-tests
+          clang++ -std=c++23 -Wall -Wextra -Werror -Ikepler/turbo-modules test/ReceiverSettingsTest.cpp kepler/turbo-modules/ReceiverSettings.cpp -o ../build/vega-native-tests/receiver-settings
+          ../build/vega-native-tests/receiver-settings
       - name: Conferir cópia da arte aprovada
         run: cmp src/assets/buzin_banner.png ../app/src/main/res/drawable-nodpi/buzin_banner.png
       - name: Conferir ícone aprovado

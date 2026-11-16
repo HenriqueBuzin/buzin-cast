@@ -19,6 +19,8 @@ BuzinNetworkSpec::~BuzinNetworkSpec() = default;
 
 void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& methodAggregator) const noexcept {
   methodAggregator.addMethod("getReport", &BuzinNetworkSpec::getReport);
+  methodAggregator.addMethod("getReceiverName", &BuzinNetworkSpec::getReceiverName);
+  methodAggregator.addMethod("setReceiverName", &BuzinNetworkSpec::setReceiverName);
   methodAggregator.addMethod("startFCast", &BuzinNetworkSpec::startFCast);
   methodAggregator.addMethod("stopFCast", &BuzinNetworkSpec::stopFCast);
   methodAggregator.addMethod("pollFCastCommand", &BuzinNetworkSpec::pollFCastCommand);

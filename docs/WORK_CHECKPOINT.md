@@ -1,5 +1,15 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — nome e FCast — 16 de novembro de 2026
+
+Nome do receptor editável em Configurações e persistido no sandbox; aplicado
+no próximo anúncio FCast. 45 testes Jest, testes nativos de persistência e
+DNS-SD, lint, TypeScript e builds das três ABIs passaram. Regressão FCast real
+no VVD ARM64 passou com HTTP/cabeçalhos e todos os controles do subconjunto v2.
+Edição pelo teclado Vega e descoberta personalizada na rede física ainda
+pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+
 ## Fichas Amazon, traduções e artefatos atuais
 
 - Geral: mídia corrigida e reenvio concluído; status `SUBMITTED`, versão

@@ -3,6 +3,7 @@ import Network from './turbo-modules/BuzinNetwork';
 import {getMediaReport} from './mediaCapabilities';
 import PlaybackScreen from './PlaybackScreen';
 import FCastScreen from './FCastScreen';
+import SettingsScreen from './SettingsScreen';
 import {
   BackHandler,
   Image,
@@ -14,7 +15,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const [focused, setFocused] = useState('status');
@@ -34,6 +35,10 @@ export default function App() {
     );
     return () => subscription.remove();
   }, [page]);
+
+  if (page === 'settings') {
+    return <SettingsScreen onBack={goHome} />;
+  }
 
   if (page === 'fcast') {
     return <FCastScreen onBack={goHome} />;
@@ -127,6 +132,7 @@ export default function App() {
           )}
           {action('about', 'Sobre', () => setPage('about'), false)}
           {action('fcast', 'Ativar FCast', () => setPage('fcast'), false)}
+          {action('settings', 'Configurações', () => setPage('settings'), false)}
         </View>
       ) : (
         <View style={styles.panel}>
@@ -216,7 +222,7 @@ const styles = StyleSheet.create({
   compactScreen: {padding: 24},
   compactLogo: {width: 160, height: 90, marginBottom: 12},
   compactButton: {paddingVertical: 10},
-  actions: {flexDirection: 'row', marginTop: 32, gap: 24},
+  actions: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 32, gap: 24},
   button: {
     backgroundColor: '#18334F',
     borderColor: 'transparent',

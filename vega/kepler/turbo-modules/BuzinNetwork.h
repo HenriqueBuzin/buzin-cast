@@ -17,6 +17,8 @@ public:
   BuzinNetwork();
   ~BuzinNetwork() noexcept;
 
+  std::string getReceiverName() override;
+  void setReceiverName(std::string name) override;
   double startFCast() override;
   void stopFCast() override;
   std::string pollFCastCommand() override;
