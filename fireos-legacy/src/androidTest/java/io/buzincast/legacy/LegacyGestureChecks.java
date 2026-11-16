@@ -36,7 +36,7 @@ public final class LegacyGestureChecks extends Instrumentation {
                 if(metadata)result.putString("metadata","synthetic_native_worker_packets_artwork_progress_pause_ui_and_sender_cleanup");
                 if(systemMedia) {
                     result.putString("system_media","platform_metadata_artwork_background_keys_and_cleanup");
-                    result.putString("mirror_modes","three_headless_native_packet_rtsp_teardown_metadata_isolation_cycles");
+                    result.putString("mirror_modes","three_headless_native_packet_rtsp_teardown_metadata_and_focus_cycles");
                 }
             } else {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")

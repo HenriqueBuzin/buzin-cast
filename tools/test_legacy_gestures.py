@@ -53,7 +53,7 @@ def main():
     def system_instrument(options):
         command=[args.adb,'-P',str(args.adb_server_port),'-s',args.serial,'shell','am','instrument','-w',*options,
             args.package+'.test/io.buzincast.legacy.LegacyGestureChecks']
-        seen=[];keys={'pause':127,'play':126,'next':87,'previous':88,'toggle':85,'fast_forward':90,'rewind':89,'play_final':126}
+        seen=[];keys={'pause':127,'play':126,'next':87,'previous':88,'toggle':85,'fast_forward':90,'rewind':89,'play_final':126,'recover_audio':85}
         with (args.output/'instrumentation.txt').open('wb') as output:
             process=subprocess.Popen(command,stdout=output,stderr=subprocess.STDOUT)
             try:
@@ -64,7 +64,11 @@ def main():
                     if 'system-media-request' in files:
                         stage=adb('shell','run-as',args.package,'cat','files/system-media-request').strip()
                         if stage not in seen and stage in {*keys,'state','background_done','stopped'}:
-                            if stage in keys:adb('shell','input','keyevent',keys[stage])
+                            if stage in keys:
+                                if stage=='recover_audio':
+                                    audio=adb('shell','dumpsys','audio')
+                                    (args.output/'audio-before-explicit-recovery.txt').write_text(audio,encoding='utf-8')
+                                adb('shell','input','keyevent',keys[stage])
                             elif stage=='background_done':
                                 launch=adb('shell','am','start','-W','-f','0x10200000','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER',
                                     '-n',args.package+'/io.buzincast.legacy.LegacyActivity')
@@ -128,9 +132,9 @@ def main():
         if args.system_media:
             if 'INSTRUMENTATION_RESULT: system_media=platform_metadata_artwork_background_keys_and_cleanup' not in result:
                 raise AssertionError('Test APK did not run system media checks')
-            if 'INSTRUMENTATION_RESULT: mirror_modes=three_headless_native_packet_rtsp_teardown_metadata_isolation_cycles' not in result:
+            if 'INSTRUMENTATION_RESULT: mirror_modes=three_headless_native_packet_rtsp_teardown_metadata_and_focus_cycles' not in result:
                 raise AssertionError('Test APK did not run mirror transition checks')
-            report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, fresh audio metadata recovery, same native receiver; not decoded video or a real sender'
+            report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, duck/transient/permanent audio focus without music commands, explicit Play focus recovery, fresh audio metadata, same native receiver; not decoded video or a real sender'
             report['system_media']='platform client metadata/artwork ownership, audio focus duck/loss/gain, real background media keys, launcher return, unregister and no RTSP resurrection after stop'
         report['status']='pass';report['sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
     except Exception as error:

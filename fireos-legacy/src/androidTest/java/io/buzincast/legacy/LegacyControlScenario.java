@@ -97,7 +97,11 @@ final class LegacyControlScenario {
             LegacySystemMediaScenario.host(activity,stages[i]);
             for(String path:paths[i])peer.expect(index++,path);
         }
-        LegacyMirrorScenario.check(runner,activity);
+        int mirrorBase=peer.size();LegacyMirrorScenario.check(runner,activity);
+        if(peer.size()!=mirrorBase)throw new AssertionError("Mirror audio focus dispatched a music control to the sender");
+        if(LegacySystemMediaScenario.gain(activity)!=0)throw new AssertionError("Mode switching resumed sound after permanent audio focus loss");
+        LegacySystemMediaScenario.host(activity,"recover_audio");peer.expect(mirrorBase,"play");
+        await(runner,()->LegacySystemMediaScenario.gain(activity)==1);
         LegacySystemMediaScenario.host(activity,"background_done");
         try {await(runner,()->activity.hasWindowFocus() && text(activity,"sender-1").equals("Ⅱ"));}
         catch(AssertionError error) {throw new AssertionError(error.getMessage()+"; focus="+activity.hasWindowFocus()+

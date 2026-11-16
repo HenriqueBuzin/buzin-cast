@@ -31,7 +31,7 @@ public final class LegacyReceiverService extends Service {
     private static final String CHANNEL="buzin-legacy-receiver";
     interface Observer { void changed(State state); }
     static final class State {
-        final boolean desired,running,busy,video,networkWaiting;
+        final boolean desired,running,busy,video,networkWaiting,audioSuppressed;
         final String name,address;
         final int port,width,height;
         final Exception failure;
@@ -40,6 +40,7 @@ public final class LegacyReceiverService extends Service {
         final LegacyMedia.State media;
         State(LegacyReceiverService service) {
             desired=service.desired;running=service.running;busy=service.busy;video=service.video;
+            audioSuppressed=service.systemMedia.suppressed();
             networkWaiting=service.wanted() && service.reconnect.initialized() && !service.reconnect.online();
             name=service.name;failure=service.failure;width=service.width;height=service.height;
             address=service.session==null?null:service.session.localAddress();
@@ -86,6 +87,7 @@ public final class LegacyReceiverService extends Service {
             @Override public void command(LegacyDacp.Command command) {control(command,null);}
             @Override public void gain(float gain) {if(session!=null)session.audioFocusGain(gain);}
             @Override public void failure(RuntimeException error) {record("System media: "+error.getClass().getSimpleName());}
+            @Override public void changed() {publish();}
         });
     }
     static void mediaButton(Context context,KeyEvent event,int epoch) {
@@ -228,7 +230,7 @@ public final class LegacyReceiverService extends Service {
     private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
-        systemMedia.update(mediaState(),controlState(),running && !stopping && session!=null && !session.mirroring());
+        systemMedia.update(mediaState(),controlState(),running && !stopping && session!=null,session!=null && session.mirroring());
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));

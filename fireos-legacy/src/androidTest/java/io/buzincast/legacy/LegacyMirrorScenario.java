@@ -3,6 +3,7 @@ package io.buzincast.legacy;
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.graphics.Bitmap;
+import android.media.AudioManager;
 import android.os.SystemClock;
 import android.util.Base64;
 import io.buzincast.fireos3probe.LegacyMedia;
@@ -41,6 +42,15 @@ final class LegacyMirrorScenario {
             // No SPS is supplied: this scenario does not claim H.264 decoding.
             video.invoke(session,new byte[]{0,0,0,1,0x65,(byte)0x88},0L);
             await(()->session.mirroring() && !registered(runner,service));
+            int hint=cycle==0?AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK:
+                cycle==1?AudioManager.AUDIOFOCUS_GAIN_TRANSIENT:AudioManager.AUDIOFOCUS_GAIN;
+            try {
+                LegacySystemMediaScenario.requestFocus(runner,activity,hint);
+                float expected=cycle==0?.2f:0;
+                await(()->Math.abs(LegacySystemMediaScenario.gain(activity)-expected)<.01f);
+            } finally {LegacySystemMediaScenario.releaseFocus(runner);}
+            if(cycle<2)await(()->LegacySystemMediaScenario.gain(activity)==1);
+            else if(LegacySystemMediaScenario.gain(activity)!=0)throw new AssertionError("Permanent focus loss resumed mirror audio without a user action");
             media.invoke(session,track,1,0L,0L,0L);
             media.invoke(session,art.toByteArray(),2,0L,0L,0L);
             media.invoke(session,new byte[0],3,0L,44100L,4410000L);

@@ -1,5 +1,32 @@
 # Retomada — 16 de novembro de 2026
 
+## Alvo antigo — foco de áudio independente dos controles de música
+
+Espelhamento mantém o foco de áudio sem registrar os botões/capa de música.
+Trocar de modo não restaura o ganho nem descarta uma perda de foco. Ducking
+reduz o ganho a 20%; perda transitória silencia e permite o retorno pelo
+Android. Perda permanente mantém o silêncio mesmo se o Android antigo
+devolver GAIN; exige nova solicitação explícita. Durante espelhamento não
+envia PAUSE ao transmissor de música. O botão da tela e Play/Pause consideram
+o bloqueio local, permitindo recuperar o som com uma única ação.
+
+As duas edições passaram em API17/1280×720: geral em
+`outputs/legacy-mirror-focus-general-fixed`, regional em
+`outputs/legacy-mirror-focus-regional-final`. O roteiro disputa foco real
+durante três ciclos sem Surface, verifica ausência de comandos de música,
+manutenção do silêncio após trocar de modo e recuperação por uma única
+tecla Play/Pause enviada pelo host. Também repete metadados, RTSP/DNS/HTTP,
+retorno pelo launcher e limpeza ao parar. Builds ARMv7/x86, lint e 62 testes
+JVM passaram nas duas edições; logos e auditoria pública sem achados.
+O primeiro teste encontrou o retorno indevido do som após perda permanente;
+a correção passou na rodada completa. Os testes usam pacotes sintéticos,
+não um transmissor real. APKs temporários removidos e emulador encerrado.
+
+A etapa de foco está concluída no código e nos testes. O objetivo completo continua pendente:
+transições com vídeo real e validação física, foco no áudio sem metadados,
+demais protocolos/player, gravação/download e segurança/licença de produção.
+As prévias permanecem debug e não são artefatos prontos para a loja.
+
 ## Alvo antigo — isolamento entre música e espelhamento
 
 O modo de espelhamento agora começa no recebimento do vídeo codificado,
@@ -26,7 +53,7 @@ nenhuma TV física usada. Logos e auditoria pública continuam aprovadas.
 
 Isso comprova o isolamento de modos pelos callbacks e o retorno à interface;
 não certifica uma sessão real de espelhamento com transmissor Apple.
-Permanecem no objetivo o foco de áudio durante espelhamento, transições com
+Permanecem no objetivo transições com
 vídeo real e validação física, demais protocolos/player, gravação/download e
 segurança/licença de produção. As prévias continuam debug, não publicáveis.
 

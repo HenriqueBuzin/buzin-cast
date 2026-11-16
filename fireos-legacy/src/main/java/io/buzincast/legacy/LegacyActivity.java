@@ -84,7 +84,7 @@ public final class LegacyActivity extends Activity {
     private final ArrayDeque<Modal> modals=new ArrayDeque<>();
     private Locale displayLocale;
     private String destination="overview", shownName, lastFocus="nav-overview";
-    private boolean foreground,desired,running,busy,video,networkWaiting;
+    private boolean foreground,desired,running,busy,video,networkWaiting,audioSuppressed;
     private int videoWidth,videoHeight;
     private String error;
 
@@ -153,14 +153,14 @@ public final class LegacyActivity extends Activity {
     }
     @Override public boolean onKeyDown(int key,KeyEvent event) {
         if(controlState.ready && LegacyMediaKeys.handles(key)) {
-            LegacyDacp.Command command=LegacyMediaKeys.command(key,true,event.getRepeatCount(),controlState.playing);
+            LegacyDacp.Command command=LegacyMediaKeys.command(key,true,event.getRepeatCount(),senderPlaying());
             if(command!=null)senderCommand(command);return true;
         }
         return super.onKeyDown(key,event);
     }
     @Override public boolean onKeyUp(int key,KeyEvent event) {
         if(controlState.ready && LegacyMediaKeys.handles(key)) {
-            LegacyDacp.Command command=LegacyMediaKeys.command(key,false,event.getRepeatCount(),controlState.playing);
+            LegacyDacp.Command command=LegacyMediaKeys.command(key,false,event.getRepeatCount(),senderPlaying());
             if(command!=null)senderCommand(command);
             return true;
         }
@@ -170,7 +170,7 @@ public final class LegacyActivity extends Activity {
         if(!foreground || service==null)return;
         service.attach(serviceOwner,state-> {
             receiverState=state;desired=state.desired;running=state.running;busy=state.busy;shownName=state.name;
-            networkWaiting=state.networkWaiting;
+            networkWaiting=state.networkWaiting;audioSuppressed=state.audioSuppressed;
             controlState=state.controls;
             mediaState=state.media;
             error=state.failure==null?null:getString(R.string.error_starting_server);
@@ -193,13 +193,14 @@ public final class LegacyActivity extends Activity {
         if(networkWaiting)return getString(R.string.network_waiting);
         return error!=null?error:getString(busy?R.string.waiting_for_connection:running?R.string.buzin_ready:R.string.buzin_stopped);
     }
+    private boolean senderPlaying() {return controlState.playing && !audioSuppressed;}
     // Runtime callbacks must not replace controls between ACTION_DOWN and UP.
     private void refreshReceiverUi() {
         refreshMediaUi();
         if(senderControls!=null) {
             if(!controlState.ready && senderControls.hasFocus()) {View nav=shell.findViewWithTag("nav-overview");if(nav!=null)nav.requestFocus();}
             senderControls.setVisibility(controlState.ready?View.VISIBLE:View.GONE);
-            Button toggle=senderControls.findViewWithTag("sender-1");if(toggle!=null)toggle.setText(controlState.playing?"Ⅱ":"▶");
+            Button toggle=senderControls.findViewWithTag("sender-1");if(toggle!=null)toggle.setText(senderPlaying()?"Ⅱ":"▶");
         }
         if(receiverStatus!=null) {receiverStatus.setText(statusLabel());receiverStatus.setTextColor(error!=null?0xffffab91:MINT);}
         if(receiverLabel!=null)receiverLabel.setText(shownName);
@@ -321,9 +322,9 @@ public final class LegacyActivity extends Activity {
             LegacyDacp.Command.NEXT,LegacyDacp.Command.VOLUME_DOWN,LegacyDacp.Command.VOLUME_UP};
         for(int i=0;i<labels.length;i++) {
             final int index=i;Button control=button(this,labels[i],false,()->senderCommand(commands[index]==null?
-                (controlState.playing?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY):commands[index]));
+                (senderPlaying()?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY):commands[index]));
             control.setTag("sender-"+i);
-            if(i==1) {control.setText(controlState.playing?"Ⅱ":"▶");control.setContentDescription(getString(R.string.cd_play_pause));}
+            if(i==1) {control.setText(senderPlaying()?"Ⅱ":"▶");control.setContentDescription(getString(R.string.cd_play_pause));}
             if(i>=3) {String label=getString(R.string.volume_client)+(i==3?" \u2212":" +");control.setText(label);control.setContentDescription(label);}
             LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(this,54),1);size.setMarginEnd(dp(this,8));transport.addView(control,size);
         }

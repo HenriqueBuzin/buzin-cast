@@ -22,6 +22,29 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Foco de áudio durante espelhamento API17:** a posse do foco é independente
+  do registro de botões/capa de música. Entrar em espelhamento retira o cliente
+  de música, preservando foco e ganho. Os callbacks de foco têm geração própria
+  e continuam válidos sem `RemoteControlClient`. Ducking reduz o ganho a 20%;
+  perdas transitória/permanente silenciam. A permanente bloqueia o retorno
+  automático mesmo se o Android enviar GAIN depois; Play explícito pode pedir
+  foco novamente. A tela e o receptor de teclas usam esse bloqueio na decisão
+  entre Play/Pause, e a interface é atualizada ao mudar o foco.
+  `--system-media` disputa foco real em cada um dos três ciclos de espelhamento
+  sem Surface: ducking, perda transitória e permanente. Nenhum comando HTTP de
+  música pode ser enviado nesse intervalo. Após mudar de modo, o ganho deve
+  continuar zero até uma única tecla Play/Pause do host gerar Play e recuperar
+  ganho 1. O dump `audio-before-explicit-recovery.txt` registra o serviço de
+  áudio antes dessa ação. Os testes também repetem RTSP/DNS/HTTP, metadados,
+  retorno pelo launcher e retirada do cliente/foco após parar.
+  Geral aprovada em `outputs/legacy-mirror-focus-general-fixed`; regional em
+  `outputs/legacy-mirror-focus-regional-final`, ambas em API17/1280×720.
+  Builds ARMv7/x86, lint e 62 testes JVM passaram nas duas edições. O primeiro
+  teste (`legacy-mirror-focus-general`) encontrou som restaurado após a perda
+  permanente; o bloqueio local corrigiu o caso. Os APKs temporários foram
+  removidos. Não são sessões com transmissor real nem testes físicos; foco
+  em áudio sem metadados e transições com vídeo real permanecem pendentes.
+
 - **Isolamento música/espelhamento API17:** o primeiro pacote de vídeo aceito
   inicia o modo de espelhamento antes da decodificação, inclusive sem tela
   anexada. O estado de vídeo efetivamente exibido é separado. Entrar/sair
@@ -53,7 +76,7 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
   de dump não disponível e display padrão de telefone com título fora da
   área visível após rolagem. O caminho passou a `/data/local/tmp`, removido
   ao concluir, e as duas rodadas completas posteriores em formato de TV passaram.
-  Foco durante espelhamento, transições com vídeo real e testes físicos ainda
+  Transições com vídeo real e testes físicos ainda
   precisam avançar, junto dos demais itens de paridade.
 
 - **Cliente de mídia do sistema API17:** o serviço registra um
@@ -66,7 +89,8 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
   ou permanente de foco silencia a saída e pede pausa ao transmissor;
   ducking reduz o ganho local a 20%. Recuperar foco não envia reprodução
   automática. Reprodução explícita tenta recuperar o foco antes do comando.
-  A parada e a entrada em vídeo retiram cliente, teclas e foco. Callbacks e
+  A parada retira cliente, teclas e foco; o foco durante vídeo segue a política
+  independente descrita acima. Callbacks e
   eventos de ativações anteriores são ignorados.
   O cliente existe desde API14; a atualização externa de posição usa a
   sobrecarga de API18 em classe isolada. No API17, o relógio continua na
