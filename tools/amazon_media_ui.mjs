@@ -134,8 +134,8 @@ export async function removeBatch(tab, limit = 2) {
 }
 
 export async function uploadGroup(tab, group, files) {
-  if (!['tablet', 'firetv'].includes(group) || files.length !== 3) {
-    throw new Error('Provide tablet/firetv and exactly three ordered screenshot paths.');
+  if (!['tablet', 'firetv'].includes(group) || !Array.isArray(files) || ![3, 4].includes(files.length)) {
+    throw new Error('Provide tablet/firetv and three or four ordered screenshot paths.');
   }
   const state = await page(tab);
   if ((await status(tab)).busy) return { status: 'processing', count: (await assets(tab)).length };
@@ -148,7 +148,7 @@ export async function uploadGroup(tab, group, files) {
   const chooserPromise = tab.playwright.waitForEvent('filechooser', { timeout: 10000 });
   await tab.playwright.getByRole('button', { name: 'Choose File', exact: true }).nth(group === 'tablet' ? 0 : 3).click();
   await (await chooserPromise).setFiles(files);
-  inFlight.set(tab.id, group);
+  inFlight.set(tab.id, { group, count: files.length });
   await tab.playwright.domSnapshot();
   return { status: 'upload-started', group };
 }
@@ -157,7 +157,7 @@ export async function status(tab) {
   const snapshot = await page(tab);
   const current = await assets(tab);
   const pending = inFlight.get(tab.id);
-  if (pending && current.filter(item => pending === 'tablet' ? item.alt.startsWith('screenshot ') : item.alt.startsWith('screenshot_')).length === 3) {
+  if (pending && current.filter(item => pending.group === 'tablet' ? item.alt.startsWith('screenshot ') : item.alt.startsWith('screenshot_')).length === pending.count) {
     inFlight.delete(tab.id);
   }
   return {
@@ -170,12 +170,12 @@ export async function status(tab) {
 
 export async function waitForUpload(tab, attempts = 10) {
   if (attempts < 1 || attempts > 10) throw new Error('Use one to ten bounded waits.');
-  const group = inFlight.get(tab.id);
-  if (!group) return status(tab);
-  const selector = group === 'tablet' ? 'img[alt^="screenshot "]' : 'img[alt^="screenshot_"]';
+  const pending = inFlight.get(tab.id);
+  if (!pending) return status(tab);
+  const selector = pending.group === 'tablet' ? 'img[alt^="screenshot "]' : 'img[alt^="screenshot_"]';
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      await tab.playwright.locator(selector).nth(2).waitFor({ state: 'visible', timeout: 10000 });
+      await tab.playwright.locator(selector).nth(pending.count - 1).waitFor({ state: 'visible', timeout: 10000 });
       break;
     } catch { /* Wait for the actual new image nodes, not a loading label. */ }
   }

@@ -26,6 +26,7 @@ APP_LOCALES = ['en-US', 'ar-SA', 'cs-CZ', 'de-DE', 'el-GR', 'es-ES',
                'ko-KR', 'kw-GB', 'nl-NL', 'pl-PL', 'pt-BR', 'ru-RU',
                'sv-SE', 'tl-PH', 'vi-VN', 'zh-CN']
 STORE_VARIANTS = ['en-AU', 'en-GB', 'en-IN', 'es-MX']
+SCREENSHOTS = ('01-conectar', '04-ferramentas', '02-configuracoes', '03-sobre')
 
 
 def selected_locales(requested, edition):
@@ -103,9 +104,11 @@ def key(code):
 
 def focus_visible(image, name):
     # Measure the straight part of the real mint focus stroke, not the label.
-    region = ((110, 71, 400, 79) if name.startswith('01') else
-              (110, 327, 400, 335) if name.startswith('02') else
-              (410, 885, 1510, 981))
+    regions = {'01-conectar.png': (110, 71, 400, 79),
+               '04-ferramentas.png': (110, 199, 400, 207),
+               '02-configuracoes.png': (110, 327, 400, 335),
+               '03-sobre.png': (410, 885, 1510, 981)}
+    region = regions[name]
     crop = image.crop(screen_region(region))
     pixels = list(crop.get_flattened_data() if hasattr(crop, 'get_flattened_data') else crop.getdata())
     return sum(g > 180 and b > 140 and r < g * .85 for r, g, b in pixels) > 180
@@ -143,6 +146,8 @@ def capture(edition, package, locales, apk=None, locale_hook=True):
             key(code)
         settled_shot(dest / '01-conectar.png', (500, 160, 1200, 800))
         key(20)
+        key(23)
+        settled_shot(dest / '04-ferramentas.png', (500, 100, 1850, 950))
         key(20)
         key(23)
         settled_shot(dest / '02-configuracoes.png', (500, 100, 1850, 780))
@@ -168,7 +173,7 @@ def capture(edition, package, locales, apk=None, locale_hook=True):
 
 def contact_sheets():
     from PIL import ImageDraw
-    for name in ('01-conectar', '02-configuracoes', '03-sobre'):
+    for name in SCREENSHOTS:
         files = sorted(p for p in CAPTURED if p.name == name + '.png') if CAPTURED else sorted(OUTPUT.glob(f'*/*/{name}.png'))
         sheet = Image.new('RGB', (1440, max(1, (len(files) + 2) // 3) * 300), '#eeeeee')
         draw = ImageDraw.Draw(sheet)
@@ -246,7 +251,7 @@ if __name__ == '__main__':
         if options.restore_production:
             adb('install', '-r', ROOT / 'outputs/buzin-cast-0.6.6.apk')
             adb('shell', 'am', 'start', '-n', 'com.buzincast.tv' + ACTIVITY)
-        report['screenshots'] = [str(p.relative_to(OUTPUT)) for p in sorted(CAPTURED)]
+        report['screenshots'] = [str(p.relative_to(OUTPUT)) for p in CAPTURED]
         contact_sheets()
         (OUTPUT / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
         print('TV released. Report:', OUTPUT / 'report.json', flush=True)
