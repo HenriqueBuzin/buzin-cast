@@ -14,8 +14,9 @@ tasks.jacocoTestCoverageVerification {
     dependsOn(tasks.test)
     violationRules {
         rule {
-            limit { counter = "LINE"; minimum = "0.90".toBigDecimal() }
-            limit { counter = "BRANCH"; minimum = "0.80".toBigDecimal() }
+            listOf("INSTRUCTION", "BRANCH", "LINE", "COMPLEXITY", "METHOD", "CLASS").forEach { metric ->
+                limit { counter = metric; minimum = "1.00".toBigDecimal() }
+            }
         }
     }
 }
