@@ -24,6 +24,8 @@ typedef struct {
     jmethodID on_video_data;
     jmethodID on_video_reset;
     jmethodID on_audio_data, on_audio_format, on_audio_flush, on_audio_volume, get_audio_volume;
+    jmethodID on_dacp_id, on_sender_stopped;
+    jmethodID on_metadata,on_artwork,on_progress;
     bool audio_enabled;
     uint32_t network;
     uint32_t netmask;
@@ -98,6 +100,42 @@ static int allow_local_peer(void *context, const char *peer) {
 }
 
 static void noop(void *context) {}
+static void control_identity(void *context,const char *id,const char *token) {
+    receiver_probe_t *probe=context;
+    if(!id || !token || strnlen(id,512)>=512 || strnlen(token,512)>=512)return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jstring name=(*env)->NewStringUTF(env,id);
+    jstring secret=(*env)->ExceptionCheck(env)?NULL:(*env)->NewStringUTF(env,token);
+    if(name && secret)(*env)->CallVoidMethod(env,probe->video_callback,probe->on_dacp_id,name,secret);
+    if(name)(*env)->DeleteLocalRef(env,name);
+    if(secret)(*env)->DeleteLocalRef(env,secret);
+    finish_callback(probe,env,attached);
+}
+static void export_control_identity(void *context,const char *token,const char *id) {control_identity(context,id,token);}
+static void sender_stopped(void *context) {
+    receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_sender_stopped);
+    finish_callback(probe,env,attached);
+}
+static void media_bytes(receiver_probe_t *probe,const void *bytes,int length,jmethodID method,int limit) {
+    if(length<0 || length>limit || (!bytes && length))return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jbyteArray payload=(*env)->NewByteArray(env,length);
+    if(payload) {
+        if(length)(*env)->SetByteArrayRegion(env,payload,0,length,bytes);
+        if(!(*env)->ExceptionCheck(env))(*env)->CallVoidMethod(env,probe->video_callback,method,payload);
+        (*env)->DeleteLocalRef(env,payload);
+    }
+    finish_callback(probe,env,attached);
+}
+static void metadata(void *context,const void *bytes,int length) {receiver_probe_t *probe=context;media_bytes(probe,bytes,length,probe->on_metadata,64*1024);}
+static void artwork(void *context,const void *bytes,int length) {receiver_probe_t *probe=context;media_bytes(probe,bytes,length,probe->on_artwork,4*1024*1024);}
+static void progress(void *context,uint32_t *start,uint32_t *current,uint32_t *end) {
+    if(!start || !current || !end)return;
+    receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_progress,(jlong)*start,(jlong)*current,(jlong)*end);
+    finish_callback(probe,env,attached);
+}
 static double client_volume(void *context) {
     receiver_probe_t *probe = context;
     bool attached;
@@ -172,8 +210,8 @@ static void destroy_receiver(receiver_probe_t *probe) {
 
 static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callback,
                              const char *device_id, const char *network_address, int prefix,
-                             const char *service_name, int requested_port) {
-    if (requested_port < 0 || requested_port > 65535) return 0;
+                             const char *service_name, int requested_port, int width,int height,int fps) {
+    if (requested_port < 0 || requested_port > 65535 || width<16 || width>4096 || height<16 || height>4096 || fps<1 || fps>240) return 0;
     receiver_probe_t *probe = calloc(1, sizeof(*probe));
     if (!probe) return 0;
     unsigned int octets[6];
@@ -195,11 +233,17 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         probe->on_audio_flush = (*env)->GetMethodID(env, callback_type, "onAudioFlush", "()V");
         probe->on_audio_volume = (*env)->GetMethodID(env, callback_type, "onAudioVolume", "(F)V");
         probe->get_audio_volume = (*env)->GetMethodID(env, callback_type, "getAudioVolume", "()D");
+        probe->on_dacp_id = (*env)->GetMethodID(env, callback_type, "onDacpId", "(Ljava/lang/String;Ljava/lang/String;)V");
+        probe->on_sender_stopped = (*env)->GetMethodID(env, callback_type, "onSenderStopped", "()V");
+        probe->on_metadata=(*env)->GetMethodID(env,callback_type,"onMetadata","([B)V");
+        probe->on_artwork=(*env)->GetMethodID(env,callback_type,"onArtwork","([B)V");
+        probe->on_progress=(*env)->GetMethodID(env,callback_type,"onProgress","(JJJ)V");
         jmethodID enabled = (*env)->GetMethodID(env, callback_type, "audioEnabled", "()Z");
         if (enabled) probe->audio_enabled = (*env)->CallBooleanMethod(env, video_callback, enabled);
         (*env)->DeleteLocalRef(env, callback_type);
         if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
-            !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !enabled ||
+            !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !probe->on_dacp_id || !probe->on_sender_stopped ||
+            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !enabled ||
             (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
         if (!probe->video_callback) { free(probe); return 0; }
@@ -223,6 +267,12 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         .video_flush = noop,
         .audio_flush = audio_flush,
         .audio_set_client_volume = client_volume,
+        .audio_remote_control_id = control_identity,
+        .export_dacp = export_control_identity,
+        .audio_stop_coverart_rendering = sender_stopped,
+        .audio_set_metadata = metadata,
+        .audio_set_coverart = artwork,
+        .audio_set_progress = progress,
         .conn_feedback = noop,
     };
     raop_t *receiver = raop_init(&callbacks);
@@ -254,10 +304,11 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         for (unsigned i=0; i<sizeof(audio_bits)/sizeof(audio_bits[0]); i++)
             dnssd_set_airplay_features(probe->discovery, audio_bits[i], 1);
         android_dnssd_set_compressed_audio_only(probe->discovery);
+        android_dnssd_enable_metadata(probe->discovery);
     }
-    raop_set_plist(receiver, "width", 1280);
-    raop_set_plist(receiver, "height", 720);
-    raop_set_plist(receiver, "maxFPS", 30);
+    raop_set_plist(receiver, "width", width);
+    raop_set_plist(receiver, "height", height);
+    raop_set_plist(receiver, "maxFPS", fps);
     unsigned short port = (unsigned short)requested_port;
     if (raop_start_httpd(receiver, &port) < 0 || !port) {
         destroy_receiver(probe);
@@ -272,13 +323,13 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
 
 JNIEXPORT jlong JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject callback) {
-    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0);
+    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0, 1280,720,30);
 }
 
 JNIEXPORT jlong JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env, jclass type,
         jstring key_path, jobject callback, jstring identity, jstring network_address, jint prefix,
-        jbyteArray utf8_name, jint requested_port) {
+        jbyteArray utf8_name, jint requested_port,jint width,jint height,jint fps) {
     char name[64]={0};
     if (utf8_name) {
         jsize length=(*env)->GetArrayLength(env,utf8_name);
@@ -291,7 +342,7 @@ Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env,
     const char *address = (*env)->GetStringUTFChars(env, network_address, NULL);
     if (!address) { (*env)->ReleaseStringUTFChars(env, identity, id); return 0; }
     jlong result = create_receiver(env, key_path, callback, id, address, prefix,
-                                   utf8_name ? name : NULL, requested_port);
+                                   utf8_name ? name : NULL, requested_port,width,height,fps);
     (*env)->ReleaseStringUTFChars(env, network_address, address);
     (*env)->ReleaseStringUTFChars(env, identity, id);
     return result;
@@ -375,7 +426,7 @@ static void *replay_audio_on_worker(void *context) {
 
 JNIEXPORT jboolean JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverAudio(JNIEnv *env, jclass type, jlong handle,
-        jobject input, jint length, jint codec, jint spf, jlong time_ns, jfloat volume, jboolean flush) {
+        jobject input, jint length, jint codec, jint spf, jlong time_ns, jfloat volume, jboolean flush,jboolean native_thread) {
     receiver_probe_t *probe = (receiver_probe_t *)(intptr_t)handle;
     unsigned char *bytes = (*env)->GetDirectBufferAddress(env, input);
     jlong capacity = (*env)->GetDirectBufferCapacity(env, input);
@@ -383,6 +434,9 @@ Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverAudio(JNIEnv *env, j
         time_ns < 0 || codec < 0 || codec > 255 || spf < 0 || spf > 65535) return JNI_FALSE;
     audio_replay_t replay = {.probe=probe, .packet={.data=bytes, .ct=(unsigned char)codec,
         .data_len=length, .ntp_time_local=(uint64_t)time_ns}, .spf=(unsigned short)spf, .volume=volume, .flush=flush};
+    // The timed fixture uses its existing managed sender thread. The separate
+    // callback/format/flush tests retain the native-created worker and VM attach.
+    if (!native_thread) { replay_audio_on_worker(&replay); return JNI_TRUE; }
     pthread_t worker;
     if (pthread_create(&worker, NULL, replay_audio_on_worker, &replay) != 0) return JNI_FALSE;
     pthread_join(worker, NULL);
@@ -401,6 +455,28 @@ Java_io_buzincast_fireos3probe_NativeReceiver_checkNativeParser(JNIEnv *env, jcl
     parser.data = &complete;
     return llhttp_execute(&parser, request, sizeof(request) - 1) == HPE_OK
         && complete && llhttp_get_method(&parser) == HTTP_GET;
+}
+
+typedef struct {receiver_probe_t *probe;const void *bytes;int length,kind;uint32_t start,current,end;} media_replay_t;
+static void *replay_media_on_worker(void *context) {
+    media_replay_t *fixture=context;
+    if(fixture->kind==1)metadata(fixture->probe,fixture->bytes,fixture->length);
+    else if(fixture->kind==2)artwork(fixture->probe,fixture->bytes,fixture->length);
+    else if(fixture->kind==3)progress(fixture->probe,&fixture->start,&fixture->current,&fixture->end);
+    else sender_stopped(fixture->probe);
+    return NULL;
+}
+JNIEXPORT jboolean JNICALL
+Java_io_buzincast_fireos3probe_NativeReceiver_replayReceiverMedia(JNIEnv *env,jclass type,jlong handle,jobject input,
+        jint length,jint kind,jlong start,jlong current,jlong end) {
+    receiver_probe_t *probe=(receiver_probe_t *)(intptr_t)handle;
+    void *bytes=(*env)->GetDirectBufferAddress(env,input);jlong capacity=(*env)->GetDirectBufferCapacity(env,input);
+    if(!probe || !probe->video_callback || length<0 || length>capacity || (!bytes && length) || kind<1 || kind>4 ||
+        (kind==1 && length>64*1024) || (kind==2 && length>4*1024*1024) ||
+        start<0 || current<0 || end<0 || start>UINT32_MAX || current>UINT32_MAX || end>UINT32_MAX)return JNI_FALSE;
+    media_replay_t fixture={probe,bytes,length,kind,(uint32_t)start,(uint32_t)current,(uint32_t)end};pthread_t worker;
+    if(pthread_create(&worker,NULL,replay_media_on_worker,&fixture)!=0)return JNI_FALSE;
+    pthread_join(worker,NULL);return JNI_TRUE;
 }
 
 /* Replay the same frame payload, timestamp, and codec flag as the receiver's

@@ -8,6 +8,73 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class AsyncLogStoreTest {
+    @Test fun `read failure closes its stream and preserves the persisted snapshot`() {
+        val directory=java.nio.file.Files.createTempDirectory("buzin-read-error").toFile()
+        try {
+            val target=File(directory,"logs.txt").apply { writeText("previous") }
+            var closed=false
+            val streams=object:LogFileStreams {
+                override fun reader(file:File)=object:java.io.BufferedReader(java.io.StringReader("")) {
+                    override fun readLine():String = throw java.io.IOException("read interrupted")
+                    override fun close() { closed=true; super.close() }
+                }
+                override fun writer(file:File):java.io.BufferedWriter = error("read must not open a writer")
+            }
+            val failure=assertThrows(java.io.IOException::class.java) { FileLogStorage(target,streams=streams).read(3) }
+            assertEquals("read interrupted",failure.message); assertTrue(closed); assertEquals("previous",target.readText())
+        } finally { directory.deleteRecursively() }
+    }
+    @Test fun `write failure closes its stream and never replaces the last good snapshot`() {
+        val directory=java.nio.file.Files.createTempDirectory("buzin-write-error").toFile()
+        try {
+            val target=File(directory,"logs.txt").apply { writeText("previous") }
+            var closed=false; var replaced=false
+            val streams=object:LogFileStreams {
+                override fun reader(file:File):java.io.BufferedReader = error("write must not open a reader")
+                override fun writer(file:File)=object:java.io.BufferedWriter(java.io.StringWriter()) {
+                    override fun write(value:String,offset:Int,length:Int) { throw java.io.IOException("disk full") }
+                    override fun close() { closed=true; super.close() }
+                }
+            }
+            val storage=FileLogStorage(target,replaceSnapshot={_,_->replaced=true;true},streams=streams)
+            val failure=assertThrows(java.io.IOException::class.java) { storage.write(listOf("new")) }
+            assertEquals("disk full",failure.message); assertTrue(closed); assertFalse(replaced)
+            assertEquals("previous",target.readText())
+        } finally { directory.deleteRecursively() }
+    }
+    @Test fun `default failure handler preserves logs after storage errors`() {
+        val storage=object:LogStorage {
+            override fun read(limit:Int):List<String> = throw java.io.IOException("unavailable")
+            override fun write(lines:List<String>) { throw java.io.IOException("unavailable") }
+        }
+        val log=AsyncLogStore(storage)
+        try { assertTrue(log.append("retained")); assertTrue(log.flush()); assertEquals(listOf("retained"),log.snapshot()) }
+        finally { log.close(); assertTrue(log.awaitClosed()) }
+    }
+    @Test fun `awaitClosed reports a worker which is still loading history`() {
+        val entered=CountDownLatch(1); val release=CountDownLatch(1)
+        val storage=object:LogStorage {
+            override fun read(limit:Int):List<String> { entered.countDown(); release.await(); return emptyList() }
+            override fun write(lines:List<String>) {}
+        }
+        val log=AsyncLogStore(storage)
+        try { assertTrue(entered.await(5,TimeUnit.SECONDS)); assertFalse(log.awaitClosed(1)) }
+        finally { release.countDown(); log.close(); assertTrue(log.awaitClosed()) }
+    }
+    @Test fun `file reload bounds oversized persisted messages`() {
+        val directory=java.nio.file.Files.createTempDirectory("buzin-long-log").toFile()
+        try {
+            val target=File(directory,"logs.txt").apply { writeText("x".repeat(3000)+"\nlast\n") }
+            assertEquals(listOf("x".repeat(2000),"last"),FileLogStorage(target).read(2))
+        } finally { directory.deleteRecursively() }
+    }
+    @Test fun `snapshot writer supports a file with no parent component`() {
+        val target=File("buzin-test-log-"+java.util.UUID.randomUUID()+".txt")
+        try {
+            FileLogStorage(target).write(listOf("relative path"))
+            assertEquals(listOf("relative path"),FileLogStorage(target).read(1))
+        } finally { File(target.path+".tmp").delete(); target.delete() }
+    }
     private class MemoryStorage : LogStorage {
         @Volatile var lines=listOf("old")
         val writers=mutableSetOf<String>()
@@ -101,7 +168,7 @@ class AsyncLogStoreTest {
         val directory=java.nio.file.Files.createTempDirectory("buzin-platform-logs").toFile()
         try {
             val target=File(directory,"logs.txt").apply { writeText("previous") }
-            val storage=FileLogStorage(target) { _, _ -> false }
+            val storage=FileLogStorage(target, replaceSnapshot = { _, _ -> false })
             assertThrows(IllegalStateException::class.java) { storage.write(listOf("new")) }
             assertEquals("previous",target.readText())
         } finally { directory.deleteRecursively() }

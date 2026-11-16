@@ -26,6 +26,6 @@ instrumentation=[] if args.legacy else ["-fprofile-instr-generate","-fcoverage-m
 command=[str(compiler),"--target="+triple+str(args.api),"--sysroot="+str(toolchain/"sysroot"),
          "-std=c++17" if args.legacy else "-std=c++23","-O1","-g","-static-libstdc++","-pthread",*instrumentation,
          "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.","-I"+str(root/"app/src/main/cpp"),
-         str(root/"app/src/test/cpp/native_core_tests.cpp"),"-latomic","-o",str(args.output/"native_core_tests")]
+         str(root/"app/src/test/cpp/native_core_tests.cpp"),"-latomic","-llog","-o",str(args.output/"native_core_tests")]
 subprocess.run(command,check=True)
 print("Native unit executable: "+str(args.output/"native_core_tests"))

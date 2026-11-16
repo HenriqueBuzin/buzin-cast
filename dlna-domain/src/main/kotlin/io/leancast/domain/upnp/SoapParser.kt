@@ -1,6 +1,7 @@
 package io.leancast.domain.upnp
 
 import java.io.StringReader
+import java.io.StringWriter
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
@@ -15,9 +16,12 @@ data class SoapRequest(
 /** Parses SOAP 1.1 control envelopes (UPnP control encoding). */
 object SoapParser {
 
-    fun parse(soapActionHeader: String?, body: String): SoapRequest? = try {
+    fun parse(soapActionHeader: String?, body: String): SoapRequest? = parse(soapActionHeader, body, ::newParser)
+
+    /** Provider boundary also lets callers in this module test parser failures. */
+    internal fun parse(soapActionHeader: String?, body: String, parserProvider: (String) -> XmlPullParser): SoapRequest? = try {
         val headerRoute = soapActionHeader?.let { routeFromHeader(it) }
-        val bodyRoute = routeFromBody(body)
+        val bodyRoute = routeFromBody(body, parserProvider)
         when {
             bodyRoute == null -> null
             headerRoute != null && (headerRoute.first != bodyRoute.first || headerRoute.second != bodyRoute.second) -> null
@@ -32,8 +36,6 @@ object SoapParser {
                 args = bodyRoute.third,
             )
         }
-    } catch (_: XmlPullParserException) {
-        null
     } catch (_: Exception) {
         null
     }
@@ -49,8 +51,8 @@ object SoapParser {
     }
 
     /** Resolves service+action+args from the first element inside `Body`, prefix-agnostic. */
-    private fun routeFromBody(body: String): Triple<UpnpService, String, Map<String, String>>? {
-        val parser = newParser(body)
+    private fun routeFromBody(body: String, parserProvider: (String) -> XmlPullParser): Triple<UpnpService, String, Map<String, String>>? {
+        val parser = parserProvider(body)
         var inBody = false
         var actionDepth = -1
         var action: String? = null
@@ -67,7 +69,9 @@ object SoapParser {
                     service = UpnpService.fromUrn(parser.namespace)
                     actionDepth = parser.depth
                 }
-                inBody && evt == XmlPullParser.START_TAG && action != null &&
+                // The preceding case handles the first action, so every later
+                // start tag here already has an action and an action depth.
+                inBody && evt == XmlPullParser.START_TAG &&
                     parser.depth == actionDepth + 1 -> {
                     args[name.substringAfterLast(':')] = captureArgText(parser)
                 }
@@ -85,25 +89,38 @@ object SoapParser {
      */
     private fun captureArgText(parser: XmlPullParser): String {
         val depth = parser.depth
-        val out = StringBuilder()
+        val out = StringWriter()
+        val serializer = XmlPullParserFactory.newInstance().newSerializer().apply { setOutput(out) }
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             when (parser.eventType) {
-                XmlPullParser.TEXT -> out.append(parser.text)
+                XmlPullParser.TEXT -> if (parser.depth == depth) {
+                    // Plain SOAP values are decoded once, including already
+                    // escaped DIDL strings. Text inside raw child XML is escaped.
+                    serializer.flush()
+                    out.append(parser.text)
+                } else serializer.text(parser.text)
                 XmlPullParser.START_TAG -> {
-                    out.append('<').append(parser.name)
+                    val start = if (parser.depth == depth + 1) 0 else parser.getNamespaceCount(parser.depth - 1)
+                    val namespaces = linkedMapOf<String, String>()
+                    for (i in start until parser.getNamespaceCount(parser.depth))
+                        namespaces[parser.getNamespacePrefix(i) ?: ""] = parser.getNamespaceUri(i)
+                    for ((prefix, uri) in namespaces) serializer.setPrefix(prefix, uri)
+                    serializer.startTag(parser.namespace, parser.name)
                     for (i in 0 until parser.attributeCount) {
-                        out.append(' ').append(parser.getAttributeName(i))
-                            .append("=\"").append(parser.getAttributeValue(i)).append('"')
+                        serializer.attribute(parser.getAttributeNamespace(i), parser.getAttributeName(i), parser.getAttributeValue(i))
                     }
-                    out.append('>')
                 }
                 XmlPullParser.END_TAG -> {
-                    if (parser.depth == depth) return out.toString()
-                    out.append("</").append(parser.name).append('>')
+                    if (parser.depth == depth) {
+                        serializer.flush()
+                        return out.toString()
+                    }
+                    serializer.endTag(parser.namespace, parser.name)
                 }
+                else -> throw XmlPullParserException("Unexpected event inside SOAP argument")
             }
         }
-        return out.toString()
+        throw XmlPullParserException("SOAP argument ended before its closing tag")
     }
 
     private fun newParser(xml: String): XmlPullParser {
@@ -118,30 +135,47 @@ object SoapParser {
 object DidlParser {
 
     fun extractTitle(metadata: String?): String? {
+        return extractTitle(metadata) { xml, namespaces ->
+            XmlPullParserFactory.newInstance().newPullParser().apply {
+                setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, namespaces)
+                setInput(StringReader(xml))
+            }
+        }
+    }
+
+    internal fun extractTitle(metadata: String?, parserProvider: (String, Boolean) -> XmlPullParser): String? {
         if (metadata.isNullOrBlank()) return null
         return try {
-            val parser = XmlPullParserFactory.newInstance().newPullParser()
-            parser.setInput(StringReader(metadata))
-            while (parser.next() != XmlPullParser.END_DOCUMENT) {
-                if (parser.eventType == XmlPullParser.START_TAG && isDcTitle(parser)) {
-                    val text = parser.nextText().trim()
-                    if (text.isNotEmpty()) return text
-                }
-            }
-            null
+            findTitle(metadata, true, parserProvider)
+        } catch (_: XmlPullParserException) {
+            // Some senders omit xmlns:dc. Keep that legacy spelling available,
+            // while a well-formed foreign namespace never takes this fallback.
+            try { findTitle(metadata, false, parserProvider) } catch (_: Exception) { null }
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun findTitle(metadata: String, namespaces: Boolean, parserProvider: (String, Boolean) -> XmlPullParser): String? {
+        val parser = parserProvider(metadata, namespaces)
+        while (parser.next() != XmlPullParser.END_DOCUMENT) {
+            if (parser.eventType == XmlPullParser.START_TAG && isDcTitle(parser, namespaces)) {
+                val text = parser.nextText().trim()
+                if (text.isNotEmpty()) return text
+            }
+        }
+        return null
     }
 
     /**
      * `dc:title` may arrive with a declared namespace or an undeclared `dc:` prefix,
      * so accept either while rejecting other title-like elements with a foreign ns.
      */
-    private fun isDcTitle(parser: XmlPullParser): Boolean {
-        val raw = parser.name ?: return false
-        val ns = parser.namespace ?: ""
-        val nameMatches = raw == "title" || raw.endsWith(":title")
-        return nameMatches && (ns.isEmpty() || ns.startsWith("http://purl.org/dc/"))
+    private fun isDcTitle(parser: XmlPullParser, namespaces: Boolean): Boolean {
+        // This helper is only called at START_TAG, where name/namespace exist.
+        val raw = parser.name
+        if (!namespaces) return raw == "title" || raw == "dc:title"
+        val ns = parser.namespace
+        return raw == "title" && (ns.isEmpty() || ns.startsWith("http://purl.org/dc/"))
     }
 }

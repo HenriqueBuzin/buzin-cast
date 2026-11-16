@@ -29,7 +29,8 @@ data class CastEnvelope(val source: String, val destination: String, val namespa
         field(4, namespace.toByteArray(Charsets.UTF_8))
         integer(40); integer(if (binary == null) 0 else 1)
         if (text != null) field(6, text.toByteArray(Charsets.UTF_8)) else field(7, binary!!)
-        require(bytes.size() in 1..MAX_SIZE)
+        // The version and payload-type fields already make the body nonempty.
+        require(bytes.size() <= MAX_SIZE)
         DataOutputStream(output).apply { writeInt(bytes.size()); bytes.writeTo(this); flush() }
     }
 
@@ -74,10 +75,10 @@ data class CastEnvelope(val source: String, val destination: String, val namespa
                         when (field) {
                             1 -> version = value
                             5 -> type = value
-                            8, 9 -> require(value == 0) { "Chunked Cast messages not supported" }
+                            else -> require(value == 0) { "Chunked Cast messages not supported" }
                         }
                     }
-                    in 2..4, 6, 7 -> { require(wire == 2 && !fields.containsKey(field)); fields[field] = block() }
+                    2, 3, 4, 6, 7 -> { require(wire == 2 && !fields.containsKey(field)); fields[field] = block() }
                     else -> when (wire) {
                         0 -> integer()
                         2 -> block()
@@ -87,12 +88,14 @@ data class CastEnvelope(val source: String, val destination: String, val namespa
                     }
                 }
             }
-            require(version == 0 && (type == 0 || type == 1))
+            require(version == 0)
+            val payloadType = requireNotNull(type)
+            require(payloadType == 0 || payloadType == 1)
             fun id(field: Int) = utf8(requireNotNull(fields[field])).also {
                 require(it.isNotBlank() && it.length <= 256 && it.none(Char::isISOControl))
             }
             require((fields[6] != null) != (fields[7] != null))
-            require((type == 0) == (fields[6] != null))
+            require((payloadType == 0) == (fields[6] != null))
             return CastEnvelope(id(2), id(3), id(4), fields[6]?.let(::utf8), fields[7])
         }
     }

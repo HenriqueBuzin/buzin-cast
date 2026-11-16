@@ -102,6 +102,51 @@ confere limites de 0–10%, mudança real das quatro pontas por pixels,
 Salvar/Cancelar/Voltar por toque e controle, preferências em disco e uma
 mesma conexão RTSP antes/durante/depois do ajuste. Desbloqueia o emulador
 API17 recém-iniciado antes de abrir o app.
+No primeiro idioma também percorre os quatro perfis, confere a seleção
+persistente, as preferências atômicas de áudio, o reinício e os modos
+anunciados em `/info`. `test_fireos3_probe.py` testa configurações nativas
+não padrão e os buffers FFmpeg fixo/adaptativo, mantendo os pacotes sintéticos
+e AudioTrack silenciado. O teste não mede 1080p/60 numa TV física.
+Os dois scripts aceitam `--adb-server-port` (padrão 5037), para usar um
+servidor ADB separado durante testes concorrentes. A criação e o encerramento
+desse servidor ficam a cargo de quem executa; o script não reinicia o ADB
+global nem encerra outros emuladores. O número da porta não altera a recusa
+de aparelhos físicos ou os IDs permitidos.
+O autoteste nativo também inicia descoberta/RTSP/áudio sem display, conecta
+uma saída depois e verifica duas retiradas/substituições da Surface, mantendo
+o áudio e a mesma conexão RTSP. A retomada exige atualizações reais da
+TextureView com IDRs sem novos SPS/PPS. Esse autoteste isolado do runtime complementa a bateria de serviço do
+frontend descrita abaixo; sozinho não comprova background/boot da Activity.
+
+
+
+`--lifecycle-checks` acrescenta ao primeiro idioma a conferência do serviço:
+mesmo socket RTSP ao usar Home/Voltar e recriar a Activity, desligar background,
+retomar, parar explicitamente, liberar notificação/wake lock e recuperar após
+encerramento do processo debug. Também reinicia o emulador escolhido duas
+vezes para conferir o boot ligado/desligado. Valida o pacote permitido, o PID
+e `ro.kernel.qemu` antes das operações; nunca aceita uma TV física.
+`--lifecycle-only` executa apenas essa bateria (inglês padrão, ou `--locales`).
+A rotação de celular é desligada para representar o display fixo de um Stick;
+o teste aguarda o input do Android ficar pronto antes de desbloquear após boot.
+As opções background/boot são restauradas ao padrão e o APK é removido no fim.
+
+`Build-FireOs.ps1 -Target legacy -Instrumentation -Check` gera o APK debug
+mais `fireos-legacy/build/outputs/apk/androidTest/debug/fireos-legacy-debug-androidTest.apk`.
+Com `-NoDownload`, ambos ficam sob `build-nodownload`. A opção se aplica apenas
+à prévia API17. O helper também exporta cópias estáveis em
+`outputs/fireos/legacy-preview` e `outputs/fireos/legacy-preview-nodownload`.
+Cada pasta tem `fireos-legacy-debug.apk`, o APK de teste se solicitado e
+`artifact.json` com identificação, versão e hashes. Use essas cópias entre
+builds: alternar a edição pode fazer o Gradle limpar os APKs da pasta `build`
+anterior como saídas antigas. As pastas de exportação ficam fora dessa limpeza.
+O runner usa Instrumentation da plataforma e resolve multidex
+antes de abrir o app; não acrescenta comandos de teste ao APK do produto.
+`test_legacy_gestures.py --adb <adb> --serial emulator-5560 --apk <apk> --test-apk <test-apk>`
+segura toque e DPAD_CENTER durante um reinício real do receptor, espera o socket
+antigo fechar e o novo listener responder e então confirma a navegação. Aceita
+os mesmos dois IDs de prévia e `--adb-server-port`, exige API17/emulador e remove
+os dois APKs no fim. JSON/hashes e saída da instrumentação ficam em `--output`.
 
 O teste percorre os APKs locais em `outputs`, abre início/configurações/Sobre,
 espera as animações e mede a estabilidade dos quadros. Mostra o foco do

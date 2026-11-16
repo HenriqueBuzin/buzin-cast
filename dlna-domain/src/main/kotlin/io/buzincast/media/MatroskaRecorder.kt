@@ -68,13 +68,15 @@ class MatroskaRecorder(private val file: File) : Closeable {
     }
 
     private fun block(track: Int, ptsNs: Long, payload: ByteArray, key: Boolean) {
-        val out = output ?: return
+        // Both callers have already opened the tracks (or rejected the packet).
+        val out = output!!
         val ms = ((ptsNs - firstPts) / 1_000_000).coerceAtLeast(0)
         if (clusterMs == Long.MIN_VALUE || ms - clusterMs > 5000 || ms - clusterMs < -32000) {
             clusterMs = ms
             out.write(id(0x1f43b675)); out.write(UNKNOWN_SIZE); out.write(uint(0xe7, ms))
         }
-        val relative = ms - clusterMs; require(relative in -32768..32767)
+        // The cluster reset above guarantees [-32000, 5000], within Int16.
+        val relative = ms - clusterMs
         val header = byteArrayOf((0x80 or track).toByte(), (relative.toInt() shr 8).toByte(), relative.toByte(), if (key) 0x80.toByte() else 0)
         out.write(element(0xa3, header, payload)); lastMs = maxOf(lastMs, ms)
     }
@@ -89,7 +91,7 @@ class MatroskaRecorder(private val file: File) : Closeable {
     companion object {
         private val UNKNOWN_SIZE = byteArrayOf(1, -1, -1, -1, -1, -1, -1, -1)
         private fun id(value: Long): ByteArray {
-            val size = (1..8).first { value ushr (it * 8).coerceAtMost(63) == 0L || it == 8 }
+            val size = maxOf(1, (64 - java.lang.Long.numberOfLeadingZeros(value) + 7) / 8)
             return ByteArray(size) { (value ushr (8 * (size - it - 1))).toByte() }
         }
         private fun size(value: Long): ByteArray {

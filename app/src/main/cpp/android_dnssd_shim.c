@@ -43,6 +43,7 @@ struct dnssd_s {
 
     char codec_cn[16]; /* dynamic "cn" value, e.g. "0,1,2,3" */
     int compressed_only;
+    int metadata_enabled;
 
     char raop_servname[MAX_SERVNAME];
 };
@@ -113,7 +114,7 @@ dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
     _txt_set(rec, "vv", RAOP_VV);
     _txt_set(rec, "ft", features);
     _txt_set(rec, "am", GLOBAL_MODEL);
-    if (!dnssd->compressed_only) _txt_set(rec, "md", RAOP_MD);
+    if (!dnssd->compressed_only || dnssd->metadata_enabled) _txt_set(rec, "md", RAOP_MD);
     _txt_set(rec, "rhd", RAOP_RHD);
 
     switch (dnssd->pin_pw) {
@@ -276,10 +277,16 @@ void android_dnssd_set_codecs(dnssd_t *dnssd, int alac, int aac) {
     strncpy(dnssd->codec_cn, buf, sizeof(dnssd->codec_cn) - 1);
 }
 
-/* API17 backend supports compressed stereo audio, not raw PCM or metadata UI. */
+/* Compressed stereo audio can be enabled independently of metadata support. */
 void android_dnssd_set_compressed_audio_only(dnssd_t *dnssd) {
     dnssd->compressed_only = 1;
     strcpy(dnssd->codec_cn, "1,2,3");
+}
+void android_dnssd_enable_metadata(dnssd_t *dnssd) {
+    dnssd->metadata_enabled=1;
+    dnssd_set_airplay_features(dnssd,15,1);
+    dnssd_set_airplay_features(dnssd,16,1);
+    dnssd_set_airplay_features(dnssd,17,1);
 }
 
 const char *android_dnssd_get_raop_servname(dnssd_t *dnssd) {

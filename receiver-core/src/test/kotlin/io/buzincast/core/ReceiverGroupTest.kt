@@ -7,6 +7,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 class ReceiverGroupTest {
+    @Test fun `default failure handler still releases a receiver which cannot start`() {
+        val group=ReceiverGroup(); val receiver=Receiver(failStart=true,failClose=true)
+        group.start(receiver); group.close()
+        assertEquals(1,receiver.starts); assertEquals(1,receiver.closes)
+    }
     @Test fun `startup failure after shutdown does not close the same receiver twice`() {
         val entered = CountDownLatch(1)
         val failStart = CountDownLatch(1)

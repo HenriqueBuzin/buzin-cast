@@ -55,6 +55,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -111,6 +116,15 @@ fun BoxScope.PlaybackSpeedSelector(
                 .calculateEndPadding(LocalLayoutDirection.current)
             Column(
                 modifier = Modifier
+                    .onPreviewKeyEvent { event ->
+                        // TV remotes deliver Back through the focused Compose
+                        // tree. Consume both halves so release cannot reach the
+                        // underlying player's stop handler after closing here.
+                        if (event.key == Key.Back) {
+                            if (event.type == KeyEventType.KeyUp) onDismiss()
+                            true
+                        } else false
+                    }
                     .focusRequester(focusRequester)
                     .focusGroup()
                     .padding(top = 24.dp)

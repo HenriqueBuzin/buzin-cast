@@ -7,7 +7,7 @@
 struct LegacyAudio {
     LogSink log;
     LatencyReporter latency{"legacy", log};
-    TimelineBuffer timeline{44100, 2, 20, 95};
+    TimelineBuffer timeline;
     std::unique_ptr<Decoder> decoder;
     std::vector<uint8_t> packet;
     std::vector<int16_t> pcm;
@@ -16,7 +16,7 @@ struct LegacyAudio {
     PcmTimelineClock clock{44100, 2};
     std::vector<int64_t> timing;
 
-    LegacyAudio() {
+    LegacyAudio(int cushionMs,int percentile) : timeline(44100,2,cushionMs,percentile) {
         timeline.enqueuedPcm = [this](uint64_t first, size_t count, int64_t pts) { clock.enqueued(first, count, pts); };
         timeline.capturePcm = [this](const int16_t *data, size_t count, int64_t) {
             decodedSamples += count;
@@ -26,11 +26,12 @@ struct LegacyAudio {
 };
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_io_buzincast_fireos3probe_LegacyAudioDecoder_create(JNIEnv *, jclass, jint ct, jint spf) {
+Java_io_buzincast_fireos3probe_LegacyAudioDecoder_create(JNIEnv *, jclass, jint ct, jint spf,jint cushionMs,jint percentile) {
+    if(cushionMs<0 || cushionMs>1000 || percentile<1 || percentile>100)return 0;
     if ((ct == CT_ALAC && spf != 352) ||
         (ct == CT_AAC_LC && spf != 960 && spf != 1024) ||
         (ct == CT_AAC_ELD && spf != 480 && spf != 512)) return 0;
-    auto audio = std::make_unique<LegacyAudio>();
+    auto audio = std::make_unique<LegacyAudio>(cushionMs,percentile);
     audio->decoder = makeDecoder(ct, spf, 44100, 2, audio->timeline, audio->latency,
                                  audio->log, true, false, false);
     return audio->decoder ? reinterpret_cast<jlong>(audio.release()) : 0;
@@ -76,9 +77,9 @@ extern "C" JNIEXPORT jlongArray JNICALL
 Java_io_buzincast_fireos3probe_LegacyAudioDecoder_statistics(JNIEnv *env, jclass, jlong handle) {
     auto *audio = reinterpret_cast<LegacyAudio *>(handle);
     if (!audio) return nullptr;
-    const jlong values[] = {audio->decodedSamples, audio->peak};
-    jlongArray result = env->NewLongArray(2);
-    if (result) env->SetLongArrayRegion(result, 0, 2, values);
+    const jlong values[] = {audio->decodedSamples, audio->peak,audio->timeline.debugInfo().tunedCushionMs};
+    jlongArray result = env->NewLongArray(3);
+    if (result) env->SetLongArrayRegion(result, 0, 3, values);
     return result;
 }
 

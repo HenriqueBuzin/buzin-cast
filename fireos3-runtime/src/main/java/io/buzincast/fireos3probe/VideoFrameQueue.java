@@ -5,7 +5,9 @@ import java.util.ArrayDeque;
 /** Bounded handoff from native receiver threads to the API 17 decoder worker. */
 final class VideoFrameQueue {
     static final int MAX_BYTES = 4 * 1024 * 1024;
-    static final int MAX_FRAMES = 8;
+    // A quarter-second at 60 fps fits the scheduler's maximum wait. Encoded
+    // memory remains independently capped at 4 MiB, including large IDRs.
+    static final int MAX_FRAMES = 16;
     private final ArrayDeque<Frame> frames = new ArrayDeque<>();
     private int bytes;
     private boolean closed;
@@ -13,6 +15,21 @@ final class VideoFrameQueue {
     private int generation;
     private final AudioPacketQueue audio;
     private final Runnable reset;
+    interface Controls {void identity(String id,String token);void stopped();}
+    private volatile Controls controls;
+    interface Media {void metadata(byte[] bytes);void artwork(byte[] bytes);void progress(long start,long current,long end);}
+    private volatile Media media;
+    void media(Media media) {this.media=media;}
+    @SuppressWarnings("unused") public void onMetadata(byte[] bytes) {Media target=media;if(target!=null)target.metadata(bytes);}
+    @SuppressWarnings("unused") public void onArtwork(byte[] bytes) {Media target=media;if(target!=null)target.artwork(bytes);}
+    @SuppressWarnings("unused") public void onProgress(long start,long current,long end) {Media target=media;if(target!=null)target.progress(start,current,end);}
+    void controls(Controls controls) {this.controls=controls;}
+    @SuppressWarnings("unused") public void onDacpId(String id,String token) {
+        Controls target=controls;if(target!=null)target.identity(id,token);
+    }
+    @SuppressWarnings("unused") public void onSenderStopped() {
+        Controls target=controls;if(target!=null)target.stopped();
+    }
 
     VideoFrameQueue() { this(null); }
     VideoFrameQueue(AudioPacketQueue audio) { this(audio,null); }
@@ -29,6 +46,7 @@ final class VideoFrameQueue {
     static final class Frame {
         final byte[] data;
         final long timeNs;
+        final long receivedNs=System.nanoTime();
         final int generation;
         Frame(byte[] data, long timeNs, int generation) { this.data = data; this.timeNs = timeNs; this.generation = generation; }
     }
@@ -78,6 +96,8 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        controls=null;
+        media=null;
         frames.clear();
         bytes = 0;
         notifyAll();

@@ -16,6 +16,7 @@ struct SpscRingTestAccess {
 static_assert(std::numeric_limits<decltype(SpscRingTestAccess::position(std::declval<SpscRing>()))>::digits >= 64,
               "Audio positions must remain 64-bit on ARM32 as well as ARM64");
 #define CHECK(condition) do { if (!(condition)) throw std::runtime_error(std::string(#condition)+" at line "+std::to_string(__LINE__)); } while(false)
+#include "log_sink_contracts.h"
 
 static void ringBoundsAndWrap() {
     SpscRing ring(7);
@@ -165,7 +166,12 @@ int main() {
         {"accepted PCM clock metadata",acceptedClockExcludesLatePacketsAndPadding},
         {"discontinuities and bounded clock metadata",clockKeepsDiscontinuitiesAndBoundsMetadata},
         {"ring overflow clock metadata",acceptedClockReportsActualRingCapacity},
-        {"stereo recovery after underrun and clock reset",stereoResumesAfterUnderrunAndClockReset}};
+        {"stereo recovery after underrun and clock reset",stereoResumesAfterUnderrunAndClockReset},
+        {"JNI log formatting and forwarding",logSinkFormatsAndForwards},
+        {"JNI VM failures and thread attachment",logSinkVmFailuresAndAttachment},
+        {"JNI callback binding failures",logSinkBindingFailures},
+        {"JNI string allocation and callback failures",logSinkAllocationAndCallbackFailures},
+        {"JNI log rebinding reference ownership",logSinkRebindingReleasesReferences}};
     int failures=0;
     for(const auto &test:cases) { try {test.second(); std::cout<<"PASS "<<test.first<<std::endl;} catch(const std::exception &error) {++failures; std::cerr<<"FAIL "<<test.first<<": "<<error.what()<<std::endl;} }
     std::cout<<"Native tests: "<<std::size(cases)<<", failures: "<<failures<<std::endl;

@@ -64,6 +64,7 @@ android {
         applicationId = if (noDownload) "com.buzincast.tv.deat.legacy.preview" else "com.buzincast.tv.legacy.preview"
         minSdk = 17
         targetSdk = 37
+        testInstrumentationRunner = "io.buzincast.legacy.LegacyGestureChecks"
         versionCode = 1
         versionName = "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
         multiDexEnabled = true
@@ -88,7 +89,9 @@ tasks.named("preBuild") { dependsOn(sharedResources) }
 dependencies {
     implementation(project(":fireos3-runtime"))
     implementation(project(":dlna-domain"))
+    implementation(project(":receiver-core"))
     implementation("androidx.multidex:multidex:2.0.1")
     coreLibraryDesugaring(libs.desugar)
     testImplementation(libs.junit4)
+    androidTestImplementation("org.jmdns:jmdns:3.6.5")
 }

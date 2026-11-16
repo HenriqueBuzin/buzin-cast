@@ -27,12 +27,14 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class ProbeActivity extends Activity {
     private static final String EMULATOR_SAMPLE_URL = "http://10.0.2.2:18765/h264_sample.mp4";
     private static final int MAX_SAMPLE_BYTES = 64 * 1024;
     private boolean decoding;
     private CountDownLatch previewFrame;
+    private final AtomicInteger previewUpdates=new AtomicInteger();
     private LegacyReceiverSession liveSession;
     private Thread stackCheckWorker;
     private TextureView previewView;
@@ -40,6 +42,7 @@ public final class ProbeActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if(getIntent().hasExtra("external_dns_port")) {externalDiscovery();return;}
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         int padding = Math.round(24 * getResources().getDisplayMetrics().density);
@@ -100,6 +103,7 @@ public final class ProbeActivity extends Activity {
 
             @Override
             public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+                previewUpdates.incrementAndGet();
                 if (previewFrame != null) {
                     previewFrame.countDown();
                 }
@@ -154,7 +158,10 @@ public final class ProbeActivity extends Activity {
                                 }
                             });
                         }
-                    });
+                    },new ReceiverOptions("Buzin Cast API17 Profile",17001,
+                            getIntent().getBooleanExtra("probe_games",false)?1280:1920,
+                            getIntent().getBooleanExtra("probe_games",false)?720:1080,
+                            getIntent().getBooleanExtra("probe_games",false)?60:30,false,25,90));
             liveSession.start();
         });
         streamChecks.setOnClickListener(view -> {
@@ -163,11 +170,12 @@ public final class ProbeActivity extends Activity {
             previewFrame = new CountDownLatch(1);
             CountDownLatch displayed = previewFrame;
             Surface surface = new Surface(preview.getSurfaceTexture());
+            SurfaceTexture targetTexture=preview.getSurfaceTexture();
             decoderResult.setText(R.string.probe_stream_checking);
             stackCheckWorker = new Thread(() -> {
                 String result;
                 try {
-                    StreamingSelfTest.run(this, surface, receiverIdentity(), displayed);
+                    StreamingSelfTest.run(this, surface,targetTexture,receiverIdentity(),displayed,previewUpdates);
                     result = getString(R.string.probe_stream_passed);
                 } catch (Exception | LinkageError error) {
                     result = getString(R.string.probe_stream_failed, error.getMessage());
@@ -182,6 +190,25 @@ public final class ProbeActivity extends Activity {
         });
         setContentView(content);
         run.requestFocus();
+    }
+    private void externalDiscovery() {
+        TextView status=new TextView(this);status.setText("External DNS check running");setContentView(status);
+        if((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)==0 ||
+                !(Build.HARDWARE.contains("goldfish") || Build.HARDWARE.contains("ranchu"))) {
+            status.setText("External DNS check refused: emulator only");return;
+        }
+        String ip=getIntent().getStringExtra("external_dns_address");int port=getIntent().getIntExtra("external_dns_port",0);
+        new Thread(()-> {
+            String result;
+            try {
+                java.net.InetAddress address=java.net.InetAddress.getByName(ip);
+                if(!(address instanceof java.net.Inet4Address) || !address.isSiteLocalAddress() ||
+                        java.net.NetworkInterface.getByInetAddress(address)==null || port<1 || port>65535)
+                    throw new IOException("Discovery target is not a local IPv4 receiver");
+                StreamingSelfTest.checkDiscovery(address,port);result="External DNS check passed";
+            } catch(Exception error) {result="External DNS check failed: "+error;}
+            String message=result;runOnUiThread(()-> {if(!isDestroyed())status.setText(message);});
+        },"external-dns-check").start();
     }
 
     private void startDecoder(TextView status, TextView receiverStatus, Surface surface, CountDownLatch frameShown, boolean callbackPath) {

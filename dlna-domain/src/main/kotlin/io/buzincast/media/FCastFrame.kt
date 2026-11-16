@@ -11,8 +11,9 @@ data class FCastFrame(val opcode: Int, val body: String = "") {
     fun writeTo(output: OutputStream) {
         require(opcode in 0..255)
         val bytes = body.toByteArray(Charsets.UTF_8)
+        // Check the byte count before adding the opcode, including at Int limits.
+        require(bytes.size < MAX_SIZE)
         val size = bytes.size + 1
-        require(size in 1..MAX_SIZE)
         repeat(4) { output.write(size ushr (it * 8) and 255) }
         output.write(opcode)
         output.write(bytes)

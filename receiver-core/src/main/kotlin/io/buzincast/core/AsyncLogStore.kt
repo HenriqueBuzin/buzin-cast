@@ -1,6 +1,12 @@
 package io.buzincast.core
 
 import java.io.File
+import java.io.BufferedReader
+import java.io.BufferedWriter
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.util.ArrayDeque
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
@@ -11,13 +17,23 @@ interface LogStorage {
     fun read(limit: Int): List<String>
     fun write(lines: List<String>)
 }
+/** Stream boundary lets platforms and tests report mid-I/O failures without changing storage policy. */
+interface LogFileStreams {
+    fun reader(file: File): BufferedReader
+    fun writer(file: File): BufferedWriter
+}
+private object JvmLogFileStreams : LogFileStreams {
+    override fun reader(file: File) = BufferedReader(InputStreamReader(FileInputStream(file), Charsets.UTF_8))
+    override fun writer(file: File) = BufferedWriter(OutputStreamWriter(FileOutputStream(file), Charsets.UTF_8))
+}
 class FileLogStorage(
     private val file: File,
     private val replaceSnapshot: (File, File) -> Boolean = JvmAtomicSnapshot::replace,
+    private val streams: LogFileStreams = JvmLogFileStreams,
 ) : LogStorage {
     override fun read(limit: Int): List<String> {
         val lines = ArrayDeque<String>()
-        if (file.isFile) file.bufferedReader().useLines { source -> source.forEach {
+        if (file.isFile) streams.reader(file).use { reader -> reader.lineSequence().forEach {
             if (lines.size == limit) lines.removeFirst()
             lines.addLast(it.take(2000))
         } }
@@ -26,7 +42,9 @@ class FileLogStorage(
     override fun write(lines: List<String>) {
         file.parentFile?.mkdirs()
         val temporary = File(file.path + ".tmp")
-        temporary.bufferedWriter().use { writer -> lines.forEach { writer.append(it).append('\n') } }
+        streams.writer(temporary).use { writer ->
+            lines.forEach { writer.append(it).append('\n') }
+        }
         check(replaceSnapshot(temporary, file)) { "Cannot replace log snapshot" }
     }
 }

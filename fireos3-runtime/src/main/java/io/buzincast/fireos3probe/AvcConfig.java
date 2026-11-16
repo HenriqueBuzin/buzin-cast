@@ -81,6 +81,14 @@ final class AvcConfig {
         return sps == null || pps == null ? null : new AvcConfig(sps, pps);
     }
 
+    static boolean containsIdr(byte[] data) {
+        for(int start=startCode(data,0);start>=0;) {
+            int content=start+(data[start+2]==1?3:4);
+            if(content<data.length && (data[content]&0x80)==0 && (data[content]&31)==5)return true;
+            start=startCode(data,content);
+        }
+        return false;
+    }
     byte[] spsWithStartCode() { return prefix(sps); }
     byte[] ppsWithStartCode() { return prefix(pps); }
     boolean matches(AvcConfig other) { return Arrays.equals(sps, other.sps) && Arrays.equals(pps, other.pps); }

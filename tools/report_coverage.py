@@ -16,11 +16,30 @@ def ratio(covered, total):
     return {"covered": covered, "total": total, "percent": round(100*covered/total, 4) if total else None}
 
 
+def coverage_target_met(jvm, native):
+    required={
+        "android_and_jvm":(jvm,{"INSTRUCTION","BRANCH","LINE","COMPLEXITY","METHOD","CLASS"}),
+        "native":(native,{"branches","functions","instantiations","lines","mcdc","regions"}),
+    }
+    for name,(metrics,expected) in required.items():
+        missing=expected-set(metrics)
+        if missing:
+            raise ValueError(name+" coverage metrics missing: "+", ".join(sorted(missing)))
+        for metric,value in metrics.items():
+            covered,total=value["covered"],value["total"]
+            if type(covered) is not int or type(total) is not int or not 0<=covered<=total:
+                raise ValueError(name+" has invalid coverage counters for "+metric)
+            if metric in expected and total==0:
+                raise ValueError(name+" has no mapped code for required metric "+metric)
+    return all(value["covered"]==value["total"] for metrics in (jvm,native) for value in metrics.values())
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jacoco", type=Path, required=True)
-    parser.add_argument("--native-object", type=Path, action="append", default=[])
+    parser.add_argument("--native-object", type=Path, action="append", default=[], help="Additional production binaries; never unit-test executables")
     parser.add_argument("--native-binary", type=Path, required=True)
+    parser.add_argument("--native-source-dir",type=Path,help="Matching archived app-owned native source inventory")
     parser.add_argument("--profiles", type=Path, required=True)
     parser.add_argument("--llvm-bin", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -34,7 +53,7 @@ def main():
     if not profiles: raise SystemExit("No native runtime profiles collected")
     merged=args.output/"native.profdata"
     subprocess.run([str(args.llvm_bin/"llvm-profdata"),"merge","-sparse",*map(str,profiles),"-o",str(merged)],check=True)
-    source_dir=Path(__file__).resolve().parents[1]/"app/src/main/cpp"
+    source_dir=(args.native_source_dir or Path(__file__).resolve().parents[1]/"app/src/main/cpp").resolve()
     command=[str(args.llvm_bin/"llvm-cov"),"export",str(args.native_binary),"-instr-profile="+str(merged),"--compilation-dir="+str(source_dir)]
     command += ["--object="+str(binary) for binary in args.native_object]
     native=json.loads(subprocess.check_output(command,cwd=source_dir))
@@ -63,7 +82,7 @@ def main():
     sources=[{"file":package.get("name")+"/"+source.get("name"),"metrics":{counter.get("type"):ratio(int(counter.get("covered")),int(counter.get("covered"))+int(counter.get("missed"))) for counter in source.findall("counter")}} for package in root.findall("package") for source in package.findall("sourcefile")]
     result={"android_and_jvm":kotlin,"native":native_metrics,"sources":sources,
             "native_sources":[file["filename"] for file in native["data"][0]["files"]]}
-    result["target_met"]=bool(kotlin and native_metrics) and all(metric["covered"]==metric["total"] for group in (kotlin,native_metrics) for metric in group.values())
+    result["target_met"]=coverage_target_met(kotlin,native_metrics)
     (args.output/"summary.json").write_text(json.dumps(result,indent=2),encoding="utf-8")
     print(json.dumps({key:value for key,value in result.items() if key not in ("sources","native_sources")},indent=2))
     if args.require_100 and not result["target_met"]: raise SystemExit("100% acceptance target not met; see summary.json")

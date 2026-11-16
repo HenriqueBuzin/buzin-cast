@@ -46,7 +46,7 @@ class DebugMediaReceiver : BroadcastReceiver() {
                                 val (local,mime) = io.github.jqssun.airplay.media.ExternalSubtitles.import(app,uri)
                                 service.airPlayVideoPlayer.setSubtitle(local,mime)
                             }
-                            "record" -> service.capture.start()
+                            "record" -> if (BuildConfig.RECORDING_ENABLED) service.capture.start()
                             "stop" -> { service.capture.stop(); service.relay.stop() }
                             "listen" -> service.relay.listen()
                             "connect" -> service.relay.connect(intent.getStringExtra("host")!!, intent.getIntExtra("port", 0), intent.getStringExtra("code")!!)
@@ -94,6 +94,9 @@ class DebugMediaReceiver : BroadcastReceiver() {
                         val relay = service.relay.state.value
                         pending.resultCode = -1
                         pending.resultData = JSONObject().put("recording", service.capture.state.value.recording)
+                            .put("captureArmed",service.capture.state.value.armed)
+                            .put("recordingEnabled",BuildConfig.RECORDING_ENABLED)
+                            .put("downloadEnabled",BuildConfig.VIDEO_DOWNLOAD_ENABLED)
                             .put("serverState",service.serverState.value.name)
                             .put("resolution",service.videoResolution.value)
                             .put("sessionProtocol",service.sessionSnapshot()?.token?.protocol?.name)

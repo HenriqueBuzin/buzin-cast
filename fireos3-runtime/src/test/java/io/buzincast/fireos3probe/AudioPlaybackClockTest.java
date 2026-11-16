@@ -5,6 +5,29 @@ import static org.junit.Assert.*;
 
 public class AudioPlaybackClockTest {
     private static final long NOW=1000000000L, PTS=1700000000000000000L;
+    @Test public void recentAudioSurvivesAShortHoleButNotFlushOrExpiry() {
+        AudioPlaybackClock clock=new AudioPlaybackClock();assertFalse(clock.recentlyActive(NOW));
+        clock.submit(0,441,PTS);clock.updateHead(0,NOW);assertEquals(PTS,clock.positionNs(NOW));
+        clock.updateHead(441,NOW+10000000L);
+        assertEquals(AudioPlaybackClock.UNKNOWN,clock.positionNs(NOW+10000000L));
+        assertTrue(clock.recentlyActive(NOW+20000000L));
+        assertFalse(clock.recentlyActive(NOW+300000000L));
+        clock.reset();assertFalse(clock.recentlyActive(NOW+20000000L));
+    }
+    @Test public void repeatedCoarseCounterDoesNotRewindOrKeepAStallFresh() {
+        AudioPlaybackClock clock=new AudioPlaybackClock();clock.submit(0,4096,PTS);clock.updateHead(0,NOW);
+        long predicted=clock.positionNs(NOW+50000000L);
+        clock.updateHead(0,NOW+50000000L);
+        assertEquals(predicted,clock.positionNs(NOW+50000000L));
+        clock.updateHead(0,NOW+300000000L);
+        assertEquals(AudioPlaybackClock.UNKNOWN,clock.positionNs(NOW+300000000L));
+    }
+    @Test public void predictionStaysOnKnownPcmUntilHardwareCrossesItsEnd() {
+        AudioPlaybackClock clock=new AudioPlaybackClock();clock.submit(0,441,PTS);clock.updateHead(0,NOW);
+        assertEquals(PTS+440*1000000000L/44100,clock.positionNs(NOW+20000000L));
+        clock.updateHead(441,NOW+20000000L);
+        assertEquals(AudioPlaybackClock.UNKNOWN,clock.positionNs(NOW+20000000L));
+    }
     @Test public void waitsUntilTimestampedAudioReachesPlaybackHead() {
         AudioPlaybackClock clock=new AudioPlaybackClock();
         clock.submit(4410,441,PTS); clock.updateHead(0,NOW);

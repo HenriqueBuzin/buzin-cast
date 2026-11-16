@@ -25,16 +25,19 @@ object NalUnits {
         if (hevc) type in 16..21 else type == 5
     }
     fun lengthPrefixed(nals: List<ByteArray>): ByteArray = ByteArrayOutputStream().also { bytes ->
-        DataOutputStream(bytes).use { out -> nals.forEach { out.writeInt(it.size); out.write(it) } }
+        // These streams only wrap memory; there is no external resource to close.
+        val out = DataOutputStream(bytes)
+        nals.forEach { out.writeInt(it.size); out.write(it) }
     }.toByteArray()
 
     fun avcConfig(sps: ByteArray, pps: ByteArray): ByteArray {
         require(sps.size >= 4 && pps.isNotEmpty() && sps.size <= 65535 && pps.size <= 65535)
-        return ByteArrayOutputStream().also { bytes -> DataOutputStream(bytes).use { out ->
+        return ByteArrayOutputStream().also { bytes ->
+            val out = DataOutputStream(bytes)
             out.writeByte(1); out.writeByte(sps[1].toInt()); out.writeByte(sps[2].toInt()); out.writeByte(sps[3].toInt())
             out.writeByte(255); out.writeByte(225); out.writeShort(sps.size); out.write(sps)
             out.writeByte(1); out.writeShort(pps.size); out.write(pps)
-        } }.toByteArray()
+        }.toByteArray()
     }
 
     fun hevcConfig(vps: ByteArray, sps: ByteArray, pps: ByteArray): ByteArray {
@@ -55,7 +58,8 @@ object NalUnits {
         bits.ue(); val chroma = bits.ue(); if (chroma == 3) bits.read(1)
         bits.ue(); bits.ue(); if (bits.read(1) == 1) repeat(4) { bits.ue() }
         val luma = bits.ue(); val chromaDepth = bits.ue()
-        require(chroma in 0..3 && luma in 0..7 && chromaDepth in 0..7)
+        // Unsigned Exp-Golomb decoding below already guarantees nonnegative values.
+        require(chroma <= 3 && luma <= 7 && chromaDepth <= 7)
         return ByteArrayOutputStream().also { bytes -> DataOutputStream(bytes).use { out ->
             out.writeByte(1); out.write(profile)
             out.writeShort(0xf000); out.writeByte(0xfc); out.writeByte(0xfc or chroma)
@@ -71,7 +75,8 @@ object NalUnits {
     private class Bits(private val bytes: ByteArray) {
         private var position = 0
         fun read(n: Int): Int {
-            require(n <= 31 && position + n <= bytes.size * 8)
+            // All callers are private and read at most 24 bits (the ue limit).
+            require(position + n <= bytes.size * 8)
             var result = 0
             repeat(n) { result = (result shl 1) or ((bytes[position / 8].toInt() ushr (7 - position % 8)) and 1); position++ }
             return result

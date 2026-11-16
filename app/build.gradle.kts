@@ -246,26 +246,35 @@ if (legacyEdition) {
     }
 }
 
-val coverageFolder = if (legacyEdition) "emulator-checks-legacy" else "emulator-checks"
+val coverageFolder = "emulator-checks" + (if (legacyEdition) "-legacy" else "") + (if (noDownloadEdition) "-nodownload" else "")
+val coverageInputDirectory = providers.gradleProperty("buzinCoverageData").orNull?.let { file(it) }
+    ?: rootProject.layout.buildDirectory.dir(coverageFolder).get().asFile
+val coverageMappingsDirectory = providers.gradleProperty("buzinCoverageMappings").orNull?.let { file(it) }
+fun coverageClassDirectory(name: String, live: File): File =
+    coverageMappingsDirectory?.resolve("classes/$name") ?: live
 val productionClasses = files(
-    fileTree(layout.buildDirectory.dir("intermediates/classes/debug/transformDebugClassesWithAsm/dirs")) {
+    fileTree(coverageClassDirectory("app", layout.buildDirectory.dir("intermediates/classes/debug/transformDebugClassesWithAsm/dirs").get().asFile)) {
         exclude("**/DebugMediaReceiver*", "**/DebugNativeBridge*", "**/DebugCoverage*", "**/DebugTvPreviewActivity*", "**/DebugTvPlaybackActivity*", "**/DebugNativeFixture*")
         exclude("**/Hilt_*", "**/*_Hilt*", "**/*_Factory*", "**/*_MembersInjector*", "**/hilt_aggregated_deps/**", "dagger/**")
     },
-    fileTree(layout.buildDirectory.dir("tmp/kotlin-classes/debug")),
-    project(":receiver-core").layout.buildDirectory.dir("classes/kotlin/main"),
-    project(":dlna-domain").layout.buildDirectory.dir("classes/kotlin/main")
+    fileTree(coverageClassDirectory("app-kotlin", layout.buildDirectory.dir("tmp/kotlin-classes/debug").get().asFile)),
+    coverageClassDirectory("core", project(":receiver-core").layout.buildDirectory.dir("classes/kotlin/main").get().asFile),
+    coverageClassDirectory("domain", project(":dlna-domain").layout.buildDirectory.dir("classes/kotlin/main").get().asFile)
 )
 tasks.register<JacocoReport>("fullCoverageReport") {
-    dependsOn(":receiver-core:test", ":dlna-domain:test")
+    if (coverageMappingsDirectory == null) dependsOn(":receiver-core:test", ":dlna-domain:test")
     doFirst {
-        check(layout.buildDirectory.file("intermediates/classes/debug/transformDebugClassesWithAsm/dirs/io/github/jqssun/airplay/ui/MainScreenKt.class").get().asFile.isFile) { "Build the coverage APK before reporting" }
-        check(fileTree(rootProject.layout.buildDirectory.dir(coverageFolder)) { include("**/*.ec") }.files.isNotEmpty()) { "Android execution coverage is missing" }
+        check(coverageClassDirectory("app", layout.buildDirectory.dir("intermediates/classes/debug/transformDebugClassesWithAsm/dirs").get().asFile)
+            .resolve("io/github/jqssun/airplay/ui/MainScreenKt.class").isFile) { "Build or restore the matching coverage mappings before reporting" }
+        check(fileTree(coverageInputDirectory) { include("**/*.ec") }.files.isNotEmpty()) { "Android execution coverage is missing" }
     }
-    executionData(fileTree(rootProject.layout.buildDirectory.dir(coverageFolder)) { include("**/*.ec", "**/*.exec") },
+    executionData(fileTree(coverageInputDirectory) { include("**/*.ec", "**/*.exec") })
+    if (coverageMappingsDirectory == null) executionData(
         project(":receiver-core").layout.buildDirectory.file("jacoco/test.exec"),
         project(":dlna-domain").layout.buildDirectory.file("jacoco/test.exec"))
     classDirectories.setFrom(productionClasses)
-    sourceDirectories.setFrom(files("src/main/kotlin", "../receiver-core/src/main/kotlin", "../dlna-domain/src/main/kotlin"))
+    sourceDirectories.setFrom(if (coverageMappingsDirectory == null)
+        files("src/main/kotlin", "../receiver-core/src/main/kotlin", "../dlna-domain/src/main/kotlin")
+        else files(coverageMappingsDirectory!!.resolve("sources/app"), coverageMappingsDirectory!!.resolve("sources/core"), coverageMappingsDirectory!!.resolve("sources/domain")))
     reports { xml.required.set(true); html.required.set(true) }
 }

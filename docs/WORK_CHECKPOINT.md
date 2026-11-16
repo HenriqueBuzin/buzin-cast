@@ -10,6 +10,95 @@ e revisão visual ainda estão pendentes; detalhes e evidências em
 [VEGA_HANDOFF.md](VEGA_HANDOFF.md). Próxima etapa: continuar saída de áudio/vídeo
 AirPlay e demais comportamentos do Fire OS, preservando a meta completa.
 
+## Alvo antigo — metadados da reprodução
+
+Título, artista, álbum, capa e progresso agora chegam pelos callbacks nativos
+à interface API17. A capa mantém a proporção e é reduzida fora da UI; a fila
+coalesce atualizações e invalida trabalho antigo ao trocar de transmissor.
+O relógio trata rollover, pausa e limites. Dados inválidos preservam a última
+faixa/capa válida. O anúncio inclui os três tipos de metadados; as capacidades
+de áudio comprimido e as restrições existentes continuam separadas.
+
+O teste `tools/test_legacy_gestures.py --metadata` combina controles reais de
+RTSP/DNS-SD/HTTP com pacotes **sintéticos** de metadados, capa e progresso
+entregues pelo worker C. Passou nas duas edições em
+`outputs/legacy-metadata-general-final-checked` e `outputs/legacy-metadata-regional-final`.
+Os 60 testes JVM do alvo antigo, builds ARMv7/x86 e lint passaram nas duas.
+Regressão de áudio/vídeo, descoberta e display passou em
+`outputs/legacy-metadata-native-regression`; gestos regionais também passaram.
+A interface completa passou em inglês/árabe em
+`outputs/legacy-metadata-general-ui-verified`, incluindo o Sobre e perfis.
+Corrigidos os literais Java corrompidos e a sintaxe de rolagem dos scripts no
+Android antigo. O modo `--about-only` salva também a hierarquia XML para revisão.
+[Prévia renderizada das Views nativas](images/fireos3-native-metadata.png),
+inspecionada visualmente; não é captura de vídeo/Surface nem de uma TV física.
+APKs temporários removidos após os testes. Detalhes em [TESTING.md](TESTING.md).
+
+A meta completa continua ativa: faltam integração com o cliente de mídia do
+sistema antigo e alternância áudio/espelhamento, os demais protocolos/player,
+gravação/download, segurança/licenciamento de produção e validação física.
+Os APKs 0.6.7-legacy-preview continuam debug, com IDs separados da publicação.
+
+## Alvo antigo — comandos ao transmissor
+
+O receptor API17 recebe a identificação DACP do UxPlay, resolve o transmissor
+na descoberta da sessão e envia os nove comandos por HTTP fora da UI. A tela
+mostra anterior, pausa/reprodução, próxima e volume após resolver o endpoint;
+as teclas de mídia também funcionam. Credenciais e respostas ficam vinculadas
+à sessão. Fila limitada, cancelamento, timeouts, erros e redirecionamentos são
+tratados; uma resposta atrasada não desfaz um encerramento nativo posterior.
+
+O teste completo da geral passou em `outputs/legacy-dacp-focus-verified`, com
+identificação RTSP nativa, DNS-SD/HTTP reais, toque/foco, teclas, erro HTTP e
+troca entre dois transmissores de teste. A captura de rede encontrou o anúncio
+tardio que invalidava uma consulta única; há agora até três consultas limitadas.
+O mesmo teste encontrou perda de foco ao tocar Parar: esse clique passou a
+atualizar os widgets existentes. A regressão de áudio/vídeo passou em
+`outputs/legacy-dacp-native-regression`, e a de gestos da geral passou em
+`outputs/legacy-dacp-general-gestures`. 55 testes JVM do alvo antigo passaram.
+Na regional, os mesmos controles e gestos passaram em
+`outputs/legacy-dacp-regional-verified` e `outputs/legacy-dacp-regional-gestures`.
+Build/lint e os 55 testes passaram também nessa edição. As rodadas removeram
+seus APKs temporários, sem usar TVs físicas.
+Detalhes, comandos e tentativas anteriores em [TESTING.md](TESTING.md).
+
+A meta de paridade continua ativa. Ainda faltam metadados/capa e integração
+com a sessão de mídia do sistema antigo, reprodução/protocolos restantes,
+gravação/download, segurança/licença de produção e testes físicos. Os APKs
+continuam prévias debug com IDs separados; não publicar como versão pronta.
+
+## Alvo antigo — recuperação de rede
+
+O serviço API17 aguarda uma interface local antes de iniciar, observa mudanças
+fora da UI e recria o receptor/descoberta quando o endereço muda, preservando
+a identidade. Parar cancela a recuperação, inclusive offline; a preferência
+de recuperação pode exigir reinício manual. Falhas têm tentativas limitadas,
+sem renovar o limite por sinais repetidos. O monitor para junto da solicitação;
+a espera sem rede não mantém o bloqueio de CPU do receptor.
+
+`tools/test_legacy_network.py` passou seus sete cenários em ambas as edições:
+`outputs/legacy-network-general-final/report.json` e
+`outputs/legacy-network-regional-final/report.json`. Usou troca real de IP e
+interface do emulador, RTSP e DNS-SD em outro processo, sem TVs físicas. A
+primeira execução encontrou o sufixo ligado/desligado no seletor do roteiro;
+o script passou após reconhecer esse texto. Builds ARMv7/x86, lint e 48 testes
+JVM do alvo antigo passaram. A primeira build regional encontrou testes de
+metadados DLNA em alteração simultânea; a rodada final passou com a revisão
+atualizada. Consulte [TESTING.md](TESTING.md) para o contrato e comando.
+
+A regressão final passou em dois ciclos de DNS/RTSP, áudio/vídeo e trocas de
+display; toque/DPAD durante reinícios passou nas duas edições. O ciclo de vida
+também passou, incluindo morte do processo e dois reboots reais. Relatórios
+`outputs/legacy-network-runtime-regression`, `outputs/legacy-network-*-gestures`
+e `outputs/legacy-network-service-regression`. Uma tentativa anterior do
+runtime perdeu o daemon ADB; o runner preserva a falha, e a repetição completa
+passou. Os APKs temporários foram removidos após os testes.
+
+O alvo ainda é uma prévia debug 0.6.7, com IDs separados dos apps publicados.
+Faltam controles, protocolos/reprodução de mídia, gravação/download, aprovação
+e licenciamento de produção, além de interoperabilidade e hardware antigo.
+A meta continua sendo paridade completa, nas edições geral e sem download;
+essa etapa não autoriza publicar a prévia como aplicativo pronto.
 
 ## Vega — AirPlay por URL no player — 16 de novembro de 2026
 
@@ -95,8 +184,8 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   sufixo `-nodownload` na regional. São debug, não assinadas para produção,
   sem integração da licença Amazon. Não enviar esses APKs à loja.
 - Início/parada, nome/porta, autostart ao abrir e manter a tela durante vídeo
-  têm implementação real. Diagnóstico usa a sessão atual. Servidor encerra
-  ao sair da Activity: serviço de background/boot ainda não foi portado.
+  têm implementação real. Diagnóstico usa a sessão atual. A posse do receptor
+  agora é do `LegacyReceiverService`, com background/boot descritos abaixo.
 - Regressão após extração: 33 testes JVM (32 runtime + um fixture no probe),
   build ARMv7/x86 e lint passaram. Os dois ciclos completos do receptor
   API17 passaram em `outputs/fireos3-shared-runtime-checks/report.json`.
@@ -125,13 +214,111 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
   `outputs/legacy-calibration-nodownload-verified/report.json`. Prévias
   removidas, emulador próprio fechado, nenhuma TV física usada. Captura
   pública: `docs/images/fireos3-native-calibration.png`.
-- Ainda faltam perfis, controles completos, DLNA/FCast/Cast V2,
+- Perfis ligados ao `QualityProfiles` compartilhado: mesmos nomes persistidos,
+  edição atômica de resolução/FPS e buffers, seguida de um reinício. JNI aplica
+  os modos ao plist; áudio usa buffer fixo/adaptativo e percentil efetivos.
+  AFTM anterior à API21 usa modos AVC publicados pela Amazon; APIs novas
+  consultam o codec. Emulador API17 debug usa 720p/30. Validação física dos
+  modos anunciados no firmware original continua pendente.
+  Dois ciclos finais passaram em `outputs/legacy-profiles-final-verified`,
+  incluindo buffer real de 25 ms, três políticas nos quatro codecs,
+  anúncios 1080p/30 e 720p/60 e espera/descarte/flush/retomada de áudio.
+  A mídia sintética pequena não comprova desempenho físico nesses modos.
+  O relógio AudioTrack agora preserva a referência ao reler um contador
+  sem avanço; previsão fica dentro do PCM aceito e expira após 250 ms
+  sem atualização. Lacunas curtas de metadados aguardam até 100 ms, sem
+  relaxar os limites A/V. Fila limitada a 16 quadros e 4 MiB, para acomodar
+  250 ms a 60 fps. A fixture envia áudio em tempo real sem criar uma thread
+  nativa por pacote; testes separados de callbacks nativos permanecem.
+  Relatórios das falhas anteriores de clock e ADB foram preservados.
+  UI passou em inglês/português/árabe e regional em alemão, incluindo os
+  quatro perfis, preferências, `/info`, nome/porta e calibração. Builds
+  ARMv7/x86, lint, 41 testes do alvo antigo, 34 do núcleo e 181 do domínio
+  aprovados. Captura: `docs/images/fireos3-native-profiles.png`.
+  APKs finais repetiram o roteiro completo de UI em português e alemão:
+  `outputs/legacy-profiles-packaged-normal-private-retry` e
+  `outputs/legacy-profiles-packaged-regional-private`, ambos aprovados e
+  desinstalados. Nova opção `--adb-server-port` isola o capturador dos testes
+  concorrentes. O emulador próprio foi encerrado; nenhuma TV foi usada.
+
+- Troca da saída de vídeo implementada em `setVideoSurface`: o worker só
+  libera a Surface/SurfaceTexture anterior depois de soltar o codec. Alvos
+  pendentes substituídos e ofertas após encerramento também são liberados.
+  Na API17, recria o codec, conserva SPS/PPS nas trocas de display e aguarda
+  IDR; reset do stream limpa a configuração. Sem display, drena vídeo e
+  mantém áudio/conexão. O ensaio verifica duas trocas com áudio avançando,
+  mesmo socket RTSP e atualizações reais da TextureView na retomada, usando
+  IDRs sem novos SPS/PPS. Relatório diagnóstico aprovado em
+  `outputs/legacy-surface-diagnostic`; a tentativa isolada inicial que não
+  retomou a tela está preservada em `outputs/legacy-surface-regression`.
+  Esse marco validou apenas a base de renderização; a integração ao serviço
+  foi feita na etapa seguinte, descrita abaixo.
+  A rodada final passou em `outputs/legacy-surface-headless-final/report.json`:
+  dois ciclos com duas sessões cada, iniciando RTSP/descoberta/áudio sem display
+  antes da primeira Surface e repetindo as retiradas/trocas. Passaram 45 testes
+  do alvo antigo (41 runtime, um probe, três frontend), builds ARMv7/x86 e lint
+  do probe e das duas edições. Prévia removida e emulador próprio encerrado;
+  nenhuma TV física foi controlada. A integração seguinte transfere a posse
+  da sessão ao serviço, mantendo a mesma saída de vídeo validada.
+
+- Serviço integrado: a Activity observa o estado e oferece/retira a Surface,
+  sem ser dona do receptor. Home/Voltar/nova Activity mantêm o mesmo socket
+  RTSP quando background está ligado. Ao desligar a opção, encerra ao sair e
+  retoma ao voltar; Parar explícito é preservado no retorno. Boot é opt-in e
+  inicia sem Activity. Serviço/receiver privados; foreground do tipo
+  connectedDevice, notificação com a marca e wake lock parcial limitado à
+  sessão. `TextureTarget` retém cada textura até view e decoder a soltarem.
+  A retomada `START_STICKY` exige novo processo respondendo sem abrir UI;
+  comandos explícitos já recebidos prevalecem sobre uma entrega nula tardia.
+  O cenário completo geral passou em português em
+  `outputs/legacy-service-ui-retry`, e o APK final repetiu ciclo de vida,
+  morte do processo e dois reboots em `outputs/legacy-service-focused-final`.
+  Uma primeira execução teve falha ADB; outra rodada regional encontrou o
+  input do próprio emulador congelado após reboot. Relatórios preservados.
+  O capturador agora fixa rotação de TV e aguarda input pronto/descongelado.
+  `--lifecycle-checks` inclui essa bateria no primeiro idioma;
+  `--lifecycle-only` executa apenas serviço/recuperação (inglês ou lista).
+  Builds ARMv7/x86, lint e os 45 testes JVM do alvo passaram nas duas edições.
+  Captura pública: `docs/images/fireos3-native-service-settings.png`.
+  Uma rodada regional posterior encontrou toque perdido durante reconstruções
+  de menu por callbacks do serviço. Atualizações assíncronas agora preservam
+  controles/foco e alteram só status/diagnóstico. A regressão instrumentada
+  `LegacyGestureChecks` mantém toque e OK pressionados durante um stop/start
+  nativo, observa a troca real de sockets RTSP e confere a navegação após UP.
+  Geral aprovada em `outputs/legacy-service-gesture-platform-final`. Build com
+  `-Instrumentation`; execução por `tools/test_legacy_gestures.py`. O runner
+  API17 usa Instrumentation da plataforma e o multidex do app, sem expor hooks
+  no produto; JSON inclui hashes e confirma desinstalação de app e teste.
+  A regional também passou nessa regressão em
+  `outputs/legacy-service-regional-gesture-final`. A geral repetiu a bateria
+  completa após a correção em `outputs/legacy-service-stable-final`, aprovada:
+  processo/boot/background, perfis, nome/porta e calibração.
+  Regional completa aprovada em alemão/árabe em
+  `outputs/legacy-service-regional-stable-final`. Revisão visual corrigiu a
+  ordem LTR da versão em árabe e respiro relativo do logo. Captura pública:
+  `docs/images/fireos3-native-service-rtl-about.png`.
+  Os APKs exportados após isso passaram novamente nos gestos:
+  `outputs/legacy-service-general-export-gestures` e
+  `outputs/legacy-service-regional-export-gestures`.
+  O helper preserva as edições em `outputs/fireos/legacy-preview` e
+  `outputs/fireos/legacy-preview-nodownload`, com APK, teste opcional e
+  `artifact.json` (ID/versão/hashes). Confirmado por build sequencial e hashes;
+  o Gradle podia remover os APKs antigos ao alternar o buildDirectory.
+  A rodada árabe após o ajuste visual passou em
+  `outputs/legacy-service-rtl-visual-verified` (inclusive os quatro perfis e
+  calibração). Cópias exportadas conferidas com os hashes dos relatórios de
+  gestos. Prévias/testes removidos, emulador próprio encerrado; nenhuma TV usada.
+
+
+
+- Ainda faltam controles completos, DLNA/FCast/Cast V2,
   URL/HLS/fotos/legendas, gravação/download/retransmissão na edição geral,
-  background/boot/rede, aprovação/PIN/DACP, licença/assinatura e validação
+  recuperação de rede, aprovação/PIN/DACP, licença/assinatura e validação
   com emissores reais e Stick antigo. A meta permanece o mesmo app/funções
   em todos os Fire Sticks com Fire OS; não considerar esta prévia paridade.
-  Próximo marco: perfis, aplicando as regras existentes à configuração
-  efetiva do receptor/áudio/vídeo, antes dos demais controles e protocolos.
+  Próximo marco: recuperação de rede em background e configurações/controles
+  avançados, antes dos demais protocolos. A validação física de background,
+  boot e reprodução no firmware antigo continua pendente.
 
 ## Fichas Amazon, traduções e artefatos atuais
 
