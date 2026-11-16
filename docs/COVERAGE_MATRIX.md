@@ -110,6 +110,12 @@ bits and codecs, PIN metadata, occupied-port recovery, RTSP replies, direct-buff
 bounds and audio start/stop. Temporary pairing keys stay in the emulator app's
 cache and are deleted after teardown.
 
+The native unit suite also supplies controlled JNI function tables to the real
+log sink. It checks VM-query and thread-attachment failures, reference ownership,
+class/method lookup errors, string-allocation failures and throwing callbacks.
+The fixtures reject JNI calls made with an unavailable environment or a pending
+exception. These tests do not exhaust real memory or abort a Java VM.
+
 Native profiles from the unit executable contribute to the functions also
 compiled into the app. The instrumented APK library defines the native mapping
 inventory. The test executable is not supplied as an additional coverage object:

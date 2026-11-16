@@ -16,22 +16,27 @@ class LogSink {
 public:
     // bind to Kotlin handler with `void onLog(String)` (bridge.LogListener)
     void bind(JNIEnv *env, jobject handler) {
-        env->GetJavaVM(&mVm);
+        if (mObj) env->DeleteGlobalRef(mObj);
+        mObj = nullptr;
+        mMethod = nullptr;
+        if (env->GetJavaVM(&mVm) != JNI_OK) { mVm = nullptr; return; }
         mObj = env->NewGlobalRef(handler);
+        if (!mObj) {
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            return;
+        }
         jclass cls = env->GetObjectClass(handler);
         mMethod = cls ? env->GetMethodID(cls, "onLog", "(Ljava/lang/String;)V") : nullptr;
         if (cls) env->DeleteLocalRef(cls);
+        if (env->ExceptionCheck()) env->ExceptionClear();
     }
 
     // releases handler global ref; thread safe
     ~LogSink() {
         if (!mVm || !mObj) return;
-        JNIEnv *env = nullptr;
         bool attached = false;
-        if (mVm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED) {
-            if (mVm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
-            attached = true;
-        }
+        JNIEnv *env = threadEnv(attached);
+        if (!env) return;
         env->DeleteGlobalRef(mObj);
         if (attached) mVm->DetachCurrentThread();
     }
@@ -48,22 +53,31 @@ public:
     }
 
 private:
+    JNIEnv *threadEnv(bool &attached) {
+        JNIEnv *env = nullptr;
+        const jint status = mVm->GetEnv((void **)&env, JNI_VERSION_1_6);
+        if (status == JNI_EDETACHED) {
+            if (mVm->AttachCurrentThread(&env, nullptr) != JNI_OK) return nullptr;
+            attached = true;
+        } else if (status != JNI_OK) return nullptr;
+        return env;
+    }
+
     void vemit(int prio, const char *fmt, va_list ap) {
         char buf[256];
         vsnprintf(buf, sizeof(buf), fmt, ap);
         __android_log_print(prio, LOG_SINK_TAG, "%s", buf);
         if (!mVm || !mObj || !mMethod) return;
 
-        JNIEnv *env = nullptr;
         bool attached = false;
-        if (mVm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED) {
-            if (mVm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
-            attached = true;
-        }
+        JNIEnv *env = threadEnv(attached);
+        if (!env) return;
         jstring s = env->NewStringUTF(buf);
-        env->CallVoidMethod(mObj, mMethod, s);
+        if (s) {
+            env->CallVoidMethod(mObj, mMethod, s);
+            env->DeleteLocalRef(s);
+        }
         if (env->ExceptionCheck()) { env->ExceptionDescribe(); env->ExceptionClear(); }
-        env->DeleteLocalRef(s);
         if (attached) mVm->DetachCurrentThread();
     }
 
