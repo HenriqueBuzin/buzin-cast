@@ -1,5 +1,24 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Dependência para HLS/DASH — 16 de novembro de 2026
+
+- Criado `tools/prepare_vega_shaka.py --build`, seguindo a integração oficial
+  [Shaka para Vega](https://developer.amazon.com/docs/vega/2.0/media-player-shaka-player).
+  Fixa Shaka 4.16.13 no commit `969d23b040e5e2e19e06d99d27ff6ad2c24fc45f`,
+  confere SHA-256 do pacote Amazon 4.16.13-r1.2, aplica os 33 patches e verifica
+  a árvore resultante antes de compilar a distribuição completa Release.
+- Build concluída neste Mac: `build/vega-adaptive/shaka-player/dist/` contém
+  `shaka-player.compiled.js` (cerca de 951 KiB). Reexecução com cache também
+  passou; relatório com hashes em `build/vega-adaptive/build-report.json`.
+- Código de terceiros, patches e dependências npm ficam em `build/`, ignorado
+  pelo Git. A fonte upstream usa Apache-2.0; preservar LICENSE e os demais
+  avisos ao empacotar. Os wrappers de exemplo Amazon não foram copiados para
+  as fontes públicas do app.
+- Ainda não integrado ao bundle Vega. Próximo: conectar Shaka às APIs W3C/MSE
+  reais do SDK com adaptador de ciclo de vida, cabeçalhos, busca e encerramento;
+  gerar amostras HLS e DASH locais e validar via FCast no VVD. O validador FCast
+  continua rejeitando manifestos adaptativos até essa integração ser verificada.
+
 ## Nome persistido do receptor — 16 de novembro de 2026
 
 - A página Configurações edita o nome via Turbo Module real. O armazenamento

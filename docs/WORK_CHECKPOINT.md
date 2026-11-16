@@ -1,5 +1,14 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — preparação HLS/DASH — 16 de novembro de 2026
+
+Shaka 4.16.13 com os 33 patches oficiais Amazon compilado localmente, com fonte,
+árvore e artefatos fixados por hashes. Reexecução pelo script
+`tools/prepare_vega_shaka.py --build` passou. Artefatos em `build/vega-adaptive`,
+fora do Git. HLS/DASH ainda não estão conectados ao app; integração MSE e testes
+locais no VVD são a próxima etapa. Detalhes em [VEGA_HANDOFF.md](VEGA_HANDOFF.md).
+
+
 ## Vega — nome e FCast — 16 de novembro de 2026
 
 Nome do receptor editável em Configurações e persistido no sandbox; aplicado
