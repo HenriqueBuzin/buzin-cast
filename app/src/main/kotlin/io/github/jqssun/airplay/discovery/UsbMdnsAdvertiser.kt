@@ -405,6 +405,8 @@ private fun _readName(d: ByteArray, start: Int): Pair<List<String>, Int>? {
                 if (end < 0) end = pos + 2
                 pos = ((len and 0x3F) shl 8) or (d[pos + 1].toInt() and 0xFF)
             }
+            // Ordinary labels use 00xxxxxx; 01/10 are reserved encodings.
+            (len and 0xC0) != 0 -> return null
             else -> {
                 if (pos + 1 + len > d.size) return null
                 labels += String(d, pos + 1, len)

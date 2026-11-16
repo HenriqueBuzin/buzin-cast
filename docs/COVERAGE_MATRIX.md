@@ -129,6 +129,11 @@ UI profile checks wait for a complete persisted preferences XML during a profile
 change. Empty or malformed reads never count as a default profile or a successful
 change; unavailable preferences eventually fail the same bounded wait.
 
+DNS wire contracts exercise compressed names, pointer loops and truncated
+packets, UTF-8 label truncation and case-insensitive comparison. The decoder
+rejects reserved label prefixes rather than treating them as labels longer than
+63 bytes. These wire checks do not establish physical USB tether discovery.
+
 The native unit suite also supplies controlled JNI function tables to the real
 log sink. It checks VM-query and thread-attachment failures, reference ownership,
 class/method lookup errors, string-allocation failures and throwing callbacks.
