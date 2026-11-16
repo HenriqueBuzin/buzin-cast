@@ -110,6 +110,18 @@ bits and codecs, PIN metadata, occupied-port recovery, RTSP replies, direct-buff
 bounds and audio start/stop. Temporary pairing keys stay in the emulator app's
 cache and are deleted after teardown.
 
+The software-AAC contract decodes checked-in silent AAC packets through the JNI
+audio engine and checks every PCM block, timestamp, sample rate and channel
+count. It also changes configuration between packets, toggles PCM capture and
+requires the decoder latency callback. Independent FFmpeg decoding supplies the
+fixture's sample-count and silence expectations. Metadata contracts check nested
+DMAP containers, unsigned integer widths, Unicode, truncated messages, duplicate
+tags, fallback track fields and preservation of existing artwork.
+
+UI profile checks wait for a complete persisted preferences XML during a profile
+change. Empty or malformed reads never count as a default profile or a successful
+change; unavailable preferences eventually fail the same bounded wait.
+
 The native unit suite also supplies controlled JNI function tables to the real
 log sink. It checks VM-query and thread-attachment failures, reference ownership,
 class/method lookup errors, string-allocation failures and throwing callbacks.

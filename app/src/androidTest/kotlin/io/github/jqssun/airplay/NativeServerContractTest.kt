@@ -16,6 +16,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.nio.Buffer
 import java.nio.ByteBuffer
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** Real initialized JNI contexts; the callbacks never open UI or publish NSD services. */
 @RunWith(AndroidJUnit4::class)
@@ -23,12 +24,19 @@ class NativeServerContractTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val handles = mutableListOf<Long>()
     private val keys = mutableListOf<File>()
+    private val callbacks = mutableMapOf<Long, Callbacks>()
+
+    private data class Pcm(val bytes: ByteArray, val pts: Long, val rate: Int, val channels: Int)
 
     private class Callbacks : RaopCallbackHandler, LogListener {
+        val pcm = CopyOnWriteArrayList<Pcm>()
+        val logs = CopyOnWriteArrayList<String>()
         fun onConnectionRequest(peer: String) = true
-        override fun onLog(msg: String) {}
+        override fun onLog(msg: String) { logs += msg }
         override fun onVideoData(data: ByteArray, ntpTimeNs: Long, isH265: Boolean) {}
-        override fun onAudioPcm(data: ByteArray, ntpTimeNs: Long, sampleRate: Int, channels: Int) {}
+        override fun onAudioPcm(data: ByteArray, ntpTimeNs: Long, sampleRate: Int, channels: Int) {
+            pcm += Pcm(data.copyOf(), ntpTimeNs, sampleRate, channels)
+        }
         override fun onAudioFormat(ct: Int, spf: Int, usingScreen: Boolean) {}
         override fun onVideoSize(srcW: Float, srcH: Float, w: Float, h: Float) {}
         override fun onClientVolume(db: Float) {}
@@ -52,9 +60,11 @@ class NativeServerContractTest {
 
     private fun create(pin: Boolean = false, mac: ByteArray = byteArrayOf(16, 32, 48, 64, 80, 96, 112, 120)): Long {
         val key = File.createTempFile("native-contract-", ".pem", context.cacheDir).also { keys += it }
-        val handle = NativeBridge.nativeInit(Callbacks(), mac, "JNI Contract", key.absolutePath, pin, pin)
+        val callback = Callbacks()
+        val handle = NativeBridge.nativeInit(callback, mac, "JNI Contract", key.absolutePath, pin, pin)
         assertNotEquals("Native initialization failed", 0L, handle)
         handles += handle
+        callbacks[handle] = callback
         return handle
     }
 
@@ -162,5 +172,47 @@ class NativeServerContractTest {
         assertTrue(NativeBridge.nativeServerAudioDebug(handle, buffer))
         repeat(2) { NativeBridge.nativeServerAudioStop(handle) }
         assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 0, 90, 192, false, false, true, true, true))
+    }
+
+    @Test fun softwareAacDecodesExactPcmAcrossReconfigurationAndCaptureToggle() {
+        val encoded = context.assets.open("mirror/sample.aac").use { it.readBytes() }
+        val frames = mutableListOf<ByteArray>()
+        var offset = 0
+        while (offset < encoded.size) {
+            assertTrue(offset + 7 <= encoded.size)
+            assertEquals(255, encoded[offset].toInt() and 255)
+            assertEquals(240, encoded[offset + 1].toInt() and 240)
+            val header = if (encoded[offset + 1].toInt() and 1 == 1) 7 else 9
+            val length = ((encoded[offset + 3].toInt() and 3) shl 11) or
+                ((encoded[offset + 4].toInt() and 255) shl 3) or ((encoded[offset + 5].toInt() and 224) shr 5)
+            assertTrue(length > header && offset + length <= encoded.size)
+            frames += encoded.copyOfRange(offset + header, offset + length)
+            offset += length
+        }
+        // Independent ffmpeg decoding of this checked-in silence fixture yields
+        // 88 x 1024 stereo PCM16 frames (360448 bytes), all zero.
+        assertEquals(88, frames.size)
+        val handle = create()
+        val callback = callbacks.getValue(handle)
+        NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
+        assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 0, true, true, false, false, false))
+        NativeBridge.nativeSetCaptureEnabled(handle, true)
+        val base = System.nanoTime()
+        val count = frames.size * 3 // enough real decodes to exercise latency reporting
+        for (index in 0 until count) {
+            if (index == 20)
+                assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 80, 90, 0, true, true, false, false, true))
+            NativeBridge.nativeSetCaptureEnabled(handle, index != 40)
+            DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], base + index * 1024L * 1_000_000_000L / 44100)
+        }
+        assertEquals(count - 1, callback.pcm.size)
+        assertEquals((count - 1) * 4096, callback.pcm.sumOf { it.bytes.size })
+        for ((record, index) in callback.pcm.zip((0 until count).filter { it != 40 })) {
+            assertEquals(44100, record.rate); assertEquals(2, record.channels)
+            assertEquals(4096, record.bytes.size)
+            assertTrue(record.bytes.all { it == 0.toByte() })
+            assertEquals(base + index * 1024L * 1_000_000_000L / 44100, record.pts)
+        }
+        assertTrue("Decoder latency callback was not delivered", callback.logs.any { it.contains("decode latency:") })
     }
 }
