@@ -24,6 +24,7 @@ final class LegacyAudioDecoder implements Closeable {
     }
 
     synchronized long[] stats() { return handle == 0 ? new long[]{0, 0} : statistics(handle); }
+    synchronized long[] timing() { return handle == 0 ? new long[0] : readTiming(handle); }
 
     @Override public synchronized void close() {
         if (handle != 0) { destroy(handle); handle = 0; }
@@ -33,5 +34,6 @@ final class LegacyAudioDecoder implements Closeable {
     private static native boolean decodePacket(long handle, byte[] packet, long ptsNs);
     private static native int readPcm(long handle, short[] output, int frames);
     private static native long[] statistics(long handle);
+    private static native long[] readTiming(long handle);
     private static native void destroy(long handle);
 }

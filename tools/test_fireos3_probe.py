@@ -48,6 +48,9 @@ def main():
             texts = {n.get('text') for n in ui().iter()}
             if all(label in texts for label in labels):
                 return
+            if any(label.startswith('Streaming stack:') for label in labels):
+                failures = [value for value in texts if value and value.startswith('Streaming stack check failed:')]
+                if failures: raise AssertionError(failures[0])
             time.sleep(.3)
         raise AssertionError('Missing result: ' + repr(labels) + '; UI=' + repr(texts))
 
@@ -82,19 +85,20 @@ def main():
             expect('Receiver callback H.264: frame displayed')
             entry['callback_surface'] = 'pass'
             tap('Run streaming stack checks')
-            expect('Streaming stack: DNS-SD + RTSP + H.264 + native audio callbacks passed', timeout=45)
+            expect('Streaming stack: DNS-SD + RTSP + H.264 + audio + A/V clock passed', timeout=45)
             tap('Start experimental AV receiver')
             expect_live_ready()
             tap('Stop experimental receiver')
             expect('Experimental receiver stopped.', timeout=15)
             # Restart the streaming self-test after a full live start/stop.
             tap('Run streaming stack checks')
-            expect('Streaming stack: DNS-SD + RTSP + H.264 + native audio callbacks passed', timeout=45)
+            expect('Streaming stack: DNS-SD + RTSP + H.264 + audio + A/V clock passed', timeout=45)
             entry['dns_rtsp_live_decoder'] = 'pass'
             entry['live_start_stop'] = 'pass'
             entry['alac_aac_lc_aac_eld_timeline_pcm_output'] = 'pass'
             entry['native_audio_format_volume_flush_and_shutdown'] = 'pass'
             entry['audio_idle_release_and_resume'] = 'pass'
+            entry['pcm_clock_video_wait_drop_and_flush'] = 'pass'
             # API 17's adbd does not implement exec-out. Pull a PNG file intact.
             adb('shell', 'screencap', '-p', '/data/local/tmp/buzin-probe.png')
             picture = args.output/f'cycle-{cycle+1}.png'

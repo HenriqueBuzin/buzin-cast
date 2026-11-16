@@ -22,6 +22,35 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **16/nov — protótipo 0.5 com relógio A/V:** o buffer temporal informa
+  quais amostras foram realmente aceitas e lidas, separando silêncio de
+  priming/underrun, lacunas inseridas, sobreposição descartada e trim.
+  Metadados limitados por posição absoluta preservam mudanças de timestamp;
+  o PCM e a política de jitter existentes continuam no mesmo caminho.
+  `AudioPlaybackClock` relaciona esses intervalos ao head de AudioTrack,
+  trata wrap de 32 bits, reset e amostra de relógio antiga. Um bloco conhecido
+  que ainda está na fila permite contar o tempo até sua reprodução, inclusive
+  após underrun. Não interpola uma mudança de PTS como mudança de sample rate.
+  O player H.264 mantém tags relativas no codec e um mapa limitado para o
+  NTP original; espera quadros adiantados, descarta atrasos maiores que 150 ms
+  e limita a espera a 250 ms. Sem relógio de áudio válido, vídeo segue sozinho.
+  O teste aquece o decoder com um fluxo de entrada: uma única imagem na API
+  17 não produziu saída. Depois exige o timestamp de origem esperado, espera
+  real, desvio de entrega até 25 ms no relógio de software, descarte de quadro
+  500 ms atrasado e nova geração de relógio após flush em até 200 ms.
+  Isso não mede a latência HDMI/acústica nem substitui emissor/Stick físicos.
+  ARMv7/x86, lint e 30 testes JVM passaram. Dois ciclos completos da API 17
+  x86 passaram, cada um repetindo a bateria de streaming. Relatório em
+  `outputs/fireos3-sync-verified-checks/report.json` e
+  [captura do emulador](images/fireos3-avsync-probe.png). O pacote foi removido
+  e o emulador fechado. Build moderno x86_64, lint e verificação do núcleo
+  também passaram após a alteração compartilhada do buffer temporal.
+- Treze testes nativos passaram no emulador API 17, incluindo dez dias de
+  posições de stream, gaps/drops, overflow, priming, trim e bounded metadata.
+  Os mesmos testes também compilaram para ARMv7. O comando público
+  `python tools/build_native_tests.py --legacy --output outputs/native-api17-tests`
+  usa NDK r23/C++17 e não exige runtime de cobertura/sanitizer na API 17.
+  Sem `--legacy`, preserva o NDK atual, UBSan e cobertura para o CI moderno.
 - **16/nov — protótipo 0.4 com áudio do receptor integrado:** os callbacks
   UxPlay `audio_process`, `audio_get_format`, `audio_set_volume`,
   `audio_set_client_volume` e `audio_flush` chegam a uma fila Java limitada

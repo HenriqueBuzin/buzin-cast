@@ -72,12 +72,14 @@ Dois ciclos de autoteste passaram na API 17, incluindo consulta multicast,
 RTSP e vídeo sintético. Isso não é uma sessão real com um emissor Apple.
 
 O build de produção atual vincula `libmediandk`, que começa na API 21;
-o protótipo não vincula essa biblioteca. Na prova 0.4, o receptor encaminha
+o protótipo não vincula essa biblioteca. Na prova 0.5, o receptor encaminha
 ALAC/AAC a uma fila limitada e a um worker com os decodificadores FFmpeg,
 buffer temporal e AudioTrack. Formato, volume e flush têm callbacks reais;
 o teste sintético percorre essa ponte com o áudio silenciado. A sessão já
-anuncia áudio comprimido e `_raop`. Negociação/RTP com emissor real e o
-sincronismo A/V ainda precisam de validação e implementação, respectivamente.
+anuncia áudio comprimido e `_raop`. O relógio A/V usa os intervalos PCM
+efetivamente lidos e o playback head de AudioTrack, com espera/descarte de
+vídeo e reset por formato/flush. Negociação/RTP com emissor real e sincronismo
+físico ainda precisam de validação.
 Ainda faltam demais protocolos,
 telas completas e paridade funcional, além de validação com emissor real e
 Stick antigo. A meta permanece a mesma aplicação por geração, com variantes

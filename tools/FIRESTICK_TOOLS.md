@@ -65,7 +65,9 @@ Na prova 0.3 também decodifica ALAC, AAC-LC e AAC-ELD (480/512), confere o
 buffer temporal e o relógio de saída AudioTrack com volume zero. Os pacotes
 são sintéticos. A prova 0.4 acrescenta a fila/player do receptor persistente,
 anúncios `_raop`, volume por RTSP e testes da ponte nativa de formato, áudio,
-volume, flush e encerramento. Sincronismo A/V ainda pendente. Para regenerar as
+volume, flush e encerramento. A prova 0.5 também confere o relógio PCM/A/V,
+espera/descarte de vídeo e invalidação por flush. Não mede sincronismo físico
+com um emissor real. Para regenerar as
 amostras, consulte `LEGACY_AUDIO_FIXTURES.md`.
 
 Os scripts `test_focus_navigation.py` e `test_fireos3_probe.py` recusam TVs

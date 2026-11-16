@@ -156,13 +156,33 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
   em `docs/images/fireos3-live-audio-probe.png`. Pacote removido, emulador
   fechado e nenhuma TV física usada. Nenhum APK foi publicado nesta etapa.
   Ainda não há sessão negociada/criptografada/RTP com emissor Apple real.
-  Para sincronismo, vincular o PTS do PCM efetivamente lido (incluindo
-  priming, gaps e trims) à posição do AudioTrack, tratando o wrap de 32 bits.
-  NTP local do UxPlay é tempo Unix; não compará-lo diretamente a nanoTime.
-  Os contadores atuais são diagnósticos e ainda não formam esse relógio.
-  Próximo marco: sincronismo A/V,
-  sessão com emissor real e migração das
-  funções/telas restantes; não declarar paridade ou publicar este protótipo.
+  **Avanço seguinte — protótipo 0.5/código 5:** relógio A/V implementado a
+  partir dos intervalos PCM efetivamente aceitos/lidos, com posições de
+  amostra de 64 bits, gaps/overlap/overflow/trim e separação de padding.
+  `AudioPlaybackClock` relaciona NTP do PCM ao head real de AudioTrack,
+  incluindo wrap de 32 bits, reset, relógio antigo e countdown para PCM
+  ainda enfileirado. Nunca compara NTP Unix diretamente a nanoTime.
+  O decoder H.264 recebe tags relativas com mapa limitado ao PTS original,
+  espera quadros adiantados (até 250 ms) e descarta mais de 150 ms de atraso;
+  sem relógio válido, continua como vídeo sozinho. Idle sem codec agora
+  espera na fila por até um segundo, sem polling a cada 10 ms.
+  Primeiro teste com uma imagem não gerou saída do decoder; a suíte agora
+  aquece com o fluxo, usa três IDRs e exige o timestamp de origem esperado,
+  espera real, entrega dentro de 25 ms no relógio de software, descarte do
+  quadro 500 ms atrasado e nova geração de relógio após flush em até 200 ms.
+  Dois ciclos completos na API 17 x86 passaram com duas baterias por ciclo.
+  ARMv7/x86, lint, 30 testes JVM e 13 testes C++ em execução API 17 passaram;
+  os C++ também compilaram para ARMv7. Build moderno x86_64/lint/núcleo passou.
+  Relatório ignorado em `outputs/fireos3-sync-verified-checks/report.json`,
+  prova pública em `docs/images/fireos3-avsync-probe.png`. Pacote e executável
+  temporários removidos, emulador fechado, TVs físicas não usadas. Não mede
+  sincronismo físico/HDMI e não equivale a uma sessão Apple negociada.
+  Comando C++ público agora funciona no Windows/Linux/Mac e tem `--legacy`
+  para NDK r23/API17/C++17 sem runtime de instrumentação.
+  Próximo marco: migrar as telas/configurações e funções restantes para o
+  alvo antigo, mantendo idiomas e as duas edições regionais; também falta
+  validação com emissor real e Stick antigo. Não declarar paridade nem
+  publicar este protótipo.
 
 - [x] **0.6.7 em desenvolvimento:** borda acompanha também o item tocado e o
   destino ativo do menu mantém a borda, inclusive atrás do Sobre. O foco do

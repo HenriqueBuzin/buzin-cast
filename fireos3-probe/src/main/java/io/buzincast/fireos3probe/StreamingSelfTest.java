@@ -50,6 +50,7 @@ final class StreamingSelfTest {
             checkRtsp(port, "GET /info RTSP/1.0\r\nCSeq: 2\r\nContent-Length: 0\r\n\r\n");
             checkVolume(port, session);
             replayAudio(context, session);
+            checkAvSync(context, session);
             replaySample(context, session);
             if (!session.decoded.await(5, TimeUnit.SECONDS)) throw new IOException("Live decoder produced no frame");
             if (!displayed.await(5, TimeUnit.SECONDS)) throw new IOException("Live video Surface was not updated");
@@ -220,6 +221,85 @@ final class StreamingSelfTest {
                 session.replay(frame.toByteArray(), extractor.getSampleTime()*1000L);
                 extractor.advance();
             }
+        } finally { extractor.release(); }
+    }
+
+    private static void checkAvSync(Context context, LegacyReceiverSession session) throws Exception {
+        byte[] video = firstVideoPacket(context);
+        // The API17 decoder needs a flow of input frames before its first output.
+        // Warm it up outside the measured scheduling interval.
+        int initial=session.videoPlayer.renderedFrames;
+        replaySample(context,session);
+        long warmup=SystemClock.elapsedRealtime()+3000;
+        while (session.videoPlayer.renderedFrames == initial && SystemClock.elapsedRealtime()<warmup) {
+            if (session.failure != null) throw session.failure;
+            Thread.sleep(5);
+        }
+        if (session.videoPlayer.renderedFrames == initial) throw new IOException("H.264 clock test decoder did not warm up");
+        JSONObject fixture = AudioSelfTest.fixtures(context).getJSONObject(0);
+        byte[] packet = Base64.decode(fixture.getJSONArray("packets").getString(0), Base64.DEFAULT);
+        long pts = System.currentTimeMillis()*1000000L;
+        // Bounded bursts build about a second of timestamped PCM without flooding
+        // the network handoff. No wall-clock comparison is used by the renderer.
+        for (int i=0;i<150;i++) {
+            session.replayAudio(packet,2,i==0?352:0,pts,-12,i==0);
+            pts += 352*1000000000L/44100;
+            if (i%4==3) Thread.sleep(5);
+        }
+        long deadline=SystemClock.elapsedRealtime()+3000;
+        while (session.playbackClock.positionNs(System.nanoTime()) == AudioPlaybackClock.UNKNOWN &&
+                SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
+        long audio=session.playbackClock.positionNs(System.nanoTime());
+        if (audio == AudioPlaybackClock.UNKNOWN) throw new IOException("Live PCM has no playback clock");
+        int waited=session.videoPlayer.waitedFrames, rendered=session.videoPlayer.renderedFrames;
+        long target=audio+150000000L;
+        for (int i=0;i<3;i++) session.replay(video,target+i*1000000L);
+        deadline=SystemClock.elapsedRealtime()+2000;
+        while ((session.videoPlayer.waitedFrames<=waited || session.videoPlayer.lastRenderedPtsNs<target) &&
+                SystemClock.elapsedRealtime()<deadline) {
+            if (session.failure != null) throw session.failure;
+            Thread.sleep(5);
+        }
+        if (session.videoPlayer.waitedFrames<=waited || session.videoPlayer.renderedFrames<=rendered || session.videoPlayer.lastRenderedPtsNs<target ||
+                session.videoPlayer.lastRenderDelayNs == AudioPlaybackClock.UNKNOWN || Math.abs(session.videoPlayer.lastRenderDelayNs)>25000000L)
+            throw new IOException("Ahead-of-audio video was not synchronized: waited="+session.videoPlayer.waitedFrames+
+                    ", rendered="+session.videoPlayer.renderedFrames+", dropped="+session.videoPlayer.droppedFrames+
+                    ", queued="+session.videoPlayer.queuedFrames+", outputs="+session.videoPlayer.outputFrames+
+                    ", delay="+session.videoPlayer.lastDelayNs+", clock="+session.playbackClock.positionNs(System.nanoTime()));
+        int dropped=session.videoPlayer.droppedFrames;
+        audio=session.playbackClock.positionNs(System.nanoTime());
+        if (audio == AudioPlaybackClock.UNKNOWN) throw new IOException("Audio clock expired before late-frame test");
+        for (int i=0;i<3;i++) session.replay(video,audio-500000000L+i*1000000L);
+        deadline=SystemClock.elapsedRealtime()+2000;
+        while (session.videoPlayer.droppedFrames == dropped && SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
+        if (session.videoPlayer.droppedFrames<=dropped) throw new IOException("Late video was not dropped");
+        long beforeFlush=session.playbackClock.generation();
+        session.replayAudio(new byte[0],2,0,0,-144,true);
+        deadline=SystemClock.elapsedRealtime()+200;
+        while (session.playbackClock.generation() == beforeFlush &&
+                SystemClock.elapsedRealtime()<deadline) Thread.sleep(5);
+        if (session.playbackClock.generation() == beforeFlush || session.playbackClock.positionNs(System.nanoTime()) != AudioPlaybackClock.UNKNOWN)
+            throw new IOException("Flush preserved the old audio clock");
+    }
+
+    private static byte[] firstVideoPacket(Context context) throws IOException {
+        MediaExtractor extractor=new MediaExtractor();
+        try {
+            try (AssetFileDescriptor sample=context.getResources().openRawResourceFd(R.raw.h264_sample)) {
+                extractor.setDataSource(sample.getFileDescriptor(),sample.getStartOffset(),sample.getLength());
+            }
+            extractor.selectTrack(0);
+            MediaFormat format=extractor.getTrackFormat(0);
+            ByteArrayOutputStream frame=new ByteArrayOutputStream();
+            frame.write(copy(format.getByteBuffer("csd-0"))); frame.write(copy(format.getByteBuffer("csd-1")));
+            ByteBuffer buffer=ByteBuffer.allocateDirect(64*1024);
+            int length=extractor.readSampleData(buffer,0);
+            if (length<=0) throw new IOException("Missing synthetic IDR frame");
+            byte[] bytes=new byte[length]; buffer.position(0); buffer.get(bytes);
+            frame.write(toAnnexB(bytes));
+            byte[] result=frame.toByteArray();
+            if (AvcConfig.fromAnnexB(result) == null) throw new IOException("Missing synthetic video configuration");
+            return result;
         } finally { extractor.release(); }
     }
 

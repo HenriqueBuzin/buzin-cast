@@ -1,4 +1,5 @@
 #include "audio_decoder.h"
+#include "pcm_timeline_clock.h"
 #include <new>
 
 // Owned by LegacyAudioDecoder. Java serializes every access, including close.
@@ -12,8 +13,11 @@ struct LegacyAudio {
     std::vector<int16_t> pcm;
     int64_t decodedSamples = 0;
     int peak = 0;
+    PcmTimelineClock clock{44100, 2};
+    std::vector<int64_t> timing;
 
     LegacyAudio() {
+        timeline.enqueuedPcm = [this](uint64_t first, size_t count, int64_t pts) { clock.enqueued(first, count, pts); };
         timeline.capturePcm = [this](const int16_t *data, size_t count, int64_t) {
             decodedSamples += count;
             for (size_t i = 0; i < count; ++i) peak = std::max(peak, std::abs((int)data[i]));
@@ -53,9 +57,19 @@ Java_io_buzincast_fireos3probe_LegacyAudioDecoder_readPcm(JNIEnv *env, jclass, j
     if (!audio || !output || frames <= 0 || frames > 4096 || env->GetArrayLength(output) < frames * 2)
         return -1;
     audio->pcm.resize(frames * 2);
-    audio->timeline.read(audio->pcm.data(), frames);
+    const auto read = audio->timeline.read(audio->pcm.data(), frames);
+    audio->timing = audio->clock.read(read.firstSample, read.samples);
     env->SetShortArrayRegion(output, 0, frames * 2, audio->pcm.data());
     return env->ExceptionCheck() ? -1 : frames * 2;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_io_buzincast_fireos3probe_LegacyAudioDecoder_readTiming(JNIEnv *env, jclass, jlong handle) {
+    auto *audio = reinterpret_cast<LegacyAudio *>(handle);
+    if (!audio) return nullptr;
+    jlongArray result = env->NewLongArray((jsize)audio->timing.size());
+    if (result && !audio->timing.empty()) env->SetLongArrayRegion(result, 0, (jsize)audio->timing.size(), audio->timing.data());
+    return result;
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL

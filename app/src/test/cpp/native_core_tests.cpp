@@ -1,4 +1,5 @@
 #include "timeline_buffer.h"
+#include "pcm_timeline_clock.h"
 #include <array>
 #include <chrono>
 #include <iostream>
@@ -84,9 +85,54 @@ static void discontinuityAndMetrics() {
 }
 static void sustainedBacklogIsTrimmed() {
     TimelineBuffer timeline(1000,1,20,95); int16_t input[100]; std::fill_n(input,100,1); int16_t output{};
-    timeline.write(input,100,0); timeline.read(&output,1); CHECK(output==1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(2100)); timeline.read(&output,1);
+    PcmTimelineClock clock(1000,1);
+    timeline.enqueuedPcm=[&](uint64_t first,size_t count,int64_t pts){clock.enqueued(first,count,pts);};
+    timeline.write(input,100,1000000000); timeline.read(&output,1); CHECK(output==1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(2100)); auto read=timeline.read(&output,1);
     CHECK(output==1 && timeline.debugInfo().metrics.trims==1 && timeline.debugInfo().backlogMs==19);
+    auto timing=clock.read(read.firstSample,read.samples);
+    CHECK(read.firstSample==80 && timing.size()==3 && timing[2]==1080000000);
+}
+static void acceptedClockExcludesLatePacketsAndPadding() {
+    TimelineBuffer timeline(1000,1,0,95); int16_t packet[10]{};
+    struct Event { uint64_t first; size_t count; int64_t pts; };
+    std::vector<Event> events;
+    timeline.enqueuedPcm=[&](uint64_t first,size_t count,int64_t pts){events.push_back({first,count,pts});};
+    timeline.write(packet,10,1000000000); timeline.write(packet,10,1030000000);
+    timeline.write(packet,10,1010000000); // rejected overlap must have no accepted-clock event
+    CHECK(events.size()==3 && events[1].first==10 && events[1].count==20 && events[1].pts==1010000000);
+    int16_t output[50]{}; const auto read=timeline.read(output,50);
+    CHECK(read.firstSample==0 && read.samples==40);
+    CHECK(timeline.read(output,50).samples==0);
+    TimelineBuffer priming(1000,1,20,95); priming.write(packet,10,1000000000);
+    CHECK(priming.read(output,5).samples==0); // generated prebuffer silence is not timestamped PCM
+}
+static void clockKeepsDiscontinuitiesAndBoundsMetadata() {
+    PcmTimelineClock clock(1000,2);
+    const uint64_t base=(uint64_t{1}<<32)+100;
+    clock.enqueued(base,20,1000000000); clock.enqueued(base+20,20,3000000000);
+    auto timing=clock.read(base+10,30);
+    CHECK(timing.size()==6 && timing[0]==0 && timing[1]==5 && timing[2]==1005000000);
+    CHECK(timing[3]==5 && timing[4]==10 && timing[5]==3000000000);
+    PcmTimelineClock unknown(1000,2); unknown.enqueued(0,20,0); CHECK(unknown.read(0,20).empty());
+    PcmTimelineClock bounded(1000,1);
+    for(int i=0;i<1000;++i) bounded.enqueued(i,1,1000000000LL+i*1000000000LL);
+    auto recent=bounded.read(0,1000); CHECK(recent.size()==512*3 && recent[0]==488);
+    PcmTimelineClock longStream(44100,2);
+    const uint64_t frames=44100ULL*86400*10;
+    const uint64_t hour=44100ULL*3600;
+    for(int h=0;h<240;h++) longStream.enqueued(h*hour*2,(size_t)(hour*2),1000000000LL+h*3600000000000LL);
+    auto late=longStream.read((frames-1)*2,2);
+    CHECK(late.size()==3 && late[2]>864000000000000LL); // ten days, no multiply overflow
+}
+static void acceptedClockReportsActualRingCapacity() {
+    TimelineBuffer timeline(1000,1,0,95);
+    std::vector<int16_t> input(10000,1),output(10000);
+    size_t accepted=0;
+    timeline.enqueuedPcm=[&](uint64_t first,size_t count,int64_t){CHECK(first==0);accepted+=count;};
+    timeline.write(input.data(),input.size(),1000000000);
+    CHECK(accepted>0 && accepted<input.size());
+    CHECK(timeline.read(output.data(),10000).samples==accepted);
 }
 static void stereoResumesAfterUnderrunAndClockReset() {
     TimelineBuffer timeline(1000, 2, 1, 95);
@@ -116,6 +162,9 @@ int main() {
         {"PCM underrun and resume",pcmUnderrunAndReprime},{"short sounds",partialSoundsEventuallyPlay},
         {"timestamp gaps drops and capture",timestampGapsDropsAndCapture},{"discontinuity and metrics",discontinuityAndMetrics},
         {"sustained backlog trimming",sustainedBacklogIsTrimmed},
+        {"accepted PCM clock metadata",acceptedClockExcludesLatePacketsAndPadding},
+        {"discontinuities and bounded clock metadata",clockKeepsDiscontinuitiesAndBoundsMetadata},
+        {"ring overflow clock metadata",acceptedClockReportsActualRingCapacity},
         {"stereo recovery after underrun and clock reset",stereoResumesAfterUnderrunAndClockReset}};
     int failures=0;
     for(const auto &test:cases) { try {test.second(); std::cout<<"PASS "<<test.first<<std::endl;} catch(const std::exception &error) {++failures; std::cerr<<"FAIL "<<test.first<<": "<<error.what()<<std::endl;} }

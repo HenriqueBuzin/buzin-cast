@@ -24,6 +24,8 @@ final class LegacyReceiverSession {
     private final AudioPacketQueue audioQueue = new AudioPacketQueue();
     private final VideoFrameQueue queue = new VideoFrameQueue(audioQueue);
     final LegacyAudioPlayer audioPlayer;
+    final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
+    final LegacyAvcPlayer videoPlayer;
     private volatile Thread audioWorker;
     private volatile Exception audioFailure;
     private final AtomicBoolean stopping = new AtomicBoolean();
@@ -42,7 +44,8 @@ final class LegacyReceiverSession {
     LegacyReceiverSession(Context context, Surface surface, String identity, Listener listener, boolean muted) {
         this.context = context.getApplicationContext(); this.surface = surface;
         this.identity = identity; this.listener = listener;
-        audioPlayer = new LegacyAudioPlayer(audioQueue, muted);
+        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock);
+        videoPlayer = new LegacyAvcPlayer(surface, queue, decoded::countDown, playbackClock);
         worker = new Thread(this::run, "fireos3-live-receiver");
     }
 
@@ -84,8 +87,7 @@ final class LegacyReceiverSession {
             discovery.start(network.address, identity, port, video, audio);
             if (stopping.get()) return;
             ready.countDown(); listener.ready(discovery.name());
-            LegacyAvcPlayer player = new LegacyAvcPlayer(surface, queue, decoded::countDown);
-            player.run(() -> stopping.get() || audioFailure != null);
+            videoPlayer.run(() -> stopping.get() || audioFailure != null);
             if (audioFailure != null) throw audioFailure;
         } catch (Exception error) {
             if (!stopping.get()) { failure = error; listener.failed(error); }

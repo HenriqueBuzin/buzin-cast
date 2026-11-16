@@ -24,6 +24,8 @@ public:
     size_t available() const {  // samples readable
         return mWrite.load(std::memory_order_acquire) - mRead.load(std::memory_order_acquire);
     }
+    uint64_t readPosition() const { return mRead.load(std::memory_order_acquire); }
+    uint64_t writePosition() const { return mWrite.load(std::memory_order_acquire); }
 
     // producer: push up to n samples, drops what doesn't fit
     size_t write(const int16_t *src, size_t n) {
@@ -208,6 +210,11 @@ private:
 class TimelineBuffer {
 public:
     std::function<void(const int16_t *, size_t, int64_t)> capturePcm;
+    // Optional producer-side observer of samples actually accepted by the ring.
+    // Unlike capturePcm, this excludes late packets and includes inserted silence.
+    // Install before use; metadata readers must provide their own synchronization.
+    std::function<void(uint64_t, size_t, int64_t)> enqueuedPcm;
+    struct ReadResult { uint64_t firstSample; size_t samples; };
     // cushion policy lives in mTracker; timeline reads mTracker.target() live
     TimelineBuffer(int sampleRate, int channels, int staticCushionMs, int percentilePct)
         : mSampleRate(sampleRate),
@@ -226,7 +233,7 @@ public:
         if (capturePcm && ptsNs > 0) capturePcm(pcm, samples, ptsNs);
         // pts 0 = sender clock not NTP synced yet
         if (ptsNs == 0) {
-            mRing.write(pcm, samples);
+            enqueue(pcm, samples, 0);
             return;
         }
         const int64_t durNs = samples * NS_PER_SEC / mChannels / mSampleRate;
@@ -251,19 +258,19 @@ public:
         } else if (gapNs > SLACK_NS) {
             // sender left gap: reproduce as silence so timing is exact
             const size_t silenceFrames = (size_t)(gapNs * mSampleRate / NS_PER_SEC);
-            writeSilenceFrames(silenceFrames);
+            writeSilenceFrames(silenceFrames, mExpectedPtsNs);
             mMetrics.countSilence();
         } else if (gapNs < -SLACK_NS) {
             // slot already passed (late/overlap): drop
             mMetrics.countDrop();
             return;
         }
-        mRing.write(pcm, samples);
+        enqueue(pcm, samples, ptsNs);
         mExpectedPtsNs = ptsNs + durNs;
     }
 
     // consumer: pop frames*channels samples into out, silence-padded on underrun
-    void read(int16_t *out, int32_t frames) {
+    ReadResult read(int16_t *out, int32_t frames) {
         const size_t need = (size_t)frames * mChannels;
         const size_t tuned = mTracker.target();
         const int64_t now = monoNs();
@@ -303,12 +310,13 @@ public:
             // never true, so we'd otherwise underrun on every empty read between sounds
             if (buffered == 0 || (buffered < tuned && !starved)) {
                 memset(out, 0, need * sizeof(int16_t));
-                return;
+                return {mRing.readPosition(), 0};
             }
             mPriming = false;
             mPrimeSilenceFrames = 0;
         }
 
+        const uint64_t firstSample = mRing.readPosition();
         const size_t got = mRing.read(out, need);
         if (got < need) {
             memset(out + got, 0, (need - got) * sizeof(int16_t));
@@ -317,6 +325,7 @@ public:
             mUnderran.store(true, std::memory_order_relaxed);  // producer re-anchors
             mMetrics.countUnderrun();
         }
+        return {firstSample, got};
     }
 
     // call after discontinuity or clock shift/resync; producer-side, must not run
@@ -356,12 +365,21 @@ private:
         return std::max(cushionSamples * 2, (size_t)mSampleRate * TRIM_FLOOR_MS / 1000 * mChannels);
     }
 
-    void writeSilenceFrames(size_t frames) {
+    void enqueue(const int16_t *pcm, size_t samples, int64_t ptsNs) {
+        if (!enqueuedPcm) { mRing.write(pcm, samples); return; }
+        const uint64_t first = mRing.writePosition();
+        const size_t accepted = mRing.write(pcm, samples);
+        if (accepted) enqueuedPcm(first, accepted, ptsNs);
+    }
+
+    void writeSilenceFrames(size_t frames, int64_t ptsNs) {
         int16_t zeros[512] = {0};  // 256 stereo frames per chunk
         size_t samples = frames * mChannels;
+        size_t offset = 0;
         while (samples > 0) {
             const size_t n = std::min<size_t>(samples, 512);
-            mRing.write(zeros, n);
+            enqueue(zeros, n, ptsNs + (int64_t)(offset / mChannels) * NS_PER_SEC / mSampleRate);
+            offset += n;
             samples -= n;
         }
     }

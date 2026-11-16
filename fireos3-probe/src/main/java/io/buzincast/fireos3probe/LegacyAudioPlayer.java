@@ -11,11 +11,14 @@ final class LegacyAudioPlayer {
     interface StopSignal { boolean stopped(); }
     private final AudioPacketQueue queue;
     private final boolean muted;
+    private final AudioPlaybackClock clock;
     volatile long decodedSamples, writtenFrames, playedFrames;
     volatile int playEvents;
     volatile boolean running, outputActive;
 
-    LegacyAudioPlayer(AudioPacketQueue queue, boolean muted) { this.queue = queue; this.muted = muted; }
+    LegacyAudioPlayer(AudioPacketQueue queue, boolean muted, AudioPlaybackClock clock) {
+        this.queue = queue; this.muted = muted; this.clock = clock;
+    }
 
     void run(StopSignal stop) throws Exception {
         Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
@@ -38,6 +41,7 @@ final class LegacyAudioPlayer {
                     if (track != null) { release(track); track = null; outputActive = false; }
                     generation = queue.generation(); writtenFrames = playedFrames = decodedSamples = 0;
                     firstSignalFrame = -1; signalled = false;
+                    clock.reset();
                 }
                 AudioPacketQueue.Packet packet = pending != null ? pending : queue.take(decoder == null ? 1000 : 0);
                 pending = null;
@@ -62,6 +66,7 @@ final class LegacyAudioPlayer {
                 }
                 if (decoder == null || generation != queue.generation()) continue;
                 decoder.read(pcm, 441);
+                long[] timing = decoder.timing();
                 if (firstSignalFrame < 0) {
                     for (int i=0; i<pcm.length; i++) if (pcm[i] != 0) {
                         firstSignalFrame = writtenFrames + i/2; break;
@@ -75,16 +80,19 @@ final class LegacyAudioPlayer {
                     if (wrote <= 0) throw new IOException("Receiver AudioTrack write failed: " + wrote);
                     offset += wrote;
                 }
+                for (int i=0; i<timing.length; i+=3) {
+                    long accepted = Math.min(timing[i+1], offset/2L-timing[i]);
+                    if (accepted > 0) clock.submit(writtenFrames+timing[i], accepted, timing[i+2]);
+                }
                 writtenFrames += offset/2;
-                // Unsigned 32-bit head; each format generation starts a new track.
-                playedFrames = track.getPlaybackHeadPosition() & 0xffffffffL;
+                playedFrames = clock.updateHead(track.getPlaybackHeadPosition(), System.nanoTime());
                 if (!signalled && firstSignalFrame >= 0 && playedFrames > firstSignalFrame) {
                     signalled = true; playEvents++;
                 }
             }
         } finally {
             try { if (track != null) release(track); }
-            finally { if (decoder != null) decoder.close(); outputActive = false; running = false; }
+            finally { if (decoder != null) decoder.close(); clock.reset(); outputActive = false; running = false; }
         }
     }
 
