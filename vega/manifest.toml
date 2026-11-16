@@ -49,3 +49,8 @@ id = "com.amazon.media.playersession.service"
 [offers]
 [[offers.service]]
 id = "com.amazon.gipc.uuid.*"
+
+# Receivers must accept sender-selected HTTP media URLs, including LAN servers.
+# URLs still pass the protocol validator; HTTPS remains supported.
+[network-traffic-policy.cleartext]
+allowed-domains = ["*"]

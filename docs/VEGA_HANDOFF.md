@@ -1,5 +1,31 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Política HTTP e integração FCast — 16 de novembro de 2026
+
+- Os logs contínuos mostraram superfície criada, associação ao VideoPlayer e
+  chamada a Play. O bloqueio real era a política HTTP ausente: a pilha Vega
+  registrava `no cleartext policy configured, blocking HTTP`, antes de pedir
+  qualquer byte ao servidor da amostra.
+- Adicionada a seção documentada `network-traffic-policy.cleartext` com
+  `allowed-domains = ["*"]`: um receptor recebe URLs HTTP escolhidas pelo
+  emissor, incluindo servidores LAN sem domínio fixo. A validação de URLs do
+  protocolo permanece em vigor. Referência:
+  [política HTTP no manifesto](https://developer.amazon.com/docs/vega/2.0/develop-your-app-with-webview).
+- Removido o `load()` duplicado após setters de fonte, que já chamam `load()`
+  no SDK instalado; teste verifica uma única carga com os cabeçalhos intactos.
+- O runner FCast agora captura logs desde a abertura, encerra seu processo de
+  coleta no finally e exige EOF/reset após Voltar, drenando até 256 KiB de
+  estados previamente enfileirados por no máximo cinco segundos. Receber um
+  byte antigo no TCP não é evidência de listener ainda ativo.
+- Lint, TypeScript, doctor, 44 testes Jest e build/validação ABI nas três
+  arquiteturas passaram. O ensaio com política HTTP já passou em reprodução,
+  pausa, busca, volume, velocidade, retomada, rejeição de pedidos inválidos e
+  Stop. A repetição ARM64 com a checagem de EOF corrigida passou inteira:
+  `build/vega-fcast-verified/result.json` tem `passed: true`, inclusive
+  `httpCustomHeaders` e `remoteClosedReceiver`. Isso valida TCP → receptor
+  nativo → player Vega com uma amostra local HTTP; não valida descoberta
+  multicast na LAN física, HLS/DASH, som audível ou emissores comerciais.
+
 ## Primeira recepção FCast no VVD — 16 de novembro de 2026
 
 - `tools/test_vega_fcast.py` conectou por TCP ao receptor real, negociou

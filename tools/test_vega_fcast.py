@@ -91,6 +91,8 @@ def main():
     thread.start()
     forwards = []
     client = None
+    log_stream = None
+    log_output = None
     try:
         devices = run(["exec", "vda", "devices"])
         if not re.search(rf"^{re.escape(args.serial)}\s+device\b", devices, re.M):
@@ -99,6 +101,10 @@ def main():
         if COMPONENT in running:
             shell("vlcm", "terminate-app", "--pkg-id", "com.buzincast.tv")
         run(["run-app", str(args.vpkg.resolve()), COMPONENT, "-d", args.serial], timeout=120)
+        log_output = (args.output / "receiver-stream.log").open("w")
+        log_stream = subprocess.Popen(
+            [sdk, "exec", "vda", "-s", args.serial, "shell", "loggingctl", "log", "-f", "-v", "com.buzincast.tv"],
+            stdout=log_output, stderr=subprocess.STDOUT, env=os.environ.copy())
         for port, direction in [(46899, "true"), (40880, "false")]:
             run(["device", "start-port-forwarding", "--device", args.serial,
                  "--port", str(port), "--forward", direction])
@@ -197,13 +203,26 @@ def main():
             raise RuntimeError("Custom request headers did not reach the media server")
         result["checks"]["httpCustomHeaders"] = True
         shell("inputd-cli", "button_press", "KEY_BACK")
-        # Forward remains, but the destination listener must be gone.
-        try:
-            client.settimeout(2)
-            if client.recv(1):
-                raise RuntimeError("FCast listener did not close its controller")
-        except ConnectionResetError:
-            pass
+        # TCP may still contain state frames queued before Back. Drain that
+        # bounded backlog and require EOF/reset within the shutdown deadline.
+        deadline = time.monotonic() + 5
+        drained = 0
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError("FCast controller did not reach EOF after Back")
+            client.settimeout(remaining)
+            try:
+                buffered = client.recv(4096)
+            except ConnectionResetError:
+                break
+            except socket.timeout as error:
+                raise RuntimeError("FCast controller stayed open after Back") from error
+            if not buffered:
+                break
+            drained += len(buffered)
+            if drained > 256 * 1024:
+                raise RuntimeError("FCast kept transmitting after Back")
         result["checks"]["remoteClosedReceiver"] = True
         result["passed"] = True
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -221,6 +240,15 @@ def main():
             pass
         raise
     finally:
+        if log_stream:
+            log_stream.terminate()
+            try:
+                log_stream.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                log_stream.kill()
+                log_stream.wait(timeout=5)
+        if log_output:
+            log_output.close()
         if client:
             client.close()
         for port, direction in reversed(forwards):

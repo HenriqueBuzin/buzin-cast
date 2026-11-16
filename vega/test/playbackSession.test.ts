@@ -250,3 +250,18 @@ test('stop repetido numa sessão antiga preserva a liberação pendente da atual
   expect(third.initialize).toHaveBeenCalledTimes(1);
   await next.stop();
 });
+
+test('carrega URL uma única vez pelo setter do SDK, preservando cabeçalhos', async () => {
+  const player = {...fakePlayer(), setSrcWithCustomHeaders: jest.fn()};
+  // The installed Vega SDK's setter invokes load internally.
+  player.setSrcWithCustomHeaders.mockImplementation(() => player.load());
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let ready!: () => void;
+  const opened = new Promise<void>((resolve) => {ready = resolve;});
+  const session = createPlaybackSession(ready, jest.fn(), null);
+  await opened;
+  session.load({url: 'https://example.com/clip.mp4', headers: {'X-Test': 'value'}, position: 0, speed: 1});
+  expect(player.setSrcWithCustomHeaders).toHaveBeenCalledWith('https://example.com/clip.mp4', {'X-Test': 'value'});
+  expect(player.load).toHaveBeenCalledTimes(1);
+  await session.stop();
+});

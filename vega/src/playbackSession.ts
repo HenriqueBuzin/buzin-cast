@@ -62,8 +62,8 @@ export function createPlaybackSession(
     position = source.position;
     player.volume = 1;
     player.playbackRate = source.speed;
+    // The Vega SDK setter starts loading; a second load resets the request.
     player.setSrcWithCustomHeaders(source.url, source.headers);
-    player.load();
     publish('loading');
     observe();
   }
@@ -147,7 +147,6 @@ export function createPlaybackSession(
     } else if (request === undefined) {
       player.volume = 0.15;
       player.src = SAMPLE;
-      player.load();
     }
     onReady(player);
     observe();

@@ -24,11 +24,17 @@ teste no VVD e com emissores físicos.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript, doctor e 12 testes Jest passaram.
+- Lint sem avisos, TypeScript, doctor e 44 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
   não foi observada em runtime nesta sessão.
+
+O teste `tools/test_vega_fcast.py` passou no VVD ARM64 com HTTP e cabeçalhos
+personalizados, posição inicial, pausa, busca, volume, velocidade, retomada,
+Stop e fechamento pelo controle. A política HTTP do manifesto permite URLs
+escolhidas pelo emissor; a validação do protocolo limita esquemas a HTTP(S).
+HLS/DASH e descoberta com emissores físicos continuam pendentes.
 
 ## Ambiente e build
 
