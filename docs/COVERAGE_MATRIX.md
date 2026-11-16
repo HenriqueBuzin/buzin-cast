@@ -118,6 +118,13 @@ fixture's sample-count and silence expectations. Metadata contracts check nested
 DMAP containers, unsigned integer widths, Unicode, truncated messages, duplicate
 tags, fallback track fields and preservation of existing artwork.
 
+Recorder-worker contracts create isolated files in the emulator cache. Media3's
+Matroska parser checks AVC/HEVC dimensions and sample counts plus exact PCM bytes
+and timestamps; the platform extractor can omit Matroska PCM on API22. The tests
+also check stop-before-keyframe cleanup and format-change errors. A controlled
+worker pause fills the real bounded queue to verify the storage-backpressure
+failure and subsequent draining; it is not a physical slow-disk benchmark.
+
 UI profile checks wait for a complete persisted preferences XML during a profile
 change. Empty or malformed reads never count as a default profile or a successful
 change; unavailable preferences eventually fail the same bounded wait.
