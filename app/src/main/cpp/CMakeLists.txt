@@ -185,7 +185,10 @@ target_link_libraries(airplay_native
 # remain uninstrumented. Release artifacts never enable this option.
 option(BUZIN_COVERAGE "Collect LLVM source coverage for app-owned native code" OFF)
 if(BUZIN_COVERAGE)
-    set_source_files_properties(${BRIDGE_SOURCES} PROPERTIES
+      # The fixture also instantiates app-owned inline headers. Instrument that
+      # translation unit so the linker cannot choose an uninstrumented weak copy
+      # of those production functions. The fixture source stays outside reports.
+      set_source_files_properties(${BRIDGE_SOURCES} coverage_bridge.cpp PROPERTIES
         COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping;-fcoverage-mcdc;-fprofile-update=atomic")
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate)
