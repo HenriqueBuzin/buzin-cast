@@ -2,13 +2,14 @@
 
 ## Fichas Amazon, traduções e artefatos atuais
 
-- Geral: rascunho 0.6.6 (principal código 42; compatível código 40),
+- Geral: enviada à Amazon em 15/nov/2026, status `SUBMITTED`, versão
+  0.6.6 (principal código 42; compatível código 40),
   com sueco. Release `amzn1.devportal.apprelease.5f0aca6e049d405994dee3ab957a1512`.
   A versão 0.6.4 continua publicada até aprovação da atualização.
 - DE/AT: mantém os APKs 0.6.5-nodownload (39) e
   0.6.5-compat-nodownload (38), com a chave pública da ficha regional.
-  A submissão foi retirada da análise para corrigir as imagens; precisa
-  ser reenviada. Ficha em alemão e inglês US obrigatório, sem adicionar
+  A submissão foi retirada da análise para corrigir as imagens e reenviada
+  em 15/nov/2026; status `SUBMITTED` confirmado. Ficha em alemão e inglês US obrigatório, sem adicionar
   sueco à descrição regional.
 - Cobertura configurada no console: 232 países/territórios no geral,
   excluindo Alemanha e Áustria; os dois países somente na edição regional.
@@ -39,10 +40,11 @@
   classes Amazon conferidos; código temporário de captura ausente nos
   binários finais. A validação de licença pela Appstore continua dependendo
   da instalação oficial/LAT e da análise da Amazon.
-- Rascunhos revisados, com notas da 0.6.6 completas nas 15 localizações.
-  Reenviar após a confirmação exigida
-  pelas declarações finais do console. Não confundir “Ready to Submit” com
-  publicação ou aprovação.
+- Envios concluídos após autorização explícita de Henrique para os dois
+  aplicativos e a declaração de conformidade de exportação. Notas da
+  0.6.6 completas nas 15 localizações. As duas páginas de status confirmaram
+  `SUBMITTED`, com estimativa do console de 20/nov/2026 às 17:30 PST.
+  Essa estimativa não garante aprovação ou publicação; aguardar a Amazon.
 - Conferência final de mídia: 13 conjuntos completos (11 geral + 2 DE/AT),
   78 posições de capturas e 52 posições de artes. Dimensões e ordem
   conferidas após reabrir as fichas. O ícone de 114 px foi alinhado em
