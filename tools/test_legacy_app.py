@@ -82,11 +82,17 @@ def main():
         adb('shell','input','tap',(x1+x2)//2,(y1+y2)//2)
 
     def capture(path):
-        with tempfile.TemporaryDirectory(dir=args.output.resolve()) as folder:
-            adb('emu','screenrecord','screenshot',folder)
-            images=list(Path(folder).glob('*.png'))
-            if len(images)!=1:raise AssertionError('Emulator screenshot missing')
-            path.write_bytes(images[0].read_bytes())
+        previous=None
+        for attempt in range(8):
+            with tempfile.TemporaryDirectory(dir=args.output.resolve()) as folder:
+                adb('emu','screenrecord','screenshot',folder)
+                images=list(Path(folder).glob('*.png'))
+                if len(images)!=1:raise AssertionError('Emulator screenshot missing')
+                path.write_bytes(images[0].read_bytes())
+            with Image.open(path) as frame:pixels=frame.convert('RGB').tobytes()
+            if pixels==previous:return
+            previous=pixels;time.sleep(.25)
+        raise AssertionError('UI pixels did not settle before capture: '+path.name)
 
     def selected_border(path,tree,overview):
         controls=[n for n in tree.iter() if n.get('text')==overview and n.get('selected')=='true']
@@ -150,7 +156,75 @@ def main():
             return None
         finally:adb('forward','--remove','tcp:'+str(local));forwards.remove(local)
 
+    def saved_margin():
+        preferences=ET.fromstring(adb('shell','run-as',args.package,'cat','shared_prefs/settings.xml'))
+        values=[int(node.get('value')) for node in preferences.findall('int') if node.get('name')=='tv_margin']
+        return values[0] if values else 2
+
+    def calibration_corners(path,margin):
+        # Independent pixel check: all four tips must move by the requested
+        # percentage of the screen, not merely update the percentage label.
+        with Image.open(path) as source:
+            pixels=source.convert('RGB');width,height=pixels.size
+            for x in (int(width*margin/100)+3,width-int(width*margin/100)-3):
+                for y in (int(height*margin/100)+3,height-int(height*margin/100)-3):
+                    found=False
+                    for px in range(max(0,x-5),min(width,x+6)):
+                        for py in range(max(0,y-5),min(height,y+6)):
+                            r,g,b=pixels.getpixel((px,py))
+                            found|=g>190 and g-r>60 and b-r>30
+                    if not found:raise AssertionError('Calibration tip missing at '+repr((x,y,margin)))
+
+    def calibrate(strings,locale,thorough):
+        print('Checking calibration '+locale,flush=True)
+        tap(strings['tab_tools']);expect(strings['tools_calibrate'])
+        local=int(adb('forward','tcp:0','tcp:7000').strip());forwards.append(local)
+        try:
+            with socket.create_connection(('127.0.0.1',local),timeout=3) as continuous:
+                def options():
+                    continuous.sendall(b'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nContent-Length: 0\r\n\r\n')
+                    response=b''
+                    while b'\r\n\r\n' not in response:
+                        chunk=continuous.recv(4096)
+                        if not chunk:raise AssertionError('Calibration restarted the active receiver connection')
+                        response+=chunk
+                    if not response.startswith(b'RTSP/1.0 200 OK'):raise AssertionError('Continuous RTSP OPTIONS failed')
+                options()
+                tap(strings['tools_calibrate']);expect(strings['calibration_save_hint'],'2%')
+                options() # Same TCP connection must survive entering the overlay.
+                picture=args.output/(locale+'-calibration.png');capture(picture);calibration_corners(picture,2)
+                if thorough:
+                    for _ in range(3):adb('shell','input','keyevent',22)
+                    expect('5%');picture=args.output/'calibration-five-percent.png';capture(picture);calibration_corners(picture,5)
+                    if saved_margin()!=2:raise AssertionError('Preview persisted an unconfirmed margin')
+                adb('shell','input','keyevent',4);expect(strings['tools_calibrate']);options()
+        finally:adb('forward','--remove','tcp:'+str(local));forwards.remove(local)
+        if saved_margin()!=2:raise AssertionError('Back committed calibration')
+        if not thorough:return
+        tap(strings['tools_calibrate']);expect('2%');tap('+');expect('3%');tap(strings['tv_edit_save'])
+        expect(strings['tools_calibrate'])
+        if saved_margin()!=3:raise AssertionError('Touch Save did not persist calibration')
+        tap(strings['tools_calibrate']);expect('3%')
+        for _ in range(8):adb('shell','input','keyevent',21)
+        expect('0%');picture=args.output/'calibration-zero-percent.png';capture(picture);calibration_corners(picture,0)
+        for _ in range(14):adb('shell','input','keyevent',22)
+        expect('10%');picture=args.output/'calibration-ten-percent.png';capture(picture);calibration_corners(picture,10)
+        if saved_margin()!=3:raise AssertionError('Limit preview modified stored calibration')
+        adb('shell','input','keyevent',4);tap(strings['tools_calibrate']);expect('3%')
+        adb('shell','input','keyevent',22);expect('4%');adb('shell','input','keyevent',23)
+        expect(strings['tools_calibrate'])
+        if saved_margin()!=4:raise AssertionError('D-pad OK did not persist calibration')
+        tap(strings['tools_calibrate']);expect('4%');tap('−');expect('3%');tap(strings['tv_edit_cancel'])
+        expect(strings['tools_calibrate'])
+        if saved_margin()!=4:raise AssertionError('Cancel committed calibration')
+        tap(strings['tools_calibrate']);expect('4%')
+        for _ in range(2):adb('shell','input','keyevent',21)
+        expect('2%');tap(strings['tv_edit_save']);expect(strings['tools_calibrate'])
+        if saved_margin()!=2:raise AssertionError('Could not restore default margin')
+        report['calibration_touch_dpad_limits_save_cancel_continuous_receiver']='pass'
+
     if adb('shell','getprop','ro.build.version.sdk').strip()!='17':parser.error('Use API17.')
+    adb('shell','input','keyevent',82) # Dismiss the fresh API17 emulator's keyguard.
     adb('install','-r',args.apk.resolve());adb('shell','pm','clear',args.package)
     try:
         for index,locale in enumerate(wanted):
@@ -190,6 +264,7 @@ def main():
                     tap(strings[field]);adb('shell','input','text',value);tap(strings['tv_edit_save'])
                     tap(strings['tab_overview']);expect(strings['buzin_ready'],'Buzin Cast');tap(strings['tab_settings'])
                 report['native_configuration_restart']='pass'
+            calibrate(strings,locale,index==0)
             tap(strings['tab_overview']);expect(strings['buzin_ready']);tap(strings['btn_stop']);expect(strings['btn_start'],strings['buzin_stopped'])
             if index==0:rtsp(7000,False)
             report['locales'][locale]='pass'

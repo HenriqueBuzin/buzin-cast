@@ -43,7 +43,7 @@ try {
     } elseif ($Target -eq 'legacy') {
         if ($Abis) { throw 'The API17 runtime uses its fixed ARMv7/x86 pair.' }
         $buildArguments += @('-PbuzinFireOsLegacy=true',':fireos-legacy:assembleDebug')
-        if ($Check) { $buildArguments += @('-PbuzinFireOs3Probe=true',':fireos3-probe:assembleDebug',':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug',':fireos3-runtime:testDebugUnitTest',':fireos3-runtime:lintDebug',':fireos-legacy:lintDebug',':fireos-legacy:testDebugUnitTest') }
+        if ($Check) { $buildArguments += @('-PbuzinFireOs3Probe=true',':fireos3-probe:assembleDebug',':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug',':fireos3-runtime:testDebugUnitTest',':fireos3-runtime:lintDebug',':fireos-legacy:lintDebug',':fireos-legacy:testDebugUnitTest',':dlna-domain:test') }
     } else {
         if ($Target -eq 'compat') { $buildArguments += '-PbuzinLegacy=true' }
         if ($Abis) { $buildArguments += '-PbuzinAbis='+($Abis -join ',') }

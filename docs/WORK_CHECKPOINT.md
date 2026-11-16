@@ -89,13 +89,27 @@ pendentes. Escopo completo e próximos recursos em [VEGA_HANDOFF.md](VEGA_HANDOF
 - Script público `tools/test_legacy_app.py`: sem `--locales` percorre todos
   os idiomas; com lista, somente os informados. Recusa aparelhos físicos,
   usa IDs de prévia permitidos e limpa instalação/túneis/XML ao terminar.
-- Ainda faltam perfis/calibração, controles completos, DLNA/FCast/Cast V2,
+- Calibração agora integrada, sem abrir outra Activity/parar o receptor.
+  Usa `DisplayFit` compartilhado para as quatro pontas e o transform do
+  vídeo; `tv_margin` de 0–10% só é salvo com confirmação. Controle e toque
+  disponíveis, com rascunho no estado salvo. O teste mede as pontas por pixels,
+  confere limites, OK/Salvar/Cancelar/Voltar, preferência em disco e o mesmo
+  socket RTSP antes/durante/depois. Inglês, português e árabe passaram em
+  `outputs/legacy-calibration-ime-verified/report.json`. Corrigido o teclado
+  de extração API17 que podia reaparecer após editar nome/porta. Capturas
+  exigem dois quadros iguais. Builds ARMv7/x86, lint, 33 testes do runtime/probe
+  e 145 testes do domínio compartilhado passaram.
+  A edição sem download repetiu o cenário completo em alemão e passou em
+  `outputs/legacy-calibration-nodownload-verified/report.json`. Prévias
+  removidas, emulador próprio fechado, nenhuma TV física usada. Captura
+  pública: `docs/images/fireos3-native-calibration.png`.
+- Ainda faltam perfis, controles completos, DLNA/FCast/Cast V2,
   URL/HLS/fotos/legendas, gravação/download/retransmissão na edição geral,
   background/boot/rede, aprovação/PIN/DACP, licença/assinatura e validação
   com emissores reais e Stick antigo. A meta permanece o mesmo app/funções
   em todos os Fire Sticks com Fire OS; não considerar esta prévia paridade.
-  Próximo marco: calibração e perfis, reaproveitando a geometria e as regras
-  existentes, antes de portar os demais controles e protocolos.
+  Próximo marco: perfis, aplicando as regras existentes à configuração
+  efetiva do receptor/áudio/vídeo, antes dos demais controles e protocolos.
 
 ## Fichas Amazon, traduções e artefatos atuais
 

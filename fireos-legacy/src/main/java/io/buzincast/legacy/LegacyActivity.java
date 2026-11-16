@@ -8,6 +8,7 @@ import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.net.Uri;
 import android.os.Build;
@@ -37,6 +38,7 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import io.buzincast.fireos3probe.LegacyReceiverSession;
+import io.buzincast.media.DisplayFit;
 import static io.buzincast.legacy.LegacyUi.*;
 
 /** Native TV frontend for the same API17 receiver exercised by the separate probe APK. */
@@ -46,6 +48,7 @@ public final class LegacyActivity extends Activity {
     private LinearLayout shell,sidebar;
     private TextureView texture;
     private LegacyReceiverSession session;
+    private LegacyCalibrationView calibration;
     private final AtomicReference<SurfaceTexture> retained=new AtomicReference<>();
     private final ArrayDeque<String> events=new ArrayDeque<>();
     private final ArrayDeque<Modal> modals=new ArrayDeque<>();
@@ -58,6 +61,7 @@ public final class LegacyActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state); applyEmulatorLocale();
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
         displayLocale=getResources().getConfiguration().locale;
         prefs=new LegacyPreferences(this); shownName=prefs.name();
         desired=state==null?prefs.autoStart():state.getBoolean("desired");
@@ -75,19 +79,28 @@ public final class LegacyActivity extends Activity {
             }
         });
         setContentView(root);buildShell();
+        if(state!=null && state.containsKey("calibration_margin"))calibrate(state.getInt("calibration_margin"));
     }
     @Override protected void onResume() { super.onResume();foreground=true;startIfNeeded(); }
     @Override protected void onStop() { foreground=false;if(session!=null)session.stop();super.onStop(); }
-    @Override protected void onSaveInstanceState(Bundle state) { state.putBoolean("desired",desired);super.onSaveInstanceState(state); }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putBoolean("desired",desired);
+        if(calibration!=null)state.putInt("calibration_margin",calibration.margin());
+        super.onSaveInstanceState(state);
+    }
     @Override public void onConfigurationChanged(Configuration config) {
         super.onConfigurationChanged(config);
-        if(!config.locale.equals(displayLocale)) { while(!modals.isEmpty())modals.peekLast().dismiss();displayLocale=config.locale; }
+        if(!config.locale.equals(displayLocale)) {
+            while(!modals.isEmpty())modals.peekLast().dismiss();
+            finishCalibration(false);displayLocale=config.locale;
+        }
         buildShell();fitVideo();
     }
     // This frontend targets pre-API21 Fire Sticks and their hardware Back key.
     // AndroidX's current activity stack cannot be linked on API17.
     @android.annotation.SuppressLint("GestureBackNavigation")
     @Override public void onBackPressed() {
+        if(calibration!=null) {finishCalibration(false);return;}
         if(!modals.isEmpty()) {modals.peekLast().dismiss();return;}
         if (video) { video=false;shell.setVisibility(View.VISIBLE);updateAwake();return; }
         if (!destination.equals("overview")) { destination="overview";render();return; }
@@ -125,13 +138,15 @@ public final class LegacyActivity extends Activity {
         render();startIfNeeded();
     }
     private void updateAwake() {
-        if (video && prefs.keepScreenOn()) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (calibration!=null || (video && prefs.keepScreenOn())) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
     private void fitVideo() {
         int w=texture.getWidth(),h=texture.getHeight();if(w==0||h==0||videoWidth==0||videoHeight==0)return;
-        float scale=Math.min((float)w/videoWidth,(float)h/videoHeight);
-        Matrix fit=new Matrix();fit.setScale(videoWidth*scale/w,videoHeight*scale/h,w/2f,h/2f);texture.setTransform(fit);
+        DisplayFit.Viewport viewport=DisplayFit.INSTANCE.viewport(w,h,videoWidth,videoHeight,prefs.margin());
+        Matrix fit=new Matrix();fit.setRectToRect(new RectF(0,0,w,h),
+                new RectF(viewport.getX(),viewport.getY(),viewport.getX()+viewport.getWidth(),viewport.getY()+viewport.getHeight()),Matrix.ScaleToFit.FILL);
+        texture.setTransform(fit);
     }
     private void record(String value) { if(events.size()==100)events.removeFirst();events.addLast(value); }
 
@@ -142,7 +157,7 @@ public final class LegacyActivity extends Activity {
         shell.addView(sidebar,new LinearLayout.LayoutParams(dp(this,172),-1));
         pane=new FrameLayout(this);pane.setBackground(new GradientDrawableCompat());shell.addView(pane,new LinearLayout.LayoutParams(0,-1,1));
         root.addView(shell,1,new FrameLayout.LayoutParams(-1,-1));
-        if(!modals.isEmpty())shell.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        if(!modals.isEmpty() || calibration!=null)shell.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         render();shell.setVisibility(video?View.GONE:View.VISIBLE);
     }
     private void render() {
@@ -210,11 +225,28 @@ public final class LegacyActivity extends Activity {
     }
     private void tools() {
         LinearLayout body=page(R.string.tab_tools);
+        LinearLayout calibrate=row(this,getString(R.string.tools_calibrate),getString(R.string.setting_tv_margin_desc),()->calibrate(prefs.margin()));
+        calibrate.setTag("calibration");addSpaced(body,calibrate,-2);
         addSpaced(body,row(this,getString(R.string.tools_connection_diagnostics),null,()->diagnostics(true)),-2);
         addSpaced(body,row(this,getString(R.string.tools_native_open),getString(R.string.tools_native_help),()-> {
             try {startActivity(new Intent().setComponent(new ComponentName("com.amazon.cast.sink","com.amazon.cast.sink.DisplayMirroringSinkActivity")));}
             catch(ActivityNotFoundException unavailable){Toast.makeText(this,R.string.tools_native_unavailable,Toast.LENGTH_LONG).show();}
         }),-2);
+    }
+    private void calibrate(int margin) {
+        if(calibration!=null)return;
+        shell.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        calibration=new LegacyCalibrationView(this,margin,this::finishCalibration);
+        root.addView(calibration,new FrameLayout.LayoutParams(-1,-1));
+        calibration.focusSave();updateAwake();
+    }
+    private void finishCalibration(boolean save) {
+        if(calibration==null)return;
+        if(save)prefs.margin(calibration.margin());
+        root.removeView(calibration);calibration=null;
+        shell.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        View previous=shell.findViewWithTag("calibration");if(previous!=null)previous.requestFocus();
+        fitVideo();updateAwake();
     }
     private void diagnostics(boolean modal) {
         StringBuilder value=new StringBuilder(getString(running?R.string.diag_receiver_running:R.string.diag_receiver_stopped));
@@ -229,6 +261,7 @@ public final class LegacyActivity extends Activity {
         addSpaced(body,text(this,getString(port?R.string.setting_server_port:R.string.setting_server_name),20,WHITE,true),-2);
         EditText input=new EditText(this);input.setSingleLine();input.setTextColor(WHITE);input.setTextSize(18);
         input.setInputType(port?InputType.TYPE_CLASS_NUMBER:InputType.TYPE_CLASS_TEXT);
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.setSelectAllOnFocus(true);
         input.setText(port?String.valueOf(prefs.port()):prefs.name());input.selectAll();addSpaced(body,input,54);
         addSpaced(body,button(this,R.string.tv_edit_save,true,()-> {
@@ -238,8 +271,11 @@ public final class LegacyActivity extends Activity {
         body.addView(button(this,R.string.tv_edit_cancel,false,dialog::dismiss));show(dialog);input.requestFocus();
         dialog.keyboard=true;
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        input.post(()->((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(input,InputMethodManager.SHOW_IMPLICIT));
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        input.post(()-> {
+            if(!dialog.dismissed && input.isShown() && input.hasFocus())
+                ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showSoftInput(input,InputMethodManager.SHOW_IMPLICIT);
+        });
     }
     private void about() {
         Modal dialog=dialog();int height=Math.min(dp(this,540),Math.round(getResources().getDisplayMetrics().heightPixels*.92f));
@@ -278,11 +314,18 @@ public final class LegacyActivity extends Activity {
             root.addView(layer,new FrameLayout.LayoutParams(-1,-1));modals.addLast(this);
         }
         void dismiss() {
-            if(dismissed)return;dismissed=true;root.removeView(layer);modals.remove(this);
+            if(dismissed)return;dismissed=true;
             if(keyboard) {
-                ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(root.getWindowToken(),0);
+                // Hide while the editor still belongs to the window, then drop
+                // its focus before detaching it. API17 can otherwise reopen its
+                // extract keyboard after a later fullscreen/layout change.
+                ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(layer.getWindowToken(),0);
+                body.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+                body.clearFocus();
+                getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN|WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             }
+            root.removeView(layer);modals.remove(this);
             if(modals.isEmpty())shell.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             else modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             if(previous!=null && previous.isShown())previous.requestFocus();

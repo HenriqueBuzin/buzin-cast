@@ -22,6 +22,35 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Calibração nativa API17:** a prévia agora depende do mesmo `DisplayFit`
+  de `dlna-domain` usado no app moderno. A geometria da calibração e o ajuste
+  da TextureView usam esse cálculo comum, incluindo proporção, centralização
+  e margem de 0–10% por borda. A calibração é uma camada opaca na própria
+  Activity, sem recriar/parar o receptor. Setas alteram o rascunho; OK salva,
+  Voltar cancela. Botões também permitem ajuste/Salvar/Cancelar por toque.
+  A preferência `tv_margin` só muda ao confirmar e é aplicada imediatamente
+  ao transform do vídeo. O rascunho integra o estado salvo da Activity.
+  O teste público acrescenta capturas da calibração, medição das quatro
+  pontas, limites, persistência/cancelamento e continuidade do socket RTSP.
+  `Build-FireOs.ps1 -Target legacy -Check` também executa `dlna-domain:test`.
+  A primeira captura encontrou o teclado de extração da API17 sobre o
+  ajuste, depois das edições de nome/porta. O editor agora desativa esse
+  modo, esconde o teclado antes de ser destacado da janela, bloqueia foco
+  enquanto fecha e restaura o modo de janela sem teclado. A chamada adiada
+  de abertura também verifica se o editor ainda está visível/focado.
+  O capturador exige dois quadros iguais antes de aceitar cada PNG.
+  O teste da edição geral passou em inglês, português e árabe em
+  `outputs/legacy-calibration-ime-verified/report.json`, incluindo os
+  limites de margem, toque/D-pad, salvar/cancelar e continuidade RTSP.
+  [Captura real da calibração](images/fireos3-native-calibration.png).
+  Build ARMv7/x86, lint, 33 testes JVM do runtime/probe e 145 testes do
+  domínio passaram. Não foi negociada uma sessão de vídeo com emissor real
+  durante esse teste; o ajuste da saída usa o cálculo comum já exercitado
+  pelos testes de `DisplayFit` para fontes 16:10, retrato e ultrawide.
+  A edição regional repetiu o cenário completo em alemão e passou em
+  `outputs/legacy-calibration-nodownload-verified/report.json`. As duas
+  instalações temporárias foram removidas e o emulador próprio foi fechado.
+
 - **16/nov — primeira interface nativa API17:** `fireos3-runtime` agora
   concentra JNI, descoberta e players, compartilhados por `fireos3-probe`
   (autotestes sintéticos) e `fireos-legacy` (interface real em Views, sem

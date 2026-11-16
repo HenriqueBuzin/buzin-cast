@@ -18,6 +18,11 @@ final class LegacyPreferences {
     boolean autoStart() { return preferences.getBoolean("auto_start",true); }
     boolean keepScreenOn() { return preferences.getBoolean("keep_screen_on",true); }
     boolean advanced() { return preferences.getBoolean("developer_options",false); }
+    int margin() { return Math.max(0,Math.min(10,preferences.getInt("tv_margin",2))); }
+    void margin(int value) {
+        if(value<0 || value>10)throw new IllegalArgumentException("Invalid TV margin");
+        preferences.edit().putInt("tv_margin",value).apply();
+    }
     void name(String value) { new ReceiverOptions(value,port()); preferences.edit().putString("server_name",value).apply(); }
     void port(int value) { new ReceiverOptions(name(),value); preferences.edit().putInt("server_port",value).apply(); }
     void bool(String key,boolean value) { preferences.edit().putBoolean(key,value).apply(); }

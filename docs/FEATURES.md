@@ -16,7 +16,8 @@ Inventário das funções divulgadas nas fontes abaixo, consultadas em 31/10/202
 Esta seção descreve os alvos de produção atuais. A prévia `fireos-legacy`
 para API17 ainda não tem paridade: já integra o receptor H.264/ALAC/AAC,
 controle de início/parada, nome/porta, início automático ao abrir, manter a
-tela ligada durante vídeo, diagnóstico e Sobre. Usa os mesmos 22 idiomas e
+tela ligada durante vídeo, calibração dos quatro cantos, diagnóstico e Sobre.
+Usa os mesmos 22 idiomas e
 assets, com foco por controle/toque e seleção persistente no menu. Ainda
 faltam os demais protocolos e funções abaixo, serviço em segundo plano/boot,
 integração de licença e validação com emissores e Sticks antigos reais.

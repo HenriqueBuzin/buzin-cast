@@ -97,6 +97,11 @@ exige `--package com.buzincast.tv.deat.legacy.preview`. Confere toque, D-pad,
 seleção persistente atrás do Sobre, foco em Fechar, cantos do modal e comandos
 reais de início/parada/nome/porta via RTSP. Não aceita TV física nem valida
 espelhamento negociado com emissor real. PNGs e JSON ficam em `--output`.
+Também captura a calibração em cada idioma solicitado. No primeiro idioma,
+confere limites de 0–10%, mudança real das quatro pontas por pixels,
+Salvar/Cancelar/Voltar por toque e controle, preferências em disco e uma
+mesma conexão RTSP antes/durante/depois do ajuste. Desbloqueia o emulador
+API17 recém-iniciado antes de abrir o app.
 
 O teste percorre os APKs locais em `outputs`, abre início/configurações/Sobre,
 espera as animações e mede a estabilidade dos quadros. Mostra o foco do
