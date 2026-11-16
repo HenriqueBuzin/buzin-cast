@@ -1,6 +1,7 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system video surface. */
+import TvButton from './TvButton';
 import React, {useEffect, useRef, useState} from 'react';
-import {AppState, Pressable, StyleSheet, Text, View} from 'react-native';
+import {AppState, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
@@ -85,7 +86,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       </Text>
       <View style={styles.actions}>
         {(token === null ? ['back'] : ['pause', 'back']).map((id) => (
-          <Pressable
+          <TvButton
             key={id}
             role="button"
             accessibilityHint={
@@ -107,7 +108,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
                 ? 'Retomar'
                 : 'Pausar'}
             </Text>
-          </Pressable>
+          </TvButton>
         ))}
       </View>
     </View>

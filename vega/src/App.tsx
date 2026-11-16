@@ -1,3 +1,4 @@
+import TvButton from './TvButton';
 import React, {useCallback, useEffect, useState} from 'react';
 import Network from './turbo-modules/BuzinNetwork';
 import {getMediaReport} from './mediaCapabilities';
@@ -7,7 +8,6 @@ import SettingsScreen from './SettingsScreen';
 import {
   BackHandler,
   Image,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -18,6 +18,7 @@ export default function App() {
     'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
+  const [selected, setSelected] = useState('status');
   const [focused, setFocused] = useState('status');
   const [report, setReport] = useState('');
   const [mediaReport, setMediaReport] = useState('');
@@ -35,10 +36,6 @@ export default function App() {
     );
     return () => subscription.remove();
   }, [page]);
-
-  if (page === 'settings') {
-    return <SettingsScreen onBack={goHome} />;
-  }
 
   if (page === 'airplay') {
     return <FCastScreen onBack={goHome} protocol="airplay" />;
@@ -58,23 +55,28 @@ export default function App() {
     onPress: () => void,
     preferred: boolean,
   ) => (
-    <Pressable
+    <TvButton
       key={id}
       role="button"
       accessibilityHint={
         id === 'back' ? 'Retorna à tela inicial' : `Abre ${label}`
       }
-      hasTVPreferredFocus={preferred}
+      accessibilityState={['status', 'media', 'about', 'fcast', 'settings'].includes(id) ? {selected: selected === id} : undefined}
+      hasTVPreferredFocus={page === 'home' ? selected === id : preferred}
       onFocus={() => setFocused(id)}
-      onBlur={() => setFocused('')}
-      onPress={onPress}
+      onBlur={() => setFocused((current) => current === id ? '' : current)}
+      onPress={() => {
+        if (['status', 'media', 'about', 'fcast', 'settings'].includes(id)) {setSelected(id);}
+        onPress();
+      }}
       style={[
         styles.button,
         page !== 'home' && styles.compactButton,
+        selected === id && styles.selected,
         focused === id && styles.focused,
       ]}>
       <Text style={styles.buttonLabel}>{label}</Text>
-    </Pressable>
+    </TvButton>
   );
 
   return (
@@ -92,8 +94,7 @@ export default function App() {
           <Text style={styles.description}>Receptor em desenvolvimento</Text>
         </>
       )}
-      {page === 'home' ? (
-        <View style={styles.actions}>
+      <View key={page === 'home' ? 'home-menu' : 'page-menu'} style={styles.actions} aria-label="Menu principal">
           {action('status', 'Estado do port', () => setPage('status'), true)}
           {action(
             'media',
@@ -137,8 +138,10 @@ export default function App() {
           {action('about', 'Sobre', () => setPage('about'), false)}
           {action('fcast', 'Ativar FCast', () => setPage('fcast'), false)}
           {action('settings', 'Configurações', () => setPage('settings'), false)}
-        </View>
-      ) : (
+      </View>
+      {page === 'settings' ? (
+        <View style={styles.settings}><SettingsScreen onBack={goHome} /></View>
+      ) : page !== 'home' && (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>
             {page === 'status'
@@ -225,6 +228,7 @@ const styles = StyleSheet.create({
     padding: 48,
   },
   compactScreen: {padding: 24},
+  settings: {flex: 1, width: '100%'},
   compactLogo: {width: 160, height: 90, marginBottom: 12},
   compactButton: {paddingVertical: 10},
   actions: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 32, gap: 24},
@@ -236,6 +240,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 16,
   },
+  selected: {borderColor: '#69D8FF'},
   focused: {borderColor: '#69D8FF', backgroundColor: '#245578'},
   buttonLabel: {color: '#FFFFFF', fontSize: 24},
   panel: {marginTop: 16, maxWidth: 820, alignItems: 'center', gap: 12},

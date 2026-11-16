@@ -26,7 +26,7 @@ teste no VVD e com emissores físicos.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript, doctor e 51 testes Jest passaram.
+- Lint sem avisos, TypeScript, doctor e 53 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -48,6 +48,12 @@ AirPlay ou espelhamento. Identidade/chave ficam apenas no sandbox.
 
 O nome do receptor pode ser editado em Configurações e é preservado no sandbox.
 Ele será usado no próximo anúncio FCast após ativar o receptor.
+
+O menu permanece visível nas páginas de consulta/configurações e mantém a
+seleção destacada enquanto o foco está no conteúdo. Voltar restaura o último
+item no início. Os botões solicitam foco nativo na ativação concluída;
+a navegação pelo controle passou no VVD, e toques reais/revisão visual desta
+mudança ainda aguardam validação.
 
 ## Ambiente e build
 

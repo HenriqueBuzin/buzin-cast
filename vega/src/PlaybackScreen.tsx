@@ -1,6 +1,7 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system surface selected by the SDK resolver. */
+import TvButton from './TvButton';
 import React, {useEffect, useRef, useState} from 'react';
-import {AppState, Pressable, StyleSheet, Text, View} from 'react-native';
+import {AppState, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 
@@ -55,7 +56,7 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
       </Text>
       <View style={styles.actions}>
         {['pause', 'back'].map((id) => (
-          <Pressable
+          <TvButton
             key={id}
             role="button"
             accessibilityHint={
@@ -77,7 +78,7 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
                 ? 'Retomar'
                 : 'Pausar'}
             </Text>
-          </Pressable>
+          </TvButton>
         ))}
       </View>
     </View>

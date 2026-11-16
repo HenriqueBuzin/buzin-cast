@@ -1,5 +1,59 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Ponto pausado — áudio MSSE nativo — 16 de novembro de 2026
+
+- `MsseAudioPlayer` usa os bindings oficiais APMF/W3C gerados pelo CMake,
+  com inicialização/liberação assíncronas e espera limitada, AAC bruto,
+  configuração ASC, timestamps em milissegundos, backpressure e retenção
+  limitada dos buffers até o consumo. Ainda não está ligado ao UxPlay.
+- `buzin-msse-probe` é um executável de desenvolvimento separado do VPKG.
+  Extrai unidades AAC-LC de uma fixture ADTS limitada e verifica dois ciclos
+  de reprodução e liberação. O runner Python recusa TVs físicas, gera a
+  fixture com FFmpeg a partir da amostra própria e a transmite ao sandbox.
+- Build/validação ABI das três arquiteturas passou. O teste real ARM64 passou
+  em `build/vega-msse-audio-format/result.json`: dois ciclos de 376 frames,
+  relógios de 7,955 s e 7,948 s e liberação confirmada. Isso não comprova som
+  audível, recepção AirPlay, AAC-ELD/ALAC, vídeo ou sincronismo A/V.
+- A configuração validada usa MIME `audio/aac`, RAW_AAC, criptografia
+  desativada e prepara a trilha antes de adicioná-la à fonte. As tentativas
+  anteriores deram SOURCE_NOT_SUPPORTED. Não reutilizar seus relatórios como
+  resultados aprovados nem atribuir a causa exclusivamente a um dos ajustes.
+- Com VVD iniciado, repetir da raiz:
+  `python3 tools/test_vega_msse.py --serial emulator-5554 --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg --runner vega/build/aarch64-release/bin/buzin-msse-probe --output build/vega-msse-audio`.
+- Próximo: ligar formatos/amostras/flush/volume UxPlay ao worker de áudio,
+  alinhar os timestamps NTP e integrar vídeo/superfície; preservar validação
+  explícita dos demais codecs e dos emissores reais. A meta completa segue
+  pendente. Trabalho pausado por Henrique após esse teste aprovado.
+- A integração remota foi concluída em `0258add`, preservando ambos os lados
+  do conflito de checkpoint e as atualizações Fire OS.
+
+## Menu selecionado e foco por ativação — 16 de novembro de 2026
+
+- Conferido o Fire OS atual: `TvSidebar` mantém a página selecionada marcada
+  quando o foco está no conteúdo. `touchFocus` move o foco no toque concluído.
+  A seleção em `MainScreen` é estado da sessão; não é uma preferência em disco.
+- Vega mantém o menu nas páginas Estado/Mídia/Sobre/Configurações, com borda e
+  semântica `accessibilityState.selected` independentes do foco. Ao Voltar ao
+  início, prefere o último item selecionado. As telas de reprodução/receptores
+  mantêm seu modo próprio e liberam mídia no encerramento.
+- `TvButton` compartilha a ativação dos botões da aplicação: chama o foco nativo
+  antes da ação de Pressable. Press-down/up sem ativação não dispara foco ou
+  ação. Mantém as ações de teclado/controle e os estados visuais existentes.
+- 53 testes Jest passaram, incluindo seleção preservada ao focar o conteúdo,
+  troca de seleção e restauração ao voltar; teste do botão usa o mock de foco
+  nativo do próprio React Native. Lint sem avisos, TypeScript e build/validação
+  ABI das três arquiteturas passaram.
+- O smoke real ARM64 passou em
+  `build/vega-navigation-focus-smoke/result.json`: diagnósticos, navegação,
+  amostra, pausa/retomada, reabertura/fim, segundo plano e repetição. A primeira
+  rodada expôs que o menu mantido montado não restaurava o foco no retorno;
+  remontar o grupo ao alternar início/página corrigiu o comportamento no VVD.
+  O runner agora espera a seleção de Mídia restaurada ao reabrir o player.
+- Toques reais e revisão visual desta mudança ainda precisam de validação.
+  A captura nativa da imagem VVD informou falta de suporte DMABUF; o snapshot
+  QMP estava preto. Não tratar esses arquivos como prova visual aprovada.
+  A paridade completa continua pendente.
+
 ## AirPlay por URL ligado ao player — 16 de novembro de 2026
 
 - A sessão UxPlay entrega Play/Seek/Rate/Stop à sessão de reprodução Vega;
@@ -53,8 +107,9 @@
 
 A referência de paridade passa a ser a versão Fire OS atual, incluindo seleção
 persistente e navegação por toque mencionadas por Henrique nesta retomada.
-Esses dois comportamentos ainda são pendentes no Vega; nome do receptor salvo
-e foco básico pelo controle não os comprovam. A estimativa informal de cerca
+Na ocasião, ambos estavam pendentes no Vega. A seção de menu selecionado
+acima registra o avanço atual e a validação de toque ainda necessária; nome
+salvo e foco básico, isoladamente, não comprovam esses comportamentos. A estimativa informal de cerca
 de 20% é de paridade funcional, não de tempo restante, e não conta esses itens
 como entregues.
 

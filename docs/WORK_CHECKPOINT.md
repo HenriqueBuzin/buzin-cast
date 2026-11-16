@@ -27,6 +27,26 @@ dos modos, demais protocolos/player, gravação/download, segurança/licença de
 produção e validação física ainda precisam avançar. São prévias debug API17,
 com IDs separados, não APKs prontos para publicar. Vega continua no outro PC.
 
+## Vega — ponto pausado: áudio MSSE nativo
+
+A saída AAC pelo SDK nativo passou em dois ciclos no VVD ARM64: 376 frames por
+ciclo, relógio até aproximadamente 7,95 s e liberação confirmada. Três ABIs
+compilaram e passaram a validação. O sink ainda não está conectado ao UxPlay;
+vídeo, NTP/A-V, outros codecs e validação física continuam pendentes. Runner,
+comando e evidências em [VEGA_HANDOFF.md](VEGA_HANDOFF.md). Henrique pediu pausa
+e commit/push neste ponto. Não declarar o app finalizado.
+
+
+## Vega — seleção do menu e foco por toque — 16 de novembro de 2026
+
+O menu permanece nas páginas de consulta/configurações, com seleção semântica
+independente do foco e restauração do último item ao voltar ao início. Botões
+compartilham foco nativo na ativação concluída, inclusive por toque. 53 testes,
+lint sem avisos, TypeScript, três ABIs e smoke real ARM64 passaram. Toques reais
+e revisão visual ainda estão pendentes; detalhes e evidências em
+[VEGA_HANDOFF.md](VEGA_HANDOFF.md). Próxima etapa: continuar saída de áudio/vídeo
+AirPlay e demais comportamentos do Fire OS, preservando a meta completa.
+
 ## Alvo antigo — metadados da reprodução
 
 Título, artista, álbum, capa e progresso agora chegam pelos callbacks nativos

@@ -1,0 +1,66 @@
+#include "turbo-modules/MsseAudioPlayer.h"
+#include <chrono>
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <thread>
+#include <apmf/errors.h>
+
+int main(int argc, char** argv) {
+  try {
+    if (argc != 2) throw std::runtime_error("Expected an ADTS AAC-LC fixture");
+    std::ifstream input(argv[1], std::ios::binary);
+    if (!input) throw std::runtime_error("Fixture not found");
+    std::vector<std::vector<uint8_t>> samples;
+    std::vector<uint8_t> config;
+    int rate = 0, channels = 0;
+    constexpr int rates[] = {96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350};
+    for (;;) {
+      uint8_t h[7]; input.read(reinterpret_cast<char*>(h), 7);
+      if (input.gcount() == 0 && input.eof()) break;
+      if (input.gcount() != 7 || h[0] != 255 || (h[1] & 0xf7) != 0xf1 || (h[2] >> 6) != 1 ||
+          (h[6] & 3) != 0 || samples.size() >= 1000) throw std::runtime_error("Invalid bounded AAC-LC fixture");
+      const int frequency = (h[2] >> 2) & 15;
+      const int count = ((h[2] & 1) << 2) | (h[3] >> 6);
+      if (frequency >= 13 || count < 1 || count > 7) throw std::runtime_error("Invalid ADTS configuration");
+      std::vector<uint8_t> asc{static_cast<uint8_t>((2 << 3) | (frequency >> 1)),
+        static_cast<uint8_t>(((frequency & 1) << 7) | (count << 3))};
+      if (!config.empty() && asc != config) throw std::runtime_error("Fixture changed AAC format");
+      config = asc; rate = rates[frequency]; channels = count;
+      const int length = ((h[3] & 3) << 11) | (h[4] << 3) | (h[5] >> 5);
+      if (length <= 7) throw std::runtime_error("Empty ADTS access unit");
+      std::vector<uint8_t> data(length - 7);
+      input.read(reinterpret_cast<char*>(data.data()), data.size());
+      if (input.gcount() != static_cast<std::streamsize>(data.size())) throw std::runtime_error("Truncated ADTS frame");
+      samples.push_back(std::move(data));
+    }
+    if (samples.empty()) throw std::runtime_error("Empty fixture");
+    MsseAudioPlayer player;
+    for (int cycle = 0; cycle < 2; ++cycle) {
+      player.startAac(rate, channels, config);
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+      for (size_t i = 0; i < samples.size(); ++i) {
+        const int64_t pts = static_cast<int64_t>(i) * 1024000 / rate;
+        const int64_t next = static_cast<int64_t>(i + 1) * 1024000 / rate;
+        while (!player.append(samples[i], pts, next - pts)) {
+          if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Native queue timed out");
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+      }
+      player.end();
+      const double target = samples.size() * 1024.0 / rate - 0.1;
+      double seconds = 0;
+      while ((seconds = player.position()) < target) {
+        if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Native audio clock did not advance");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      }
+      player.stop(); player.stop();
+      std::cout << "{\"cycle\":" << cycle + 1 << ",\"frames\":" << samples.size()
+        << ",\"seconds\":" << seconds << ",\"released\":true}" << std::endl;
+    }
+    return 0;
+  } catch (const std::exception& error) {std::cerr << error.what() << std::endl;}
+    catch (const apmf::BaseError& error) {std::cerr << error.what() << std::endl;}
+    catch (...) {std::cerr << "Unknown native MSSE failure" << std::endl;}
+  return 1;
+}
