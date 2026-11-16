@@ -15,6 +15,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.view.KeyEvent;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,6 +72,7 @@ public final class LegacyReceiverService extends Service {
     private Exception failure;
     private Exception controlFailure;
     private Exception mediaFailure;
+    private LegacySystemMedia systemMedia;
     LegacyMedia.State mediaState() {return session==null || stopping?LegacyMedia.inactive():session.media();}
 
     static void dispatch(Context context,String action) {
@@ -79,6 +81,16 @@ public final class LegacyReceiverService extends Service {
     }
     @Override public void onCreate() {
         super.onCreate();prefs=new LegacyPreferences(this);name=prefs.name();
+        systemMedia=new LegacySystemMedia(this,new LegacySystemMedia.Sink() {
+            @Override public void command(LegacyDacp.Command command) {control(command,null);}
+            @Override public void gain(float gain) {if(session!=null)session.audioFocusGain(gain);}
+            @Override public void failure(RuntimeException error) {record("System media: "+error.getClass().getSimpleName());}
+        });
+    }
+    static void mediaButton(Context context,KeyEvent event,int epoch) {
+        Intent command=new Intent(context,LegacyReceiverService.class).setAction(Intent.ACTION_MEDIA_BUTTON)
+            .putExtra(Intent.EXTRA_KEY_EVENT,event).putExtra("media_epoch",epoch);
+        if(Build.VERSION.SDK_INT>=26)Api26.start(context,command);else context.startService(command);
     }
     @Override public IBinder onBind(Intent intent) {return binder;}
     @Override public int onStartCommand(Intent intent,int flags,int startId) {
@@ -90,6 +102,10 @@ public final class LegacyReceiverService extends Service {
         else if(STOP.equals(action)) {desired=false;opened=true;bootSession=false;failure=null;}
         else if(BOOT.equals(action)) {desired=prefs.bootAutoStart();bootSession=desired;opened=true;}
         else if(RESTART.equals(action)) {name=prefs.name();resetRetries();if(session!=null)stopNative();}
+        else if(Intent.ACTION_MEDIA_BUTTON.equals(action)) {
+            Object event=intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+            if(event instanceof KeyEvent)systemMedia.key((KeyEvent)event,intent.getIntExtra("media_epoch",-1));
+        }
         prefs.serviceRequested(desired);reconcile();
         return desired && (prefs.background() || bootSession)?START_STICKY:START_NOT_STICKY;
     }
@@ -103,6 +119,7 @@ public final class LegacyReceiverService extends Service {
     }
     void control(LegacyDacp.Command command,Runnable failed) {
         if(session==null || stopping)return;
+        if(!systemMedia.prepare(command)) {if(failed!=null)failed.run();return;}
         int owner=generation;
         session.control(command,error->main.post(()-> {
             if(destroyed || owner!=generation || stopping)return;
@@ -209,6 +226,7 @@ public final class LegacyReceiverService extends Service {
     private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
+        systemMedia.update(mediaState(),session==null || stopping?LegacyDacp.inactive():session.controls(),running && !stopping && !video);
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
@@ -241,6 +259,7 @@ public final class LegacyReceiverService extends Service {
     private void demote() {if(promoted) {stopForeground(true);promoted=false;}}
     @Override public void onDestroy() {
         destroyed=true;client=null;observer=null;target=null;closeWatcher();
+        if(systemMedia!=null)systemMedia.close();
         if(session!=null)session.stop();releaseWakeLock();demote();super.onDestroy();
     }
     @android.annotation.TargetApi(26) private static final class Api26 {

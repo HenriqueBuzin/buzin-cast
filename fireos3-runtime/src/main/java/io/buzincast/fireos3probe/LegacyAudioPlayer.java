@@ -17,6 +17,7 @@ final class LegacyAudioPlayer {
     volatile int playEvents;
     volatile int tunedCushionMs;
     volatile boolean running, outputActive;
+    volatile float focusGain=1;
 
     LegacyAudioPlayer(AudioPacketQueue queue, boolean muted, AudioPlaybackClock clock) {
         this(queue,muted,clock,null);
@@ -78,7 +79,7 @@ final class LegacyAudioPlayer {
                         firstSignalFrame = writtenFrames + i/2; break;
                     }
                 }
-                float gain = muted ? 0 : queue.gain();
+                float gain = muted ? 0 : queue.gain()*focusGain;
                 if (gain != lastGain) { track.setStereoVolume(gain, gain); lastGain = gain; }
                 int offset = 0;
                 while (offset < pcm.length && !stop.stopped() && generation == queue.generation()) {

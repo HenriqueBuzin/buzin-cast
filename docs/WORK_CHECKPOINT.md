@@ -1,5 +1,32 @@
 # Retomada — 16 de novembro de 2026
 
+## Alvo antigo — cliente de mídia do Android
+
+O serviço API17 publica faixa e capa em `RemoteControlClient` e recebe
+teclas pelo Android também em segundo plano. A capa do sistema é uma cópia;
+a imagem da UI permanece válida após a liberação. Activity e receptor privado
+compartilham o mapeamento de teclas. A perda de foco silencia e pede pausa;
+ducking aplica ganho de 20%. O retorno do foco não dispara Play automático,
+e Play explícito recupera foco. Parada e vídeo retiram o cliente; eventos
+antigos não controlam uma nova ativação.
+
+`tools/test_legacy_gestures.py --system-media` passou na geral em
+`outputs/legacy-system-media-general-final` e na regional em
+`outputs/legacy-system-media-regional-checked`: metadados/capa reais no
+cliente da plataforma, disputas de foco, comandos HTTP após teclas enviadas
+pelo host com o app em segundo plano, retorno pelo launcher e encerramento
+sem religar por Play. Builds ARMv7/x86, lint e 60 testes JVM passaram nas duas.
+A regressão de áudio/vídeo e display passou em
+`outputs/legacy-system-media-native-regression`. Nenhuma TV física foi usada;
+os APKs temporários foram removidos. Detalhes e falhas iniciais do roteiro
+estão em [TESTING.md](TESTING.md). Logos aprovadas preservadas e auditoria de
+dados privados atual/histórica sem achados.
+
+A meta completa continua ativa: alternância áudio/espelhamento e recuperação
+dos modos, demais protocolos/player, gravação/download, segurança/licença de
+produção e validação física ainda precisam avançar. São prévias debug API17,
+com IDs separados, não APKs prontos para publicar. Vega continua no outro PC.
+
 ## Alvo antigo — metadados da reprodução
 
 Título, artista, álbum, capa e progresso agora chegam pelos callbacks nativos

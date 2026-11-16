@@ -23,10 +23,11 @@ import javax.jmdns.ServiceInfo;
 
 /** A LAN sender fixture in the test APK; no product-side testing commands. */
 final class LegacyControlScenario {
-    static Activity run(Instrumentation runner,boolean metadata) throws Exception {
+    static Activity run(Instrumentation runner,boolean metadata,boolean systemMedia) throws Exception {
         if(Build.VERSION.SDK_INT!=17 || !(Build.HARDWARE.contains("goldfish") || Build.HARDWARE.contains("ranchu")))
             throw new AssertionError("Controls checks require the isolated API17 emulator");
-        Activity activity=runner.startActivitySync(new Intent().setClassName(runner.getTargetContext(),"io.buzincast.legacy.LegacyActivity")
+        Activity activity=runner.startActivitySync(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            .setClassName(runner.getTargetContext(),"io.buzincast.legacy.LegacyActivity")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
         Inet4Address address=null;
         for(NetworkInterface nic:Collections.list(NetworkInterface.getNetworkInterfaces()))
@@ -41,30 +42,65 @@ final class LegacyControlScenario {
             try {await(runner,()->find(activity,"sender-0").isShown());}
             catch(AssertionError error) {throw new AssertionError(error.getMessage()+"; "+controlDiagnostic(runner,activity),error);}
             if(metadata)LegacyMetadataScenario.check(runner,activity);
-            touch(runner,activity,"sender-1");first.expect(0,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
-            touch(runner,activity,"sender-1");first.expect(1,"play");await(runner,()->text(activity,"sender-1").equals("Ⅱ"));
-            touch(runner,activity,"sender-0");first.expect(2,"previtem");
-            touch(runner,activity,"sender-2");first.expect(3,"nextitem");
-            touch(runner,activity,"sender-3");first.expect(4,"volumedown");
-            touch(runner,activity,"sender-4");first.expect(5,"volumeup");
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PAUSE);first.expect(6,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PLAY);first.expect(7,"play");await(runner,()->text(activity,"sender-1").equals("Ⅱ"));
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_NEXT);first.expect(8,"nextitem");
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PREVIOUS);first.expect(9,"previtem");
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD);first.expect(10,"beginff");first.expect(11,"playresume");
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_REWIND);first.expect(12,"beginrew");first.expect(13,"playresume");
-            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);first.expect(14,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
+            if(systemMedia)systemChecks(runner,activity,first);
+            int base=first.size();
+            touch(runner,activity,"sender-1");first.expect(base,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
+            touch(runner,activity,"sender-1");first.expect(base+1,"play");await(runner,()->text(activity,"sender-1").equals("Ⅱ"));
+            touch(runner,activity,"sender-0");first.expect(base+2,"previtem");
+            touch(runner,activity,"sender-2");first.expect(base+3,"nextitem");
+            touch(runner,activity,"sender-3");first.expect(base+4,"volumedown");
+            touch(runner,activity,"sender-4");first.expect(base+5,"volumeup");
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PAUSE);first.expect(base+6,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PLAY);first.expect(base+7,"play");await(runner,()->text(activity,"sender-1").equals("Ⅱ"));
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_NEXT);first.expect(base+8,"nextitem");
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PREVIOUS);first.expect(base+9,"previtem");
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD);first.expect(base+10,"beginff");first.expect(base+11,"playresume");
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_REWIND);first.expect(base+12,"beginrew");first.expect(base+13,"playresume");
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);first.expect(base+14,"pause");await(runner,()->text(activity,"sender-1").equals("▶"));
             // Failure cannot make the UI claim that playback resumed.
-            first.code=500;touch(runner,activity,"sender-1");first.expect(15,"play");SystemClock.sleep(200);
+            first.code=500;touch(runner,activity,"sender-1");first.expect(base+15,"play");SystemClock.sleep(200);
             if(!textOnUi(runner,activity,"sender-1").equals("▶"))throw new AssertionError("Failed command changed the playback state");
             second.identify();await(runner,()->find(activity,"sender-0").isShown() && text(activity,"sender-1").equals("Ⅱ"));
             if(metadata)LegacyMetadataScenario.cleared(runner,activity);
             touch(runner,activity,"sender-2");second.expect(0,"nextitem");
-            if(first.size()!=16)throw new AssertionError("Replacement command reached the old sender");
+            if(first.size()!=base+16)throw new AssertionError("Replacement command reached the old sender");
             touch(runner,activity,"receiver-toggle");
             await(runner,()->!find(activity,"sender-0").isShown());
+            if(systemMedia)LegacySystemMediaScenario.stopped(runner,activity);
         }
         return activity;
+    }
+    private static void systemChecks(Instrumentation runner,Activity activity,Peer peer) throws Exception {
+        LegacySystemMediaScenario.metadata(runner,activity);
+        int focusIndex=peer.size();
+        try {
+            LegacySystemMediaScenario.requestFocus(runner,activity,android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+            await(runner,()->Math.abs(LegacySystemMediaScenario.gain(activity)-.2f)<.01f);
+            LegacySystemMediaScenario.releaseFocus(runner);await(runner,()->LegacySystemMediaScenario.gain(activity)==1);
+            if(peer.size()!=focusIndex)throw new AssertionError("Ducking should not pause the sender");
+            for(int hint:new int[]{android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,android.media.AudioManager.AUDIOFOCUS_GAIN}) {
+                LegacySystemMediaScenario.requestFocus(runner,activity,hint);peer.expect(focusIndex++,"pause");
+                await(runner,()->LegacySystemMediaScenario.gain(activity)==0 && text(activity,"sender-1").equals("▶"));
+                LegacySystemMediaScenario.releaseFocus(runner);
+                if(hint==android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)await(runner,()->LegacySystemMediaScenario.gain(activity)==1);
+                touch(runner,activity,"sender-1");peer.expect(focusIndex++,"play");
+                await(runner,()->LegacySystemMediaScenario.gain(activity)==1 && text(activity,"sender-1").equals("Ⅱ"));
+            }
+        } finally {LegacySystemMediaScenario.releaseFocus(runner);}
+        ui(runner,()->activity.moveTaskToBack(true));
+        await(runner,()->!activity.hasWindowFocus());
+        LegacySystemMediaScenario.host(activity,"state");
+        String[] stages={"pause","play","next","previous","toggle","fast_forward","rewind","play_final"};
+        String[][] paths={{"pause"},{"play"},{"nextitem"},{"previtem"},{"pause"},{"beginff","playresume"},{"beginrew","playresume"},{"play"}};
+        int index=peer.size();
+        for(int i=0;i<stages.length;i++) {
+            LegacySystemMediaScenario.host(activity,stages[i]);
+            for(String path:paths[i])peer.expect(index++,path);
+        }
+        LegacySystemMediaScenario.host(activity,"background_done");
+        try {await(runner,()->activity.hasWindowFocus() && text(activity,"sender-1").equals("Ⅱ"));}
+        catch(AssertionError error) {throw new AssertionError(error.getMessage()+"; focus="+activity.hasWindowFocus()+
+            "; destroyed="+activity.isDestroyed()+"; playing="+textOnUi(runner,activity,"sender-1")+"; "+controlDiagnostic(runner,activity),error);}
     }
     private interface Check {boolean done();}
     private static String controlDiagnostic(Instrumentation runner,Activity activity) {

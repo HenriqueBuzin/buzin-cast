@@ -22,6 +22,44 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Cliente de mídia do sistema API17:** o serviço registra um
+  `RemoteControlClient` com receptor privado de teclas e identificação da
+  ativação. Activity e receptor usam a mesma semântica de pressionar/soltar.
+  Título, artista, álbum, gênero, duração e uma cópia independente da capa
+  chegam ao cliente da plataforma; o Android pode reciclar sua cópia sem
+  invalidar a imagem da interface. Pausa/reprodução, anterior/próxima e
+  avanço/retrocesso funcionam com o app atrás do launcher. Perda transitória
+  ou permanente de foco silencia a saída e pede pausa ao transmissor;
+  ducking reduz o ganho local a 20%. Recuperar foco não envia reprodução
+  automática. Reprodução explícita tenta recuperar o foco antes do comando.
+  A parada e a entrada em vídeo retiram cliente, teclas e foco. Callbacks e
+  eventos de ativações anteriores são ignorados.
+  O cliente existe desde API14; a atualização externa de posição usa a
+  sobrecarga de API18 em classe isolada. No API17, o relógio continua na
+  interface e o sistema recebe estado/duração, sem anunciar busca absoluta.
+  Referências: [RemoteControlClient](https://developer.android.com/reference/android/media/RemoteControlClient)
+  e [AudioManager](https://developer.android.com/reference/android/media/AudioManager).
+  `tools/test_legacy_gestures.py --system-media` implica `--metadata` e
+  `--controls`, com os mesmos argumentos de APK, test APK, serial e pacote.
+  A instrumentação confere metadados e propriedade da capa no cliente real,
+  provoca disputas reais de foco e verifica ganho e comandos HTTP. O host
+  envia teclas pelo Android com a Activity em segundo plano, confere a
+  associação do cliente em `dumpsys audio`, retoma pelo launcher, espera o
+  encerramento RTSP e confirma que Play não religa o receptor parado.
+  Geral aprovada em `outputs/legacy-system-media-general-final`; regional
+  em `outputs/legacy-system-media-regional-checked`. Builds ARMv7/x86,
+  lint e 60 testes JVM passaram nas duas edições. A regressão nativa passou
+  em `outputs/legacy-system-media-native-regression`, incluindo áudio,
+  vídeo, troca de display e início sem tela. APKs temporários removidos.
+  As primeiras tentativas preservam falhas do roteiro: nome do campo de
+  artwork diferente no API17, retorno criando outra Activity e checagem de
+  porta antes de concluir a parada assíncrona. A rodada
+  `legacy-system-media-regional-diagnostic` sofreu queda de ADB; a execução
+  completa posterior passou. Não são testes em Fire Stick físico nem com
+  transmissor Apple real; áudio usa as amostras sintéticas já documentadas.
+  Alternância completa áudio/espelhamento e os demais protocolos continuam
+  no plano, assim como segurança/licença e os artefatos de produção.
+
 - **Faixa/capa/progresso API17:** callbacks de metadados, imagem e contadores
   RTP chegam ao estado da sessão e à interface nativa. Título, artista, álbum,
   capa e relógio substituem as instruções de conexão durante a reprodução.

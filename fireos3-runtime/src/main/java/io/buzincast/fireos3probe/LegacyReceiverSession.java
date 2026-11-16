@@ -210,6 +210,7 @@ public final class LegacyReceiverSession {
     public String localAddress() { return network == null ? null : network.address.getHostAddress(); }
     public LegacyDacp.State controls() {LegacyDacp current=controls;return current==null?LegacyDacp.inactive():current.state();}
     public LegacyMedia.State media() {return media.state();}
+    public void audioFocusGain(float gain) {audioPlayer.focusGain=Math.max(0,Math.min(1,gain));}
     public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
         LegacyDacp current=controls;
         if(current==null) {if(completion!=null)completion.complete(new IOException("Receiver is stopped"));}

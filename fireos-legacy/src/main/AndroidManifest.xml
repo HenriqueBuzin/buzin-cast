@@ -20,6 +20,9 @@
             </intent-filter>
         </activity>
         <service android:name=".LegacyReceiverService" android:exported="false" android:foregroundServiceType="connectedDevice" />
+        <receiver android:name=".LegacyMediaButtonReceiver" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON" /></intent-filter>
+        </receiver>
         <receiver android:name=".LegacyBootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

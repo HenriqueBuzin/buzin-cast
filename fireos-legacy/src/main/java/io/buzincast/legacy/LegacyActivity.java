@@ -151,27 +151,17 @@ public final class LegacyActivity extends Activity {
             if(foreground && !isFinishing())Toast.makeText(this,R.string.error_label,Toast.LENGTH_SHORT).show();
         });
     }
-    private LegacyDacp.Command mediaCommand(int key) {
-        switch(key) {
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:return controlState.playing?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY;
-            case KeyEvent.KEYCODE_MEDIA_PLAY:return LegacyDacp.Command.PLAY;
-            case KeyEvent.KEYCODE_MEDIA_PAUSE:case KeyEvent.KEYCODE_MEDIA_STOP:return LegacyDacp.Command.PAUSE;
-            case KeyEvent.KEYCODE_MEDIA_NEXT:return LegacyDacp.Command.NEXT;
-            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:return LegacyDacp.Command.PREVIOUS;
-            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:return LegacyDacp.Command.FAST_FORWARD;
-            case KeyEvent.KEYCODE_MEDIA_REWIND:return LegacyDacp.Command.REWIND;
-            default:return null;
-        }
-    }
     @Override public boolean onKeyDown(int key,KeyEvent event) {
-        LegacyDacp.Command command=mediaCommand(key);
-        if(controlState.ready && command!=null) {if(event.getRepeatCount()==0)senderCommand(command);return true;}
+        if(controlState.ready && LegacyMediaKeys.handles(key)) {
+            LegacyDacp.Command command=LegacyMediaKeys.command(key,true,event.getRepeatCount(),controlState.playing);
+            if(command!=null)senderCommand(command);return true;
+        }
         return super.onKeyDown(key,event);
     }
     @Override public boolean onKeyUp(int key,KeyEvent event) {
-        if(controlState.ready && mediaCommand(key)!=null) {
-            if(key==KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || key==KeyEvent.KEYCODE_MEDIA_REWIND)
-                senderCommand(LegacyDacp.Command.RESUME);
+        if(controlState.ready && LegacyMediaKeys.handles(key)) {
+            LegacyDacp.Command command=LegacyMediaKeys.command(key,false,event.getRepeatCount(),controlState.playing);
+            if(command!=null)senderCommand(command);
             return true;
         }
         return super.onKeyUp(key,event);
