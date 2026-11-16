@@ -1,5 +1,16 @@
 # Retomada — 16 de novembro de 2026
 
+## Vega — seleção do menu e foco por toque — 16 de novembro de 2026
+
+O menu permanece nas páginas de consulta/configurações, com seleção semântica
+independente do foco e restauração do último item ao voltar ao início. Botões
+compartilham foco nativo na ativação concluída, inclusive por toque. 53 testes,
+lint sem avisos, TypeScript, três ABIs e smoke real ARM64 passaram. Toques reais
+e revisão visual ainda estão pendentes; detalhes e evidências em
+[VEGA_HANDOFF.md](VEGA_HANDOFF.md). Próxima etapa: continuar saída de áudio/vídeo
+AirPlay e demais comportamentos do Fire OS, preservando a meta completa.
+
+
 ## Vega — AirPlay por URL no player — 16 de novembro de 2026
 
 O caminho UxPlay → fila nativa → player → playback-info passou no VVD ARM64 com

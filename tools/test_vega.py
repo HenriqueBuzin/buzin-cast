@@ -146,8 +146,8 @@ def main():
         report["checks"]["localPlayback"] = {
             "playing": playing, "paused": held, "resumed": resumed, "released": released,
         }
-        # A second native player must initialize after Back released the first.
-        shell("inputd-cli", "button_press", "KEY_RIGHT")
+        # Back restores the selected Media menu item, ready to reopen.
+        # A second native player must initialize after the first was released.
         shell("inputd-cli", "button_press", "KEY_ENTER")
         app_shell("rm", "-f", "/data/playback-state.json")
         shell("inputd-cli", "button_press", "KEY_ENTER")
@@ -157,7 +157,6 @@ def main():
         wait_playback(lambda value: value["state"] == "released")
         report["checks"]["playbackReopened"] = reopened
         report["checks"]["playbackEnded"] = ended
-        shell("inputd-cli", "button_press", "KEY_RIGHT")
         shell("inputd-cli", "button_press", "KEY_ENTER")
         app_shell("rm", "-f", "/data/playback-state.json")
         shell("inputd-cli", "button_press", "KEY_ENTER")
@@ -165,7 +164,7 @@ def main():
         shell("inputd-cli", "button_press", "KEY_HOMEPAGE")
         report["checks"]["backgroundReleased"] = wait_playback(lambda value: value["state"] == "released")
         run(["device", "launch-app", "--device", args.serial, "--appName", COMPONENT])
-        shell("inputd-cli", "button_press", "KEY_RIGHT")
+        # Media remains selected; About is the next item.
         shell("inputd-cli", "button_press", "KEY_RIGHT")
         shell("inputd-cli", "button_press", "KEY_ENTER")
         shell("inputd-cli", "button_press", "KEY_BACK")

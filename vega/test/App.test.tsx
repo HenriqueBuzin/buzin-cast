@@ -91,3 +91,20 @@ test('consulta capacidades reais pelo adaptador e informa falhas sem inventar su
     screen.getByText('Não foi possível consultar os codecs neste dispositivo.'),
   ).toBeTruthy();
 });
+
+test('mantém a seleção da página quando o foco sai do menu e ao voltar ao início', () => {
+  const screen = render(<App />);
+  const menu = (name: string) => screen.getByRole('button', {name});
+  fireEvent.press(menu('Mídia'));
+  expect(menu('Mídia').props.accessibilityState.selected).toBe(true);
+  expect(menu('Estado do port').props.accessibilityState.selected).toBe(false);
+  fireEvent(menu('Mídia'), 'blur');
+  fireEvent(menu('Testar reprodução'), 'focus');
+  expect(menu('Mídia').props.accessibilityState.selected).toBe(true);
+  fireEvent.press(menu('Sobre'));
+  expect(menu('Sobre').props.accessibilityState.selected).toBe(true);
+  expect(menu('Mídia').props.accessibilityState.selected).toBe(false);
+  fireEvent.press(menu('Voltar'));
+  expect(menu('Sobre').props.hasTVPreferredFocus).toBe(true);
+  expect(menu('Mídia').props.hasTVPreferredFocus).toBe(false);
+});

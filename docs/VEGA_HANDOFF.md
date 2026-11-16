@@ -1,5 +1,32 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Menu selecionado e foco por ativação — 16 de novembro de 2026
+
+- Conferido o Fire OS atual: `TvSidebar` mantém a página selecionada marcada
+  quando o foco está no conteúdo. `touchFocus` move o foco no toque concluído.
+  A seleção em `MainScreen` é estado da sessão; não é uma preferência em disco.
+- Vega mantém o menu nas páginas Estado/Mídia/Sobre/Configurações, com borda e
+  semântica `accessibilityState.selected` independentes do foco. Ao Voltar ao
+  início, prefere o último item selecionado. As telas de reprodução/receptores
+  mantêm seu modo próprio e liberam mídia no encerramento.
+- `TvButton` compartilha a ativação dos botões da aplicação: chama o foco nativo
+  antes da ação de Pressable. Press-down/up sem ativação não dispara foco ou
+  ação. Mantém as ações de teclado/controle e os estados visuais existentes.
+- 53 testes Jest passaram, incluindo seleção preservada ao focar o conteúdo,
+  troca de seleção e restauração ao voltar; teste do botão usa o mock de foco
+  nativo do próprio React Native. Lint sem avisos, TypeScript e build/validação
+  ABI das três arquiteturas passaram.
+- O smoke real ARM64 passou em
+  `build/vega-navigation-focus-smoke/result.json`: diagnósticos, navegação,
+  amostra, pausa/retomada, reabertura/fim, segundo plano e repetição. A primeira
+  rodada expôs que o menu mantido montado não restaurava o foco no retorno;
+  remontar o grupo ao alternar início/página corrigiu o comportamento no VVD.
+  O runner agora espera a seleção de Mídia restaurada ao reabrir o player.
+- Toques reais e revisão visual desta mudança ainda precisam de validação.
+  A captura nativa da imagem VVD informou falta de suporte DMABUF; o snapshot
+  QMP estava preto. Não tratar esses arquivos como prova visual aprovada.
+  A paridade completa continua pendente.
+
 ## AirPlay por URL ligado ao player — 16 de novembro de 2026
 
 - A sessão UxPlay entrega Play/Seek/Rate/Stop à sessão de reprodução Vega;
@@ -53,8 +80,9 @@
 
 A referência de paridade passa a ser a versão Fire OS atual, incluindo seleção
 persistente e navegação por toque mencionadas por Henrique nesta retomada.
-Esses dois comportamentos ainda são pendentes no Vega; nome do receptor salvo
-e foco básico pelo controle não os comprovam. A estimativa informal de cerca
+Na ocasião, ambos estavam pendentes no Vega. A seção de menu selecionado
+acima registra o avanço atual e a validação de toque ainda necessária; nome
+salvo e foco básico, isoladamente, não comprovam esses comportamentos. A estimativa informal de cerca
 de 20% é de paridade funcional, não de tempo restante, e não conta esses itens
 como entregues.
 

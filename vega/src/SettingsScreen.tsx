@@ -1,5 +1,6 @@
+import TvButton from './TvButton';
 import React, {useState} from 'react';
-import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {StyleSheet, Text, TextInput, View} from 'react-native';
 import Network from './turbo-modules/BuzinNetwork';
 
 export default function SettingsScreen({onBack}: {onBack: () => void}) {
@@ -28,7 +29,7 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
       <Text style={styles.text} aria-live="polite">{message}</Text>
       <View style={styles.actions}>
         {['save', 'back'].map((id) => (
-          <Pressable
+          <TvButton
             key={id}
             role="button"
             accessibilityHint={id === 'save' ? 'Salva o nome do receptor' : 'Retorna à tela inicial'}
@@ -47,7 +48,7 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
               }
             }}>
             <Text style={styles.label}>{id === 'save' ? 'Salvar' : 'Voltar'}</Text>
-          </Pressable>
+          </TvButton>
         ))}
       </View>
     </View>
