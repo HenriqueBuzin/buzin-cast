@@ -3,6 +3,8 @@
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
@@ -78,22 +80,48 @@ bool wildcardBind() {
   return server.fd >= 0 && bind(server.fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
 }
 
-bool multicastMembership() {
+struct MembershipResult {
+  bool success;
+  const char* stage;
+  int error;
+};
+
+MembershipResult multicastMembership() {
   Socket receiver(SOCK_DGRAM);
-  if (receiver.fd < 0) return false;
+  if (receiver.fd < 0) return {false, "socket", errno};
   ip_mreq membership{};
   membership.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
   membership.imr_interface.s_addr = htonl(INADDR_ANY);
+  // A sandbox may have no default multicast route. Select an actual active
+  // LAN interface instead of relying on INADDR_ANY route selection.
+  ifaddrs* interfaces = nullptr;
+  if (getifaddrs(&interfaces) != 0) return {false, "interfaces", errno};
+  for (auto* item = interfaces; item; item = item->ifa_next) {
+    if (!item->ifa_addr || item->ifa_addr->sa_family != AF_INET ||
+        !(item->ifa_flags & IFF_UP) || !(item->ifa_flags & IFF_MULTICAST) ||
+        (item->ifa_flags & IFF_LOOPBACK)) continue;
+    membership.imr_interface = reinterpret_cast<sockaddr_in*>(item->ifa_addr)->sin_addr;
+    break;
+  }
+  freeifaddrs(interfaces);
+  if (membership.imr_interface.s_addr == htonl(INADDR_ANY))
+    return {false, "interface", ENODEV};
   // Membership only: never transmit a DNS-SD advertisement or claim LAN reachability.
-  if (setsockopt(receiver.fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &membership, sizeof(membership)) != 0) return false;
-  return setsockopt(receiver.fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership)) == 0;
+  if (setsockopt(receiver.fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &membership, sizeof(membership)) != 0)
+    return {false, "join", errno};
+  if (setsockopt(receiver.fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership)) != 0)
+    return {false, "leave", errno};
+  return {true, "complete", 0};
 }
 }
 
 std::string runNetworkProbe() {
-  const bool tcpOk = tcp(), udpOk = udp(), bindOk = wildcardBind(), multicastOk = multicastMembership();
+  const bool tcpOk = tcp(), udpOk = udp(), bindOk = wildcardBind();
+  const auto multicast = multicastMembership();
   return std::string("{\"tcpLoopback\":") + (tcpOk ? "true" : "false") +
     ",\"udpLoopback\":" + (udpOk ? "true" : "false") +
     ",\"wildcardBind\":" + (bindOk ? "true" : "false") +
-    ",\"multicastMembership\":" + (multicastOk ? "true" : "false") + "}";
+    ",\"multicastMembership\":" + (multicast.success ? "true" : "false") +
+    ",\"multicastStage\":\"" + multicast.stage + "\",\"multicastErrno\":" +
+    std::to_string(multicast.error) + "}";
 }

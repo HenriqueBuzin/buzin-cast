@@ -64,7 +64,8 @@ uint32_t lanAddress() {
   uint32_t selected = 0;
   for (auto* item = interfaces; item; item = item->ifa_next) {
     if (!item->ifa_addr || item->ifa_addr->sa_family != AF_INET ||
-        (item->ifa_flags & IFF_LOOPBACK) || !(item->ifa_flags & IFF_UP)) continue;
+        (item->ifa_flags & IFF_LOOPBACK) || !(item->ifa_flags & IFF_UP) ||
+        !(item->ifa_flags & IFF_MULTICAST)) continue;
     const auto candidate = reinterpret_cast<sockaddr_in*>(item->ifa_addr)->sin_addr.s_addr;
     if (candidate != htonl(INADDR_ANY)) { selected = candidate; break; }
   }

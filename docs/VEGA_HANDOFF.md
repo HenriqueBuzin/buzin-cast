@@ -1,5 +1,23 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Multicast e smoke de reprodução recuperados — 16 de novembro de 2026
+
+- O diagnóstico identificou `IP_ADD_MEMBERSHIP` falhando com `ENODEV` (19)
+  quando usava `INADDR_ANY`. A seleção explícita de uma interface IPv4 ativa,
+  não loopback e com `IFF_MULTICAST` fez a adesão/saída passar no sandbox.
+  A descoberta FCast também passa a ignorar interfaces sem multicast.
+- O relatório agora inclui `multicastStage` e `multicastErrno`, sem registrar
+  nomes de interfaces ou endereços pessoais. Não há mudança de privilégios.
+- O smoke ARM64 `tools/test_vega.py` passou integralmente: sete resultados
+  nativos, consulta de mídia, reprodução da amostra, pausa mantendo relógio,
+  retomada, liberação ao voltar, reabertura, término em 7,999 s, liberação em
+  segundo plano e retorno/repetição do diagnóstico. Resultado local:
+  `build/vega-multicast-interface/result.json` (`passed: true`). Isso substitui
+  a falha de multicast descrita no registro anterior; não prova descoberta na
+  LAN física nem recepção AirPlay ou paridade.
+- O teste nativo do codec DNS-SD passou. Build e validação ABI das três
+  arquiteturas passaram para a seleção explícita do diagnóstico.
+
 ## Ciclo de reprodução — 16 de novembro de 2026
 
 - Corrigida a barreira de liberação: falha em `deinitialize` continua registrada,
