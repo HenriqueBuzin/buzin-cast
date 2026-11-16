@@ -97,4 +97,13 @@ class AsyncLogStoreTest {
         assertThrows(IllegalArgumentException::class.java){AsyncLogStore(MemoryStorage(),maxLines=0)}
         assertThrows(IllegalArgumentException::class.java){AsyncLogStore(MemoryStorage(),capacity=0)}
     }
+    @Test fun `platform replacement failure preserves the previous snapshot`() {
+        val directory=java.nio.file.Files.createTempDirectory("buzin-platform-logs").toFile()
+        try {
+            val target=File(directory,"logs.txt").apply { writeText("previous") }
+            val storage=FileLogStorage(target) { _, _ -> false }
+            assertThrows(IllegalStateException::class.java) { storage.write(listOf("new")) }
+            assertEquals("previous",target.readText())
+        } finally { directory.deleteRecursively() }
+    }
 }

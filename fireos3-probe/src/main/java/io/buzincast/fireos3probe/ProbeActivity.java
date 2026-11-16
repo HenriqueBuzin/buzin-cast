@@ -46,18 +46,27 @@ public final class ProbeActivity extends Activity {
         device.setText(getString(R.string.probe_device, Build.MODEL, Build.VERSION.SDK_INT, Build.CPU_ABI));
         content.addView(device);
 
+        LinearLayout checks = new LinearLayout(this);
+        LinearLayout playback = new LinearLayout(this);
+        content.addView(checks);
+        content.addView(playback);
+
         Button run = new Button(this);
         run.setText(R.string.probe_run);
-        content.addView(run);
+        checks.addView(run, new LinearLayout.LayoutParams(0, -2, 1));
 
         Button network = new Button(this);
         network.setText(R.string.probe_run_network);
-        content.addView(network);
+        checks.addView(network, new LinearLayout.LayoutParams(0, -2, 1));
+
+        Button callback = new Button(this);
+        callback.setText(R.string.probe_run_callback);
+        playback.addView(callback, new LinearLayout.LayoutParams(0, -2, 1));
 
         Button exit = new Button(this);
         exit.setText(R.string.probe_exit);
         exit.setOnClickListener(view -> finish());
-        content.addView(exit);
+        playback.addView(exit, new LinearLayout.LayoutParams(0, -2, 1));
 
         TextView parserResult = new TextView(this);
         TextView receiverResult = new TextView(this);
@@ -81,7 +90,7 @@ public final class ProbeActivity extends Activity {
         });
         run.setOnClickListener(view -> {
             parserResult.setText(checkParser());
-            startDecoder(decoderResult, receiverResult, null, null);
+            startDecoder(decoderResult, receiverResult, null, null, false);
         });
         network.setOnClickListener(view -> {
             if (decoding) {
@@ -93,23 +102,31 @@ public final class ProbeActivity extends Activity {
                 return;
             }
             previewFrame = new CountDownLatch(1);
-            startDecoder(decoderResult, null, new Surface(texture), previewFrame);
+            startDecoder(decoderResult, null, new Surface(texture), previewFrame, false);
+        });
+        callback.setOnClickListener(view -> {
+            if (decoding) return;
+            SurfaceTexture texture = preview.getSurfaceTexture();
+            if (texture == null) { decoderResult.setText(R.string.probe_surface_unavailable); return; }
+            previewFrame = new CountDownLatch(1);
+            startDecoder(decoderResult, null, new Surface(texture), previewFrame, true);
         });
         setContentView(content);
         run.requestFocus();
     }
 
-    private void startDecoder(TextView status, TextView receiverStatus, Surface surface, CountDownLatch frameShown) {
+    private void startDecoder(TextView status, TextView receiverStatus, Surface surface, CountDownLatch frameShown, boolean callbackPath) {
         if (decoding) {
             return;
         }
         decoding = true;
-        status.setText(surface == null ? R.string.probe_decoding : R.string.probe_decoding_network);
+        status.setText(callbackPath ? R.string.probe_decoding_callback
+                : (surface == null ? R.string.probe_decoding : R.string.probe_decoding_network));
         new Thread(() -> {
             String receiverResult = receiverStatus == null ? null : checkReceiver();
             String result;
             try {
-                result = checkDecoder(surface, frameShown);
+                result = checkDecoder(surface, frameShown, callbackPath);
             } finally {
                 if (surface != null) {
                     surface.release();
@@ -143,7 +160,7 @@ public final class ProbeActivity extends Activity {
         try {
             System.loadLibrary("fireos3_probe");
             key = File.createTempFile("probe-raop", ".key", getCacheDir());
-            handle = startReceiver(key.getAbsolutePath());
+            handle = startReceiver(key.getAbsolutePath(), null);
             if (handle == 0) {
                 return getString(R.string.probe_receiver_start_failed);
             }
@@ -175,13 +192,16 @@ public final class ProbeActivity extends Activity {
         }
     }
 
-    private String checkDecoder(Surface surface, CountDownLatch frameShown) {
+    private String checkDecoder(Surface surface, CountDownLatch frameShown, boolean callbackPath) {
         MediaExtractor extractor = new MediaExtractor();
         MediaCodec decoder = null;
         File networkSample = null;
+        File receiverKey = null;
+        long receiver = 0;
+        VideoFrameQueue frameQueue = new VideoFrameQueue();
         try {
             System.loadLibrary("fireos3_probe");
-            if (surface == null) {
+            if (surface == null || callbackPath) {
                 try (AssetFileDescriptor sample = getResources().openRawResourceFd(R.raw.h264_sample)) {
                     extractor.setDataSource(sample.getFileDescriptor(), sample.getStartOffset(), sample.getLength());
                 }
@@ -195,6 +215,11 @@ public final class ProbeActivity extends Activity {
             decoder = MediaCodec.createDecoderByType("video/avc");
             decoder.configure(format, surface, null, 0);
             decoder.start();
+            if (callbackPath) {
+                receiverKey = File.createTempFile("probe-callback", ".key", getCacheDir());
+                receiver = startReceiver(receiverKey.getAbsolutePath(), frameQueue);
+                if (receiver == 0) throw new IllegalStateException("Receiver callback session could not start");
+            }
 
             ByteBuffer[] inputBuffers = decoder.getInputBuffers();
             AvcInput frameInput = new AvcInput(decoder, inputBuffers);
@@ -211,7 +236,19 @@ public final class ProbeActivity extends Activity {
                     if (inputEnded) {
                         decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                     } else {
-                        frameInput.replay(inputIndex, size, extractor.getSampleTime() * 1000L);
+                        long timeNs = extractor.getSampleTime() * 1000L;
+                        if (callbackPath) {
+                            if (!replayReceiverVideo(receiver, input, size, timeNs)) {
+                                throw new IllegalStateException("Receiver callback replay failed");
+                            }
+                            VideoFrameQueue.Frame frame = frameQueue.take(1000);
+                            if (frame == null) throw new IllegalStateException("Receiver callback timed out");
+                            input.clear();
+                            input.put(frame.data);
+                            decoder.queueInputBuffer(inputIndex, 0, frame.data.length, frame.timeNs / 1000L, 0);
+                        } else {
+                            frameInput.replay(inputIndex, size, timeNs);
+                        }
                         extractor.advance();
                     }
                 }
@@ -224,7 +261,8 @@ public final class ProbeActivity extends Activity {
                             return getString(R.string.probe_decoder_passed);
                         }
                         return getString(frameShown.await(2, TimeUnit.SECONDS)
-                                ? R.string.probe_network_passed : R.string.probe_frame_not_shown);
+                                ? (callbackPath ? R.string.probe_callback_passed : R.string.probe_network_passed)
+                                : (callbackPath ? R.string.probe_callback_not_shown : R.string.probe_frame_not_shown));
                     }
                     if ((output.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                         break;
@@ -238,6 +276,10 @@ public final class ProbeActivity extends Activity {
             Thread.currentThread().interrupt();
             return getString(R.string.probe_frame_not_shown);
         } finally {
+            // Stop native callbacks before disposing their queue or the decoder.
+            if (receiver != 0) stopReceiver(receiver);
+            frameQueue.close();
+            if (receiverKey != null) receiverKey.delete();
             if (decoder != null) {
                 decoder.release();
             }
@@ -307,8 +349,9 @@ public final class ProbeActivity extends Activity {
     }
 
     private static native boolean checkNativeParser();
-    private static native long startReceiver(String keyPath);
+    private static native long startReceiver(String keyPath, VideoFrameQueue callback);
     private static native int receiverPort(long handle);
     private static native void stopReceiver(long handle);
     private static native boolean replayVideoFrame(AvcInput callback, ByteBuffer input, int length, long timeNs);
+    private static native boolean replayReceiverVideo(long handle, ByteBuffer input, int length, long timeNs);
 }

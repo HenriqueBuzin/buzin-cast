@@ -31,3 +31,7 @@ tasks.configureEach {
         dependsOn(":app:applyUxplayPatches", ":app:applyOpensslCmakePatches")
     }
 }
+
+dependencies {
+    testImplementation(libs.junit4)
+}

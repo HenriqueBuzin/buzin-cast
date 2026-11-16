@@ -28,6 +28,7 @@ fun Modifier.focusRing(
 ): Modifier {
     var focused by remember { mutableStateOf(false) }
     return this
+        .touchFocus()
         .onFocusChanged { focused = it.hasFocus }
         .thenIf(focused) { smoothFocusOutline(shape = shape, color = color, width = width) }
 }

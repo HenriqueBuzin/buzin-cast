@@ -15,6 +15,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -34,6 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 
 fun Context.isTvDevice(): Boolean =
     packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
@@ -47,13 +55,29 @@ fun isTv(): Boolean {
     return remember(ctx) { ctx.isTvDevice() }
 }
 
-fun Modifier.dpadFocus(shape: Shape = CircleShape): Modifier = composed {
+fun Modifier.dpadFocus(shape: Shape = CircleShape, selected: Boolean = false): Modifier = composed {
     var focused by remember { mutableStateOf(false) }
-    val outline by animateColorAsState(if (focused) MaterialTheme.colorScheme.primary else Color.Transparent,
+    val outline by animateColorAsState(if (focused || selected) MaterialTheme.colorScheme.primary else Color.Transparent,
         tween(160), label = "tv-focus-outline")
     heightIn(min = 48.dp)
+        .touchFocus()
         .onFocusChanged { focused = it.isFocused }
         .smoothFocusOutline(shape, outline, 2.dp)
+}
+
+/** Focus the existing control on a completed tap without consuming its click or scroll. */
+internal fun Modifier.touchFocus(): Modifier = composed {
+    val requester = remember { FocusRequester() }
+    // Material clickables normally opt out of keyboard focus in touch mode.
+    // Keep the same focus target available so the outline can follow a tap.
+    focusProperties { canFocus = true }.focusRequester(requester).pointerInput(requester) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if (waitForUpOrCancellation(pass = PointerEventPass.Initial) != null) {
+                requester.requestFocus()
+            }
+        }
+    }
 }
 
 /** Vector stroke inside the actual bounds, without scaling a cached focus bitmap. */

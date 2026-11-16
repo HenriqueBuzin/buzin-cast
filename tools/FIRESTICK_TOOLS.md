@@ -47,6 +47,20 @@ recalcular o alvo, sem reutilizar coordenadas antigas.
 
 ## Capturas e verificação de abertura
 
+### Desenvolvimento da próxima versão
+
+`Build-FireOs.ps1 -Target modern|compat|probe -PosixBin <bin-do-MSYS2> -Check`
+prepara o PATH e o NDK correspondente e compila debug; `-Abis x86_64` limita
+a ABI do app para teste em emulador. `probe` usa NDK r23 e suas duas ABIs fixas.
+O script exige as ferramentas instaladas, restaura o ambiente do shell no fim
+e não assina produção nem publica. Execute primeiro em um ambiente de build
+configurado; caches de CMake incompletos podem exigir reparo local.
+
+Os scripts `test_focus_navigation.py` e `test_fireos3_probe.py` recusam TVs
+físicas e testam a nova indicação de foco e a ponte de vídeo API 17 em emulador.
+Comandos e limites em `docs/TESTING.md`. O protótipo API 17 não é uma edição
+publicável com paridade funcional.
+
 O teste percorre os APKs locais em `outputs`, abre início/configurações/Sobre,
 espera as animações e mede a estabilidade dos quadros. Mostra o foco do
 controle na página aberta no menu lateral e mantém Fechar no Sobre.

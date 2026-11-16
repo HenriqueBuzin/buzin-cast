@@ -13,6 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
 import io.github.jqssun.airplay.R
 
@@ -31,7 +35,9 @@ internal fun TvSidebar(destinations: List<AppDestination>, selected: AppDestinat
                         Surface(onClick = { onSelect(t) }, shape = RoundedCornerShape(13.dp),
                             color = if (selected == t) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent,
                             contentColor = if (selected == t) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().height(54.dp).dpadFocus(RoundedCornerShape(13.dp))) {
+                            modifier = Modifier.fillMaxWidth().height(54.dp)
+                                .semantics { role = Role.Tab; this.selected = selected == t }
+                                .dpadFocus(RoundedCornerShape(13.dp), selected = selected == t)) {
                             Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(t.icon, null, Modifier.size(21.dp))

@@ -24,13 +24,13 @@ val regionalAppstoreAssets = providers.gradleProperty("buzinRegionalAppstoreAsse
 }
 val noDownloadEdition = regionalAppstoreAssets != null || providers.gradleProperty("buzinNoDownload").orNull == "true"
 val editionVersionCode = when {
-    legacyEdition && noDownloadEdition -> 41
-    legacyEdition -> 40
-    noDownloadEdition -> 43
-    else -> 42
+    legacyEdition && noDownloadEdition -> 45
+    legacyEdition -> 44
+    noDownloadEdition -> 47
+    else -> 46
 }
 val editionVersionName = buildString {
-    append("0.6.6")
+    append("0.6.7")
     if (legacyEdition) append("-compat")
     if (noDownloadEdition) append("-nodownload")
 }

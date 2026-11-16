@@ -11,7 +11,10 @@ interface LogStorage {
     fun read(limit: Int): List<String>
     fun write(lines: List<String>)
 }
-class FileLogStorage(private val file: File) : LogStorage {
+class FileLogStorage(
+    private val file: File,
+    private val replaceSnapshot: (File, File) -> Boolean = JvmAtomicSnapshot::replace,
+) : LogStorage {
     override fun read(limit: Int): List<String> {
         val lines = ArrayDeque<String>()
         if (file.isFile) file.bufferedReader().useLines { source -> source.forEach {
@@ -24,8 +27,18 @@ class FileLogStorage(private val file: File) : LogStorage {
         file.parentFile?.mkdirs()
         val temporary = File(file.path + ".tmp")
         temporary.bufferedWriter().use { writer -> lines.forEach { writer.append(it).append('\n') } }
-        check(temporary.renameTo(file)) { "Cannot replace log snapshot" }
+        check(replaceSnapshot(temporary, file)) { "Cannot replace log snapshot" }
     }
+}
+
+/** Desktop JVM backend, isolated so Android callers can supply their API 17-safe rename. */
+private object JvmAtomicSnapshot {
+    fun replace(source: File, target: File): Boolean = try {
+        java.nio.file.Files.move(source.toPath(), target.toPath(),
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        true
+    } catch (_: java.io.IOException) { false }
 }
 
 /** Bounded nonblocking ingestion; load, batched writes and rotation run on one IO worker. */

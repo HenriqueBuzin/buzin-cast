@@ -287,7 +287,8 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     // logs
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     val logs: StateFlow<List<String>> = _logs.asStateFlow()
-    private val logStore = AsyncLogStore(FileLogStorage(logFile),
+    // Android's POSIX rename replaces atomically without requiring java.nio.file (API 26).
+    private val logStore = AsyncLogStore(FileLogStorage(logFile, File::renameTo),
         publish = { _logs.value = it },
         failure = { android.util.Log.w("BuzinLogs", "Log storage unavailable", it) })
     private val _dateFmt = object : ThreadLocal<SimpleDateFormat>() {

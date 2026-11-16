@@ -20,6 +20,55 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ## Plano de compatibilidade dos Fire TV Sticks
 
+### Próxima versão 0.6.7 — trabalho iniciado
+
+- O indicador do menu lateral agora depende também do destino selecionado,
+  além do foco. Deve continuar visível ao entrar no conteúdo e atrás do Sobre.
+  O estado selecionado também é exposto à acessibilidade.
+- Os modificadores de foco compartilhados recebem foco após um toque
+  concluído, sem consumir o clique. Gestos cancelados por rolagem não devem
+  mover o foco. Não ampliar os dispositivos da ficha antes da validação.
+  `canFocus` é mantido no modo touch, conforme as
+  [propriedades de foco do Compose](https://developer.android.com/develop/ui/compose/touch-input/focus/change-focus-behavior).
+  As seis verificações do script passaram na API 28, incluindo o contorno
+  medido em pixels atrás do Sobre. A TV física não foi usada nesta etapa.
+- Principal 0.6.7 debug (46) compilada; compatível (44) compilação Kotlin
+  conferida. Lint de ambas passou. Os 25 testes do núcleo e seu limite de
+  cobertura passaram. A substituição atômica do snapshot de logs no Windows
+  agora usa um backend JVM; o Android injeta seu rename compatível com APIs
+  antigas, sem usar `java.nio.file` no caminho da aplicação.
+- A prova API 17 agora encaminha o callback `video_process` real do UxPlay
+  para Java, usando uma referência global de JNI e anexando/desanexando as
+  threads nativas. Uma fila limitada a oito quadros/4 MiB separa a recepção
+  da decodificação. Codec incompatível e estouro do orçamento são erros
+  explícitos; o encerramento para o receptor antes de liberar a fila.
+- Teste sintético: receptor RTSP ativo, callback invocado em pthread nativa,
+  fila Java, MediaCodec e Surface. Dois ciclos completos e duas reproduções
+  por atividade passaram na API 17 x86, com quadro colorido conferido.
+  Isso **não** representa uma sessão real de espelhamento, áudio ou paridade
+  com o app principal. A prova continua isolada, somente loopback, sem
+  descoberta na LAN e sem APK de produção para Fire OS 3.
+
+```powershell
+python tools/test_focus_navigation.py --adb <adb> --serial emulator-5558 --apk app/build/outputs/apk/debug/app-debug.apk
+python tools/test_fireos3_probe.py --adb <adb> --serial emulator-5560 --apk fireos3-probe/build/outputs/apk/debug/fireos3-probe-debug.apk
+```
+
+Os dois scripts recusam aparelhos físicos. O teste API 17 captura pelo console
+do emulador quando o `screencap` antigo retorna um framebuffer preto, e rejeita
+uma imagem sem o quadro sintético colorido. Use um emulador com área suficiente
+para a prévia (por exemplo, 1280×720). Relatórios e prints ficam em `outputs`.
+O teste do menu também confere a borda em pixels; sem ela não declara sucesso.
+Ele suspende a animação decorativa no emulador durante o teste e restaura a
+configuração no fim. Se uma instalação anterior tiver assinatura diferente,
+`--reset` remove explicitamente apenas o app e seus dados naquele emulador.
+As capturas desta fixture são evidência de teste, não imagens novas da ficha.
+
+Evidências selecionadas sem dados de rede doméstica:
+[menu atrás do Sobre](images/0.6.7-about-active-menu.png),
+[foco após toque e fechamento](images/0.6.7-touch-focus.png) e
+[quadro sintético API 17](images/fireos3-callback-probe.png).
+
 O alvo são todas as famílias de Fire OS que rodaram em Sticks físicos.
 Manter as mesmas funções por geração dentro de cada variante regional.
 Vega OS é desenvolvido em outro ambiente.
@@ -36,9 +85,10 @@ Vega OS é desenvolvido em outro ambiente.
    local: iniciar, enviar `OPTIONS`, conferir os métodos anunciados
    pelo receptor e parar. Dois ciclos passaram no emulador x86 API 17
    com a resposta RTSP 200, incluindo `SETUP` e `RECORD` no cabeçalho
-   `Public`. Próximo marco: conectar os callbacks da sessão
-   de espelhamento à ponte de vídeo e adaptar a descoberta na rede, o
-   áudio e o player à API 17.
+   `Public`. A ponte do callback de vídeo agora também passa pelo receptor
+   ativo e uma thread nativa, conforme a prova sintética acima. Próximo marco:
+   descoberta na rede, sessão real com emissor e adaptação de áudio/player
+   para API 17.
    Depois portar as telas, configurações e funções restantes e validar
    com emissores reais em um AFTM com Fire OS 3.
 2. **Fire OS 5 (API 22, AFTM atualizado e AFTT).** Validar os dois

@@ -96,14 +96,30 @@ a 2.0. Ver [VEGA_HANDOFF.md](VEGA_HANDOFF.md) e
 
 ## Tarefas futuras registradas por Henrique
 
-- [ ] Próxima versão: revisar suporte a toque e fazer a borda de indicação
-  acompanhar também o item tocado. A revisão atual dos prints usa foco real
-  do controle: menu lateral nas telas e Fechar no Sobre. Não declarar suporte
-  adicional a dispositivos de toque antes de implementar e validar.
-  Henrique também confirmou deixar para essa próxima versão uma borda
-  persistente no item ativo do menu lateral, inclusive atrás do Sobre.
-  Atualmente o foco passa para Fechar e o item ativo ao fundo mantém somente
-  o preenchimento. Não editar artificialmente os prints para simular a borda.
+- [~] **16/nov — próxima versão 0.6.7 iniciada a pedido de Henrique:** toque,
+  borda persistente no destino ativo do menu (inclusive atrás do Sobre) e
+  continuidade do alvo Fire OS 3 do primeiro Stick. Códigos reservados:
+  compat 44, compat sem download 45, principal 46 e principal sem download 47.
+  Os envios Amazon 0.6.6/0.6.5 permanecem intactos; não publicar o protótipo.
+  A prova API 17 encaminha vídeo da thread nativa para uma fila Java limitada
+  e MediaCodec. Teste sintético com imagem passou em dois ciclos no emulador;
+  descoberta, sessão real, áudio e paridade funcional ainda pendentes.
+  Ver comandos e limites em `docs/TESTING.md`.
+  Toque e borda persistente implementados e conferidos na fixture de TV da
+  API 28: menu, perfil, controle após toque, conteúdo e Sobre. Relatório e
+  capturas em `outputs/focus-navigation-tv`. As TVs físicas não foram usadas.
+  Builds debug principal/API 25 e compilação compat/API 22 passaram; lint
+  passou nas duas edições. A prova API 17 compilou ARMv7/x86 com lint e cinco
+  testes da fila; a reprodução sintética foi repetida em dois ciclos.
+  Núcleo: 25 testes e gate de cobertura passaram após corrigir a substituição
+  de logs no Windows. Android usa explicitamente rename POSIX; o backend JVM
+  usa movimentação atômica e não introduz NIO no caminho Android antigo.
+
+- [x] **0.6.7 em desenvolvimento:** borda acompanha também o item tocado e o
+  destino ativo do menu mantém a borda, inclusive atrás do Sobre. O foco do
+  modal permanece em Fechar. Validação automatizada e visual concluída na
+  API 28; não ampliar os dispositivos suportados na ficha por causa disso.
+  As capturas são reais; não editar imagens para simular indicação de foco.
 
 - [~] Junto da ideia de gravações, avaliar a integração de DRM da Amazon
   Appstore. Não ativar DRM apenas para suprimir o aviso: definir primeiro o

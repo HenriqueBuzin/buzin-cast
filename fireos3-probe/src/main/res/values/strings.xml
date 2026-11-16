@@ -2,6 +2,10 @@
     <string name="app_name">Buzin Cast Fire OS 3 Probe</string>
     <string name="probe_run">Run compatibility checks</string>
     <string name="probe_run_network">Render network sample</string>
+    <string name="probe_run_callback">Render receiver callback sample</string>
+    <string name="probe_callback_passed">Receiver callback H.264: frame displayed</string>
+    <string name="probe_decoding_callback">Decoding frames from the receiver callback…</string>
+    <string name="probe_callback_not_shown">Receiver callback H.264: no frame displayed</string>
     <string name="probe_exit">Exit</string>
     <string name="probe_device">%1$s · Android API %2$d · %3$s</string>
     <string name="probe_parser_ok">Native UxPlay HTTP parser: passed</string>
