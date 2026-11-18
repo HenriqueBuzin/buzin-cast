@@ -8,6 +8,25 @@ The variants are `normal`, `compat`, `deat`, and `compat-deat`. The regional
 variants use the DE/AT package identity and must reject recording and download.
 Compatibility builds have API22 as their minimum; modern builds require API25.
 
+## Verification checkpoint — 2026-11-18
+
+The latest normal-APK run passed 85 Android instrumentation tests and 18 native
+cases with UBSan. Execution was interrupted before the extended UI scenarios
+finished, so it does not establish a completed matrix or a new coverage result.
+A subsequent attempt stopped while waiting for the emulator and adds no runtime
+evidence. Keep the archived inputs for replay rather than treating either
+interruption as a passing coverage gate.
+
+Additional selected contracts passed on unchanged, fingerprint-checked APKs:
+three DACP player tests and two AudioRenderer tests on API22, and three download
+publication tests on both API22 and API36. The first API36 attempt encountered a
+startup ANR; all three publication tests passed after the emulator settled.
+These supplemental test APKs differ from the full-suite test APK and must not
+be merged into its matrix as if their compiled identities matched.
+
+The coverage automation regression suite passes all 14 tests. Whole-app 100%
+coverage across all four variants remains unverified and is still outstanding.
+
 ## Run all four
 
 Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial
