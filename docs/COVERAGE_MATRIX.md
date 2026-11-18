@@ -27,7 +27,7 @@ retry; the subsequent six-test execution passed on its first attempt.
 These supplemental test APKs differ from the full-suite test APK and must not
 be merged into its matrix as if their compiled identities matched.
 
-The coverage automation regression suite passes all 16 tests. Whole-app 100%
+The coverage automation regression suite passes all 18 tests. Whole-app 100%
 coverage across all four variants remains unverified and is still outstanding.
 
 ## Run all four
@@ -169,6 +169,13 @@ two-pointer pan, and events consumed in the Initial pass. This covers the
 detector pipeline without claiming Android system InputDispatcher injection or
 physical touchscreen validation. Callback positions, directions and ownership
 release are asserted; the helpers do not replace the production detectors.
+
+Photo-viewer contracts launch the real activity and serve synthetic red/blue
+PNGs over emulator-loopback HTTP. Three selected API22 tests check decoded
+pixels, rotation/scale controls, duplicate URLs, the 20-entry history limit,
+wrapped navigation, the real slideshow timer, localized failure messages and
+recovery. Bitmap recycling and visibility are checked when the activity closes;
+the tests do not require external image hosts or personal photos.
 
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.

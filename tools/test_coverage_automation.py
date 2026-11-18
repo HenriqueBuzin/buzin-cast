@@ -18,6 +18,22 @@ from report_coverage import coverage_target_met
 
 class CoverageAutomationTest(unittest.TestCase):
     @patch("test_emulator.time.sleep")
+    def test_focus_query_waits_for_a_real_hierarchy_instead_of_empty_focus(self, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.ui = Mock(side_effect=[UiUnavailable("opening settings"),
+            ET.fromstring('<hierarchy><node focused="true" text="Cinema"/></hierarchy>')])
+        self.assertEqual("Cinema", suite.focused())
+        self.assertEqual(2, suite.ui.call_count)
+
+    @patch("test_emulator.time.sleep")
+    @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
+    def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.ui = Mock(side_effect=UiUnavailable("missing hierarchy"))
+        with self.assertRaisesRegex(AssertionError, "Accessibility unavailable while reading focus.*missing hierarchy"):
+            suite.focused()
+
+    @patch("test_emulator.time.sleep")
     def test_activation_waits_for_valid_focus_without_sending_blind_navigation(self, _sleep):
         suite = Suite.__new__(Suite)
         focused = ET.fromstring('<hierarchy><node focused="true" focusable="true" content-desc="Next"/></hierarchy>')

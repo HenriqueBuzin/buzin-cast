@@ -115,7 +115,7 @@ class Suite:
         return " ".join(n.get("text","") for n in node.iter())
 
     def focused(self):
-        tree = self.ui()
+        tree = self.wait(self.ui, "Accessibility unavailable while reading focus", timeout=15)
         return next((self.texts(n) for n in tree.iter() if n.get("focused")=="true"), "")
 
     def activate(self, *labels, description=False):
