@@ -1,5 +1,49 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — receptor DLNA e fotos compartilhadas
+
+O alvo antigo passou a compilar os mesmos `DlnaReceiver`, `ControlServer`,
+`SubscriptionRegistry` e `SsdpAgent` do app atual. DLNA começa desativado e
+tem chave traduzida nas configurações. O serviço acompanha rede/nome e
+desativa os transportes fora da thread principal. Getters usados por SOAP
+leem um snapshot imutável publicado pelo serviço; comandos continuam no main.
+FCast e DLNA usam o mesmo adaptador com proprietário/época por protocolo.
+
+`PhotoActivity` compartilha a interface nativa, histórico e controles do app
+atual. O Sync altera somente os bindings de R, lifecycle e loader, com guardas
+que falham se os marcadores upstream mudarem. A base API17 mantém o serviço
+visível enquanto a foto está aberta e aplica bordas de foco/toque aos seis
+botões. O loader preserva o limite de 16 MiB, grava temporariamente no cache
+privado, valida HTTP(S) em cada redirecionamento e decodifica com amostragem
+até 1920×1080 para reduzir a pressão no heap dos aparelhos antigos.
+
+Foi corrigida também a exceção assíncrona de prepareAndPlay no receptor DLNA
+compartilhado: falhas na callback de carga/foto passam a notificar o estado
+de erro da sessão sem escapar para o main. O runner
+`tools/test_legacy_gestures.py --dlna` exercita descoberta SSDP, descrição,
+SOAP, vídeo HTTP, pausa/busca/play/stop, URL rejeitada após o despacho SOAP,
+foto sintética e controles de girar/escala, erro de imagem, limpeza de cache,
+desativação e reativação do listener. Usar somente emulador isolado API17.
+
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições. DLNA passou em
+`outputs/legacy-dlna-final` e `outputs/legacy-dlna-nodownload-final`. O roteiro
+aguarda PLAYING no protocolo antes de enviar Pause; a primeira rodada final
+falhou na espera da pausa, que antes podia começar ainda em TRANSITIONING.
+Agora o instrumentation grava a stack completa em caso de falha.
+FCast também passou nas duas edições em `outputs/legacy-dlna-fcast-final`
+e `outputs/legacy-dlna-fcast-nodownload-final`. Todos os testes desinstalaram
+as prévias temporárias. Não foi utilizada nenhuma TV física nesta etapa.
+SHA256 dos APKs geral/DE-AT, respectivamente:
+`de48282f5b58ec13151c3c459c155e1add6dfc4ed5e10c9547da25620c0f866b` e
+`c272564c2395bcb596aaa6260383a2519a8ef0c31fa06fa7a1191c30da1b4984`.
+
+Essa etapa não conclui a paridade: ainda faltam AirPlay por URL,
+legendas/faixas, download/gravação e demais recursos do plano. GENA/volume,
+slideshow/histórico prolongado e limites de fotos ainda precisam de testes
+de integração específicos no API17. Permanecem a arbitragem nativa/URL,
+HTTPS real, consumo prolongado, defeito intermitente de dlfree, produção e
+validação física. Vega segue separado no Mac. As logos não foram alteradas.
+
 ## API17 — Media3, formatos e velocidade
 
 `LegacyUrlPlayer` usa Media3 1.2.1 no lugar de MediaPlayer. Essa tag declara

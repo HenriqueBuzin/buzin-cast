@@ -30,6 +30,8 @@ import io.buzincast.core.PlaybackInfo;
 import io.buzincast.core.Protocol;
 import io.buzincast.core.ReceiverPlaybackPort;
 import io.github.jqssun.airplay.discovery.FCastReceiver;
+import io.github.jqssun.airplay.discovery.DlnaReceiver;
+import io.github.jqssun.airplay.media.PhotoActivity;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import kotlin.Unit;
@@ -70,7 +72,7 @@ public final class LegacyReceiverService extends Service {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ArrayDeque<String> events=new ArrayDeque<>();
     private LegacyPreferences prefs;
-    private LegacyReceiverSession session;
+    private volatile LegacyReceiverSession session;
     private Object client;
     private Observer observer;
     private TextureTarget target;
@@ -102,6 +104,19 @@ public final class LegacyReceiverService extends Service {
     private boolean fcastClosing;
     private LegacyNetwork fcastNetwork;
     private String fcastName;
+    private DlnaReceiver dlna;
+    private volatile int dlnaEpoch;
+    private boolean dlnaClosing;
+    private LegacyNetwork dlnaNetwork;
+    private String dlnaName;
+    private static final class NetworkState {
+        final Protocol owner;
+        final boolean active;
+        final PlaybackInfo info;
+        NetworkState(Protocol owner,boolean active,PlaybackInfo info) {this.owner=owner;this.active=active;this.info=info;}
+    }
+    private static final NetworkState EMPTY_NETWORK=new NetworkState(null,false,new PlaybackInfo(0,0,false,1,false,false));
+    private volatile NetworkState networkState=EMPTY_NETWORK;
     private final ExecutorService protocolWorker=Executors.newSingleThreadExecutor(action->new Thread(action,"buzin-legacy-protocols"));
     LegacyUrlPlayer.State urlState() {
         if(!urlRequested || urlStopping || urlPlayer==null)return null;
@@ -293,6 +308,7 @@ public final class LegacyReceiverService extends Service {
             else if(session!=null)stopNative();else {busy=false;demote();stopSelf();}
         }
         reconcileFcast();
+        reconcileDlna();
         publish();
     }
     private void reconcileFcast() {
@@ -309,7 +325,7 @@ public final class LegacyReceiverService extends Service {
         if(enabled && fcast==null && !fcastClosing) {
             int owner=++fcastEpoch;
             fcastNetwork=selectedNetwork;fcastName=prefs.name();
-            fcast=new FCastReceiver(this,new NetworkPlayback(owner),fcastName,message-> {
+            fcast=new FCastReceiver(this,new NetworkPlayback(Protocol.FCAST,owner),fcastName,message-> {
                 // Shared transport log text may contain a LAN address; keep it out
                 // of the diagnostics/screenshots exported from the app.
                 main.post(()-> {if(!destroyed && owner==fcastEpoch && message.contains("failed"))record("FCast: "+getString(R.string.error_label));});
@@ -318,31 +334,57 @@ public final class LegacyReceiverService extends Service {
             fcast.start();
         }
     }
-    /** Main-thread playback contract shared with the modern FCast receiver. */
+    private void reconcileDlna() {
+        boolean enabled=wanted() && reconnect.online() && selectedNetwork!=null && prefs.dlna();
+        if(dlna!=null && (!enabled || !selectedNetwork.equals(dlnaNetwork) || !prefs.name().equals(dlnaName))) {
+            DlnaReceiver previous=dlna;dlna=null;dlnaClosing=true;dlnaEpoch++;
+            if(urlOwner==Protocol.DLNA)stopUrl();
+            protocolWorker.execute(()-> {
+                try {previous.close();}
+                catch(RuntimeException error) {main.post(()-> {if(!destroyed)record("DLNA shutdown: "+error.getClass().getSimpleName());});}
+                finally {main.post(()-> {dlnaClosing=false;if(!destroyed)reconcile();});}
+            });
+        }
+        if(enabled && dlna==null && !dlnaClosing) {
+            int owner=++dlnaEpoch;dlnaNetwork=selectedNetwork;dlnaName=prefs.name();
+            dlna=new DlnaReceiver(this,new NetworkPlayback(Protocol.DLNA,owner),dlnaName,message-> {
+                main.post(()-> {if(!destroyed && owner==dlnaEpoch && message.contains("failed"))record("DLNA: "+getString(R.string.error_label));});
+                return Unit.INSTANCE;
+            });
+            dlna.start();
+        }
+    }
+    /** Commands run on main; SOAP worker reads use an immutable published snapshot. */
     private final class NetworkPlayback implements ReceiverPlaybackPort {
         private final int owner;
-        NetworkPlayback(int owner) {this.owner=owner;}
-        private void current() {if(owner!=fcastEpoch || destroyed)throw new IllegalStateException("Receiver was replaced");}
+        private final Protocol kind;
+        NetworkPlayback(Protocol kind,int owner) {this.kind=kind;this.owner=owner;}
+        private boolean valid() {return owner==(kind==Protocol.FCAST?fcastEpoch:dlnaEpoch);}
+        private void current() {if(!valid() || destroyed)throw new IllegalStateException("Receiver was replaced");}
         private void owns(Protocol protocol) {
-            current();if(protocol!=Protocol.FCAST || urlOwner!=protocol || !urlRequested || urlStopping)throw new IllegalStateException("No FCast media is playing");
+            current();if(protocol!=kind || urlOwner!=protocol || !urlRequested || urlStopping)throw new IllegalStateException("No owned media is playing");
         }
         @Override public int getActiveConnections() {
-            current();return session==null?0:Math.max(session.connectionCount(),
-                session.mirroring() || session.audioActive() || session.media().active || session.controls().identified?1:0);
+            if(!valid())return 1;
+            LegacyReceiverSession receiver=session;
+            return receiver==null?0:Math.max(receiver.connectionCount(),
+                receiver.mirroring() || receiver.audioActive() || receiver.media().active || receiver.controls().identified?1:0);
         }
         @Override public boolean getRelayReceiving() {return false;}
-        @Override public Protocol getMediaOwner() {return urlRequested && !urlStopping?urlOwner:null;}
-        @Override public boolean getMediaActive() {return urlRequested && !urlStopping;}
-        @Override public PlaybackInfo getPlaybackInfo() {
-            LegacyUrlPlayer.State state=urlState();
-            return state==null?new PlaybackInfo(0,0,false,urlSpeed,false,false):new PlaybackInfo(state.positionMs,state.durationMs,state.playing,state.speed,false,state.buffering);
+        @Override public Protocol getMediaOwner() {return valid()?networkState.owner:null;}
+        @Override public boolean getMediaActive() {return valid() && networkState.active;}
+        @Override public PlaybackInfo getPlaybackInfo() {return valid()?networkState.info:EMPTY_NETWORK.info;}
+        @Override public boolean authorize(String protocol,String peer) {
+            if(!valid() || !(kind==Protocol.FCAST?prefs.fcast():prefs.dlna()))return false;
+            try {java.net.InetAddress address=java.net.InetAddress.getByName(peer);return address.isSiteLocalAddress() || address.isLoopbackAddress();}
+            catch(java.net.UnknownHostException invalid) {return false;}
         }
-        @Override public boolean authorize(String protocol,String peer) {return owner==fcastEpoch && prefs.fcast();}
         @Override public void load(MediaRequest request) {
-            current();if(request.getProtocol()!=Protocol.FCAST || getActiveConnections()!=0)throw new IllegalStateException("Another receiver session is active");
+            current();if(request.getProtocol()!=kind || getActiveConnections()!=0)throw new IllegalStateException("Another receiver session is active");
             float seconds=request.getTime();
             if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>LegacyUrlRequest.MAX_POSITION_MS)throw new IllegalArgumentException("Unsupported media position");
-            loadUrl(new LegacyUrlRequest(request.getLocation(),(long)(seconds*1000.0),request.getHeaders(),request.getMime()),request.getProtocol());
+            LegacyUrlRequest media=new LegacyUrlRequest(request.getLocation(),(long)(seconds*1000.0),request.getHeaders(),request.getMime());
+            PhotoActivity.Companion.closePhoto();loadUrl(media,request.getProtocol());
         }
         @Override public void stop(Protocol protocol) {owns(protocol);stopUrl();}
         @Override public void playing(Protocol protocol,boolean playing) {owns(protocol);control(playing?LegacyDacp.Command.PLAY:LegacyDacp.Command.PAUSE,null);}
@@ -360,7 +402,13 @@ public final class LegacyReceiverService extends Service {
             owns(protocol);
             urlSpeed(speed);
         }
-        @Override public void photo(String location) {throw new UnsupportedOperationException("FCast does not receive photos");}
+        @Override public void photo(String location) {
+            current();if(kind!=Protocol.DLNA || getActiveConnections()!=0)throw new IllegalStateException("Photo receiver is unavailable");
+            String validated=new LegacyUrlRequest(location,0,null).location;
+            stopUrl();
+            startActivity(new Intent(LegacyReceiverService.this,PhotoActivity.class).putExtra("url",validated)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        }
     }
     private void startNative() {
         main.removeCallbacks(retry);main.removeCallbacks(stable);
@@ -411,6 +459,9 @@ public final class LegacyReceiverService extends Service {
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
         LegacyUrlPlayer.State url=urlState();
+        PlaybackInfo info=url==null?new PlaybackInfo(0,0,false,urlSpeed,false,urlRequested && !urlStopping):
+            new PlaybackInfo(url.positionMs,url.durationMs,url.playing,url.speed,false,url.buffering);
+        networkState=new NetworkState(urlRequested && !urlStopping?urlOwner:null,urlRequested && !urlStopping,info);
         systemMedia.update(mediaState(),controlState(),url!=null || running && !stopping && session!=null,
             session!=null && session.mirroring(),session!=null && session.audioActive(),url);
         if(promoted && !notificationBody().equals(notificationText))
@@ -457,7 +508,9 @@ public final class LegacyReceiverService extends Service {
         destroyed=true;client=null;observer=null;target=null;closeWatcher();
         if(systemMedia!=null)systemMedia.close();
         fcastEpoch++;
+        dlnaEpoch++;networkState=EMPTY_NETWORK;
         if(fcast!=null) {FCastReceiver previous=fcast;fcast=null;protocolWorker.execute(previous::close);}
+        if(dlna!=null) {DlnaReceiver previous=dlna;dlna=null;protocolWorker.execute(previous::close);}
         protocolWorker.shutdown();
         urlInstance++;if(urlPlayer!=null) {urlStopping=true;urlPlayer.close();}
         if(session!=null)session.stop();releaseWakeLock();demote();super.onDestroy();

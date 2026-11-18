@@ -19,12 +19,13 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
         url=arguments!=null && "url".equals(arguments.getString("checks"));
         fcast=arguments!=null && "fcast".equals(arguments.getString("checks"));
+        dlna=arguments!=null && "dlna".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -45,7 +46,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(fcast) {
+            if(dlna) {
+                LegacyDlnaScenario.check(this,activity);
+                result.putString("dlna","shared_soap_playback_photos_and_lifecycle");
+            } else if(fcast) {
                 LegacyFcastScenario.check(this,activity);
                 result.putString("fcast","shared_transport_dns_txt_tcp_http_controls_and_lifecycle");
             } else if(url) {
@@ -55,7 +59,7 @@ public final class LegacyGestureChecks extends Instrumentation {
             } else {checkGesture(false);checkGesture(true);result.putString("gestures","touch_and_dpad_across_receiver_restart");}
             result.putString("status","pass");
             }
-        } catch(Throwable failure) {status=Activity.RESULT_CANCELED;result.putString("status","failed");result.putString("error",failure.toString());}
+        } catch(Throwable failure) {android.util.Log.e("LegacyGestureChecks","Scenario failed",failure);status=Activity.RESULT_CANCELED;result.putString("status","failed");result.putString("error",failure.toString());}
         finally {
             try {
                 ui(()-> {

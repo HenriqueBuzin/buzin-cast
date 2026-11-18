@@ -33,6 +33,7 @@ final class LegacyPreferences {
     boolean autoStart() { return preferences.getBoolean("auto_start",true); }
     boolean background() {return preferences.getBoolean("run_in_background",true);}
     boolean fcast() {return preferences.getBoolean("fcast_enabled",false);}
+    boolean dlna() {return preferences.getBoolean("dlna_enabled",false);}
     boolean networkRecovery() {return preferences.getBoolean("network_recovery",true);}
     boolean bootAutoStart() {return preferences.getBoolean("boot_auto_start",false);}
     boolean serviceRequested() {return preferences.getBoolean("legacy_service_requested",false);}

@@ -1,5 +1,22 @@
 # Testes automatizados
 
+## DLNA no frontend API17
+
+Compile com `tools/Build-FireOs.ps1 -Target legacy -Instrumentation -Check`.
+O runner `tools/test_legacy_gestures.py` aceita `--dlna` como cenário separado
+de `--fcast` e `--url-service`, com os mesmos argumentos de ADB, APK e test-APK.
+O dispositivo precisa ser um emulador API17 isolado; o roteiro instala os
+APKs de prévia, usa mídia sintética local e desinstala ao terminar. Para a
+edição regional, compile com `-NoDownload` e passe o package
+`com.buzincast.tv.deat.legacy.preview` e os APKs exportados dessa edição.
+
+O cenário verifica SSDP, descrição UPnP, comandos SOAP de vídeo/posição,
+erro de validação assíncrona sem queda de processo, foto HTTP, giro/escala,
+limpeza de cache em erro e ciclo de desativar/reativar DLNA. As versões
+compartilhadas dos transportes são compiladas no próprio frontend API17;
+não é uma simulação do contrato do protocolo. Esses testes não certificam
+emissores externos, rede física, GENA/volume ou todos os controles de fotos.
+
 ## Verificação da atualização 0.6.6 — 15/nov/2026
 
 - Principal e compatível de produção compiladas para ARM32/ARM64 com lint
