@@ -10,6 +10,28 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
+Three integrated player-gesture contracts passed on API22 (33.202 seconds,
+no skips). Real Android MotionEvents traverse `VideoPlayerGestures` and the
+production tap/seek/brightness/volume/zoom states. Single taps remain available
+in enabled, disabled and locked modes; blocked double taps do not seek; a tap
+during accumulated seeking does not toggle controls and normal tapping resumes
+after the real indicator timeout. Drag and pinch tests reject changes when
+blocked, then check the actual seek target, window brightness, AudioManager
+volume change and zoom acquisition/release when enabled. Emulator volume and
+window brightness are restored; the isolated ViewModel, scope and preferences
+are released. Assembly and lint passed in 3m20s. Evidence is
+`build/player-gesture-surface-selection/instrumentation.txt`.
+
+The newer full API36 normal cohort passed 148 Android tests (223.551 seconds),
+18 UBSan native cases and all 13 UI scenarios; its strict raw snapshot validates.
+Normal measures 81.7101% Android/JVM lines and 96.0472% native lines, with
+66.6667% native MC/DC. The compat cohort passed 151 Android tests (235.353
+seconds), the same native/UI requirements and strict snapshot validation;
+its corresponding line coverage is 82.9231% and 96.0611%, with 66.6667% MC/DC.
+All measured counters remain below 100%. The normal test APK predates the three
+indicator contracts and compat predates the three integrated surface contracts;
+selected results from later test APKs cannot be merged into those reports.
+
 Three gesture-indicator contracts passed on API22 (48.68 seconds, no skips),
 using real Compose pixels and accessibility. They check progress fill at 0%,
 25%, 50%, 100% and out-of-range values while preserving the displayed number;
