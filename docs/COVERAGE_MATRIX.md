@@ -28,7 +28,7 @@ retry; the subsequent six-test execution passed on its first attempt.
 These supplemental test APKs differ from the full-suite test APK and must not
 be merged into its matrix as if their compiled identities matched.
 
-The coverage automation regression suite passes all 18 tests. Whole-app 100%
+The coverage automation regression suite passes all 21 tests. Whole-app 100%
 coverage across all four variants remains unverified and is still outstanding.
 
 ## Run all four
@@ -69,6 +69,21 @@ with APK, test APK, class-file and native-library fingerprints. Testing fails if
 those compiled inputs change before the report finishes. Separate API runs
 produce separate reports; percentages must never be averaged.
 
+Replay a completed frozen snapshot on another x86_64 emulator API without
+rebuilding its app, test APK or native executable:
+
+```powershell
+python tools/replay_android_coverage.py --serial emulator-5562 --snapshot SNAPSHOT_API28_COMPAT --output build/replay-compat-api22 --require-100
+```
+
+Repeat `--snapshot` to select other editions, with one snapshot per edition.
+The replayer validates complete archived evidence and checks the target API and
+ABI before changing installations. It copies compiled inputs and pure JVM data
+into a fresh directory, runs all native/Android/extended UI scenarios, and
+recalculates coverage from the original and new raw profiles. Prior Android
+profiles and success metadata are never copied into the new runtime evidence.
+The report and manifests remain bound to the original compiled fingerprints.
+
 To combine API runs, use the `raw_snapshot` paths recorded in their matrix JSON
 files (relative to each run's report directory). Replace the two snapshot names
 below with those directories:
@@ -78,7 +93,8 @@ python tools/merge_android_coverage.py --snapshot SNAPSHOT_API22 --snapshot SNAP
 ```
 
 The merger requires the same edition and compiled fingerprints, successful
-instrumentation/native/extended UI results, and raw Java/native profiles. It
+instrumentation/native results, every one of the 13 UI scenarios, and raw
+Java/native profiles. A partial scenario list is rejected. It
 also checks the compiled mappings before and after reporting. New snapshots
 archive the APKs, class trees, unstripped native library, source trees and JVM
 execution data before installing the app. Switching build variants therefore

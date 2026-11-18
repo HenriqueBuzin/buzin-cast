@@ -1,5 +1,6 @@
 """Regression checks for coverage automation's device and evidence boundaries."""
 import argparse
+import io
 import json
 import shutil
 import subprocess
@@ -10,13 +11,73 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from test_emulator import Suite, UiUnavailable, validate_instrumentation_output
+from test_emulator import COVERAGE_REQUIRED_RESULTS, Suite, UiUnavailable, validate_instrumentation_output
 from run_android_coverage import archive_compiled_inputs, coverage_identity, source_identity, filesystem_path
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
 from report_coverage import coverage_target_met
+from replay_android_coverage import copy_compiled_snapshot
 
 
 class CoverageAutomationTest(unittest.TestCase):
+    def test_replay_rejects_an_incompatible_api_or_abi_before_installing(self):
+        from replay_android_coverage import main
+        with TemporaryDirectory(prefix="coverage-replay-guard-") as directory:
+            source = Path(directory)/"source"
+            (source/"inputs").mkdir(parents=True)
+            (source/"inputs/native_core_tests").write_bytes(b"native test fixture")
+            manifest = {"variant":"normal", "archived_mappings":True, "source_files_sha256":"a"*64}
+            for api,abi in ((22,"x86_64"),(28,"arm64-v8a")):
+                with self.subTest(api=api,abi=abi), \
+                     patch("replay_android_coverage.validate_snapshots",return_value=(manifest,[28])), \
+                     patch("replay_android_coverage.subprocess.check_output",side_effect=[str(api),abi]), \
+                     patch("replay_android_coverage.subprocess.run") as run, \
+                     patch("sys.stderr",new_callable=io.StringIO), \
+                     patch.object(sys,"argv",["replay", "--serial","emulator-5558","--snapshot",str(source),
+                         "--sdk-root",directory,"--output",str(Path(directory)/"output")]):
+                    with self.assertRaises(SystemExit) as error:
+                        main()
+                    self.assertEqual(2,error.exception.code)
+                    run.assert_not_called()
+                    self.assertFalse((Path(directory)/"output").exists())
+
+    def test_replay_copies_frozen_inputs_without_prior_runtime_or_success_metadata(self):
+        with TemporaryDirectory(prefix="coverage-replay-") as directory:
+            source, target = Path(directory)/"source", Path(directory)/"target"
+            for name in ("app", "core", "domain"):
+                classes = source/"classes"/name
+                classes.mkdir(parents=True)
+                (classes/"Fixture.class").write_bytes(b"compiled fixture")
+                sources = source/"sources"/name
+                sources.mkdir(parents=True)
+                (sources/"Fixture.kt").write_text("// mapped source")
+            native = source/"sources/native/bridge.cpp"
+            native.parent.mkdir()
+            native.write_text("// mapped native source")
+            inputs = source/"inputs"
+            inputs.mkdir()
+            for name in ("app.apk", "test.apk", "libairplay_native.so", "native_core_tests"):
+                (inputs/name).write_bytes(name.encode())
+            for name in ("core.exec", "domain.exec", "old.ec", "old.profraw", "results.json", "manifest.json"):
+                (source/name).write_bytes(name.encode())
+            (inputs/"old.profraw").write_bytes(b"not a compiled input")
+            expected = coverage_identity(source,source,inputs/"app.apk",inputs/"test.apk",archive=source)
+            identity, native_hash = copy_compiled_snapshot(source,target)
+            self.assertEqual(expected,identity)
+            self.assertEqual(64,len(native_hash))
+            self.assertEqual(source_identity(source,archive=source),source_identity(target,archive=target))
+            self.assertEqual({"inputs","classes","sources","core.exec","domain.exec"}, {file.name for file in target.iterdir()})
+            self.assertFalse((target/"inputs/old.profraw").exists())
+            with self.assertRaises(FileExistsError):
+                copy_compiled_snapshot(source,target)
+
+    def test_replay_rejects_a_physical_serial_before_reading_snapshots_or_sdk(self):
+        script=Path(__file__).with_name("replay_android_coverage.py")
+        result=subprocess.run([sys.executable,str(script),"--serial","192.0.2.10:5555",
+            "--snapshot","missing","--output","unused"],capture_output=True,text=True)
+        self.assertEqual(2,result.returncode)
+        self.assertIn("Only an explicit emulator-<port> serial is permitted",result.stderr)
+        self.assertNotIn("Traceback",result.stderr)
+
     @patch("test_emulator.time.sleep")
     def test_focus_query_waits_for_a_real_hierarchy_instead_of_empty_focus(self, _sleep):
         suite = Suite.__new__(Suite)
@@ -74,8 +135,7 @@ class CoverageAutomationTest(unittest.TestCase):
             (snapshot/"manifest.json").write_text(json.dumps({"variant":"compat","emulator_api":22,
                 "archived_mappings":True,"source_files_sha256":source_identity(snapshot,archive=snapshot),**identity}),encoding="utf-8")
             runner = "INSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS_CODE: 0\nOK (1 test)\n"
-            results = [{"test":name,"passed":True,"runner":runner} for name in
-                ("Android socket integration","C++ unit concurrency and timing","media remote controls and rendered captions")]
+            results = [{"test":name,"passed":True,"runner":runner} for name in sorted(COVERAGE_REQUIRED_RESULTS)]
             (snapshot/"results.json").write_text(json.dumps(results),encoding="utf-8")
             # This gate checks identities; the report tools parse execution bytes later.
             for name in ("android.ec","native.profraw","core.exec","domain.exec"):
@@ -130,6 +190,8 @@ class CoverageAutomationTest(unittest.TestCase):
             results=[{"test":"Android socket integration","passed":True,"runner":runner},
                      {"test":"C++ unit concurrency and timing","passed":True},
                      {"test":"media remote controls and rendered captions","passed":True}]
+            results += [{"test":name,"passed":True} for name in sorted(
+                COVERAGE_REQUIRED_RESULTS - {result["test"] for result in results})]
             identity={key:"a"*64 for key in IDENTITY_KEYS}
             identity["class_counts"]={"app":1,"app-kotlin":0,"core":1,"domain":1}
             for snapshot,api in zip(snapshots,[22,28]):
@@ -140,6 +202,12 @@ class CoverageAutomationTest(unittest.TestCase):
                 (snapshot/"native.profraw").write_bytes(b"raw data is parsed by LLVM later")
             _,apis=validate_snapshots(snapshots)
             self.assertEqual([22,28],apis)
+            for missing in COVERAGE_REQUIRED_RESULTS:
+                (snapshots[1]/"results.json").write_text(json.dumps(
+                    [result for result in results if result["test"] != missing]),encoding="utf-8")
+                with self.assertRaisesRegex(ValueError,"completed instrumented/native/extended UI run"):
+                    validate_snapshots(snapshots)
+            (snapshots[1]/"results.json").write_text(json.dumps(results),encoding="utf-8")
             second=snapshots[1]/"manifest.json"
             valid=second.read_text(encoding="utf-8")
             for change in ({"variant":"deat"},{"class_files_sha256":"changed"}):
