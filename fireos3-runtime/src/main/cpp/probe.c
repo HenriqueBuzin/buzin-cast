@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <android/log.h>
@@ -28,6 +29,9 @@ typedef struct {
     jmethodID on_dacp_id, on_sender_stopped;
     jmethodID on_metadata,on_artwork,on_progress;
     jmethodID on_connection;
+    jmethodID on_url_play,on_url_wait,on_url_scrub,on_url_rate,on_url_stop,on_url_reset,get_url_info;
+    bool url_enabled;
+    atomic_bool wait_for_url;
     bool audio_enabled;
     uint32_t network;
     uint32_t netmask;
@@ -164,7 +168,62 @@ static double client_volume(void *context) {
 }
 static int set_codec(void *context, video_codec_t codec) { return codec == VIDEO_CODEC_H264 ? 0 : -1; }
 
+static void url_play(void *context,const char *location,float position) {
+    receiver_probe_t *probe=context;
+    atomic_store(&probe->wait_for_url,false);
+    if(!location)return;
+    size_t length=strnlen(location,8193);if(!length || length>8192)return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jbyteArray bytes=(*env)->NewByteArray(env,(jsize)length);
+    if(bytes) {
+        (*env)->SetByteArrayRegion(env,bytes,0,(jsize)length,(const jbyte *)location);
+        if(!(*env)->ExceptionCheck(env)) {
+            jboolean accepted=(*env)->CallBooleanMethod(env,probe->video_callback,probe->on_url_play,bytes,(jfloat)position);
+            if(!(*env)->ExceptionCheck(env))atomic_store(&probe->wait_for_url,accepted!=0);
+        }
+        (*env)->DeleteLocalRef(env,bytes);
+    }
+    finish_callback(probe,env,attached);
+}
+static void url_wait(void *context) {
+    receiver_probe_t *probe=context;if(!atomic_load(&probe->wait_for_url))return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_url_wait);finish_callback(probe,env,attached);
+}
+static void url_scrub(void *context,float position) {
+    receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_url_scrub,(jfloat)position);finish_callback(probe,env,attached);
+}
+static void url_rate(void *context,float rate) {
+    receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_url_rate,(jfloat)rate);finish_callback(probe,env,attached);
+}
+static void url_stop(void *context) {
+    receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_url_stop);finish_callback(probe,env,attached);
+}
+static void url_info(void *context,playback_info_t *info) {
+    receiver_probe_t *probe=context;memset(info,0,sizeof(*info));info->duration=-1;info->ready_to_play=true;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jdoubleArray values=(jdoubleArray)(*env)->CallObjectMethod(env,probe->video_callback,probe->get_url_info);
+    if(!(*env)->ExceptionCheck(env) && values && (*env)->GetArrayLength(env,values)==5) {
+        jdouble state[5];(*env)->GetDoubleArrayRegion(env,values,0,5,state);
+        if(!(*env)->ExceptionCheck(env)) {
+            info->position=state[0];info->duration=state[1];info->rate=(float)state[2];info->ready_to_play=state[3]!=0;
+            info->playback_buffer_empty=state[4]!=0;info->playback_buffer_full=state[4]==0;
+            info->playback_likely_to_keep_up=state[4]==0;info->seek_duration=state[1]>0?state[1]:0;
+        }
+    }
+    if(values)(*env)->DeleteLocalRef(env,values);finish_callback(probe,env,attached);
+}
+static float url_remove(void *context) {playback_info_t info;url_info(context,&info);return (float)info.position;}
+
 static void reset_video(void *context, reset_type_t reason) {
+    if(reason==RESET_TYPE_HLS_SHUTDOWN || reason==RESET_TYPE_HLS_EOS || reason==RESET_TYPE_HLS_CONN_CLOSED) {
+        receiver_probe_t *probe=context;bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+        (*env)->CallVoidMethod(env,probe->video_callback,probe->on_url_reset,(jboolean)(reason==RESET_TYPE_HLS_CONN_CLOSED));
+        finish_callback(probe,env,attached);return;
+    }
     if (reason != RESET_TYPE_NOHOLD && reason != RESET_TYPE_RTP_SHUTDOWN &&
         reason != RESET_TYPE_RTP_TO_HLS_TEARDOWN) return;
     receiver_probe_t *probe = context;
@@ -231,6 +290,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
     if (requested_port < 0 || requested_port > 65535 || width<16 || width>4096 || height<16 || height>4096 || fps<1 || fps>240) return 0;
     receiver_probe_t *probe = calloc(1, sizeof(*probe));
     if (!probe) return 0;
+    atomic_init(&probe->wait_for_url,false);
     unsigned int octets[6];
     if (strlen(device_id) != 17 || sscanf(device_id, "%2x:%2x:%2x:%2x:%2x:%2x", &octets[0], &octets[1],
         &octets[2], &octets[3], &octets[4], &octets[5]) != 6) { free(probe); return 0; }
@@ -256,12 +316,22 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         probe->on_artwork=(*env)->GetMethodID(env,callback_type,"onArtwork","([B)V");
         probe->on_progress=(*env)->GetMethodID(env,callback_type,"onProgress","(JJJ)V");
         probe->on_connection=(*env)->GetMethodID(env,callback_type,"onConnectionChanged","(Z)V");
+        probe->on_url_play=(*env)->GetMethodID(env,callback_type,"onVideoPlay","([BF)Z");
+        probe->on_url_wait=(*env)->GetMethodID(env,callback_type,"onVideoWaitReady","()V");
+        probe->on_url_scrub=(*env)->GetMethodID(env,callback_type,"onVideoScrub","(F)V");
+        probe->on_url_rate=(*env)->GetMethodID(env,callback_type,"onVideoRate","(F)V");
+        probe->on_url_stop=(*env)->GetMethodID(env,callback_type,"onVideoStop","()V");
+        probe->on_url_reset=(*env)->GetMethodID(env,callback_type,"onVideoUrlReset","(Z)V");
+        probe->get_url_info=(*env)->GetMethodID(env,callback_type,"getVideoPlaybackInfo","()[D");
+        jmethodID url_enabled=(*env)->GetMethodID(env,callback_type,"videoUrlEnabled","()Z");
+        if(url_enabled)probe->url_enabled=(*env)->CallBooleanMethod(env,video_callback,url_enabled);
         jmethodID enabled = (*env)->GetMethodID(env, callback_type, "audioEnabled", "()Z");
         if (enabled) probe->audio_enabled = (*env)->CallBooleanMethod(env, video_callback, enabled);
         (*env)->DeleteLocalRef(env, callback_type);
         if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
             !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !probe->on_dacp_id || !probe->on_sender_stopped ||
-            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !enabled ||
+            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !enabled || !url_enabled ||
+            !probe->on_url_play || !probe->on_url_wait || !probe->on_url_scrub || !probe->on_url_rate || !probe->on_url_stop || !probe->on_url_reset || !probe->get_url_info ||
             (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
         if (!probe->video_callback) { free(probe); return 0; }
@@ -277,6 +347,13 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         .audio_get_format = audio_format,
         .audio_set_volume = audio_volume,
         .video_process = forward_video,
+        .on_video_play = url_play,
+        .on_video_wait_ready = url_wait,
+        .on_video_scrub = url_scrub,
+        .on_video_rate = url_rate,
+        .on_video_stop = url_stop,
+        .on_video_acquire_playback_info = url_info,
+        .on_video_playlist_remove = url_remove,
         .conn_admit = allow_local_peer,
         .conn_init = connection_opened,
         .conn_destroy = connection_closed,
@@ -320,6 +397,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
     const int unsupported[] = { 0, 1, 3, 4, 5, 8, 9, 11, 13, 15, 16, 17, 18, 19, 20, 21, 42 };
     for (unsigned i = 0; i < sizeof(unsupported)/sizeof(unsupported[0]); i++)
         dnssd_set_airplay_features(probe->discovery, unsupported[i], 0);
+    if(probe->url_enabled) {dnssd_set_airplay_features(probe->discovery,0,1);dnssd_set_airplay_features(probe->discovery,4,1);}
     if (probe->audio_enabled) {
         const int audio_bits[] = {9, 19, 20, 21};
         for (unsigned i=0; i<sizeof(audio_bits)/sizeof(audio_bits[0]); i++)
@@ -330,6 +408,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
     raop_set_plist(receiver, "width", width);
     raop_set_plist(receiver, "height", height);
     raop_set_plist(receiver, "maxFPS", fps);
+    raop_set_plist(receiver,"hls",probe->url_enabled?1:0);
     unsigned short port = (unsigned short)requested_port;
     if (raop_start_httpd(receiver, &port) < 0 || !port) {
         destroy_receiver(probe);

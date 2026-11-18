@@ -1,5 +1,76 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — callbacks de URL AirPlay
+
+`probe.c` registra play/wait-ready/scrub/rate/stop/playback-info/playlist-remove
+e resets de HLS. A URL atravessa JNI como bytes UTF-8 limitados, evitando
+NewStringUTF para caracteres suplementares. O receptor ativa `hls` e os
+bits de vídeo/HLS somente quando o listener Java aceita URL; o probe sem
+frontend de URL continua sem anunciar essas funções.
+
+`LegacyNativePlayback` mantém snapshots imutáveis e tokens por item.
+Wait-ready aguarda no objeto Java, com limite de 10 s, e sai em ready,
+substituição ou fechamento. Atualizações não usam o lock do handle JNI;
+Stop/close libera o worker de HTTP antes de destruir o receptor. Relatórios
+de gerações antigas e relatórios após finish são recusados. O serviço liga
+os comandos ao Media3 e publica posição/duração/rate/ready/buffering. O
+fechamento de um canal preparado/pausado encerra a URL; buffering e reprodução
+não são confundidos com abandono intencional.
+
+O encerramento por erro também fecha as filas Java antes de JNI aguardar
+os workers HTTP. Falha/reinício da sessão nativa encerra a URL pertencente
+àquela sessão; callbacks já enfileirados não iniciam mídia após a falha.
+
+Uma época de fluxo nativo distingue áudio/espelhamento novos de callbacks
+de conexão ou de um fluxo anterior ainda encerrando. Assim, o flush do
+áudio RTP ao entrar em URL não cancela a própria URL; um fluxo nativo novo
+continua podendo tomar a saída, como na etapa anterior.
+
+O patch UxPlay 0012 faz `/server-info` usar os recursos habilitados em vez
+de anunciar sempre 0x27F (inclusive fotos/FairPlay não habilitados). O task
+de patches aceita acrescentar patches a um prefixo cujo hash e arquivos
+anteriores conferem. Continua recusando alteração de patches anteriores e
+edição local dos arquivos já modificados; não executa reset. A migração e
+uma nova execução idempotente passaram neste checkout.
+
+Seis testes JVM cobrem tokens, controles/valores inválidos, ready/close/
+substituição concorrentes, frontend sem URL e abandono versus buffering.
+`test_legacy_gestures.py --native-url` usa HTTP nativo real, corpo bplist
+com UUID por item e X-Apple-Session-ID estável por conexão. Passou em
+`outputs/legacy-native-url-general-final-native-url`: RTP ALAC -> MP4, HLS direto, AAC, estado
+remoto, pausa/busca/velocidade, tecla local, Stop/EOF, fonte inválida,
+abandono pausado versus tocando, Stop durante `/play` aguardando mídia e
+reinício explícito do receptor. A resposta native readyToPlay é inteiro 1,
+aceito pelo parser de teste junto com boolean true.
+
+A compilação final geral e DE/AT passou com `-Check -Instrumentation`, incluindo
+os seis testes JVM novos e lint. O diagnóstico nativo completo passou em
+`outputs/legacy-native-url-probe-final`: DNS/RTSP, H.264, ALAC/AAC, timeline,
+troca de Surface, saída de áudio e encerramento. Um APK incremental antigo
+do probe falhou com `AbstractMethodError` no novo método default do listener;
+após limpar e recompilar o módulo consumidor, o mesmo cenário passou.
+Repetir essa compilação limpa se esse erro reaparecer após mudanças na interface.
+
+Os oito cenários finais passaram: `native-url`, `url-service`, `fcast` e
+`dlna` nas duas edições. Os relatórios estão em
+`outputs/legacy-native-url-general-final-*` e
+`outputs/legacy-native-url-deat-final-*`, todos com limpeza por desinstalação.
+O cenário de URL inclui legendas externas e retomada do áudio nativo no
+mesmo processo. Hashes SHA-256 dos APKs debug efetivamente testados:
+
+- Geral: `4be96c32bea4a02445ef2c240e17dda9d2c041e34290f4793da05bfc21f266b0`.
+- DE/AT: `a55a9b8013f1594da2316a773c936b15ff98864d4a818212725a6294026932e6`.
+
+São prévias API17 em emulador, sem assinatura/SDK de produção integrado;
+não foram submetidas à loja nem instaladas nas TVs da casa. As 12 imagens
+aprovadas do launcher foram preservadas, e a auditoria de código/histórico
+público não encontrou ocorrências nas regras verificadas.
+
+FCUP/canal reverso, emissores Apple físicos, live/DRM e HTTPS real ainda
+precisam de validação; os testes HTTP diretos não cobrem esses cenários.
+Seguem também download/gravação, demais recursos do plano, produção e o
+defeito nativo intermitente. Isso não conclui a paridade completa.
+
 ## API17 — receptor persistente durante URL
 
 O serviço não encerra mais UxPlay/descoberta ao abrir uma URL. Primeiro

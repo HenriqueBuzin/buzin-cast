@@ -48,6 +48,18 @@ final class LegacyUrlScenario {
         AtomicReference<LegacyReceiverSession> result=new AtomicReference<>();
         ui(runner,()-> {try {result.set((LegacyReceiverSession)field(service,"session"));}catch(Exception error) {throw new AssertionError(error);}});return result.get();
     }
+    private static long pausedPosition(Instrumentation runner,LegacyReceiverService service) throws Exception {
+        long end=SystemClock.elapsedRealtime()+1500,last=-1,stable=SystemClock.elapsedRealtime();
+        while(SystemClock.elapsedRealtime()<end) {
+            LegacyUrlPlayer.State value=state(runner,service);
+            if(value!=null && value.phase==LegacyUrlPlayer.Phase.READY && !value.playing && !value.buffering) {
+                if(value.positionMs!=last) {android.util.Log.i("LegacyUrlPause","Paused clock settled from "+last+" to "+value.positionMs);last=value.positionMs;stable=SystemClock.elapsedRealtime();}
+                else if(SystemClock.elapsedRealtime()-stable>=350)return last;
+            } else {last=-1;stable=SystemClock.elapsedRealtime();}
+            SystemClock.sleep(10);
+        }
+        throw new AssertionError("URL paused clock did not stabilize within 1.5 seconds");
+    }
     static void check(Instrumentation runner,Activity activity) throws Exception {
         LegacyReceiverService service=service(runner,activity);
         await(()->nativeSession(runner,service)!=null && nativeSession(runner,service).listeningPort()>0);
@@ -90,8 +102,8 @@ final class LegacyUrlScenario {
             await(()->state(runner,service).playing && state(runner,service).positionMs>=200);
             runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PAUSE);
             await(()->!state(runner,service).playing);
-            long paused=state(runner,service).positionMs;SystemClock.sleep(350);
-            if(Math.abs(state(runner,service).positionMs-paused)>60)throw new AssertionError("Service pause kept advancing");
+            long paused=pausedPosition(runner,service);SystemClock.sleep(350);
+            if(Math.abs(state(runner,service).positionMs-paused)>60)throw new AssertionError("Service pause kept advancing: "+paused+" -> "+state(runner,service).positionMs);
             LegacySubtitleScenario.check(runner,activity,service);
             ui(runner,()-> {
                 View root=activity.findViewById(android.R.id.content);

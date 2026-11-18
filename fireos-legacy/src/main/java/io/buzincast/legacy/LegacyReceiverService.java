@@ -103,6 +103,8 @@ public final class LegacyReceiverService extends Service {
     private LegacyReceiverSession parkedNative,detachingNative;
     private int outputEpoch;
     private float systemGain;
+    private LegacyReceiverSession urlStreamSession,nativeUrlSession;
+    private long urlStreamEpoch,nativeUrlToken;
     private float urlGain=1,urlSpeed=1;
     private Exception urlFailure;
     private Protocol urlOwner;
@@ -279,6 +281,7 @@ public final class LegacyReceiverService extends Service {
         if(request==null)throw new IllegalArgumentException("Missing media request");
         if(destroyed || !(visible || prefs.background() || subtitlePicker!=0))throw new IllegalStateException("Receiver is unavailable");
         urlRequestEpoch++;pendingUrl=request;urlPlay=true;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
+        urlStreamSession=session;urlStreamEpoch=session==null?0:session.streamEpoch();
         reconcile();
     }
     private void startPendingUrl() {
@@ -482,6 +485,7 @@ public final class LegacyReceiverService extends Service {
             });}
             @Override public void failed(Exception error) {post(()-> {
                 if(stopping)return;
+                if(nativeUrlSession==session && urlOwner==Protocol.AIRPLAY)stopUrl();
                 main.removeCallbacks(stable);failure=error;record(error.getClass().getSimpleName()+": "+error.getMessage());
                 if(!prefs.networkRecovery() || error.getCause() instanceof LinkageError) {
                     desired=false;prefs.serviceRequested(false);main.removeCallbacks(retry);
@@ -492,6 +496,7 @@ public final class LegacyReceiverService extends Service {
                 publish();
             });}
             @Override public void stopped() {post(()-> {
+                if(nativeUrlSession==session && urlOwner==Protocol.AIRPLAY)stopUrl();
                 session=null;parkedNative=detachingNative=null;++outputEpoch;
                 running=busy=video=stopping=false;width=height=0;if(!urlRequested)releaseWakeLock();
                 record(getString(R.string.server_stopped));reconcile();
@@ -500,9 +505,33 @@ public final class LegacyReceiverService extends Service {
             @Override public void videoStopped() {post(()-> {video=false;publish();});}
             @Override public void streamChanged() {post(()-> {
                 if(stopping)return;
-                if(urlRequested && session!=null && (session.mirroring() || session.audioActive()))stopUrl();
+                if(urlRequested && session!=null && (session!=urlStreamSession || session.streamEpoch()>urlStreamEpoch) &&
+                    (session.mirroring() || session.audioActive()))stopUrl();
                 publish();
             });}
+            @Override public boolean acceptsUrl() {return true;}
+            @Override public void urlPlay(long token,LegacyUrlRequest request) {post(()-> {
+                if(stopping || session==null || failure!=null || session.isClosed()) {if(session!=null)session.finishUrl(token);return;}
+                nativeUrlSession=session;nativeUrlToken=token;
+                try {PhotoActivity.Companion.closePhoto();loadUrl(request,Protocol.AIRPLAY);}
+                catch(RuntimeException error) {
+                    session.finishUrl(token);nativeUrlToken=0;nativeUrlSession=null;
+                    record("Native URL: "+error.getClass().getSimpleName());publish();
+                }
+            });}
+            private boolean ownsNativeUrl(long token) {return !stopping && nativeUrlSession==session && nativeUrlToken==token && urlRequested && urlOwner==Protocol.AIRPLAY;}
+            @Override public void urlSeek(long token,float seconds) {post(()-> {
+                if(!ownsNativeUrl(token))return;
+                long position=(long)(seconds*1000.0);
+                if(pendingUrl!=null)pendingUrl=new LegacyUrlRequest(pendingUrl.location,position,pendingUrl.headers,pendingUrl.mime);
+                else if(urlPlayer!=null && !urlStopping)urlPlayer.seek(position);
+            });}
+            @Override public void urlRate(long token,float rate) {post(()-> {
+                if(!ownsNativeUrl(token))return;
+                if(rate>0)urlSpeed(rate);
+                control(rate>0?LegacyDacp.Command.PLAY:LegacyDacp.Command.PAUSE,null);
+            });}
+            @Override public void urlStop(long token) {post(()-> {if(ownsNativeUrl(token))stopUrl();});}
             @Override public void videoSize(int w,int h) {post(()-> {if(!stopping) {width=w;height=h;publish();}});}
             @Override public void controlsChanged() {post(()-> {
                 if(stopping)return;
@@ -524,6 +553,14 @@ public final class LegacyReceiverService extends Service {
     private void publish() {
         LegacyUrlPlayer.State url=urlState();
         boolean mediaPending=urlRequested && (!urlStopping || pendingUrl!=null);
+        if(nativeUrlSession!=null) {
+            if(!mediaPending || urlOwner!=Protocol.AIRPLAY || nativeUrlSession!=session) {
+                nativeUrlSession.finishUrl(nativeUrlToken);nativeUrlSession=null;nativeUrlToken=0;
+            } else {
+                nativeUrlSession.urlPlayback(nativeUrlToken,url==null?0:url.positionMs,url==null?0:url.durationMs,
+                    url!=null && url.playing?url.speed:0,url!=null && url.phase==LegacyUrlPlayer.Phase.READY,url==null || url.buffering);
+            }
+        }
         PlaybackInfo info=url==null?new PlaybackInfo(0,0,false,urlSpeed,false,mediaPending):
             new PlaybackInfo(url.positionMs,url.durationMs,url.playing,url.speed,false,url.buffering);
         networkState=new NetworkState(mediaPending?urlOwner:null,mediaPending,info);

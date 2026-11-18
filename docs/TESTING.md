@@ -1,5 +1,19 @@
 # Testes automatizados
 
+## URL pelo servidor nativo API17
+
+`tools/test_legacy_gestures.py --native-url` instala a prévia e testa UxPlay
+HTTP -> JNI -> serviço -> Media3, em emulador isolado API17. Usa MP4/HLS/AAC
+sintéticos de oito segundos, uma fonte que segura o corpo HTTP e comandos
+binários plist, com sessão estável por conexão e UUID distinto por item.
+Verifica recursos de `/server-info`, posição/duração/rate/ready, controles
+remotos e tecla local, RTP -> URL, EOF/Stop, fechamento de canal pausado ou
+tocando, reinício explícito durante reprodução e liberação de `/play` ao
+parar o serviço durante carregamento.
+O mesmo cenário aceita `--package com.buzincast.tv.deat.legacy.preview`
+com os APKs correspondentes. Não representa teste do canal reverso FCUP
+nem sessão com aparelho Apple físico, HTTPS, live ou DRM.
+
 ## Passagem de saída sem encerrar o receptor API17
 
 `test_legacy_gestures.py --url-service` mantém um socket nativo anterior à

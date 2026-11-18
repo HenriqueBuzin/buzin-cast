@@ -160,17 +160,28 @@ fun registerSubmodulePatchTask(taskName: String, submoduleName: String) {
                 .digest(bytes).joinToString("") { "%02x".format(it) }
             val patchHash = digest(patches.flatMap { it.readBytes().toList() }.toByteArray())
             val marker = file("$submoduleDir/.buzin-patches.properties")
+            var alreadyApplied = 0
             val touched = patches.flatMap { git("apply", "--numstat", it.absolutePath).trim().lines() }
                 .map { it.substringAfterLast("\t") }.distinct()
             if (marker.exists()) {
                 val recorded = Properties().apply { marker.inputStream().use(::load) }
-                check(recorded.getProperty("patchSet") == patchHash) { "$submoduleName patch set changed; use a fresh submodule checkout." }
-                check(touched.all { name -> recorded.getProperty(name) == digest(file("$submoduleDir/$name").readBytes()) }) {
+                val recordedHash = recorded.getProperty("patchSet")
+                alreadyApplied = if (recordedHash == patchHash) patches.size else {
+                    patches.indices.firstOrNull { last ->
+                        digest(patches.take(last + 1).flatMap { it.readBytes().toList() }.toByteArray()) == recordedHash
+                    }?.plus(1) ?: error("$submoduleName existing patches changed; use a fresh submodule checkout.")
+                }
+                val previousFiles = if (alreadyApplied == patches.size) touched else patches.take(alreadyApplied)
+                    .flatMap { git("apply", "--numstat", it.absolutePath).trim().lines() }
+                    .map { it.substringAfterLast("\t") }.distinct()
+                check(previousFiles.all { name -> recorded.getProperty(name) == digest(file("$submoduleDir/$name").readBytes()) }) {
                     "Patched $submoduleName files were edited. Review the local changes before rebuilding."
                 }
-                return@doLast
+                if (alreadyApplied == patches.size) return@doLast
             }
-            patches.forEach { patch ->
+            // Only append to a verified existing prefix; never reset user edits
+            // or reapply earlier overlapping patches during an incremental update.
+            patches.drop(alreadyApplied).forEach { patch ->
                 // Also supports source distributions without Git metadata. Never reset local edits.
                 val applied = ProcessBuilder("git", "-C", submoduleDir,
                     "apply", "--reverse", "--check", "--unidiff-zero", patch.absolutePath)

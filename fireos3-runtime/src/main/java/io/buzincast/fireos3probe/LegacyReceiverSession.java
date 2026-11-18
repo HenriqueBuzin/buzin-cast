@@ -21,6 +21,11 @@ public final class LegacyReceiverSession {
         default void controlsChanged() {}
         default void mediaChanged() {}
         default void streamChanged() {}
+        default boolean acceptsUrl() {return false;}
+        default void urlPlay(long token,LegacyUrlRequest request) {}
+        default void urlSeek(long token,float seconds) {}
+        default void urlRate(long token,float rate) {}
+        default void urlStop(long token) {}
     }
     private final Context context;
     private final String identity;
@@ -34,6 +39,7 @@ public final class LegacyReceiverSession {
     private final LegacyMedia media;
     private final AtomicBoolean videoActive = new AtomicBoolean();
     private final AtomicBoolean mirrorActive = new AtomicBoolean();
+    private final java.util.concurrent.atomic.AtomicLong streamEpoch=new java.util.concurrent.atomic.AtomicLong();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
     final LegacyAvcPlayer videoPlayer;
@@ -66,7 +72,13 @@ public final class LegacyReceiverSession {
         this.identity = identity; this.listener = listener; this.options=options;
         media=new LegacyMedia(listener::mediaChanged);
         queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); },active-> {
-            mirrorActive.set(active);media.mirroring(active);listener.streamChanged();
+            mirrorActive.set(active);if(active)streamEpoch.incrementAndGet();media.mirroring(active);listener.streamChanged();
+        });
+        if(listener.acceptsUrl())queue.url.listener(new LegacyNativePlayback.Listener() {
+            @Override public void play(long token,LegacyUrlRequest request) {listener.urlPlay(token,request);}
+            @Override public void seek(long token,float seconds) {listener.urlSeek(token,seconds);}
+            @Override public void rate(long token,float rate) {listener.urlRate(token,rate);}
+            @Override public void stop(long token) {listener.urlStop(token);}
         });
         queue.connections(listener::streamChanged);
         queue.media(new VideoFrameQueue.Media() {
@@ -77,7 +89,7 @@ public final class LegacyReceiverSession {
                 media.progress(start,current,end);
             }
         });
-        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options,listener::streamChanged);
+        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options,this::audioOutputChanged);
         videoPlayer = new LegacyAvcPlayer(surface, queue, new LegacyAvcPlayer.Listener() {
             @Override public void decodedFrame() {
                 decoded.countDown();
@@ -158,6 +170,9 @@ public final class LegacyReceiverSession {
             listener.failed(failure);
         } finally {
             stopping.set(true);
+            // Wake URL-ready and media queue waiters before JNI joins the HTTP
+            // workers. This ordering also applies to an unexpected decoder failure.
+            queue.close();audioQueue.close();
             // An interrupted start must still unregister records and join native workers.
             Thread.interrupted();
             discoveryReady.countDown();
@@ -222,6 +237,12 @@ public final class LegacyReceiverSession {
     public LegacyMedia.State media() {return media.state();}
     public boolean mirroring() {return mirrorActive.get();}
     public boolean audioActive() {return audioPlayer.outputActive;}
+    private void audioOutputChanged() {if(audioPlayer.outputActive)streamEpoch.incrementAndGet();listener.streamChanged();}
+    public long streamEpoch() {return streamEpoch.get();}
+    public void urlPlayback(long token,long positionMs,long durationMs,float rate,boolean ready,boolean buffering) {
+        queue.url.update(token,positionMs/1000.0,durationMs/1000.0,rate,ready,buffering);
+    }
+    public void finishUrl(long token) {queue.url.finish(token);}
     public void audioFocusGain(float gain) {audioPlayer.focusGain=Math.max(0,Math.min(1,gain));}
     public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
         LegacyDacp current=controls;

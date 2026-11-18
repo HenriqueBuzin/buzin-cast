@@ -12,6 +12,27 @@ final class VideoFrameQueue {
     private int bytes;
     private boolean closed;
     private volatile int activeConnections;
+    final LegacyNativePlayback url=new LegacyNativePlayback();
+    @SuppressWarnings("unused") public boolean videoUrlEnabled() {return url.enabled();}
+    @SuppressWarnings("unused") public boolean onVideoPlay(byte[] bytes,float seconds) {
+        String location;
+        try {location=java.nio.charset.Charset.forName("UTF-8").newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(bytes)).toString();}
+        catch(java.nio.charset.CharacterCodingException invalid) {return false;}
+        try {url.play(location,seconds);}catch(IllegalArgumentException invalid) {return false;}
+        if(!url.enabled())return false;
+        onVideoReset();if(audio!=null)audio.flush();return true;
+    }
+    @SuppressWarnings("unused") public void onVideoWaitReady() {
+        try {url.awaitReady(10000);}catch(InterruptedException interrupted) {Thread.currentThread().interrupt();}
+    }
+    @SuppressWarnings("unused") public void onVideoScrub(float seconds) {url.seek(seconds);}
+    @SuppressWarnings("unused") public void onVideoRate(float rate) {url.rate(rate);}
+    @SuppressWarnings("unused") public void onVideoStop() {url.stop();}
+    @SuppressWarnings("unused") public double[] getVideoPlaybackInfo() {return url.state().values();}
+    @SuppressWarnings("unused") public void onVideoUrlReset(boolean abandoned) {
+        LegacyNativePlayback.State state=url.state();
+        if(!abandoned || state.ready && !state.buffering && state.rate==0)url.stop();
+    }
     private volatile Runnable connectionsChanged;
     void connections(Runnable changed) {connectionsChanged=changed;}
     int connectionCount() {return activeConnections;}
@@ -118,6 +139,7 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        url.close();
         activeConnections=0;connectionsChanged=null;
         mirrorMode(false);
         controls=null;

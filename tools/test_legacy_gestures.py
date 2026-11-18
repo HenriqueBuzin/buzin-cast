@@ -23,11 +23,12 @@ def main():
     parser.add_argument('--url-service',action='store_true',help='Verify native-to-URL handoff, platform playback, UI/media controls, HTTP failure and receiver recovery.')
     parser.add_argument('--fcast',action='store_true',help='Verify shared production FCast transport: TCP v2, DNS-SD/TXT, HTTP playback, controls and lifecycle.')
     parser.add_argument('--dlna',action='store_true',help='Verify shared DLNA SOAP playback, photos and lifecycle on API17.')
+    parser.add_argument('--native-url',action='store_true',help='Verify native UxPlay HTTP URL commands, JNI snapshots, playback and shutdown.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
     args=parser.parse_args()
-    if sum((args.url_service,args.fcast,args.dlna,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
+    if sum((args.url_service,args.fcast,args.dlna,args.native_url,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -51,6 +52,7 @@ def main():
     if args.url_service:report['scope']='Real API17 receiver service to HTTP platform player handoff, UI/media keys, HTTP failure and native restart; synthetic MP4, not physical sender interoperability'
     if args.fcast:report['scope']='Shared production FCast v2 TCP transport, DNS-SD/TXT, synthetic HTTP MP4 playback, controls and lifecycle; not physical sender interoperability'
     if args.dlna:report['scope']='Shared DLNA SOAP transport, synthetic HTTP playback, photo controls and lifecycle on API17; not physical sender interoperability'
+    if args.native_url:report['scope']='Native UxPlay HTTP URL callbacks through JNI/service/Media3 on API17; synthetic direct MP4/HLS/AAC, not a physical Apple sender or FCUP reverse-channel test'
     if display:report['display_init']=display
     def capture_native_view():
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-metadata.b64',timeout=30))
@@ -127,12 +129,12 @@ def main():
             adb('install','-r',path.resolve());installed.append(package)
         adb('shell','pm','clear',args.package)
         adb('logcat','-c')
-        options=['-e','checks','dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna else []
+        options=['-e','checks','native_url' if args.native_url else 'dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna or args.native_url else []
         result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
-        expected='dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
+        expected='native_url=native_http_play_info_rate_seek_stop_and_lifecycle' if args.native_url else 'dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
         if args.url_service:
             if 'INSTRUMENTATION_RESULT: native_output=same_receiver_rtsp_surface_gate_and_native_audio_takeover' not in result:
@@ -159,7 +161,7 @@ def main():
                 raise AssertionError('Test APK did not run mirror transition checks')
             report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, duck/transient/permanent audio focus without music commands, explicit Play focus recovery, fresh audio metadata, same native receiver; not decoded video or a real sender'
             report['system_media']='platform client metadata/artwork ownership, audio focus duck/loss/gain, real background media keys, launcher return, unregister and no RTSP resurrection after stop'
-        report['status']='pass';report['dlna_soap_photos_lifecycle' if args.dlna else 'fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
+        report['status']='pass';report['native_http_url_callbacks_playback_lifecycle' if args.native_url else 'dlna_soap_photos_lifecycle' if args.dlna else 'fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
     except Exception as error:
         report['status']='failed';report['error']=str(error)
         try:
