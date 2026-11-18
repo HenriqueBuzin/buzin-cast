@@ -1,5 +1,6 @@
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
+#include "AirPlayAudioCallbacks.h"
 #include "ReceiverSettings.h"
 #include <arpa/inet.h>
 #include <atomic>
@@ -81,7 +82,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   };
   callbacks.audio_process = [](void* cls, raop_ntp_t*, audio_decode_struct* data) {
     auto& state = Impl::self(cls);
-    if (data && state.audio) state.audio->sample(data->data, data->data_len > 0 ? static_cast<size_t>(data->data_len) : 0, data->ct, data->ntp_time_local, data->rtp_time);
+    if (data && state.audio) forwardAirPlayAudio(*state.audio, data);
     else if (data) state.sample(AirPlayEvent::Kind::Audio, data->data, data->data_len, data->ct, data->ntp_time_local, data->ntp_time_remote);
   };
   callbacks.video_process = [](void* cls, raop_ntp_t*, video_decode_struct* data) {

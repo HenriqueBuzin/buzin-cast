@@ -34,6 +34,7 @@ target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")
 
 # Development-only runner, excluded from the VPKG like the network probe.
 add_executable(buzin-msse-probe kepler/msse_probe_main.cpp
-  kepler/turbo-modules/MsseAudioPlayer.cpp kepler/turbo-modules/AirPlayAudioWorker.cpp)
-target_link_libraries(buzin-msse-probe PRIVATE BuzinMediaIdl)
+  kepler/turbo-modules/MsseAudioPlayer.cpp kepler/turbo-modules/AirPlayAudioWorker.cpp
+  kepler/AirPlayRtpProbe.cpp)
+target_link_libraries(buzin-msse-probe PRIVATE BuzinMediaIdl BuzinAirPlayCore)
 install(TARGETS buzin-msse-probe RUNTIME DESTINATION bin)
