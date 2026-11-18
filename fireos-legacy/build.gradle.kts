@@ -73,6 +73,7 @@ android {
         buildConfigField("boolean", "RECORDING_ENABLED", (!noDownload).toString())
     }
     buildFeatures { buildConfig = true }
+    sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("fireos3-probe/src/main/assets"))
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

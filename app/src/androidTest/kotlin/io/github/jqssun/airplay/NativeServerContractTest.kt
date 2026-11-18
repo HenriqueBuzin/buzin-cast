@@ -7,6 +7,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.bridge.LogListener
 import io.github.jqssun.airplay.bridge.NativeBridge
 import io.github.jqssun.airplay.bridge.RaopCallbackHandler
+import io.github.jqssun.airplay.renderer.AudioConfig
+import io.github.jqssun.airplay.renderer.AudioRenderer
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -268,5 +270,76 @@ class NativeServerContractTest {
             assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
             assertEquals("Native decoder reported rejected packets", 0, debug.getInt(34))
         }
+    }
+
+    @Test fun audioRendererPreservesDetachedConfigurationAndClearsEngineLabels() {
+        val renderer = AudioRenderer()
+        assertEquals(AudioConfig(), renderer.config)
+        assertEquals(1f, renderer.clientGain, 0f)
+        assertEquals("", renderer.codecLabel)
+        assertNull(renderer.audioDebug())
+        renderer.start(); renderer.stop()
+        renderer.setClientGain(0.25f)
+        val config = AudioConfig(cushionMs = 50, forceSwAlac = true, forceSwAac = true,
+            realtimePriority = false, lowLatency = false)
+        renderer.updateConfig(config)
+        assertEquals(config, renderer.config)
+        assertEquals(0.25f, renderer.clientGain, 0f)
+        for ((ct, label) in listOf(2 to "ALAC", 4 to "AAC-LC", 8 to "AAC-ELD", 99 to "?")) {
+            renderer.setFormat(ct, 1024)
+            assertEquals(label, renderer.codecLabel)
+        }
+        renderer.detachEngine()
+        assertEquals("", renderer.codecLabel)
+        assertNull(renderer.audioDebug())
+        val handle = create()
+        renderer.attachEngine(handle)
+        try {
+            val debug = requireNotNull(renderer.audioDebug())
+            assertEquals(0, debug.backlogMs)
+            assertEquals(50, debug.tunedCushionMs)
+            assertEquals(0, debug.decodeErrors)
+            renderer.setClientGain(0.75f)
+            assertEquals(0.75f, renderer.clientGain, 0f)
+            renderer.setFormat(4, 1024)
+            assertEquals("AAC-LC", renderer.codecLabel)
+            renderer.start(); renderer.stop(); renderer.stop()
+            assertEquals("", renderer.codecLabel)
+            assertNotNull(renderer.audioDebug())
+        } finally { renderer.detachEngine() }
+        assertNull(renderer.audioDebug())
+        renderer.start(); renderer.stop()
+        assertEquals(config, renderer.config)
+    }
+
+    @Test fun audioRendererAppliesQueuedConfigurationAtTheNextDecodedPacket() {
+        val handle = create()
+        val renderer = AudioRenderer()
+        val initial = AudioConfig(cushionMs = 50, forceSwAlac = true, forceSwAac = true,
+            realtimePriority = false, lowLatency = false)
+        renderer.updateConfig(initial)
+        renderer.attachEngine(handle)
+        try {
+            renderer.setFormat(4, 1024)
+            NativeBridge.nativeSetCaptureEnabled(handle, true)
+            val packet = aacFrames().first()
+            val base = System.nanoTime()
+            DebugNativeBridge.nativeFeedAudio(handle, packet, base)
+            assertEquals(50, requireNotNull(renderer.audioDebug()).tunedCushionMs)
+            val changed = initial.copy(cushionMs = 80, percentilePct = 90, benchmarkLog = true)
+            renderer.updateConfig(initial.copy(cushionMs = 60))
+            renderer.updateConfig(changed)
+            assertEquals(changed, renderer.config)
+            // The control thread queues updates; only the decode thread rebuilds.
+            assertEquals(50, requireNotNull(renderer.audioDebug()).tunedCushionMs)
+            DebugNativeBridge.nativeFeedAudio(handle, packet, base + 30_000_000)
+            val debug = requireNotNull(renderer.audioDebug())
+            assertEquals(80, debug.tunedCushionMs)
+            assertEquals(0, debug.decodeErrors)
+            val pcm = callbacks.getValue(handle).pcm
+            assertEquals(2, pcm.size)
+            assertEquals(listOf(base, base + 30_000_000), pcm.map { it.pts })
+            assertTrue(pcm.all { record -> record.bytes.size == 4096 && record.bytes.all { it == 0.toByte() } })
+        } finally { renderer.stop(); renderer.detachEngine() }
     }
 }

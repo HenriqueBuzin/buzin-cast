@@ -1,5 +1,6 @@
 """Repeatable API 17 receiver callback smoke test; refuses physical devices."""
 import argparse
+import hashlib
 import json
 import plistlib
 import socket
@@ -24,7 +25,9 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.adb_server_port <= 65535:
         parser.error('Invalid ADB server port.')
-    if not re.fullmatch(r'emulator-\d+', args.serial):
+    local = re.fullmatch(r'127\.0\.0\.1:(\d+)', args.serial)
+    local_emulator = local and 5555 <= int(local[1]) <= 5683 and int(local[1]) % 2 == 1
+    if not re.fullmatch(r'emulator-\d+', args.serial) and not local_emulator:
         parser.error('Use an isolated emulator; physical devices are not allowed.')
     if not 1 <= args.cycles <= 10:
         parser.error('--cycles must be between one and ten.')
@@ -38,6 +41,28 @@ def main():
     def ui():
         adb('shell', 'uiautomator', 'dump', '/data/local/tmp/buzin-probe.xml')
         return ET.fromstring(adb('shell', 'cat', '/data/local/tmp/buzin-probe.xml'))
+
+    def console_snapshot(folder):
+        if not local_emulator:
+            adb('emu','screenrecord','screenshot',folder)
+            return
+        # A TCP ADB serial does not support `adb emu`. Use the same local
+        # emulator console, preserving its authentication and pixel validation.
+        token=(Path.home()/'.emulator_console_auth_token').read_text(encoding='utf-8').strip()
+        if not token or any(c in token+str(folder) for c in '\r\n'):
+            raise AssertionError('Invalid emulator console authentication or capture path')
+        with socket.create_connection(('127.0.0.1',int(local[1])-1),timeout=10) as connection:
+            connection.settimeout(10)
+            with connection.makefile('rb') as response:
+                def accepted():
+                    for _ in range(100):
+                        line=response.readline()
+                        if not line or line.startswith(b'KO'):raise AssertionError('Emulator console rejected the capture request')
+                        if line.strip()==b'OK':return
+                    raise AssertionError('Emulator console did not finish its response')
+                accepted()
+                connection.sendall(('auth '+token+'\n').encode('utf-8'));accepted()
+                connection.sendall(('screenrecord screenshot '+str(folder)+'\n').encode('utf-8'));accepted()
 
     def tap(label):
         print('Tapping '+label, flush=True)
@@ -92,12 +117,12 @@ def main():
                     raise AssertionError('Configured dimensions did not reach the native receiver')
         finally:adb('forward','--remove','tcp:'+port)
 
-    if adb('shell', 'getprop', 'ro.build.version.sdk').strip() != '17':
+    if adb('shell', 'getprop', 'ro.build.version.sdk').strip() != '17' or adb('shell','getprop','ro.kernel.qemu').strip() != '1':
         parser.error('This regression must run on Android API 17.')
     package = 'io.buzincast.fireos3probe'
     adb('install', '-r', str(args.apk.resolve()))
     adb('shell', 'input', 'keyevent', '82')
-    report = {'api': 17, 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
+    report = {'api': 17, 'apk_sha256': hashlib.sha256(args.apk.read_bytes()).hexdigest(), 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
     try:
         for cycle in range(args.cycles):
             entry = {'cycle': cycle+1}
@@ -142,7 +167,7 @@ def main():
                 # Older adbd can capture an empty framebuffer despite visible
                 # host rendering. The emulator console captures its real display.
                 with tempfile.TemporaryDirectory(dir=args.output.resolve()) as folder:
-                    adb('emu', 'screenrecord', 'screenshot', folder)
+                    console_snapshot(folder)
                     grabs = list(Path(folder).glob('*.png'))
                     if len(grabs) != 1: raise AssertionError('Emulator capture was not produced')
                     picture.write_bytes(grabs[0].read_bytes())
@@ -155,10 +180,19 @@ def main():
             # Repeat within the same Activity to detect a receiver/codec leak.
             tap('Render receiver callback sample')
             expect('Receiver callback H.264: frame displayed')
+            try:
+                (args.output/f'cycle-{cycle+1}-phases.txt').write_text(
+                    adb('logcat','-d','-s','BuzinLegacyStream:I'),encoding='utf-8')
+            except Exception as diagnostic:
+                report.setdefault('diagnostic_errors',[]).append(type(diagnostic).__name__)
         report['status'] = 'pass'
     except Exception as error:
         report['status'] = 'failed'
         report['error'] = str(error)
+        try:
+            (args.output/'failure-logcat.txt').write_text(adb('logcat','-d'),encoding='utf-8')
+        except Exception as diagnostic:
+            report['diagnostic_error']=str(diagnostic)
         raise
     finally:
         try:

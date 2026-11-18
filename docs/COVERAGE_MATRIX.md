@@ -8,6 +8,25 @@ The variants are `normal`, `compat`, `deat`, and `compat-deat`. The regional
 variants use the DE/AT package identity and must reject recording and download.
 Compatibility builds have API22 as their minimum; modern builds require API25.
 
+## Verification checkpoint — 2026-11-18
+
+The latest normal-APK run passed 85 Android instrumentation tests and 18 native
+cases with UBSan. Execution was interrupted before the extended UI scenarios
+finished, so it does not establish a completed matrix or a new coverage result.
+A subsequent attempt stopped while waiting for the emulator and adds no runtime
+evidence. Keep the archived inputs for replay rather than treating either
+interruption as a passing coverage gate.
+
+Additional selected contracts passed on unchanged, fingerprint-checked APKs:
+three DACP player tests and two AudioRenderer tests on API22, and three download
+publication tests on both API22 and API36. The first API36 attempt encountered a
+startup ANR; all three publication tests passed after the emulator settled.
+These supplemental test APKs differ from the full-suite test APK and must not
+be merged into its matrix as if their compiled identities matched.
+
+The coverage automation regression suite passes all 14 tests. Whole-app 100%
+coverage across all four variants remains unverified and is still outstanding.
+
 ## Run all four
 
 Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial
@@ -106,6 +125,19 @@ actions, transport failures, and commands queued across a sender change. Each
 command retains its resolved endpoint and token; reset and sender updates
 invalidate earlier discovery callbacks.
 
+Player contracts check the public Media3 playlist, metadata, artwork, duration,
+position and available commands on its application looper. A real loopback HTTP
+sender verifies play/pause and both next/previous command forms, including the
+Active-Remote header. Missing or unresolved senders must not confirm a playback
+change; unresolved commands retain their failed future.
+
+Download publication contracts use isolated files and, on API29+, a private
+in-process ContentProvider instead of the system download collection. They check
+exact copied bytes, pending/complete metadata, missing or unwritable destinations,
+null/empty provider query results, and idle cancellation. These utility contracts
+do not enable download controls in the DE/AT edition or test an entire network
+export through Transformer.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
@@ -115,6 +147,12 @@ Native server contracts create real JNI contexts and verify advertised feature
 bits and codecs, PIN metadata, occupied-port recovery, RTSP replies, direct-buffer
 bounds and audio start/stop. Temporary pairing keys stay in the emulator app's
 cache and are deleted after teardown.
+
+AudioRenderer contracts check detached configuration, gain, codec labels and
+diagnostic-buffer parsing against a real engine. Queued configuration changes
+must leave the current buffer setting intact until the next decoded packet;
+multiple queued updates apply the last value, with exact PCM and timestamps
+preserved across the rebuild.
 
 The software-AAC contract decodes checked-in silent AAC packets through the JNI
 audio engine and checks every PCM block, timestamp, sample rate and channel

@@ -37,6 +37,7 @@ final class LegacyControlScenario {
         await(runner,()->find(activity,"receiver-status") instanceof TextView &&
             ((TextView)find(activity,"receiver-status")).getText().toString().equals(activity.getString(activity.getResources().getIdentifier("buzin_ready","string",activity.getPackageName()))));
         if(findOnUi(runner,activity,"sender-0").isShown())throw new AssertionError("Controls visible without a resolved sender");
+        if(systemMedia)LegacyPlainAudioScenario.check(runner,activity);
         try(Peer first=new Peer(address,"17017");Peer second=new Peer(address,"27017")) {
             first.identify();
             try {await(runner,()->find(activity,"sender-0").isShown());}

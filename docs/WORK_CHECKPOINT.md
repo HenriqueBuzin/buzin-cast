@@ -1,4 +1,60 @@
-# Retomada — 16 de novembro de 2026
+# Retomada — 18 de novembro de 2026
+
+## Investigação do encerramento nativo — marcos e repetição
+
+O probe registra fases de criação, codecs, RTSP, replay de áudio, relógio
+A/V, troca de superfície e encerramento. O runner registra SHA256 do APK,
+salva as fases por ciclo e continua salvando logcat completo em falhas.
+Esses diagnósticos não alteram o decoder nem a política de reprodução.
+
+`outputs/legacy-native-phase-stress/report.json` passou em três ciclos,
+com seis sessões completas de streaming. Exercitou ALAC/AAC-LC/AAC-ELD,
+H.264, relógio A/V, saída sem tela, troca de Surface e encerramento de RTSP.
+Os perfis anunciados alternaram 1080p/30 e 720p/60; isso não significa que
+a amostra decodificada tinha essas resoluções. Build ARMv7/x86, lint e testes
+JVM do runtime/probe passaram. Logs de fases foram conferidos no emulador.
+
+O endereço inválido em `dlfree` da primeira regressão não foi reproduzido
+nessas seis sessões. A causa segue sem confirmação e **não foi aplicada
+uma correção nativa**; não encerrar a pendência nem anunciar estabilidade de
+produção. Seguir investigando se reaparecer com os marcos disponíveis,
+preservando os logs anteriores. A paridade dos protocolos/player, funções
+restantes, produção e validação física continua no objetivo.
+
+## Alvo antigo — áudio sem metadados
+
+O AudioTrack avisa quando sua saída começa/termina, permitindo solicitar foco
+mesmo sem título, capa ou identificação DACP. O serviço inicia o ganho local
+em zero e só o libera após foco concedido. Áudio sem comandos não registra
+botões de música inutilizáveis. A inatividade retira saída e foco, preservando
+um bloqueio por perda permanente; pacotes novos não desfazem esse bloqueio.
+Reiniciar explicitamente o receptor permite uma nova solicitação.
+
+`--system-media` passou nas duas edições em API17/1280×720:
+`outputs/legacy-plain-audio-general-verified` e
+`outputs/legacy-plain-audio-regional-verified`. A fixture ALAC percorre o
+decoder nativo e AudioTrack silenciado, sem metadados/identidade, com disputa
+real de foco, liberação após inatividade, bloqueio permanente e reinício.
+Builds ARMv7/x86, lint e 62 testes JVM passaram. Os assets de áudio são
+compartilhados somente com o APK de instrumentação. O inventário FEATURES
+foi atualizado para refletir as etapas de rede/metadados/controles já feitas.
+
+Os runners aceitam transporte TCP local de emulador com verificação de API17
+e `ro.kernel.qemu=1`, permitindo servidor ADB separado sem reiniciar conexões
+das TVs. A captura alternativa usa o console local autenticado, preservando
+a validação de pixels; o token não é registrado. Falhas salvam logcat local.
+
+**Pendência nativa aberta:** a primeira regressão encerrou o processo com
+`INVALID HEAP ADDRESS IN dlfree`, na thread do autoteste de streaming.
+Evidências locais em `outputs/legacy-plain-audio-native-regression`.
+Uma tentativa posterior perdeu ADB; outra completou streaming e falhou no
+comando de captura pelo serial TCP. A rodada completa em
+`outputs/legacy-plain-audio-native-final` passou, incluindo H.264, codecs de
+áudio, relógio A/V e troca de display. Isso não confirma a causa nem corrige
+o encerramento anterior: investigar antes de liberar produção. Nenhuma
+sessão com transmissor real ou Stick físico foi certificada. O objetivo
+completo permanece pendente, incluindo protocolos/player restantes,
+gravação/download e segurança/licença.
 
 ## Vega — worker AAC e controles RTSP — 18 de novembro de 2026
 
