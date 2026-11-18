@@ -152,6 +152,15 @@ successful export and publication, checking all ten video samples, timestamps,
 dimensions and pending-store completion through MediaExtractor. This is a local
 media export, not a network transfer or a physical storage benchmark.
 
+Gesture-state contracts use an isolated ViewModel without a bound receiver.
+They check timeline guards, double-tap zone boundaries and direction changes,
+seekbar and drag clamping, pending-scrub continuation, all content scales, zoom
+limits and indicator expiry. A real emulator activity window and AudioManager
+exercise brightness/volume limits and vertical-gesture selection; the original
+stream volume is restored. These are state contracts, not pointer-detector or
+complete touch-interface coverage. The selected six-test API22 run passes;
+whole-variant reports must include the same tests in their compiled cohort.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
