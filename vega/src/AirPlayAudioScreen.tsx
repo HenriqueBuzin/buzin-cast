@@ -50,7 +50,7 @@ export default function AirPlayAudioScreen({onBack}: {onBack: () => void}) {
     <View style={styles.screen}>
       <Text style={styles.title}>Áudio AirPlay experimental</Text>
       <Text style={styles.details}>Conexão manual na rede local{port ? ` • TCP ${port}` : ''}.</Text>
-      <Text style={styles.details}>AAC-LC e AAC-ELD estéreo a 44,1 kHz. Sem descoberta automática, PIN, vídeo ou ALAC nesta etapa.</Text>
+      <Text style={styles.details}>ALAC, AAC-LC e AAC-ELD estéreo a 44,1 kHz. Sem descoberta automática, PIN ou vídeo nesta etapa.</Text>
       <Text style={styles.details}>A recepção com emissores Apple reais ainda precisa de validação.</Text>
       <Text style={styles.status} aria-live="polite">
         {snapshot.phase === 'error' ? 'Não foi possível receber este áudio. Confira o formato ou reinicie o app.'

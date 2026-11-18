@@ -120,7 +120,7 @@ struct AirPlayRtpProbe::Impl {
 };
 AirPlayRtpProbe::AirPlayRtpProbe(AirPlayAudioWorker& worker, const std::vector<std::vector<uint8_t>>& fixture, int codec, int spf)
   : impl(std::make_unique<Impl>(worker, fixture, codec, spf)) {
-  if (!((codec == 4 && spf == 1024) || (codec == 8 && (spf == 480 || spf == 512))))
+  if (!((codec == 4 && spf == 1024) || (codec == 8 && (spf == 480 || spf == 512)) || (codec == 2 && spf == 352)))
     throw std::invalid_argument("Unsupported RTP fixture format");
   impl->initialize();
 }

@@ -53,6 +53,37 @@ um candidato para integração e testes; ainda não integra a prévia:
 [ExoPlayer 2.19.1](https://github.com/google/ExoPlayer/blob/r2.19.1/constants.gradle).
 
 
+## ALAC com saída PCM — 18 de novembro de 2026
+
+- Adicionado o perfil ALAC RAOP de 352 amostras, 16 bits, estéreo/44,1 kHz.
+  O worker seleciona um sink composto: AAC-LC/AAC-ELD permanecem no MSSE;
+  ALAC usa o decoder FFmpeg fixado e AudioStream APMF. Não há JNI/Oboe.
+- O MSSE recusou ALAC no VVD com erro 4 (`build/vega-alac-native`). O caminho
+  implementado decodifica e valida um frame planar de 352 amostras, converte
+  para PCM intercalado e escreve na saída nativa com foco próprio MEDIA.
+- AudioStream exige no mínimo um bloco nativo por escrita. Escrever os pacotes
+  menores individualmente causou timeout. O sink agrupa PCM e retém somente
+  a fração do próximo bloco; o tamanho/configuração nativa é limitado a um
+  segundo de frames. Flush encerra/descarta essa fração, libera saída/foco e
+  reinicia o decoder na próxima geração. Falha de liberação impede reabertura.
+- A sessão pede foco no próprio processo que escreve PCM; aguarda concessão
+  antes de iniciar, respeita pausa e a política de duck/mute do sistema,
+  bloqueia escrita após parada permanente e libera o foco ao encerrar.
+  Disputa real de foco e retomadas longas ainda precisam de validação.
+- O decoder é limitado a pacotes de 64 KiB e um frame de perfil fixo; formatos
+  diferentes são recusados. O teste portátil verifica sinal PCM não nulo,
+  amplitude/canais, repetição/recriação e rejeição de entradas inválidas.
+  `tools/test_vega_alac_decoder.py` compila a revisão FFmpeg fixada e passou
+  com sanitizers no código próprio; esse ensaio foi acrescentado ao CI.
+- No VVD, o sink PCM direto passou em dois ciclos de 1003 frames, ~7,95 s,
+  em `build/vega-alac-pcm-blocks`. O caminho RTP/AES-CBC/NTP/worker/PCM passou
+  em `build/vega-alac-pcm-rtp`: 1003/1015 frames aceitos, ~7,99 s, 11/12
+  duplicatas sem aumentar a contagem aceita, flush e portas liberadas.
+- Os testes continuam com fixture sintética e chaves públicas diretamente no
+  contexto RTP. Não validam negociação RTSP/FairPlay de chaves, emissor Apple,
+  som audível, perda de pacotes/concealment, latência ou sincronismo A/V físico.
+  ALAC em outro perfil, vídeo, descoberta/PIN e a meta completa seguem pendentes.
+
 ## Vega — AAC-ELD implementado — 18 de novembro de 2026
 
 AAC-ELD de 480/512 amostras agora usa o sink MSSE no mesmo worker que AAC-LC,

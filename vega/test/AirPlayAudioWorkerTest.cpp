@@ -25,8 +25,11 @@ struct Sink : AudioSampleSink {
       config == std::vector<uint8_t>({0xf8, 0xe8, 0x50, 0}) || config == std::vector<uint8_t>({0xf8, 0xe8, 0x40, 0}));
     std::lock_guard lock(trace->mutex); ++trace->starts; trace->configs.push_back(config); trace->seconds = 0; active = true;
   }
+  void startAlac() override {
+    std::lock_guard lock(trace->mutex); ++trace->starts; trace->configs.push_back({2}); trace->seconds = 0; active = true;
+  }
   bool append(const std::vector<uint8_t>& bytes, int64_t pts, int64_t duration) override {
-    assert(active && !bytes.empty() && duration >= 10 && duration <= 24);
+    assert(active && !bytes.empty() && duration >= 7 && duration <= 24);
     std::lock_guard lock(trace->mutex); ++trace->attempts;
     if (trace->blocked) return false;
     trace->pts.push_back(pts); trace->seconds = (pts + duration) / 1000.0; return true;
@@ -72,11 +75,11 @@ int main() {
   worker.stop(); worker.stop();
   assert(worker.state().released && worker.state().phase == "stopped");
   {std::lock_guard lock(trace->mutex); assert(trace->starts == 2 && trace->stops == 2 && trace->pts.back() == 0);}
-  worker.start(); worker.format(2,352);
+  worker.start(); worker.format(2,4096);
   waitFor([&] {return !worker.healthy();});
   assert(worker.state().error == "unsupportedAudioFormat"); worker.stop();
   // The negotiated frame size selects the real AAC configuration and RTP clock.
-  for (const auto [codec, spf] : {std::pair{4,960}, std::pair{8,480}, std::pair{8,512}}) {
+  for (const auto [codec, spf] : {std::pair{4,960}, std::pair{8,480}, std::pair{8,512}, std::pair{2,352}}) {
     worker.start(); worker.format(codec,spf);
     size_t before;
     {std::lock_guard lock(trace->mutex); before = trace->pts.size();}
@@ -85,10 +88,12 @@ int main() {
     waitFor([&] {return worker.state().accepted == 3;});
     {std::lock_guard lock(trace->mutex);
       const std::vector<int64_t> expected = spf == 960 ? std::vector<int64_t>{0,21,43}
-        : spf == 480 ? std::vector<int64_t>{0,10,21} : std::vector<int64_t>{0,11,23};
+        : spf == 480 ? std::vector<int64_t>{0,10,21} : spf == 512 ? std::vector<int64_t>{0,11,23}
+        : std::vector<int64_t>{0,7,15};
       assert(std::vector<int64_t>(trace->pts.begin()+before, trace->pts.end()) == expected);
       const std::vector<uint8_t> config = spf == 960 ? std::vector<uint8_t>{0x12,0x14}
-        : spf == 480 ? std::vector<uint8_t>{0xf8,0xe8,0x50,0} : std::vector<uint8_t>{0xf8,0xe8,0x40,0};
+        : spf == 480 ? std::vector<uint8_t>{0xf8,0xe8,0x50,0} : spf == 512 ? std::vector<uint8_t>{0xf8,0xe8,0x40,0}
+        : std::vector<uint8_t>{2};
       assert(trace->configs.back() == config);
     }
     worker.stop(); assert(worker.state().released);
@@ -103,6 +108,12 @@ int main() {
   worker.flush(); waitFor([&] {return worker.state().flushes == 1;});
   worker.sample(data,3,8,3000000000000ULL,1000);
   waitFor([&] {return worker.state().accepted == 3;});
+  worker.format(2,352); worker.sample(data,3,2,4000000000000ULL,2000);
+  waitFor([&] {return worker.state().accepted == 4;});
+  {std::lock_guard lock(trace->mutex); assert(trace->gain == 0 && trace->pts.back() == 0 && trace->configs.back() == std::vector<uint8_t>{2});}
+  worker.flush(); waitFor([&] {return worker.state().flushes == 2;});
+  worker.sample(data,3,2,5000000000000ULL,3000);
+  waitFor([&] {return worker.state().accepted == 5;});
   worker.stop(); assert(worker.state().released);
   // A packet from another codec must never enter the configured decoder.
   worker.start(); worker.format(8,512); worker.sample(data,3,4,1,0);
