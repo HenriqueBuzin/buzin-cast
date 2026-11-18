@@ -26,8 +26,15 @@ public class LegacyUrlRequestTest {
     }
     @Test public void enforcesRequestBudgetsBeforeOpeningAPlayer() {
         assertThrows(IllegalArgumentException.class,()->new LegacyUrlRequest("https://example.test/v",-1,null));
-        assertThrows(IllegalArgumentException.class,()->new LegacyUrlRequest("https://example.test/v",1L+Integer.MAX_VALUE,null));
+        assertThrows(IllegalArgumentException.class,()->new LegacyUrlRequest("https://example.test/v",1L+LegacyUrlRequest.MAX_POSITION_MS,null));
         Map<String,String> values=new HashMap<>();for(int i=0;i<25;i++)values.put("X-"+i,"v");
         assertThrows(IllegalArgumentException.class,()->new LegacyUrlRequest("https://example.test/v",0,values));
+    }
+    @Test public void preservesMimeAndLongSeekPositions() {
+        LegacyUrlRequest request=new LegacyUrlRequest("https://example.test/stream",1L+Integer.MAX_VALUE,null,"application/dash+xml");
+        assertEquals(1L+Integer.MAX_VALUE,request.startMs);assertEquals("application/dash+xml",request.mime);
+        assertEquals("video/mp4",new LegacyUrlRequest("https://example.test/v",0,null,"video/mp4; codecs=avc1").mime);
+        for(String mime:new String[]{"video/mp4\r\nX: value","file", "video/"})
+            assertThrows(IllegalArgumentException.class,()->new LegacyUrlRequest("https://example.test/v",0,null,mime));
     }
 }

@@ -54,6 +54,20 @@ Os controles de áudio pertencem ao aplicativo e usam a interface Player comum �
 
 O acesso à rede, à resolução física, aos fones e ao AndroidKeyStore tem caminhos específicos para Android 5.1. Esses caminhos devem passar por lint e execução API 22, além dos testes da edição principal.
 
+## Player por URL API17 — 18 de novembro de 2026
+
+O runtime API17 fixa os módulos Media3 ExoPlayer, HLS e DASH em 1.2.1.
+Essa versão declara minSdk 16 no [arquivo oficial da tag](https://github.com/androidx/media/blob/1.2.1/constants.gradle).
+A linha [1.3.x declara API19](https://github.com/androidx/media/blob/1.3.1/constants.gradle).
+Não se aplica a versão 1.11.1 do app moderno a esse alvo nem se usa
+`overrideLibrary`. O manifesto mesclado, lint e execução API17 devem passar.
+O backend mantém a thread e a posse de Surface do frontend antigo; foco
+permanece controlado pelo serviço. As fontes e segmentos usam exclusivamente
+HTTP(S), sem fallback para arquivos/ContentProviders. Os testes sintéticos
+incluem MP4, HLS/MPEG-TS, DASH/fMP4 e AAC, com velocidade e URI filha local.
+Licença Apache 2.0 e identificação da biblioteca acompanham o runtime em
+`src/main/assets`. A paridade restante e testes físicos continuam pendentes.
+
 ## Vega no Mac — 4 de novembro de 2026
 
 Manter a preferência solicitada por versões estáveis e/ou LTS. Node 26.13.0

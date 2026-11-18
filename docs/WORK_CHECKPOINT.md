@@ -1,5 +1,64 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — Media3, formatos e velocidade
+
+`LegacyUrlPlayer` usa Media3 1.2.1 no lugar de MediaPlayer. Essa tag declara
+minSdk 16; 1.3.0/1.3.1 já declaram 19. A build continua com minSdk 17,
+sem `overrideLibrary`. O player e suas callbacks permanecem na HandlerThread
+do runtime, com geração por carga, foco/ganho separados e posse explícita
+das superfícies. ExoPlayer não pede foco em paralelo ao serviço.
+Foram incluídos licença e aviso Media3 nos assets do runtime.
+
+MP4, HLS/MPEG-TS, DASH/fMP4 e AAC por HTTP usam a mesma fábrica de fontes,
+com MIME explícito (inclusive URL sem extensão) e cabeçalhos propagados aos
+segmentos. Uma camada de resolução exige HTTP(S), sem credenciais embutidas,
+também para URIs filhas. Limites de conexão/leitura são 10/15 s e a política
+de erro usa parâmetro de repetição 2; demora e retentativas ainda precisam de
+teste com falhas.
+Não há fallback de um manifesto remoto para arquivos/ContentProviders.
+
+O backend configura velocidade de 0,25 a 4; o seletor de Views usa textos
+compartilhados e devolve o foco ao controle ao fechar. Pausa permanece pausa
+ao trocar a velocidade. FCast aplica a velocidade inicial mesmo enquanto o
+receptor nativo está encerrando e aceita mudanças via opcode 10; o estado e
+RemoteControlClient (API18+) recebem a velocidade atual. Busca/posição usam
+long até o limite de um ano já adotado no contrato FCast; não há mais o teto
+de Integer.MAX_VALUE em milissegundos. MIME/limites têm cobertura JVM.
+
+`tools/generate_legacy_url_fixtures.py` produz somente padrão H.264 e silêncio
+AAC de 8 s, playlists/segmentos e manifesto de hashes. Não lê mídia pessoal.
+`tools/test_fireos3_probe.py --url-player --cycles 2` passou em
+`outputs/legacy-media3-formats-final`: controles, posição inicial, troca de
+Surface, EOF/repetição, 404/recuperação, substituição rápida, URLs sem extensão,
+HLS/DASH com segmentos e cabeçalho, busca/quadro e liberação. O relógio do AAC
+mediu 0,523/2,094 e 0,513/2,055 nas configurações 0,5×/2×. Um manifesto com um
+segmento MPEG-TS local válido é recusado. O runner registra esses valores.
+
+Validação de serviço/controle: `outputs/legacy-media3-transition-final`,
+`outputs/legacy-media3-fcast-final` e `outputs/legacy-media3-fcast-nodownload-final`.
+As três suítes passaram, assim como build ARMv7/x86, lint e testes JVM das
+duas edições. SHA256 dos APKs geral/DE-AT, respectivamente:
+`02c9555be634024ea03147f21cb6cc3fb9f5139c16e16a2363db49c63812095e` e
+`2ea8a7b85603ce0368fbe94244dccbbb4d3a69b029a7cd873959afec6ce2eb60`.
+O probe dos dois ciclos foi preservado em `outputs/legacy-media3-121-probe.apk`,
+SHA256 `a291b20027d7ffdd651a8502538f5b588146746b15d97189236012cbbb1f4fed`.
+Avisos/licença e versão 1.2.1 foram conferidos nos APKs; fixtures ficam só
+no probe/testes. Marca e auditoria pública do histórico foram verificadas.
+O modo `--url-service` também decodifica ALAC e exercita AudioTrack/foco após
+fechar URL, mantendo o mesmo processo/serviço. O teste do menu agora aguarda
+o layout e usa foco/tecla reais para abrir/escolher, antes de verificar a
+restauração do foco. Os primeiros roteiros acionavam performClick sem
+estabelecer a origem de foco e não representavam essa sequência do controle.
+
+Ainda faltam DLNA/AirPlay por URL, fotos, legendas/faixas, gravação/download,
+metadados/estado visual próprio para URL sem vídeo e demais recursos do plano.
+O servidor nativo ainda é suspenso durante URL; a arbitragem precisa alcançar
+o comportamento do app atual antes de considerar a paridade concluída.
+Também faltam produção, HTTPS/certificados reais, live/DRM,
+troca de bitrate, redes lentas e consumo de memória em conteúdo longo não
+foram validados por esses arquivos pequenos. A falha nativa intermitente de
+`dlfree` e a validação física continuam pendentes. Não há paridade completa.
+
 ## API17 — FCast compartilhado e logger nativo
 
 `syncSharedTransport` compila na prévia API17 o mesmo `FCastReceiver.kt`
@@ -41,16 +100,10 @@ e DE/AT `082fec6dc91db8c0aaf7ed2d789b8ec17395e2d39203a6ecb6d21a996c71fcb6`.
 Build ARMv7/x86, lint e testes JVM passaram nas duas edições; recursos de
 marca aprovados e auditoria pública do histórico foram conferidos.
 
-**Paridade completa continua pendente.** O backend atual aceita somente
-velocidade 1; pedidos de outra velocidade encerram a carga com erro explícito
-ao emissor, sem fingir que foram aplicados. Permanecem DLNA/AirPlay por URL,
-formatos adaptativos, áudio por URL, legendas, velocidade, timeout/recuperação,
-gravação/download e os demais itens do plano, além de validação física.
-Para avançar no player, conferir Media3 1.1.1/ExoPlayer 2.19.1: os arquivos
-oficiais `constants.gradle` dessas versões declaram minSdk 16. Isso é apenas
-um candidato para integração e testes; ainda não integra a prévia:
-[Media3 1.1.1](https://github.com/androidx/media/blob/1.1.1/constants.gradle),
-[ExoPlayer 2.19.1](https://github.com/google/ExoPlayer/blob/r2.19.1/constants.gradle).
+**Paridade completa continua pendente.** Na época deste ensaio, MediaPlayer
+aceitava somente velocidade 1. A etapa posterior acima passou para Media3
+1.2.1 e acrescentou velocidade e os formatos ensaiados. Os demais itens e a
+validação física continuam pendentes.
 
 
 ## ALAC com saída PCM — 18 de novembro de 2026

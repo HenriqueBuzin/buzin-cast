@@ -115,7 +115,7 @@ final class LegacySystemMedia implements java.io.Closeable {
         client.setTransportControlFlags(actions);
         int state=!suppressed && (url!=null?url.playing:media.active?media.playing:controls.playing)?RemoteControlClient.PLAYSTATE_PLAYING:RemoteControlClient.PLAYSTATE_PAUSED;
         if(url!=null && url.buffering && !suppressed)state=RemoteControlClient.PLAYSTATE_BUFFERING;
-        if(Build.VERSION.SDK_INT>=18)Api18.state(client,state,url==null?media.positionMs:url.positionMs,state==RemoteControlClient.PLAYSTATE_PLAYING?1:0);
+        if(Build.VERSION.SDK_INT>=18)Api18.state(client,state,url==null?media.positionMs:url.positionMs,state==RemoteControlClient.PLAYSTATE_PLAYING?(url==null?1:url.speed):0);
         else if(state!=lastState)client.setPlaybackState(state);
         lastState=state;
         if(url!=null) {

@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--apk', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=Path('outputs/fireos3-callback'))
     parser.add_argument('--cycles', type=int, default=2, help='Repeat one to ten complete startup/shutdown cycles')
-    parser.add_argument('--url-player',action='store_true',help='Run the platform HTTP URL backend checks instead of native streaming checks.')
+    parser.add_argument('--url-player',action='store_true',help='Run Media3 HTTP MP4/HLS/DASH/AAC, speed, Surface and recovery checks instead of native streaming checks.')
     parser.add_argument('--keep-installed', action='store_true', help='Retain the stopped test APK for manual investigation')
     args = parser.parse_args()
     if not 1 <= args.adb_server_port <= 65535:
@@ -127,7 +127,7 @@ def main():
     adb('install', '-r', str(args.apk.resolve()))
     adb('shell', 'input', 'keyevent', '82')
     report = {'api': 17, 'apk_sha256': hashlib.sha256(args.apk.read_bytes()).hexdigest(), 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
-    if args.url_player:report['scope']='real local HTTP with headers/ranges, platform URL MediaPlayer, synthetic MP4, controls/surfaces/error replacement; backend not yet wired to app/protocols'
+    if args.url_player:report['scope']='API17 Media3, real local HTTP with headers/ranges, synthetic MP4/HLS/DASH/silent AAC, playback clock at different speeds, controls/surfaces/error replacement and blocked local child URIs; not physical sender interoperability'
     try:
         for cycle in range(args.cycles):
             entry = {'cycle': cycle+1}
@@ -137,9 +137,17 @@ def main():
             adb('shell', 'am', 'start', '-n', package+'/.ProbeActivity','--ez','probe_games',str(games).lower())
             expect('Run compatibility checks')
             if args.url_player:
+                adb('logcat','-c')
                 tap('Run HTTP URL player checks')
-                expect('HTTP URL player: playback controls surfaces and recovery passed',timeout=60)
+                expect('HTTP URL player: playback controls surfaces and recovery passed',timeout=100)
                 entry['http_url_backend']='pass'
+                phases=adb('logcat','-d','-s','BuzinLegacyUrl:I')
+                (args.output/f'url-player-{cycle+1}-clock.txt').write_text(phases,encoding='utf-8')
+                clocks=re.findall(r'Silent AAC clock ratios: ([0-9.]+) / ([0-9.]+)',phases)
+                if not clocks:raise AssertionError('URL suite did not record its decoded AAC playback clocks')
+                entry['silent_aac_clock_ratios']=[float(value) for value in clocks[-1]]
+                entry['formats']='MP4, HLS/MPEG-TS and DASH/fMP4; extensionless MIME, seek and frame updates'
+                entry['network_boundary']='HTTP-only child resources; a valid local TS segment is rejected'
                 continue
             tap('Run compatibility checks')
             expect('Native UxPlay HTTP parser: passed', 'UxPlay receiver: RTSP OPTIONS passed',

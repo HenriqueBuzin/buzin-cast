@@ -1,0 +1,10 @@
+AndroidX Media3 1.2.1
+ExoPlayer, HLS, DASH and supporting Media3 modules.
+Copyright The Android Open Source Project.
+Licensed under the Apache License, Version 2.0.
+License: licenses/Media3-Apache-2.0.txt
+Source: https://github.com/androidx/media/tree/1.2.1
+
+This API17 frontend uses its own Views, playback ownership and focus controls.
+Original project and third-party credits remain in the repository's
+THIRD_PARTY_NOTICES.md and licenses directory.

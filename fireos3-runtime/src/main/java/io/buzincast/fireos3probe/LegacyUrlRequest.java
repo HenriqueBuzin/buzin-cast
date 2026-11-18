@@ -7,14 +7,26 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** Bounded HTTP(S) media request shared by the future protocol adapters. */
+/** Bounded HTTP(S) media request shared by the receiver and protocol adapters. */
 public final class LegacyUrlRequest {
+    public static final long MAX_POSITION_MS=31_536_000_000L;
     public final String location;
     public final long startMs;
     public final Map<String,String> headers;
+    public final String mime;
     public LegacyUrlRequest(String location,long startMs,Map<String,String> headers) {
-        if(location==null || location.length()>8192 || startMs<0 || startMs>Integer.MAX_VALUE)
+        this(location,startMs,headers,null);
+    }
+    public LegacyUrlRequest(String location,long startMs,Map<String,String> headers,String mime) {
+        if(location==null || location.length()>8192 || startMs<0 || startMs>MAX_POSITION_MS)
             throw new IllegalArgumentException("Invalid media location or position");
+        if(mime!=null) {
+            if(mime.length()>120)throw new IllegalArgumentException("Invalid media type");
+            for(int i=0;i<mime.length();i++)if(Character.isISOControl(mime.charAt(i)))throw new IllegalArgumentException("Invalid media type");
+            mime=mime.split(";",2)[0].trim();
+            if(!mime.matches("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+"))throw new IllegalArgumentException("Invalid media type");
+        }
+        this.mime=mime;
         try {
             URI uri=new URI(location);
             if(!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getHost()==null ||

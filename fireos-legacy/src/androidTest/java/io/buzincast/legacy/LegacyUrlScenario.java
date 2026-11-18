@@ -77,6 +77,27 @@ final class LegacyUrlScenario {
             await(()->!state(runner,service).playing);
             long paused=state(runner,service).positionMs;SystemClock.sleep(350);
             if(Math.abs(state(runner,service).positionMs-paused)>60)throw new AssertionError("Service pause kept advancing");
+            ui(runner,()-> {
+                View root=activity.findViewById(android.R.id.content);
+                if(!root.findViewWithTag("url-speed").requestFocus())throw new AssertionError("Speed control cannot receive remote focus");
+            });
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+            runner.waitForIdleSync();
+            ui(runner,()-> {
+                View root=activity.findViewById(android.R.id.content);
+                View rate=root.findViewWithTag("url-speed-2.0");if(rate==null || !rate.requestFocus())throw new AssertionError("Speed choice cannot receive remote focus");
+                if(!rate.isShown() || rate.getWidth()==0)throw new AssertionError("Speed dialog did not finish layout before remote input");
+            });
+            runner.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+            runner.waitForIdleSync();
+            await(()->state(runner,service).speed==2);
+            ui(runner,()-> {
+                View root=activity.findViewById(android.R.id.content);
+                if(!root.findViewWithTag("url-speed").hasFocus())throw new AssertionError("Speed dialog did not restore control focus");
+                root.findViewWithTag("url-speed").performClick();root.findViewWithTag("url-speed-1.0").performClick();
+            });
+            await(()->state(runner,service).speed==1);
+            if(state(runner,service).playing)throw new AssertionError("Speed selection resumed a paused player");
             ui(runner,()-> {try {
                 Bitmap frame=((TextureView)field(activity,"texture")).getBitmap();
                 if(frame==null)throw new AssertionError("URL output has no TextureView frame");
@@ -123,6 +144,9 @@ final class LegacyUrlScenario {
             await(()->nativeSession(runner,service)!=null && nativeSession(runner,service).listeningPort()>0);
             ui(runner,()-> {if(new LegacyReceiverService.State(service).urlError)throw new AssertionError("Previous URL failure survived a successful replacement");});
         }
+        // Keep the process/service alive: URL cleanup must also permit native
+        // decode, AudioTrack and focus recovery afterwards, without reinstalling.
+        LegacyPlainAudioScenario.check(runner,activity);
     }
     static final class Fixture implements java.io.Closeable {
         final ServerSocket socket=new ServerSocket(0,8,InetAddress.getByName("127.0.0.1"));
