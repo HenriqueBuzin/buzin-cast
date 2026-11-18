@@ -1,5 +1,6 @@
 #include "turbo-modules/MsseAudioPlayer.h"
 #include "turbo-modules/AirPlayAudioWorker.h"
+#include "turbo-modules/AirPlayAudioPlayer.h"
 #include "AirPlayRtpProbe.h"
 #include <chrono>
 #include <fstream>
@@ -12,30 +13,32 @@ int main(int argc, char** argv) {
   try {
     if (argc < 2) throw std::runtime_error("Expected an AAC fixture");
     int eldSpf = 0;
-    bool rtpMode = false, workerMode = false;
+    bool rtpMode = false, workerMode = false, alac = false;
     for (int i = 2; i < argc; ++i) {
       const std::string option(argv[i]);
-      if (option == "--eld-480") eldSpf = 480;
+      if (option == "--alac") alac = true;
+      else if (option == "--eld-480") eldSpf = 480;
       else if (option == "--eld-512") eldSpf = 512;
       else if (option == "--rtp") rtpMode = workerMode = true;
       else if (option == "--worker") workerMode = true;
       else throw std::runtime_error("Unknown audio probe option");
     }
-    const int frameSamples = eldSpf ? eldSpf : 1024;
-    const int codec = eldSpf ? 8 : 4;
+    if (alac && eldSpf) throw std::runtime_error("ALAC and ELD are mutually exclusive");
+    const int frameSamples = alac ? 352 : eldSpf ? eldSpf : 1024;
+    const int codec = alac ? 2 : eldSpf ? 8 : 4;
     std::ifstream input(argv[1], std::ios::binary);
     if (!input) throw std::runtime_error("Fixture not found");
     std::vector<std::vector<uint8_t>> samples;
     std::vector<uint8_t> config;
     int rate = 0, channels = 0;
     constexpr int rates[] = {96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350};
-    if (eldSpf) {
+    if (eldSpf || alac) {
       rate = 44100; channels = 2;
-      config = {0xf8, 0xe8, static_cast<uint8_t>(eldSpf == 480 ? 0x50 : 0x40), 0x00};
+      if (!alac) config = {0xf8, 0xe8, static_cast<uint8_t>(eldSpf == 480 ? 0x50 : 0x40), 0x00};
       for (;;) {
         uint8_t h[4]; input.read(reinterpret_cast<char*>(h), 4);
         if (input.gcount() == 0 && input.eof()) break;
-        if (input.gcount() != 4 || samples.size() >= 1000) throw std::runtime_error("Invalid bounded ELD fixture");
+        if (input.gcount() != 4 || samples.size() >= 1024) throw std::runtime_error("Invalid bounded ELD fixture");
         const uint32_t length = uint32_t(h[0]) | (uint32_t(h[1]) << 8) | (uint32_t(h[2]) << 16) | (uint32_t(h[3]) << 24);
         if (!length || length > 65536) throw std::runtime_error("Invalid ELD access unit size");
         std::vector<uint8_t> data(length);
@@ -47,7 +50,7 @@ int main(int argc, char** argv) {
       uint8_t h[7]; input.read(reinterpret_cast<char*>(h), 7);
       if (input.gcount() == 0 && input.eof()) break;
       if (input.gcount() != 7 || h[0] != 255 || (h[1] & 0xf7) != 0xf1 || (h[2] >> 6) != 1 ||
-          (h[6] & 3) != 0 || samples.size() >= 1000) throw std::runtime_error("Invalid bounded AAC-LC fixture");
+          (h[6] & 3) != 0 || samples.size() >= 1024) throw std::runtime_error("Invalid bounded AAC-LC fixture");
       const int frequency = (h[2] >> 2) & 15;
       const int count = ((h[2] & 1) << 2) | (h[3] >> 6);
       if (frequency >= 13 || count < 1 || count > 7) throw std::runtime_error("Invalid ADTS configuration");
@@ -65,7 +68,7 @@ int main(int argc, char** argv) {
     if (samples.empty()) throw std::runtime_error("Empty fixture");
     if (workerMode) {
       if (rate != 44100 || channels != 2) throw std::runtime_error("Worker fixture requires 44.1 kHz stereo");
-      AirPlayAudioWorker worker([] {return std::make_unique<MsseAudioPlayer>();});
+      AirPlayAudioWorker worker([] {return std::make_unique<AirPlayAudioPlayer>();});
       for (int cycle = 0; cycle < 2; ++cycle) {
         worker.start();
         std::unique_ptr<AirPlayRtpProbe> transport;
@@ -127,6 +130,32 @@ int main(int argc, char** argv) {
           << ",\"ntpFrames\":" << (transport ? transport->timed() : 0)
           << ",\"duplicatesSent\":" << (transport ? transport->duplicates() : 0)
           << ",\"released\":true}" << std::endl;
+      }
+      return 0;
+    }
+    if (alac) {
+      AlacAudioPlayer player;
+      for (int cycle = 0; cycle < 2; ++cycle) {
+        player.start(); player.setVolume(0.15);
+        std::cerr << "ALAC PCM stream started" << std::endl;
+        const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(20);
+        for (size_t i = 0; i < samples.size(); ++i) {
+          const auto pts = static_cast<int64_t>(i)*352000/44100;
+          const auto next = static_cast<int64_t>(i+1)*352000/44100;
+          while (!player.append(samples[i],pts,next-pts)) {
+            if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("PCM queue timed out");
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          }
+        }
+        std::cerr << "ALAC PCM packets written" << std::endl;
+        double seconds = 0;
+        while ((seconds = player.position()) < samples.size()*352.0/44100-0.1) {
+          if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("PCM clock did not advance");
+          std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        player.stop(); player.stop();
+        std::cout << "{\"cycle\":" << cycle+1 << ",\"frames\":" << samples.size()
+          << ",\"seconds\":" << seconds << ",\"released\":true}" << std::endl;
       }
       return 0;
     }

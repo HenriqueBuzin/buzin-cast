@@ -1,5 +1,5 @@
 #include "BuzinNetwork.h"
-#include "MsseAudioPlayer.h"
+#include "AirPlayAudioPlayer.h"
 #include "NetworkProbe.h"
 #include "ReceiverSettings.h"
 #include "ProtocolProbe.h"
@@ -13,7 +13,7 @@
 #include <random>
 
 namespace BuzinNetworkTurboModule {
-BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<MsseAudioPlayer>();}) {}
+BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }

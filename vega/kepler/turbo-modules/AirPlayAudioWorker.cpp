@@ -85,7 +85,8 @@ struct AirPlayAudioWorker::Impl {
           sink->stop(); prepared = false; haveEpoch = false; frame = ticks = 0; lastPts = -1;
           if (event.kind == Kind::Format) {
             if (!((event.codec == 4 && (event.spf == 960 || event.spf == 1024)) ||
-                  (event.codec == 8 && (event.spf == 480 || event.spf == 512)))) {
+                  (event.codec == 8 && (event.spf == 480 || event.spf == 512)) ||
+                  (event.codec == 2 && event.spf == 352))) {
               std::lock_guard lock(mutex); error("unsupportedAudioFormat"); break;
             }
             spf = event.spf; codec = event.codec;
@@ -106,7 +107,8 @@ struct AirPlayAudioWorker::Impl {
             const std::vector<uint8_t> config = codec == 8
               ? std::vector<uint8_t>{0xf8, 0xe8, static_cast<uint8_t>(spf == 480 ? 0x50 : 0x40), 0x00}
               : std::vector<uint8_t>{0x12, static_cast<uint8_t>(spf == 960 ? 0x14 : 0x10)};
-            sink->startAac(44100, 2, config);
+            if (codec == 2) sink->startAlac();
+            else sink->startAac(44100, 2, config);
             applyVolume(true); prepared = true;
           }
           if (cancelled(event.generation)) continue;

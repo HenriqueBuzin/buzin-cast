@@ -26,6 +26,10 @@ add_executable(buzin-network-probe
 install(TARGETS buzin-network-probe RUNTIME DESTINATION bin)
 
 include(cmake/AirPlayCore.cmake)
+include(cmake/AlacDecoder.cmake)
+apmf_add_idl_import_library(BuzinAudioIdl PACKAGES com.amazon.kepler.audio)
+target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/AlacAudioPlayer.cpp)
+target_link_libraries(BuzinNetwork PRIVATE BuzinAudioIdl BuzinAlacDecoder)
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
   kepler/turbo-modules/AirPlaySession.cpp
   "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c")
@@ -35,6 +39,6 @@ target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")
 # Development-only runner, excluded from the VPKG like the network probe.
 add_executable(buzin-msse-probe kepler/msse_probe_main.cpp
   kepler/turbo-modules/MsseAudioPlayer.cpp kepler/turbo-modules/AirPlayAudioWorker.cpp
-  kepler/AirPlayRtpProbe.cpp)
-target_link_libraries(buzin-msse-probe PRIVATE BuzinMediaIdl BuzinAirPlayCore)
+  kepler/AirPlayRtpProbe.cpp kepler/turbo-modules/AlacAudioPlayer.cpp)
+target_link_libraries(buzin-msse-probe PRIVATE BuzinMediaIdl BuzinAirPlayCore BuzinAudioIdl BuzinAlacDecoder)
 install(TARGETS buzin-msse-probe RUNTIME DESTINATION bin)

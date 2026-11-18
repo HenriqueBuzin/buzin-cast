@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise native MSSE AAC access units in two sandboxed VVD cycles."""
+"""Exercise native AAC/MSSE or ALAC/PCM audio in two sandboxed VVD cycles."""
 import argparse
 import base64
 import math
@@ -18,12 +18,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--worker', action='store_true')
+    parser.add_argument('--alac', action='store_true', help='Exercise ALAC/PCM using our synthetic fixture')
     parser.add_argument('--eld', type=int, choices=[480, 512], help='Probe native AAC-ELD using our synthetic fixture')
     parser.add_argument('--rtp', action='store_true', help='Use real loopback RTP/AES/NTP instead of direct queue injection')
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--runner', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-msse-audio')
     args = parser.parse_args()
+    if args.alac and args.eld:
+        parser.error('ALAC and ELD are mutually exclusive')
     args.worker = args.worker or args.rtp
     if not re.fullmatch(r'emulator-\d+', args.serial):
         parser.error('Only VVD is allowed')
@@ -48,10 +51,11 @@ def main():
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
             raise RuntimeError('VVD is not connected')
         fixture = args.output / 'sample.aac'
-        if args.eld:
+        if args.eld or args.alac:
             fixtures = json.loads((ROOT / 'fireos3-probe/src/main/assets/audio_samples.json').read_text())
-            packets = next(f['packets'] for f in fixtures if f['codec'] == 8 and f['samplesPerFrame'] == args.eld)
-            count = math.ceil(8 * 44100 / args.eld)
+            codec, spf = (2, 352) if args.alac else (8, args.eld)
+            packets = next(f['packets'] for f in fixtures if f['codec'] == codec and f['samplesPerFrame'] == spf)
+            count = math.ceil(8 * 44100 / spf)
             fixture.write_bytes(b''.join(struct.pack('<I', len(raw)) + raw for raw in
                                 (base64.b64decode(packets[i % len(packets)], validate=True) for i in range(count))))
         else:
@@ -64,7 +68,7 @@ def main():
         for source, destination in [(args.runner, '/data/buzin-msse-probe'), (fixture, '/data/buzin-msse-sample.aac')]:
             shell(f'cat > {destination}', payload=source.read_bytes())
         shell('chmod', '700', '/data/buzin-msse-probe')
-        options = ([f'--eld-{args.eld}'] if args.eld else []) + (['--rtp'] if args.rtp else ['--worker'] if args.worker else [])
+        options = (['--alac'] if args.alac else [f'--eld-{args.eld}'] if args.eld else []) + (['--rtp'] if args.rtp else ['--worker'] if args.worker else [])
         output = shell('timeout', '55', '/data/buzin-msse-probe', '/data/buzin-msse-sample.aac', *options, timeout=60)
         (args.output / 'runner.log').write_text(output)
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
@@ -74,7 +78,7 @@ def main():
             raise RuntimeError('Native worker flush was not observed')
         if args.rtp and any(value.get('rtpFrames') != value.get('frames') or value.get('ntpFrames') != value.get('frames') or value.get('duplicatesSent', 0) <= 0 or value.get('rtpSocketsReleased') is not True for value in cycles):
             raise RuntimeError('RTP/AES/NTP did not cover every decoded sample')
-        result.update(passed=True, worker=args.worker, rtp=args.rtp, eldSamplesPerFrame=args.eld, cycles=cycles)
+        result.update(passed=True, worker=args.worker, rtp=args.rtp, eldSamplesPerFrame=args.eld, alac=args.alac, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)
