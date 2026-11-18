@@ -18,9 +18,10 @@ evidence. Keep the archived inputs for replay rather than treating either
 interruption as a passing coverage gate.
 
 Additional selected contracts passed on unchanged, fingerprint-checked APKs:
-three DACP player tests and two AudioRenderer tests on API22, and three download
-publication tests on both API22 and API36. The first API36 attempt encountered a
-startup ANR; all three publication tests passed after the emulator settled.
+three DACP player tests and two AudioRenderer tests on API22, and six download
+publication/export tests on both API22 and API36. An earlier API36 attempt with
+the original three publication tests encountered a startup ANR and passed on
+retry; the subsequent six-test execution passed on its first attempt.
 These supplemental test APKs differ from the full-suite test APK and must not
 be merged into its matrix as if their compiled identities matched.
 
