@@ -1,6 +1,6 @@
 #include "probes/MsseVideoPlayer.h"
 #include "turbo-modules/H264Fmp4Muxer.h"
-#include "turbo-modules/LocalVideoStream.h"
+#include "turbo-modules/Fmp4VideoOutput.h"
 #include <cstdio>
 #include <apmf/errors.h>
 #include <chrono>
@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
     if (argc == 3 && std::string(argv[2]) == "--serve") {
-      LocalVideoStream stream;
-      const auto url = stream.start();
+      Fmp4VideoOutput stream;
+      const auto url = stream.start(width,height,config);
       size_t fed = 0;
       auto report = [&] {
         const auto state = stream.state();
@@ -59,7 +59,6 @@ int main(int argc, char** argv) {
         if (!descriptor) throw std::runtime_error("Could not publish local stream URL");
       }
       try {
-        H264Fmp4Muxer mux(width,height,config,[&](const uint8_t* data, size_t size) {stream.write(data,size);});
         report();
         const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
         while (!stream.state().connected) {
@@ -69,10 +68,10 @@ int main(int argc, char** argv) {
         const auto start = std::chrono::steady_clock::now();
         for (const auto& frame : frames) {
           std::this_thread::sleep_until(start+std::chrono::milliseconds(frame.pts));
-          mux.append(frame.data,int64_t(frame.pts)*1000,int64_t(frame.pts)*1000,int64_t(frame.duration)*1000);
+          stream.append(frame.data,int64_t(frame.pts)*1000,int64_t(frame.pts)*1000,int64_t(frame.duration)*1000);
           ++fed; report();
         }
-        mux.finish(); stream.finish(); stream.waitFinished();
+        stream.finish(); stream.waitFinished();
       } catch (...) {
         const auto error = stream.state().error; stream.stop(); report();
         if (error != "clientClosed") throw;

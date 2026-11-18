@@ -206,11 +206,14 @@ void LocalVideoStream::waitFinished(std::chrono::milliseconds timeout) {
   if (!impl->changed.wait_for(lock,timeout,[&] {return impl->closing || impl->observation.complete || !impl->observation.error.empty();}) || !impl->observation.complete)
     throw std::runtime_error("Local media stream did not complete");
 }
-void LocalVideoStream::stop() noexcept {
+void LocalVideoStream::cancel() noexcept {
   // Change the wait predicate under its mutex so cancellation cannot race
   // between a producer checking it and entering the condition-variable wait.
   {std::lock_guard lock(impl->mutex); impl->closing = true;}
   impl->changed.notify_all();
+}
+void LocalVideoStream::stop() noexcept {
+  cancel();
   if (impl->worker.joinable()) impl->worker.join();
   if (impl->listener >= 0) {close(impl->listener); impl->listener = -1;}
   std::lock_guard lock(impl->mutex); impl->queue.clear(); impl->queuedChunks = 0; impl->observation.queuedBytes = 0; impl->observation.released = true;

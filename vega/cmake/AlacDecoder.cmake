@@ -30,3 +30,7 @@ add_library(BuzinVideoMuxer STATIC kepler/turbo-modules/H264Fmp4Muxer.cpp)
 add_dependencies(BuzinVideoMuxer buzin_alac_ffmpeg)
 target_include_directories(BuzinVideoMuxer PRIVATE "${_alac_prefix}/include")
 target_link_libraries(BuzinVideoMuxer PUBLIC "${_alac_prefix}/lib/libavformat.a" "${_alac_prefix}/lib/libavcodec.a" "${_alac_prefix}/lib/libavutil.a" m pthread)
+
+add_library(BuzinVideoOutput STATIC kepler/turbo-modules/Fmp4VideoOutput.cpp
+  kepler/turbo-modules/LocalVideoStream.cpp)
+target_link_libraries(BuzinVideoOutput PUBLIC BuzinVideoMuxer)

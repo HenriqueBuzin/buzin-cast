@@ -69,9 +69,15 @@ int main() {
   std::thread producer([&] {waiting = true; try {stream.write(large.data(),large.size());} catch (...) {rejected = true;}});
   while (!waiting) std::this_thread::yield();
   std::this_thread::sleep_for(std::chrono::milliseconds(20)); assert(!rejected);
-  const auto before = std::chrono::steady_clock::now(); stream.stop(); producer.join();
-  assert(rejected && stream.state().released && stream.state().queuedBytes == 0);
-  assert(std::chrono::steady_clock::now()-before < std::chrono::seconds(1)); cancelled.released();
+  const auto before = std::chrono::steady_clock::now();
+  // Session cancellation must wake a writer without joining its owner or
+  // freeing the queue while that owner is still unwinding its muxer callback.
+  stream.cancel(); stream.cancel(); producer.join();
+  assert(rejected && !stream.state().released && stream.state().error.empty());
+  refuses([&] {stream.finish();});
+  refuses([&] {stream.waitFinished(std::chrono::milliseconds(10));});
+  assert(std::chrono::steady_clock::now()-before < std::chrono::seconds(1));
+  stream.stop(); assert(stream.state().released && stream.state().queuedBytes == 0); cancelled.released();
   Target finishing(stream.start());
   for (int i = 0; i < 4; ++i) stream.write(large.data(),large.size());
   waiting = false; rejected = false;

@@ -1,5 +1,36 @@
 # Retomada — 18 de novembro de 2026
 
+## Posse e cancelamento da saída de vídeo — 18 de novembro de 2026
+
+- `VideoSampleSink` define a fronteira nativa para o futuro worker de vídeo:
+  access units Annex B e timestamps entram; somente a URL local sai.
+  `Fmp4VideoOutput` possui muxer e endpoint na mesma sessão. Reabrir cria
+  configuração, porta e token novos; erro na inicialização libera o listener.
+- `LocalVideoStream.cancel()` acorda o produtor e interrompe sockets sem
+  destruir fila/muxer ou fazer join na thread de controle. `stop()` continua
+  pertencendo ao worker dono, que cancela, destrói o muxer e libera o servidor.
+  Publicação do endpoint é protegida para não sobrescrever cancelamento
+  concorrente com o reset inicial da fila. A geração da sessão deve impedir
+  que um pedido antigo cancele uma futura substituição.
+- O probe `--serve` passou a usar esse dono comum, em vez de gerenciar muxer e
+  servidor separadamente. A integração aos callbacks UxPlay ainda é o próximo
+  passo; nenhum anúncio de espelhamento foi habilitado.
+- Contratos portáteis passaram com ASan/UBSan: bytes MP4 recebidos iguais ao
+  muxer de referência, dois ciclos, IDR/configuração inválida, cancelamento
+  pelo controle durante backpressure de AVIO, espera de EOF cancelada,
+  reabertura após cancelamento e liberação de porta pelo destrutor.
+  O CI executa esses casos junto ao ALAC/mux em `test_vega_alac_decoder.py`.
+- Build/validação dos três VPKGs passou; probes e bibliotecas estáticas
+  permanecem excluídos dos pacotes. Renderização visual, emissor Apple real,
+  integração ao worker/callbacks e sincronismo A/V continuam pendentes.
+
+
+Ensaio High do dono comum aprovado em `build/vega-video-output-owned`:
+120 frames/179947 bytes no ciclo completo, reprodução observada com 43/120
+frames produzidos; Voltar encerrou o segundo ciclo em 62/120 com `clientClosed`,
+produtor/player/superfície liberados. Os contadores de vídeo continuaram zero;
+o relatório mantém `visualValidation=false` e não certifica imagem exibida.
+
 ## Fluxo local de vídeo e diagnóstico da superfície — 18 de novembro de 2026
 
 - Adicionado `LocalVideoStream`, servidor HTTP exclusivo de loopback, porta

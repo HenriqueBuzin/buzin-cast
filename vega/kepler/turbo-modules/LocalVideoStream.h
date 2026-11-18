@@ -22,6 +22,10 @@ public:
   void write(const uint8_t* bytes, size_t size);
   void finish();
   void waitFinished(std::chrono::milliseconds timeout = std::chrono::seconds(15));
+  // May be called by the session/control thread while the media worker is
+  // blocked in write/waitFinished. Does not join or destroy worker resources.
+  // start/stop/destruction still belong to the single owning media worker.
+  void cancel() noexcept;
   void stop() noexcept;
   LocalVideoStreamState state() const;
 private:

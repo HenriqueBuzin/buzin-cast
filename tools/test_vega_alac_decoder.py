@@ -46,9 +46,17 @@ def main():
              ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', prefix / 'lib/libavformat.a',
              prefix / 'lib/libavcodec.a', prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', mux_test])
         run([mux_test])
+        output_test = output / 'fmp4-output-test'
+        run([args.compiler, '-std=c++23', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
+             f'-I{prefix / "include"}', ROOT / 'vega/test/Fmp4VideoOutputTest.cpp',
+             ROOT / 'vega/kepler/turbo-modules/Fmp4VideoOutput.cpp',
+             ROOT / 'vega/kepler/turbo-modules/LocalVideoStream.cpp',
+             ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', prefix / 'lib/libavformat.a',
+             prefix / 'lib/libavcodec.a', prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', output_test])
+        run([output_test])
     result['passed'] = True
     (output / 'result.json').write_text(json.dumps(result) + '\n')
-    print('Pinned media libraries: ALAC PCM and H.264 incremental MP4 contracts passed')
+    print('Pinned media libraries: ALAC PCM, H.264 MP4 and cancellable video output contracts passed')
 
 
 if __name__ == '__main__':

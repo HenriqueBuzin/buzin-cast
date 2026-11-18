@@ -1248,3 +1248,27 @@ A regressão AirPlay por URL com pausa/busca/retomada/stop passou em
 `build/vega-local-video-url-regression`. Lint, TypeScript, 57 testes Jest e
 build/validação dos três VPKGs passaram; o produtor continua fora dos pacotes.
 Todos os relatórios de transporte mantêm `visualValidation=false`.
+
+
+### Posse da saída de vídeo e cancelamento pelo controle
+
+`python3 tools/test_vega_alac_decoder.py` também compila e executa
+`Fmp4VideoOutputTest.cpp` com ASan/UBSan. Compara o MP4 recebido via HTTP com
+os bytes do muxer de referência, em dois ciclos; testa configuração inválida,
+reabertura, cancelamento durante AVIO bloqueado, cancelamento de espera de EOF
+sem consumidor e liberação da porta pelo destrutor. O teste observa a fila
+estabilizada: cabeçalhos MP4 também ocupam slots, então o teto de chunks pode
+ser atingido antes do teto de bytes. `LocalVideoStreamTest.cpp` exige que
+`cancel()` acorde o produtor sem marcar recursos como liberados; somente
+`stop()` faz o join e libera fila/listener.
+
+O probe `--serve` usa `Fmp4VideoOutput`, a mesma implementação destinada ao
+worker de vídeo. Continua sendo um executável de desenvolvimento; os callbacks
+UxPlay do app ainda não alimentam essa saída. Isso não comprova espelhamento
+Apple, pixels exibidos ou sincronismo A/V.
+
+Ensaio High do dono comum aprovado em `build/vega-video-output-owned`:
+120 frames/179947 bytes no ciclo completo, reprodução observada com 43/120
+frames produzidos; Voltar encerrou o segundo ciclo em 62/120 com `clientClosed`,
+produtor/player/superfície liberados. Os contadores de vídeo continuaram zero;
+o relatório mantém `visualValidation=false` e não certifica imagem exibida.
