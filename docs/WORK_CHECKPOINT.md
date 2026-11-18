@@ -54,10 +54,82 @@ Ainda faltam DLNA/AirPlay por URL, fotos, legendas/faixas, gravação/download,
 metadados/estado visual próprio para URL sem vídeo e demais recursos do plano.
 O servidor nativo ainda é suspenso durante URL; a arbitragem precisa alcançar
 o comportamento do app atual antes de considerar a paridade concluída.
-Também faltam produção, HTTPS/certificados reais, live/DRM,
-troca de bitrate, redes lentas e consumo de memória em conteúdo longo não
-foram validados por esses arquivos pequenos. A falha nativa intermitente de
+Produção e validação de HTTPS/certificados reais, live/DRM, troca de bitrate,
+redes lentas e consumo de memória com conteúdo longo continuam pendentes;
+os arquivos pequenos não cobrem esses cenários. A falha nativa intermitente de
 `dlfree` e a validação física continuam pendentes. Não há paridade completa.
+
+## Posse e cancelamento da saída de vídeo — 18 de novembro de 2026
+
+- `VideoSampleSink` define a fronteira nativa para o futuro worker de vídeo:
+  access units Annex B e timestamps entram; somente a URL local sai.
+  `Fmp4VideoOutput` possui muxer e endpoint na mesma sessão. Reabrir cria
+  configuração, porta e token novos; erro na inicialização libera o listener.
+- `LocalVideoStream.cancel()` acorda o produtor e interrompe sockets sem
+  destruir fila/muxer ou fazer join na thread de controle. `stop()` continua
+  pertencendo ao worker dono, que cancela, destrói o muxer e libera o servidor.
+  Publicação do endpoint é protegida para não sobrescrever cancelamento
+  concorrente com o reset inicial da fila. A geração da sessão deve impedir
+  que um pedido antigo cancele uma futura substituição.
+- O probe `--serve` passou a usar esse dono comum, em vez de gerenciar muxer e
+  servidor separadamente. A integração aos callbacks UxPlay ainda é o próximo
+  passo; nenhum anúncio de espelhamento foi habilitado.
+- Contratos portáteis passaram com ASan/UBSan: bytes MP4 recebidos iguais ao
+  muxer de referência, dois ciclos, IDR/configuração inválida, cancelamento
+  pelo controle durante backpressure de AVIO, espera de EOF cancelada,
+  reabertura após cancelamento e liberação de porta pelo destrutor.
+  O CI executa esses casos junto ao ALAC/mux em `test_vega_alac_decoder.py`.
+- Build/validação dos três VPKGs passou; probes e bibliotecas estáticas
+  permanecem excluídos dos pacotes. Renderização visual, emissor Apple real,
+  integração ao worker/callbacks e sincronismo A/V continuam pendentes.
+
+
+Ensaio High do dono comum aprovado em `build/vega-video-output-owned`:
+120 frames/179947 bytes no ciclo completo, reprodução observada com 43/120
+frames produzidos; Voltar encerrou o segundo ciclo em 62/120 com `clientClosed`,
+produtor/player/superfície liberados. Os contadores de vídeo continuaram zero;
+o relatório mantém `visualValidation=false` e não certifica imagem exibida.
+
+## Fluxo local de vídeo e diagnóstico da superfície — 18 de novembro de 2026
+
+- Adicionado `LocalVideoStream`, servidor HTTP exclusivo de loopback, porta
+  dinâmica e caminho com token aleatório. Usa uma única conexão GET de mídia,
+  HTTP chunked, sem busca; HEAD e início em Range zero são aceitos. Pedidos
+  têm limite de 4 KiB/três segundos. Não anuncia serviço na LAN.
+- A fila retém no máximo 8 MiB e 2048 chunks, incluindo o chunk em envio.
+  Escrita aguarda espaço por até três segundos; sockets são não bloqueantes,
+  com verificação de cancelamento a cada 25 ms e prazo de falta de progresso.
+  Diferencia `clientClosed`, `consumerTimeout` e `outputBackpressure`.
+  Encerramento acorda produtores e libera worker, fila e listener.
+- Teste C++ com ASan/UBSan passou: resposta binária/chunked, HEAD, URL/Range
+  rejeitados, reabertura com token novo, reuso da porta, consumidor desconectado,
+  limites de bytes/chunks, timeout, encerramento sob backpressure e cliente
+  parado no cabeçalho. O CI passou a executar o contrato portátil.
+- O probe `--serve` produz H.264 da fixture em ritmo real e envia ao muxer/
+  endpoint nativo; o runner ativa a tela AirPlay por URL existente e entrega
+  somente a URL ao JavaScript. Confere consumo antes de todos os frames terem
+  sido produzidos, conclusão de oito segundos, Voltar e cancelamento antecipado.
+  O produtor é um executável de desenvolvimento separado, fora do VPKG; ainda
+  não está ligado aos callbacks de espelhamento da sessão UxPlay do app.
+- `playbackSession` registra em `/data/video-quality.json` somente contadores
+  numéricos e associação da superfície, sem mídia, URL ou handle. Consulta
+  indisponível/falha de diagnóstico não interrompe reprodução. Ao liberar o
+  player, marca a superfície como desassociada. Os 57 testes Jest passaram,
+  incluindo falha de métricas e descarte de handle antigo.
+- Evidência inicial: `build/vega-local-video-lifecycle` passou nos contratos de
+  transporte/vida útil. O player começou com 36–38/120 frames produzidos,
+  avançou até ~8 s e liberou player/superfície; no segundo ciclo Voltar encerrou
+  a produção antes de completar 120 frames. Isso não confirma imagem exibida.
+- A execução estrita em `build/vega-local-video-session-header` falhou porque
+  o SDK retornou total/dropped de vídeo iguais a zero, apesar de superfície
+  associada e relógio avançando. A tentativa GUI não trouxe captura utilizável.
+  O teste estrito continua exigindo contadores positivos; `--transport-only`
+  verifica os contratos independentes e registra `visualValidation=false`.
+  Não usar o resultado de transporte para declarar renderização certificada.
+- Próximo: integrar a posse do muxer/endpoint ao worker e aos callbacks AirPlay,
+  com encerramento explícito pela sessão; integrar áudio/época comum e tratar
+  reconexão/mudança de formato. Frames visíveis, A/V e emissor Apple real
+  continuam pendentes, assim como a paridade completa do aplicativo.
 
 ## API17 — FCast compartilhado e logger nativo
 
@@ -105,6 +177,42 @@ aceitava somente velocidade 1. A etapa posterior acima passou para Media3
 1.2.1 e acrescentou velocidade e os formatos ensaiados. Os demais itens e a
 validação física continuam pendentes.
 
+
+## Vídeo — mux H.264/fMP4 nativo — 18 de novembro de 2026
+
+- Implementado `H264Fmp4Muxer`: recebe access units H.264 Annex B completas,
+  valida limites/NALs, exige IDR inicial e SPS/PPS correspondentes e produz
+  MP4 fragmentado incremental sem decodificar/recodificar. O FFmpeg fixado
+  converte SPS/PPS para avcC, incluindo extensões High, e preserva timestamps.
+- Entrada limitada a 2 MiB/128 NALs por access unit e 64 KiB de configuração.
+  Timestamps DTS são estritamente crescentes; duração, parâmetros, mudança
+  de formato e uso após fechamento são verificados. Cada frame é descarregado
+  como fragmento imediatamente. Índices de seek/trailer são desativados para
+  evitar guardar um índice crescente de todos os fragmentos em sessões ao vivo.
+  Mudança de SPS/PPS exige uma nova sessão.
+- A saída usa callback nativo com barreira de exceções C/C++; falha de escrita
+  fica marcada e impede novas escritas/finalização falsa. `finish()` é idempotente.
+  O consumidor futuro deve impor limite/timeout à fila de saída: o muxer não
+  oferece sozinho controle de consumo de rede.
+- O teste portátil com a revisão FFmpeg fixada passou com ASan/UBSan no código
+  próprio: saída incremental antes do fim, entrada inválida, IDR, timestamps,
+  troca de configuração, encerramento repetido e falhas do consumidor.
+  O CI executa esse ensaio junto do ALAC em `tools/test_vega_alac_decoder.py`.
+- No VVD ARM64, o executável separado remuxou a fixture própria em dois ciclos
+  (`build/vega-h264-fmp4-native`). O arquivo de saída foi lido como bytes e
+  decodificado no host: os hashes de todos os 120 frames coincidiram com a
+  entrada. Isso comprova preservação dos frames, sem comprovar renderização
+  no Vega. Os campos `surfaceAttached` e `rendered` permanecem falsos.
+- Ensaios MSSE com `video/avc`, `video/h264`, AVCC e Annex B falharam em
+  negociação/parser no VVD. Logs em `build/vega-msse-video-avcc`,
+  `build/vega-msse-video-annexb` e `build/vega-msse-video-h264-mime`.
+  Não está demonstrado se a causa é formato, superfície ausente ou backend.
+  O experimento está isolado em `kepler/probes/MsseVideoPlayer`, fora do app.
+- Próximo: servir o fMP4 por um endpoint de loopback com fila limitada e
+  ligá-lo ao VideoPlayer/superfície de URL já validados; depois integrar os
+  callbacks/vida útil AirPlay, áudio e relógio A/V. Ainda não há espelhamento
+  AirPlay exibido, vídeo ativo no app, negociação Apple completa ou validação
+  física. Não anunciar esse muxer como recepção/renderização finalizada.
 
 ## ALAC com saída PCM — 18 de novembro de 2026
 
