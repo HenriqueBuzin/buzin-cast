@@ -106,6 +106,12 @@ actions, transport failures, and commands queued across a sender change. Each
 command retains its resolved endpoint and token; reset and sender updates
 invalidate earlier discovery callbacks.
 
+Player contracts check the public Media3 playlist, metadata, artwork, duration,
+position and available commands on its application looper. A real loopback HTTP
+sender verifies play/pause and both next/previous command forms, including the
+Active-Remote header. Missing or unresolved senders must not confirm a playback
+change; unresolved commands retain their failed future.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
