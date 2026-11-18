@@ -6,6 +6,14 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 
 public class VideoFrameQueueTest {
+    @Test public void connectionsTrackIdlePeersAndIgnoreLateCallbacksAfterClose() {
+        VideoFrameQueue queue=new VideoFrameQueue();java.util.concurrent.atomic.AtomicInteger changes=new java.util.concurrent.atomic.AtomicInteger();
+        queue.connections(changes::incrementAndGet);
+        queue.onConnectionChanged(true);queue.onConnectionChanged(true);assertEquals(2,queue.connectionCount());
+        queue.onConnectionChanged(false);assertEquals(1,queue.connectionCount());assertEquals(3,changes.get());
+        queue.close();assertEquals(0,queue.connectionCount());
+        queue.onConnectionChanged(true);queue.onConnectionChanged(false);assertEquals(0,queue.connectionCount());assertEquals(3,changes.get());
+    }
     @Test public void encodedVideoChangesModeWithoutWaitingForADisplay() {
         java.util.List<Boolean> modes=new java.util.ArrayList<>();
         VideoFrameQueue queue=new VideoFrameQueue(null,null,modes::add);

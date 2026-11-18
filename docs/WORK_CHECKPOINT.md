@@ -1,5 +1,57 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — FCast compartilhado e logger nativo
+
+`syncSharedTransport` compila na prévia API17 o mesmo `FCastReceiver.kt`
+usado pelo app moderno, sem uma segunda implementação dos comandos TCP.
+O frontend antigo fornece apenas os bindings de rede e descoberta: JmDNS
+publica `_fcast._tcp.local.` com porta e TXT `v=2`/`appName` fora da thread
+da UI. Registro, fechamento DNS-SD e multicast têm um worker próprio.
+O serviço fecha os adaptadores em outro worker e invalida comandos de
+instâncias substituídas antes de liberar as portas e recriar o receptor.
+
+FCast é opt-in, inicialmente desligado, com a mesma opção compartilhada e
+traduzida que informa uso da rede local sem PIN. `ReceiverPlaybackPort` liga
+carregamento HTTP(S), cabeçalhos, posição inicial, pausa, reprodução, busca,
+volume, parada e estado à arbitragem do player. Uma conexão AirPlay aberta
+também bloqueia FCast antes de chegar mídia: callbacks nativos de conexão
+alimentam um contador, zerado ao fechar e protegido de callbacks tardios.
+O getter não bloqueia a UI no mutex usado para destruir o receptor.
+
+O teste de um peer nativo ocioso revelou um aborto real em
+`logger_log`: a callback do logger UxPlay não era configurada. Um reset de
+socket emitia um aviso e disparava a asserção `logger->callback`. O runtime
+agora instala o sink Android antes de `raop_init2`; o cenário passou e o
+mesmo aviso ficou registrado sem derrubar o processo. Isso não encerra a
+investigação anterior de endereço inválido em `dlfree`.
+
+`tools/test_legacy_gestures.py --fcast` cobre navegação PTR e resolução/TXT,
+handshake TCP v2, ping, recusa de arquivo local, recusa enquanto há um peer
+AirPlay ocioso, HTTP com cabeçalho, MP4 sintético, pausa/busca/volume/estado,
+retomada/parada, reabertura da porta e timeout de quadro incompleto. Verifica
+a liberação do worker e do multicast. A busca direta por um nome ainda não
+publicado falhou no primeiro roteiro; navegar o tipo de serviço encontrou o
+anúncio correto. O runner agora salva logcat automaticamente nas falhas.
+Relatórios locais: `outputs/legacy-fcast-final`,
+`outputs/legacy-fcast-nodownload-final`,
+`outputs/legacy-fcast-native-regression` e `outputs/legacy-fcast-url-regression`.
+As quatro suítes passaram no emulador API17/1280×720. Os APKs conferidos têm
+SHA256 geral `64f05a0fe5604fc3dd32d7c13a760098e11df38821c754b6a2678f226299c56d`
+e DE/AT `082fec6dc91db8c0aaf7ed2d789b8ec17395e2d39203a6ecb6d21a996c71fcb6`.
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições; recursos de
+marca aprovados e auditoria pública do histórico foram conferidos.
+
+**Paridade completa continua pendente.** O backend atual aceita somente
+velocidade 1; pedidos de outra velocidade encerram a carga com erro explícito
+ao emissor, sem fingir que foram aplicados. Permanecem DLNA/AirPlay por URL,
+formatos adaptativos, áudio por URL, legendas, velocidade, timeout/recuperação,
+gravação/download e os demais itens do plano, além de validação física.
+Para avançar no player, conferir Media3 1.1.1/ExoPlayer 2.19.1: os arquivos
+oficiais `constants.gradle` dessas versões declaram minSdk 16. Isso é apenas
+um candidato para integração e testes; ainda não integra a prévia:
+[Media3 1.1.1](https://github.com/androidx/media/blob/1.1.1/constants.gradle),
+[ExoPlayer 2.19.1](https://github.com/google/ExoPlayer/blob/r2.19.1/constants.gradle).
+
 
 ## Vega — AAC-ELD implementado — 18 de novembro de 2026
 
@@ -45,8 +97,8 @@ A regressão nativa de controles,
 metadados, áudio sem metadados, foco e três ciclos de espelhamento sem tela
 está em `outputs/legacy-url-service-native-regression`.
 
-**O ponto de entrada ainda não está ligado aos adaptadores de protocolos.**
-Não anunciar URLs recebidas de emissores nessa prévia. FCast/DLNA/AirPlay por
+**A etapa posterior acima ligou o FCast ao ponto de entrada.**
+Ainda não há paridade completa de URLs recebidas nessa prévia. DLNA/AirPlay por
 URL, HTTPS real, HLS/DASH, áudio por URL, legendas, velocidade, timeout/rede,
 retomada e testes físicos ainda precisam de trabalho. A investigação do
 encerramento nativo intermitente continua aberta; a regressão aprovada não
@@ -76,7 +128,7 @@ a ambiguidade. Uma repetição perdeu ADB no segundo ciclo; a rodada final
 completa usou servidor separado. A fixture está só no probe/testes.
 
 **A integração posterior com serviço/Activity está descrita acima.**
-Próximo passo: ligar adaptadores FCast/DLNA/AirPlay por URL, mantendo
+O adaptador FCast foi ligado na etapa acima. Faltam DLNA/AirPlay por URL, mantendo
 arbitragem e foco com espelhamento. HLS/DASH, HTTPS real,
 legendas, velocidade, recuperação/timeout de rede e demais funções ainda
 precisam ser portados e validados. O limite de busca deste backend segue o

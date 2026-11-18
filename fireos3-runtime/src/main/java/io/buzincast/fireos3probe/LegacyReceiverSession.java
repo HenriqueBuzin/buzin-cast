@@ -68,6 +68,7 @@ public final class LegacyReceiverSession {
         queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); },active-> {
             mirrorActive.set(active);media.mirroring(active);listener.streamChanged();
         });
+        queue.connections(listener::streamChanged);
         queue.media(new VideoFrameQueue.Media() {
             @Override public void metadata(byte[] bytes) {media.metadata(bytes);}
             @Override public void artwork(byte[] bytes) {media.artwork(bytes);}
@@ -211,6 +212,7 @@ public final class LegacyReceiverSession {
     }
     public boolean isClosed() { return closed.getCount()==0; }
     public int listeningPort() { return port; }
+    public int connectionCount() {return queue.connectionCount();}
     public String localAddress() { return network == null ? null : network.address.getHostAddress(); }
     public LegacyDacp.State controls() {LegacyDacp current=controls;return current==null?LegacyDacp.inactive():current.state();}
     public LegacyMedia.State media() {return media.state();}

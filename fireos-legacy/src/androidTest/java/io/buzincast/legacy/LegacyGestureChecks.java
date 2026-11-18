@@ -19,11 +19,12 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url;
+    private boolean controls,metadata,systemMedia,url,fcast;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
         url=arguments!=null && "url".equals(arguments.getString("checks"));
+        fcast=arguments!=null && "fcast".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -44,7 +45,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(url) {
+            if(fcast) {
+                LegacyFcastScenario.check(this,activity);
+                result.putString("fcast","shared_transport_dns_txt_tcp_http_controls_and_lifecycle");
+            } else if(url) {
                 LegacyUrlScenario.check(this,activity);
                 result.putString("url_service","native_handoff_http_controls_error_recovery_and_cleanup");
             } else {checkGesture(false);checkGesture(true);result.putString("gestures","touch_and_dpad_across_receiver_restart");}

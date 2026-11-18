@@ -54,8 +54,18 @@ val sharedResources = tasks.register<SharedResourcesCopy>("syncSharedResources")
     outputDir.set(layout.buildDirectory.dir("generated/shared-res"))
     into(outputDir)
 }
+// Compile the production FCast transport used by the modern frontend too.
+// Only discovery/platform bindings are supplied by this API17 frontend.
+val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport") {
+    from(rootProject.file("app/src/main/kotlin")) {
+        include("io/github/jqssun/airplay/discovery/FCastReceiver.kt")
+    }
+    outputDir.set(layout.buildDirectory.dir("generated/shared-transport"))
+    into(outputDir)
+}
 androidComponents.onVariants { variant ->
     variant.sources.res?.addGeneratedSourceDirectory(sharedResources, SharedResourcesCopy::outputDir)
+    variant.sources.java?.addGeneratedSourceDirectory(sharedTransport, SharedResourcesCopy::outputDir)
 }
 android {
     namespace = "io.buzincast.legacy"
@@ -86,11 +96,12 @@ android {
         }
     }
 }
-tasks.named("preBuild") { dependsOn(sharedResources) }
+tasks.named("preBuild") { dependsOn(sharedResources, sharedTransport) }
 dependencies {
     implementation(project(":fireos3-runtime"))
     implementation(project(":dlna-domain"))
     implementation(project(":receiver-core"))
+    implementation("org.jmdns:jmdns:3.6.5")
     implementation("androidx.multidex:multidex:2.0.1")
     coreLibraryDesugaring(libs.desugar)
     testImplementation(libs.junit4)
