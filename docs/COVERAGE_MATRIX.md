@@ -177,6 +177,17 @@ wrapped navigation, the real slideshow timer, localized failure messages and
 recovery. Bitmap recycling and visibility are checked when the activity closes;
 the tests do not require external image hosts or personal photos.
 
+Decoder-selector contracts query the real platform codec inventory and video
+capabilities. Seven selected API22 tests check software selection, unsupported
+MIME/sizes, AVC/HEVC identities, adaptive playback, generic low-latency retry
+keys, frame-rate rejection, prefix matching and portrait fallback call order.
+Capability queries normalize MIME names with Locale.ROOT: the earlier selector
+accepted uppercase MIME during enumeration but then threw when querying that
+type on Android. The regression also changes the default locale to Turkish and
+restores it afterward. These contracts do not establish vendor-chip behavior.
+The earlier 85-test whole-app report predates this production fix and must not
+be reported as coverage of the corrected APKs.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
