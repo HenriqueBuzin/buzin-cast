@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--apk', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=Path('outputs/fireos3-callback'))
     parser.add_argument('--cycles', type=int, default=2, help='Repeat one to ten complete startup/shutdown cycles')
+    parser.add_argument('--url-player',action='store_true',help='Run the platform HTTP URL backend checks instead of native streaming checks.')
     parser.add_argument('--keep-installed', action='store_true', help='Retain the stopped test APK for manual investigation')
     args = parser.parse_args()
     if not 1 <= args.adb_server_port <= 65535:
@@ -88,6 +89,9 @@ def main():
         deadline = time.monotonic()+25
         while time.monotonic() < deadline:
             texts = [n.get('text', '') for n in ui().iter()]
+            if args.url_player:
+                failed=[text for text in texts if text.startswith('HTTP URL player failed:')]
+                if failed:raise AssertionError(failed[0])
             if any('experimental H.264 + ALAC/AAC receiver' in text for text in texts): return
             failures = [text for text in texts if 'receiver failed:' in text]
             if failures: raise AssertionError(failures[0])
@@ -123,6 +127,7 @@ def main():
     adb('install', '-r', str(args.apk.resolve()))
     adb('shell', 'input', 'keyevent', '82')
     report = {'api': 17, 'apk_sha256': hashlib.sha256(args.apk.read_bytes()).hexdigest(), 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
+    if args.url_player:report['scope']='real local HTTP with headers/ranges, platform URL MediaPlayer, synthetic MP4, controls/surfaces/error replacement; backend not yet wired to app/protocols'
     try:
         for cycle in range(args.cycles):
             entry = {'cycle': cycle+1}
@@ -131,6 +136,11 @@ def main():
             games=cycle%2==1
             adb('shell', 'am', 'start', '-n', package+'/.ProbeActivity','--ez','probe_games',str(games).lower())
             expect('Run compatibility checks')
+            if args.url_player:
+                tap('Run HTTP URL player checks')
+                expect('HTTP URL player: playback controls surfaces and recovery passed',timeout=60)
+                entry['http_url_backend']='pass'
+                continue
             tap('Run compatibility checks')
             expect('Native UxPlay HTTP parser: passed', 'UxPlay receiver: RTSP OPTIONS passed',
                    'H.264 sample: decoded frame')

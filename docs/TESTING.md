@@ -22,6 +22,35 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Backend de URL API17 — 18/nov:** `LegacyUrlPlayer` isola MediaPlayer,
+  preparação, leitura de posição e Surface em HandlerThread. A carga retorna
+  um identificador; consumidores devem comparar `State.generation` para não
+  confundir estado da fonte anterior. Pedidos substituídos são ignorados,
+  assim como callbacks do player antigo. Pausar antes do primeiro Start é
+  idempotente; posição inicial aguarda SeekComplete antes de iniciar;
+  reproduzir após término reinicia o ticker e o estado READY.
+  `LegacyUrlRequestTest` acrescenta quatro testes JVM para URL/posição,
+  cópia imutável de cabeçalhos, bloqueio de credenciais/esquemas locais,
+  injeção/framing e limites. O build do runtime/probe ARMv7/x86 e lint passou.
+  `tools/test_fireos3_probe.py --url-player --cycles 2` executa somente essa
+  suíte no probe e descreve esse escopo no relatório, sem marcar testes de
+  RTSP/streaming como realizados. Passou em `outputs/legacy-url-player-verified`.
+  O servidor HTTP real valida o cabeçalho da fixture e oferece ranges;
+  não se exige uma requisição de range para um seek já coberto pelo cache.
+  Verifica dimensões 160×90, posição inicial de 1 s, pausa antes de começar,
+  avanço de tempo/quadro, pausa, busca para zero, Surface retirada/substituída,
+  fim, novo Start após fim, 404, recuperação, substituição rápida e liberação.
+  O MP4 sintético de 4 s foi gerado com:
+  `ffmpeg -f lavfi -i testsrc=size=160x90:rate=15 -t 4 -an -c:v libx264 -pix_fmt yuv420p -profile:v baseline -g 15 -bf 0 -movflags +faststart url_sample.mp4`.
+  O primeiro roteiro encontrou estado FAILED antigo antes de o worker
+  aceitar a nova fonte; agora espera o identificador retornado pela carga.
+  `legacy-url-player-controls` teve um ciclo aprovado e perda de ADB no
+  segundo; a rodada final completa passou em servidor ADB separado.
+  **Base ainda não integrada à Activity/serviço ou aos protocolos do app.**
+  Não anunciar reprodução por URL na prévia por esse teste. HTTPS real,
+  HLS/DASH, áudio por URL, legendas, velocidade, recuperação/timeout e
+  integração/arbitragem continuam pendentes, junto da investigação nativa.
+
 - **Diagnóstico do encerramento nativo — 18/nov:** `StreamingSelfTest`
   registra o último estágio em `BuzinLegacyStream`: criação da sessão,
   fixtures de codecs, descoberta/RTSP, áudio nativo, relógio A/V, troca de

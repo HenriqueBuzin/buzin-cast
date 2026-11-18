@@ -33,4 +33,7 @@
     <string name="probe_frame_not_shown">Network H.264 sample: no frame displayed</string>
     <string name="probe_decoder_no_frame">H.264 sample: no decoded frame</string>
     <string name="probe_decoder_failed">H.264 decoding failed: %1$s</string>
+    <string name="probe_url_checks">Run HTTP URL player checks</string>
+    <string name="probe_url_checking">Checking platform HTTP playback…</string>
+    <string name="probe_url_passed">HTTP URL player: playback controls surfaces and recovery passed</string>
 </resources>
