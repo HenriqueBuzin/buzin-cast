@@ -135,8 +135,13 @@ Download publication contracts use isolated files and, on API29+, a private
 in-process ContentProvider instead of the system download collection. They check
 exact copied bytes, pending/complete metadata, missing or unwritable destinations,
 null/empty provider query results, and idle cancellation. These utility contracts
-do not enable download controls in the DE/AT edition or test an entire network
-export through Transformer.
+do not enable download controls in the DE/AT edition. Additional lifecycle tests
+run the real Transformer: unreadable input must reset progress and remove the
+temporary export; repeated start must retain the active instance; cancellation
+must clear that instance and remove its file. A synthetic local MP4 exercises
+successful export and publication, checking all ten video samples, timestamps,
+dimensions and pending-store completion through MediaExtractor. This is a local
+media export, not a network transfer or a physical storage benchmark.
 
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.

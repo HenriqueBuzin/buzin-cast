@@ -9,9 +9,13 @@ import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -22,6 +26,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.FileNotFoundException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import java.nio.ByteBuffer
 
 /** Publication uses isolated cache files and a private in-process store on Q+. */
 @RunWith(AndroidJUnit4::class)
@@ -125,5 +133,106 @@ class DownloadPublicationContractTest {
         instrumentation.runOnMainSync { }
         assertNull(fixture.downloader.progress.value)
         assertEquals("Existing export", file.readText())
+    }
+
+    @Test fun unreadableMediaResetsProgressAndRemovesTheFailedExport() {
+        val fixture = fixture()
+        val temporary = File(fixture.root, "video_download.mp4")
+        val started = CountDownLatch(1)
+        val initial = AtomicReference<Int?>()
+        instrumentation.runOnMainSync {
+            fixture.downloader.start(Uri.fromFile(File(fixture.root, "missing-input.mp4")).toString())
+            Handler(Looper.getMainLooper()).post {
+                initial.set(fixture.downloader.progress.value)
+                started.countDown()
+            }
+        }
+        assertTrue("Export did not start", started.await(10, TimeUnit.SECONDS))
+        assertEquals(-1, initial.get())
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
+        while (fixture.downloader.progress.value != null && System.nanoTime() < deadline) Thread.sleep(20)
+        instrumentation.waitForIdleSync()
+        assertNull("Failed export remained active", fixture.downloader.progress.value)
+        assertFalse("Failed export left a temporary file", temporary.exists())
+        assertTrue("Failed export published a destination", fixture.store?.inserts.orEmpty().isEmpty())
+    }
+
+    @Test fun repeatedStartKeepsTheActiveTransformerAndCancellationCleansItsFile() {
+        val fixture = fixture()
+        val transformer = VideoDownloader::class.java.getDeclaredField("transformer").apply { isAccessible = true }
+        val temporary = File(fixture.root, "video_download.mp4")
+        val checked = CountDownLatch(1)
+        val first = AtomicReference<Any?>()
+        val second = AtomicReference<Any?>()
+        instrumentation.runOnMainSync {
+            fixture.downloader.start(Uri.fromFile(File(fixture.root, "missing-first.mp4")).toString())
+            Handler(Looper.getMainLooper()).post { first.set(transformer.get(fixture.downloader)) }
+            fixture.downloader.start(Uri.fromFile(File(fixture.root, "missing-second.mp4")).toString())
+            Handler(Looper.getMainLooper()).post {
+                second.set(transformer.get(fixture.downloader))
+                temporary.writeText("In-flight export")
+            }
+            fixture.downloader.cancel()
+            Handler(Looper.getMainLooper()).post { checked.countDown() }
+        }
+        assertTrue("Cancellation did not finish", checked.await(10, TimeUnit.SECONDS))
+        instrumentation.waitForIdleSync()
+        assertNotNull("No active transformer was created", first.get())
+        assertSame("Repeated start replaced the active export", first.get(), second.get())
+        assertNull(transformer.get(fixture.downloader))
+        assertNull(fixture.downloader.progress.value)
+        assertFalse("Cancelled export left its temporary file", temporary.exists())
+        assertTrue("Cancelled export published a destination", fixture.store?.inserts.orEmpty().isEmpty())
+    }
+
+    @Test fun localVideoExportPublishesAPlayableFileWithEveryVideoSample() {
+        val fixture = fixture()
+        val input = File(fixture.root, "input.mp4")
+        instrumentation.context.assets.open("download/sample.mp4").use { source ->
+            input.outputStream().use { source.copyTo(it) }
+        }
+        val started = CountDownLatch(1)
+        val initial = AtomicReference<Int?>()
+        instrumentation.runOnMainSync {
+            fixture.downloader.start(Uri.fromFile(input).toString())
+            Handler(Looper.getMainLooper()).post {
+                initial.set(fixture.downloader.progress.value)
+                started.countDown()
+            }
+        }
+        assertTrue("Export did not start", started.await(10, TimeUnit.SECONDS))
+        assertEquals(-1, initial.get())
+        val temporary = File(fixture.root, "video_download.mp4")
+        fun published(): File? = fixture.store?.output?.takeIf { it.isFile && it.length() > 0 }
+            ?: File(fixture.root, "downloads").listFiles()?.singleOrNull { it.extension == "mp4" }
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+        while ((published() == null || temporary.exists() || fixture.downloader.progress.value != null) &&
+            System.nanoTime() < deadline) Thread.sleep(20)
+        assertNull("Completed export remained active", fixture.downloader.progress.value)
+        assertFalse("Completed export left its temporary file", temporary.exists())
+        val output = requireNotNull(published()) { "Export produced no published video" }
+        assertTrue("Export removed its input", input.isFile)
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(output.absolutePath)
+            assertEquals(1, extractor.trackCount)
+            val format = extractor.getTrackFormat(0)
+            assertEquals("video/avc", format.getString(MediaFormat.KEY_MIME))
+            assertEquals(32, format.getInteger(MediaFormat.KEY_WIDTH))
+            assertEquals(32, format.getInteger(MediaFormat.KEY_HEIGHT))
+            extractor.selectTrack(0)
+            val buffer = ByteBuffer.allocate(64 * 1024)
+            var samples = 0
+            while (extractor.readSampleData(buffer, 0) >= 0) {
+                assertEquals("Video timestamp changed", samples * 100_000L, extractor.sampleTime)
+                samples++
+                extractor.advance()
+            }
+            assertEquals("Video samples were lost", 10, samples)
+        } finally { extractor.release() }
+        fixture.store?.let { store ->
+            assertEquals(1, store.inserts.size)
+            assertEquals(0, store.updates.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
+        }
     }
 }
