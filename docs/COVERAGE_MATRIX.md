@@ -112,6 +112,12 @@ the run instead of pairing edited text with an intermediate APK. Snapshots recor
 the source fingerprint alongside the compiled-input identities; the merge tool
 rejects changes to those archived sources.
 
+On Windows, the Python archive and fingerprint operations use extended paths
+for generated class trees. Deep report directories can otherwise exceed the
+legacy path limit when Hilt class names are appended. The archive regression
+checks paths longer than 260 characters and still requires identical compiled
+and source fingerprints; a partial copy cannot become a valid snapshot.
+
 These are debug-instrumented execution results. They complement physical-device
 testing and store-distributed license checks; they do not prove those checks ran.
 

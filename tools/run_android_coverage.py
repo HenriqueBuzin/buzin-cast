@@ -25,9 +25,22 @@ VARIANTS = {
 }
 
 
+def filesystem_path(path):
+    """Use Windows' extended path syntax for deep generated class inventories."""
+    path = Path(path)
+    if os.name != "nt":
+        return path
+    absolute = str(path.resolve())
+    if absolute.startswith("\\\\?\\"):
+        return Path(absolute)
+    if absolute.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + absolute[2:])
+    return Path("\\\\?\\" + absolute)
+
+
 def class_roots(root, build, archive=None):
     if archive is not None:
-        return {name:archive/"classes"/name for name in ("app","app-kotlin","core","domain")}
+        return {name:filesystem_path(archive)/"classes"/name for name in ("app","app-kotlin","core","domain")}
     return {
         "app":build/"intermediates/classes/debug/transformDebugClassesWithAsm/dirs",
         "app-kotlin":build/"tmp/kotlin-classes/debug",
@@ -57,6 +70,7 @@ def coverage_identity(root, build, apk, test_apk, archive=None):
     if any(counts[label]==0 for label in ("app","core","domain")):
         raise RuntimeError("Compiled application/core/domain classes are required for provenance")
     if archive is not None:
+        archive=filesystem_path(archive)
         apk=archive/"inputs/app.apk"
         test_apk=archive/"inputs/test.apk"
         native=archive/"inputs/libairplay_native.so"
@@ -73,6 +87,8 @@ def coverage_identity(root, build, apk, test_apk, archive=None):
 
 def source_identity(root, archive=None):
     """Hash precisely the owned source trees copied with compiled mappings."""
+    if archive is not None:
+        archive=filesystem_path(archive)
     groups = ({name:archive/"sources"/name for name in ("app","core","domain","native")}
               if archive is not None else {
                   "app":root/"app/src/main/kotlin", "core":root/"receiver-core/src/main/kotlin",
@@ -90,6 +106,7 @@ def source_identity(root, archive=None):
 
 def archive_compiled_inputs(root,build,apk,test_apk,snapshot,expected,expected_sources=None):
     """Keep mappings before Gradle switches editions and removes stale outputs."""
+    snapshot=filesystem_path(snapshot)
     if expected_sources is not None and source_identity(root) != expected_sources:
         raise RuntimeError("Production sources changed during compilation; rebuild after edits settle")
     inputs=snapshot/"inputs"
