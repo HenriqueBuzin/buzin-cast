@@ -94,7 +94,7 @@ public final class LegacyReceiverService extends Service {
     private long urlGeneration;
     private int urlInstance;
     private boolean urlRequested,urlStopping;
-    private float urlGain=1;
+    private float urlGain=1,urlSpeed=1;
     private Exception urlFailure;
     private Protocol urlOwner;
     private FCastReceiver fcast;
@@ -168,7 +168,7 @@ public final class LegacyReceiverService extends Service {
                 case PLAY: urlPlayer.playing(true);break;
                 case PAUSE: urlPlayer.playing(false);break;
                 case FAST_FORWARD: case REWIND:
-                    if(state!=null && state.durationMs>0)urlPlayer.seek(Math.min(state.durationMs,Math.max(0,state.positionMs+(command==LegacyDacp.Command.REWIND?-10000:10000))));
+                    if(state!=null && state.durationMs>0)urlPlayer.seek(Math.min(LegacyUrlRequest.MAX_POSITION_MS,Math.min(state.durationMs,Math.max(0,state.positionMs+(command==LegacyDacp.Command.REWIND?-10000:10000)))));
                     break;
                 case VOLUME_UP: case VOLUME_DOWN:
                     urlGain=Math.max(0,Math.min(1,urlGain+(command==LegacyDacp.Command.VOLUME_UP?.05f:-.05f)));urlPlayer.gain(urlGain);break;
@@ -210,7 +210,7 @@ public final class LegacyReceiverService extends Service {
         if(request==null)throw new IllegalArgumentException("Missing media request");
         if(destroyed || !(visible || prefs.background()))throw new IllegalStateException("Receiver is unavailable");
         if(urlStopping)throw new IllegalStateException("Previous media is still closing");
-        pendingUrl=request;urlRequested=true;urlFailure=null;urlGain=1;urlOwner=protocol;
+        pendingUrl=request;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
         if(session!=null)stopNative();
         reconcile();
     }
@@ -240,7 +240,12 @@ public final class LegacyReceiverService extends Service {
             acquireWakeLock();bindSurface();
         }
         LegacyUrlRequest request=pendingUrl;pendingUrl=null;
-        urlPlayer.gain(urlGain);urlGeneration=urlPlayer.load(request,true);
+        urlPlayer.gain(urlGain);urlGeneration=urlPlayer.load(request,true);urlPlayer.speed(urlSpeed);
+    }
+    void urlSpeed(float speed) {
+        if(Float.isNaN(speed) || Float.isInfinite(speed) || speed<.25f || speed>4)throw new IllegalArgumentException("Invalid playback speed");
+        if(!urlRequested || urlStopping)return;
+        urlSpeed=speed;if(urlPlayer!=null)urlPlayer.speed(speed);
     }
     void stopUrl() {
         pendingUrl=null;
@@ -330,20 +335,20 @@ public final class LegacyReceiverService extends Service {
         @Override public boolean getMediaActive() {return urlRequested && !urlStopping;}
         @Override public PlaybackInfo getPlaybackInfo() {
             LegacyUrlPlayer.State state=urlState();
-            return state==null?new PlaybackInfo(0,0,false,1,false,false):new PlaybackInfo(state.positionMs,state.durationMs,state.playing,1,false,state.buffering);
+            return state==null?new PlaybackInfo(0,0,false,urlSpeed,false,false):new PlaybackInfo(state.positionMs,state.durationMs,state.playing,state.speed,false,state.buffering);
         }
         @Override public boolean authorize(String protocol,String peer) {return owner==fcastEpoch && prefs.fcast();}
         @Override public void load(MediaRequest request) {
             current();if(request.getProtocol()!=Protocol.FCAST || getActiveConnections()!=0)throw new IllegalStateException("Another receiver session is active");
             float seconds=request.getTime();
-            if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>Integer.MAX_VALUE)throw new IllegalArgumentException("Unsupported media position");
-            loadUrl(new LegacyUrlRequest(request.getLocation(),(long)(seconds*1000.0),request.getHeaders()),request.getProtocol());
+            if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>LegacyUrlRequest.MAX_POSITION_MS)throw new IllegalArgumentException("Unsupported media position");
+            loadUrl(new LegacyUrlRequest(request.getLocation(),(long)(seconds*1000.0),request.getHeaders(),request.getMime()),request.getProtocol());
         }
         @Override public void stop(Protocol protocol) {owns(protocol);stopUrl();}
         @Override public void playing(Protocol protocol,boolean playing) {owns(protocol);control(playing?LegacyDacp.Command.PLAY:LegacyDacp.Command.PAUSE,null);}
         @Override public void seek(Protocol protocol,float seconds) {
             owns(protocol);
-            if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>Integer.MAX_VALUE)throw new IllegalArgumentException("Unsupported media position");
+            if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>LegacyUrlRequest.MAX_POSITION_MS)throw new IllegalArgumentException("Unsupported media position");
             if(urlPlayer!=null)urlPlayer.seek((long)(seconds*1000.0));
         }
         @Override public void gain(Protocol protocol,float gain) {
@@ -353,7 +358,7 @@ public final class LegacyReceiverService extends Service {
         }
         @Override public void speed(Protocol protocol,float speed) {
             owns(protocol);
-            if(speed!=1) {stopUrl();throw new UnsupportedOperationException("Playback speed is unavailable on this backend");}
+            urlSpeed(speed);
         }
         @Override public void photo(String location) {throw new UnsupportedOperationException("FCast does not receive photos");}
     }

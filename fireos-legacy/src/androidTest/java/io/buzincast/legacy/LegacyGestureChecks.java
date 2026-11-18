@@ -51,6 +51,7 @@ public final class LegacyGestureChecks extends Instrumentation {
             } else if(url) {
                 LegacyUrlScenario.check(this,activity);
                 result.putString("url_service","native_handoff_http_controls_error_recovery_and_cleanup");
+                result.putString("post_url_audio","native_decode_focus_after_url_shutdown_in_same_process");
             } else {checkGesture(false);checkGesture(true);result.putString("gestures","touch_and_dpad_across_receiver_restart");}
             result.putString("status","pass");
             }

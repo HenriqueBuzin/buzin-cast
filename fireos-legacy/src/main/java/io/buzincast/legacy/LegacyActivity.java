@@ -54,7 +54,7 @@ public final class LegacyActivity extends Activity {
     private LegacyUrlPlayer.State urlState;
     private LinearLayout urlControls;
     private TextView urlTime;
-    private Button urlToggle,urlRewind,urlForward;
+    private Button urlToggle,urlRewind,urlForward,urlSpeed;
     private LegacyMedia.State mediaState=LegacyMedia.inactive();
     private LinearLayout mediaPanel,connectionSteps;
     private TextView trackTitle,trackArtist,trackAlbum,trackTime;
@@ -212,8 +212,9 @@ public final class LegacyActivity extends Activity {
             urlRewind=button(this,R.string.cd_rewind,false,()->senderCommand(LegacyDacp.Command.REWIND));urlRewind.setTag("url-rewind");
             urlToggle=button(this,R.string.cd_play_pause,false,()->senderCommand(senderPlaying()?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY));urlToggle.setTag("url-toggle");
             urlForward=button(this,R.string.cd_fast_forward,false,()->senderCommand(LegacyDacp.Command.FAST_FORWARD));urlForward.setTag("url-forward");
+            urlSpeed=button(this,R.string.select_playback_speed,false,this::urlSpeedDialog);urlSpeed.setTag("url-speed");
             Button stop=button(this,R.string.btn_stop,false,()-> {if(service!=null)service.stopUrl();});stop.setTag("url-stop");
-            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,urlSpeed,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
             FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);params.setMargins(dp(this,24),0,dp(this,24),dp(this,16));root.addView(urlControls,params);
             urlControls.setVisibility(View.GONE);
         }
@@ -227,11 +228,26 @@ public final class LegacyActivity extends Activity {
         ((Button)urlControls.findViewWithTag("url-stop")).setText(R.string.btn_stop);
         urlTime.setText("\u202a"+clock(urlState.positionMs)+" / "+clock(urlState.durationMs)+"\u202c");
         urlToggle.setText(senderPlaying()?"Ⅱ":"▶");urlToggle.setContentDescription(getString(R.string.cd_play_pause));
+        urlSpeed.setText(String.format(Locale.getDefault(),"%.2f×",urlState.speed));urlSpeed.setContentDescription(getString(R.string.select_playback_speed));
         boolean ready=urlState.phase==LegacyUrlPlayer.Phase.READY;
         urlToggle.setEnabled(ready);urlRewind.setEnabled(ready && urlState.durationMs>0);urlForward.setEnabled(ready && urlState.durationMs>0);
         if(!wasVisible) {
             if(ready)urlToggle.requestFocus();else urlControls.findViewWithTag("url-stop").requestFocus();
         }
+    }
+    private void urlSpeedDialog() {
+        if(service==null || urlState==null)return;
+        Modal dialog=dialog();LinearLayout outer=dialogBody(dialog,Math.min(dp(this,520),Math.round(getResources().getDisplayMetrics().heightPixels*.9f)));
+        addSpaced(outer,text(this,getString(R.string.select_playback_speed),20,WHITE,true),-2);
+        ScrollView scroll=new ScrollView(this);LinearLayout choices=column(this);scroll.addView(choices);outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        Button selected=null;
+        for(float rate:new float[]{.25f,.5f,.75f,1,1.25f,1.5f,2,3,4}) {
+            Button choice=button(this,R.string.select_playback_speed,false,()-> {if(service!=null)service.urlSpeed(rate);dialog.dismiss();});
+            choice.setText(String.format(Locale.getDefault(),"%.2f×",rate));choice.setTag("url-speed-"+rate);choice.setSelected(rate==urlState.speed);
+            addSpaced(choices,choice,48);if(rate==urlState.speed)selected=choice;
+        }
+        Button close=button(this,R.string.buzin_close,true,dialog::dismiss);outer.addView(close);show(dialog);
+        if(selected!=null)selected.requestFocus();else close.requestFocus();
     }
     // Runtime callbacks must not replace controls between ACTION_DOWN and UP.
     private void refreshReceiverUi() {
@@ -488,6 +504,7 @@ public final class LegacyActivity extends Activity {
             previous=getCurrentFocus();
             if(!modals.isEmpty())modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             shell.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+            if(urlControls!=null)urlControls.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
             layer=new FrameLayout(LegacyActivity.this);layer.setBackgroundColor(0x66000000);layer.setClickable(true);layer.setOnClickListener(v->dismiss());
             body.setClickable(true);
             int width=Math.min(dp(LegacyActivity.this,620),Math.round(getResources().getDisplayMetrics().widthPixels*.94f));
@@ -509,6 +526,7 @@ public final class LegacyActivity extends Activity {
             root.removeView(layer);modals.remove(this);
             if(modals.isEmpty())shell.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             else modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+            if(modals.isEmpty() && urlControls!=null)urlControls.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             if(previous!=null && previous.isShown())previous.requestFocus();
         }
     }

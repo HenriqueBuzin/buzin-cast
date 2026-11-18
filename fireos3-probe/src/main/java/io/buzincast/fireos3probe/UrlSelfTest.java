@@ -79,6 +79,7 @@ final class UrlSelfTest {
             player.close();if(!player.awaitClosed(5000))throw new IOException("URL player worker did not close");
             if(retired.get()!=2 || replacement.isValid() || player.state().failure!=null)throw new IOException("URL player retained its Surface");
         } finally {player.close();if(!player.awaitClosed(5000))throw new IOException("URL cleanup did not finish");}
+        UrlFormatsSelfTest.run(context,texture,frames);
     }
     private static final class Fixture implements java.io.Closeable {
         final ServerSocket socket=new ServerSocket(0,8,InetAddress.getByName("127.0.0.1"));

@@ -126,9 +126,13 @@ final class LegacyFcastScenario {
                 frame(client,2,"");await(()->!state(runner,service).playing);
                 frame(client,4,"");
                 await(()-> {LegacyReceiverSession session=(LegacyReceiverSession)read(runner,service,"session");return session!=null && session.listeningPort()>0;});
-                request.put("speed",1.25);frame(client,1,request.toString());receive(client,9);
+                request.put("speed",1.25);frame(client,1,request.toString());
+                await(()->state(runner,service)!=null && state(runner,service).playing && state(runner,service).speed==1.25f);
+                receiveMatching(client,6,body->Math.abs(body.getDouble("speed")-1.25)<.001);
+                frame(client,10,"{\"speed\":0.5}");await(()->state(runner,service).speed==.5f);
+                receiveMatching(client,6,body->Math.abs(body.getDouble("speed")-.5)<.001);
+                frame(client,4,"");
                 await(()-> {LegacyReceiverSession session=(LegacyReceiverSession)read(runner,service,"session");return state(runner,service)==null && session!=null && session.listeningPort()>0;});
-                // Non-unit speed must fail explicitly, never silently play at the wrong rate.
                 configure(runner,activity,false);disabled(runner,service);
                 if(field(advertisement,"multicast")!=null || !((ExecutorService)field(advertisement,"worker")).isTerminated())throw new AssertionError("FCast discovery retained workers or multicast lock");
             }

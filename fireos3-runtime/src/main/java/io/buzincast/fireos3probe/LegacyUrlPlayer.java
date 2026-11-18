@@ -1,30 +1,42 @@
 package io.buzincast.fireos3probe;
 
 import android.content.Context;
-import android.media.AudioManager;
-import android.media.MediaPlayer;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.Surface;
-import java.io.IOException;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.ResolvingDataSource;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import java.util.concurrent.CountDownLatch;
+import java.net.ProtocolException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** API17 platform URL backend. Network, player and Surface operations share one worker. */
+/** API17 URL backend. All player access and owned Surface changes share one worker. */
+@androidx.annotation.OptIn(markerClass=UnstableApi.class)
 public final class LegacyUrlPlayer implements java.io.Closeable {
     public enum Phase {IDLE,LOADING,READY,ENDED,FAILED,CLOSED}
     public static final class State {
         public final Phase phase;
         public final long generation,positionMs,durationMs;
         public final boolean playing,buffering;
+        public final float speed;
         public final int width,height;
         public final Exception failure;
-        State(Phase phase,long generation,long positionMs,long durationMs,boolean playing,boolean buffering,int width,int height,Exception failure) {
+        State(Phase phase,long generation,long positionMs,long durationMs,boolean playing,boolean buffering,float speed,int width,int height,Exception failure) {
             this.phase=phase;this.generation=generation;this.positionMs=positionMs;this.durationMs=durationMs;
-            this.playing=playing;this.buffering=buffering;this.width=width;this.height=height;this.failure=failure;
+            this.playing=playing;this.buffering=buffering;this.speed=speed;this.width=width;this.height=height;this.failure=failure;
         }
     }
     public interface Listener {void changed(State state);}
@@ -37,15 +49,15 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
     private final CountDownLatch closed=new CountDownLatch(1);
     private final OwnedTargetSlot<Surface> targets=new OwnedTargetSlot<>();
     private OwnedTargetSlot.Target<Surface> target;
-    private MediaPlayer player;
-    private long generation,pendingSeek=-1;
-    private boolean wantedPlaying,prepared,buffering,seeking;
-    private float gain=1,focusGain;
+    private ExoPlayer player;
+    private long generation;
+    private boolean buffering;
+    private float gain=1,focusGain,speed=1;
     private int width,height;
     private Phase phase=Phase.IDLE;
-    private volatile State state=new State(Phase.IDLE,0,0,0,false,false,0,0,null);
+    private volatile State state=new State(Phase.IDLE,0,0,0,false,false,1,0,0,null);
     private final Runnable tick=new Runnable() {
-        @Override public void run() {if(closing.get())return;if(prepared)publish(null);if(player!=null)worker.postDelayed(this,250);}
+        @Override public void run() {if(closing.get())return;if(player!=null) {publish(null);worker.postDelayed(this,250);}}
     };
     public LegacyUrlPlayer(Context context,Listener listener) {
         if(listener==null)throw new IllegalArgumentException("Missing player listener");
@@ -61,75 +73,98 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
         long owner=commands.incrementAndGet();
         post(()-> {
             if(owner!=commands.get())return;
-            releasePlayer();generation=owner;prepared=seeking=false;wantedPlaying=play;buffering=true;width=height=0;pendingSeek=request.startMs;
+            releasePlayer();generation=owner;buffering=true;speed=1;width=height=0;
             phase=Phase.LOADING;publish(null);
-            MediaPlayer next=new MediaPlayer();player=next;
-            next.setAudioStreamType(AudioManager.STREAM_MUSIC);next.setVolume(0,0);
-            next.setOnPreparedListener(p-> {
-                if(!current(p))return;
-                try {
-                    prepared=true;buffering=false;phase=Phase.READY;applyGain();
-                    seeking=pendingSeek>0;
-                    if(seeking)p.seekTo(seekPosition(pendingSeek,p.getDuration()));
-                    pendingSeek=-1;if(wantedPlaying && !seeking)p.start();publish(null);
-                } catch(RuntimeException error) {fail(error);}
+            // HTTP-only sources also apply to manifest/segment URIs. Never route
+            // a sender-provided child URI through file/content/asset data sources.
+            DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory().setUserAgent("BuzinCast")
+                .setConnectTimeoutMs(10000).setReadTimeoutMs(15000).setAllowCrossProtocolRedirects(false)
+                .setDefaultRequestProperties(request.headers);
+            ResolvingDataSource.Factory network=new ResolvingDataSource.Factory(http,spec-> {
+                String scheme=spec.uri.getScheme();
+                if((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) || spec.uri.getHost()==null ||
+                    spec.uri.getUserInfo()!=null || spec.uri.toString().length()>8192)
+                    throw new ProtocolException("Expected HTTP(S) media resource without embedded credentials");
+                return spec;
             });
-            next.setOnCompletionListener(p-> {if(current(p) && !seeking) {worker.removeCallbacks(tick);phase=Phase.ENDED;wantedPlaying=false;buffering=false;publish(null);}});
-            next.setOnErrorListener((p,what,extra)-> {if(current(p))fail(new IOException("Platform URL playback failed: "+what+"/"+extra));return true;});
-            next.setOnVideoSizeChangedListener((p,w,h)-> {if(current(p)) {width=w;height=h;publish(null);}});
-            next.setOnSeekCompleteListener(p-> {if(current(p)) {seeking=false;try {if(wantedPlaying)p.start();publish(null);}catch(RuntimeException error) {fail(error);}}});
-            next.setOnInfoListener((p,what,extra)-> {
-                if(current(p) && (what==MediaPlayer.MEDIA_INFO_BUFFERING_START || what==MediaPlayer.MEDIA_INFO_BUFFERING_END)) {
-                    buffering=what==MediaPlayer.MEDIA_INFO_BUFFERING_START;publish(null);
-                }return false;
+            DefaultMediaSourceFactory sources=new DefaultMediaSourceFactory(network)
+                .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(2));
+            ExoPlayer next=new ExoPlayer.Builder(context,new DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+                .setLooper(thread.getLooper()).setMediaSourceFactory(sources).build();
+            player=next;next.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
+            next.setVolume(gain*focusGain);
+            next.addListener(new Player.Listener() {
+                @Override public void onPlaybackStateChanged(int playbackState) {
+                    if(!current(next))return;
+                    buffering=playbackState==Player.STATE_BUFFERING;
+                    if(playbackState==Player.STATE_READY) {phase=Phase.READY;}
+                    else if(playbackState==Player.STATE_ENDED) {phase=Phase.ENDED;worker.removeCallbacks(tick);}
+                    publish(null);
+                }
+                @Override public void onIsPlayingChanged(boolean playing) {if(current(next))publish(null);}
+                @Override public void onVideoSizeChanged(VideoSize size) {if(current(next)) {width=size.width;height=size.height;publish(null);}}
+                @Override public void onPlayerError(PlaybackException error) {if(current(next))fail(error);}
             });
-            try {
-                if(target!=null)next.setSurface(target.value);
-                next.setDataSource(context,Uri.parse(request.location),request.headers);next.prepareAsync();
-                worker.removeCallbacks(tick);worker.post(tick);
-            } catch(IOException | RuntimeException error) {fail(error);}
+            if(target!=null)next.setVideoSurface(target.value);
+            MediaItem.Builder item=new MediaItem.Builder().setUri(request.location);
+            if(request.mime!=null)item.setMimeType(request.mime);
+            next.setMediaItem(item.build(),request.startMs);next.setPlayWhenReady(play);next.prepare();
+            worker.removeCallbacks(tick);worker.post(tick);
         });
         return owner;
     }
-    private boolean current(MediaPlayer candidate) {return !closing.get() && player==candidate && generation==commands.get();}
+    private boolean current(ExoPlayer candidate) {return !closing.get() && player==candidate && generation==commands.get();}
     public void playing(boolean playing) {post(()-> {
-        wantedPlaying=playing;if(!prepared)return;
-        if(playing) {if(!seeking)player.start();phase=Phase.READY;worker.removeCallbacks(tick);worker.post(tick);}
-        else if(player.isPlaying())player.pause();
-        publish(null);
+        if(player==null)return;
+        if(playing && phase==Phase.ENDED) {player.seekTo(0);phase=Phase.READY;}
+        player.setPlayWhenReady(playing);worker.removeCallbacks(tick);worker.post(tick);publish(null);
     });}
     public void seek(long positionMs) {
-        if(positionMs<0 || positionMs>Integer.MAX_VALUE)throw new IllegalArgumentException("Unsupported media position");
-        post(()-> {pendingSeek=positionMs;if(prepared) {seeking=true;phase=Phase.READY;player.seekTo(seekPosition(positionMs,player.getDuration()));pendingSeek=-1;publish(null);}});
+        if(positionMs<0 || positionMs>LegacyUrlRequest.MAX_POSITION_MS)throw new IllegalArgumentException("Unsupported media position");
+        post(()-> {if(player!=null) {
+            long duration=player.getDuration();player.seekTo(duration>0?Math.min(positionMs,duration):positionMs);
+            if(phase==Phase.ENDED)phase=Phase.READY;
+            worker.removeCallbacks(tick);worker.post(tick);publish(null);
+        }});
     }
-    private static int seekPosition(long requested,int duration) {return (int)(duration>0?Math.min(requested,duration):requested);}
+    public void speed(float speed) {
+        if(Float.isNaN(speed) || Float.isInfinite(speed) || speed<.25f || speed>4)throw new IllegalArgumentException("Invalid playback speed");
+        post(()-> {this.speed=speed;if(player!=null)player.setPlaybackSpeed(speed);publish(null);});
+    }
     public void gain(float gain) {validateGain(gain);post(()-> {this.gain=gain;applyGain();});}
     public void focusGain(float gain) {validateGain(gain);post(()-> {focusGain=gain;applyGain();});}
     private static void validateGain(float gain) {if(Float.isNaN(gain) || Float.isInfinite(gain) || gain<0 || gain>1)throw new IllegalArgumentException("Invalid media gain");}
-    private void applyGain() {if(player!=null)player.setVolume(gain*focusGain,gain*focusGain);}
+    private void applyGain() {if(player!=null)player.setVolume(gain*focusGain);}
     /** Takes ownership; retire the view's texture only from whenReleased. */
     public void surface(Surface surface,Runnable whenReleased) {
         targets.request(surface,surface==null?null:()-> {try {surface.release();}finally {if(whenReleased!=null)whenReleased.run();}});
         if(closing.get())return;
         post(()-> {
             if(!targets.changed())return;
-            if(player!=null)player.setSurface(null);
-            target=targets.activate();if(player!=null && target!=null)player.setSurface(target.value);
+            if(player!=null) {
+                player.clearVideoSurface();
+                if(player.getPlayerError()!=null) {fail(player.getPlayerError());return;}
+            }
+            target=targets.activate();if(player!=null && target!=null)player.setVideoSurface(target.value);
         });
     }
-    public void stop() {long owner=commands.incrementAndGet();post(()-> {if(owner!=commands.get())return;generation=owner;releasePlayer();prepared=buffering=seeking=wantedPlaying=false;width=height=0;pendingSeek=-1;phase=Phase.IDLE;publish(null);});}
+    public void stop() {long owner=commands.incrementAndGet();post(()-> {
+        if(owner!=commands.get())return;generation=owner;releasePlayer();buffering=false;speed=1;width=height=0;phase=Phase.IDLE;publish(null);
+    });}
     private void publish(Exception error) {
         long position=0,duration=0;boolean playing=false;
-        try {if(prepared && player!=null) {position=player.getCurrentPosition();duration=Math.max(0,player.getDuration());playing=player.isPlaying();}}
-        catch(RuntimeException invalid) {fail(invalid);return;}
-        state=new State(phase,generation,position,duration,playing,buffering || seeking,width,height,error);listener.changed(state);
+        try {if(player!=null) {
+            position=Math.max(0,player.getCurrentPosition());duration=Math.max(0,player.getDuration());playing=player.isPlaying();
+            speed=player.getPlaybackParameters().speed;
+        }}catch(RuntimeException invalid) {fail(invalid);return;}
+        state=new State(phase,generation,position,duration,playing,buffering,speed,width,height,error);listener.changed(state);
     }
     private void fail(Exception error) {
         try {releasePlayer();}catch(RuntimeException release) {error.addSuppressed(release);}
-        prepared=buffering=seeking=wantedPlaying=false;phase=Phase.FAILED;publish(error);
+        buffering=false;phase=Phase.FAILED;publish(error);
     }
     private void releasePlayer() {
-        worker.removeCallbacks(tick);MediaPlayer previous=player;player=null;
+        worker.removeCallbacks(tick);ExoPlayer previous=player;player=null;
         if(previous!=null)previous.release();
     }
     @Override public void close() {
@@ -138,7 +173,7 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
             generation=commands.incrementAndGet();Exception failure=null;
             try {releasePlayer();}catch(RuntimeException error) {failure=error;}
             try {targets.close();}catch(RuntimeException error) {if(failure==null)failure=error;else failure.addSuppressed(error);}
-            target=null;prepared=buffering=seeking=wantedPlaying=false;width=height=0;
+            target=null;buffering=false;speed=1;width=height=0;
             phase=Phase.CLOSED;publish(failure);
         }finally {closed.countDown();thread.quit();}});
     }

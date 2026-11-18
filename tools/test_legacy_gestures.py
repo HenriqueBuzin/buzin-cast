@@ -132,6 +132,10 @@ def main():
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
         expected='fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
+        if args.url_service:
+            if 'INSTRUMENTATION_RESULT: post_url_audio=native_decode_focus_after_url_shutdown_in_same_process' not in result:
+                raise AssertionError('Test APK did not verify native audio after URL cleanup')
+            report['post_url_audio']='native ALAC decode, muted AudioTrack and focus recovery after URL playback in the same service/process'
         if args.metadata:
             if 'INSTRUMENTATION_RESULT: metadata=synthetic_native_worker_packets_artwork_progress_pause_ui_and_sender_cleanup' not in result:
                 raise AssertionError('Test APK did not run native metadata checks')

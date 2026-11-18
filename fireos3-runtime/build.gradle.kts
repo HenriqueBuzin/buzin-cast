@@ -25,6 +25,11 @@ tasks.configureEach {
 dependencies {
     coreLibraryDesugaring(libs.desugar)
     implementation("org.jmdns:jmdns:3.6.5")
+    // Media3 1.2.1 declares API16; 1.3.x raises that floor to API19.
+    // Never override a newer artifact's manifest to force installation.
+    implementation("androidx.media3:media3-exoplayer:1.2.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.2.1")
     runtimeOnly("org.slf4j:slf4j-nop:2.0.7")
     testImplementation(libs.junit4)
 }

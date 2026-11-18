@@ -1,0 +1,18 @@
+{
+  "scope": "Synthetic test pattern H.264 and silent AAC, 8 seconds; no third-party media",
+  "sha256": {
+    "sample.mp4": "73563a43c2d325023de04248f5138835b2358786e1e00e1c095d9620476b8fa8",
+    "stream.m3u8": "add1935f6167d09bc24f08065c5ed902b9ecb3b37801f2f417a74d0f5bfba0e5",
+    "stream.mpd": "0a990e28e77b4cc1edc3ee147be0020e51f14811fd88a2d7fe2a0dba400c94f1",
+    "dash-init.mp4": "d45bb0ce9910a792388a604bb8cb98e9b75d306435bd32f038755d43d2c6b5be",
+    "silence.m4a": "94181a18fe7639c54a1a9df16d8aca764a57aae7bcb6b437d7ce9e24f46a3a70",
+    "hls-00.ts": "2e01553a03f16b9e8510626685bac591fe307cb2d76f1e869068b135fbd3925d",
+    "hls-01.ts": "940c7c58ddc88b24aa66ea900e21d5336b7f298c492771efe6680f345779b7de",
+    "hls-02.ts": "0f70228ab7b1107179a801b4b0099e3f387fec68c4148b8a4ce53fea948da2b3",
+    "hls-03.ts": "6dc43454a9f321af112659b81aee58e391df6941dfe062f9b510ace4e92209fe",
+    "dash-1.m4s": "6e0cafcfa445bc2c4de55d02e1815eee3418808b95cbdbee843a3c9a455329f6",
+    "dash-2.m4s": "d2dd4d22d71b607bb3c2722310ef9b4edfd5fe6cf49b97700d158e0e036d20c9",
+    "dash-3.m4s": "28b2a9fbe74652487321f503e61f21005f9c136a56d1d106bf7128de552eeec1",
+    "dash-4.m4s": "643f02257547a78652ebbc3333b5a83bae290f29ff6b4c02caeabffef45a060b"
+  }
+}

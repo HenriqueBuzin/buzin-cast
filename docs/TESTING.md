@@ -22,6 +22,28 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Media3/API17 — 18/nov:** backend 1.2.1, sem alterar o minSdk 17.
+  `tools/test_fireos3_probe.py --url-player --cycles 2` passou em
+  `outputs/legacy-media3-formats-final`. Ensaia MP4, HLS/MPEG-TS, DASH/fMP4 e
+  AAC silencioso, MIME em URLs sem extensão, cabeçalhos em playlists/segmentos,
+  busca/quadro, controle, troca de Surface, EOF/repetição, erro/recuperação e
+  substituição de carga. O AAC avançou aproximadamente 0,52×/2,09× e
+  0,51×/2,05× ao configurar 0,5×/2×. O teste usa também um segmento local
+  válido numa playlist HTTP: deve falhar na validação de URI sem ler o arquivo.
+  Fixtures sintéticas de 8 s, hashes e gerador ficam no repositório; mídia e
+  endpoints pessoais não entram nele. Relatórios de integração:
+  `outputs/legacy-media3-transition-final`, `outputs/legacy-media3-fcast-final`
+  e `outputs/legacy-media3-fcast-nodownload-final`. O teste `--url-service`
+  cobre seletor por DPAD, pausa/foco, encerramento e áudio nativo/foco no mesmo
+  processo após liberar o player. FCast exercita velocidade inicial e opcode
+  10, incluindo o estado devolvido ao emissor. Os limites 10/15 s e falhas de
+  rede lenta não foram ensaiados; também faltam HTTPS real, live, DRM, troca
+  de bitrate e memória com conteúdo longo. Não implica paridade ou teste físico.
+  As três integrações e os dois ciclos do probe passaram. Build ARMv7/x86,
+  lint e testes JVM passaram em ambas as edições. Foram conferidos hashes,
+  versão da biblioteca e licença nos APKs, ausência de fixtures no APK do app
+  e preservação das 12 imagens aprovadas do launcher.
+
 - **FCast/API17 — 18/nov:** `tools/test_legacy_gestures.py --fcast` usa o
   mesmo transporte de produção compilado no app moderno. Testa PTR/TXT reais,
   handshake TCP, ping, validação de fonte, HTTP/MP4, cabeçalho customizado,
@@ -38,8 +60,8 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
   `outputs/legacy-fcast-url-regression`. O runner captura logcat nas falhas.
   As quatro suítes passaram no emulador API17/1280×720, com build ARMv7/x86,
   lint e testes JVM aprovados para as duas edições.
-  Somente velocidade 1 está implementada neste backend; outras velocidades
-  retornam erro explícito e não contam como função concluída. Os testes são
+  O backend desse ensaio antigo aceitava apenas velocidade 1; a etapa Media3
+  acima substitui essa limitação. Os testes são
   sintéticos em emulador; não validam hardware físico ou emissores externos.
 
 - **URL no serviço/API17 — 18/nov:** `--url-service` em
