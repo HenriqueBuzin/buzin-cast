@@ -76,9 +76,27 @@ exception cleanup. It opens no listener or player and does not exhaust memory.
 The coverage-only JNI fixture calls the production callback table; its own code
 is not added to the production inventory. Both Android assemblies and lint
 passed. The selected evidence is
-`build/native-callback-final-selection/instrumentation.txt`; a new full four-APK
-API36 matrix is running at `build/android-coverage-callback-contracts-api36`.
+`build/native-callback-final-selection/instrumentation.txt`. The subsequent
+API36 normal run passed all 130 Android tests and 18 native cases, but stopped
+at the first UI scenario: `failure.png` shows a System UI ANR dialog over the
+already-rendered Tools screen. This is an incomplete run, not accepted coverage.
+Its artifacts remain at `build/android-coverage-callback-contracts-api36`.
+A clean-boot retry uses the exact frozen APKs, mappings and native executable,
+with fresh runtime data, at `build/callback-normal-frozen-api36-retry`.
 No coverage increase is claimed until complete runtime reports are generated.
+
+Six new rendering/launch contracts passed on API22 in 28.082 seconds using a
+Gradle-built compat DE/AT APK and test APK. They inspect actual screenshot pixels
+as the logo traces and fills, checking the rounded tile, B cutout, equal aspect
+ratio and progress clamping. Launch cases cover disabled and natural completion,
+remote key-down versus key-up, Back, and touch skipping; skip checks require home
+to appear before the natural reveal can finish. Completed intros must release
+Back handling, avoid activating home with the skip key, compose home once and
+dispose it when the activity closes. The animator scale is enabled for each test
+and restored afterward. Evidence is
+`build/brand-launch-selection/instrumentation.txt`; the assemblies passed in
+2m34s. These selected contracts need inclusion in the next full matrix before
+their coverage can contribute to the four-variant target.
 
 ## Run all four
 
