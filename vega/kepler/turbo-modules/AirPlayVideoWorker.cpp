@@ -108,7 +108,7 @@ struct AirPlayVideoWorker::Impl {
                 if (changedParameters && prepared) {
                   release();
                   std::lock_guard lock(mutex);
-                  if (event.generation == observation.generation) stopCommandLocked();
+                  if (event.generation == observation.generation) {observation.phase = "waiting"; stopCommandLocked();}
                 }
                 sps = std::move(nextSps); pps = std::move(nextPps);
                 if (vcl) {

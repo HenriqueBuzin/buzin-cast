@@ -102,6 +102,11 @@ int main() {
     assert(changed.url != second.url);
     await([&] {return test.worker.state().accepted == 5;});
     test.inspect([&](Trace& trace) {assert(trace.samples.back().pts == 0);});
+    auto configOnly = config; configOnly[7] ^= 2;
+    test.submit(configOnly,4500000000);
+    await([&] {const auto state = test.worker.state(); return state.phase == "waiting" && state.released;});
+    test.submit(idr,4500000000); test.play();
+    await([&] {return test.worker.state().accepted == 6;});
     test.worker.end(); test.worker.end();
     await([&] {return test.worker.state().phase == "ended";});
     assert(test.worker.state().released && test.worker.state().output.complete);
