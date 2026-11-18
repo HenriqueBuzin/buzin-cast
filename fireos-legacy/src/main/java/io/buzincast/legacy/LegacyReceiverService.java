@@ -23,6 +23,8 @@ import io.buzincast.fireos3probe.LegacyReceiverSession;
 import io.buzincast.fireos3probe.LegacyNetwork;
 import io.buzincast.fireos3probe.LegacyDacp;
 import io.buzincast.fireos3probe.LegacyMedia;
+import io.buzincast.fireos3probe.LegacyUrlPlayer;
+import io.buzincast.fireos3probe.LegacyUrlRequest;
 
 /** Main-thread owner of the receiver. Native/codec work stays in runtime workers. */
 public final class LegacyReceiverService extends Service {
@@ -38,11 +40,16 @@ public final class LegacyReceiverService extends Service {
         final List<String> events;
         final LegacyDacp.State controls;
         final LegacyMedia.State media;
+        final LegacyUrlPlayer.State url;
+        final boolean urlError;
         State(LegacyReceiverService service) {
-            desired=service.desired;running=service.running;busy=service.busy;video=service.video;
+            url=service.urlState();urlError=service.urlFailure!=null;
+            desired=service.desired;running=service.running;busy=service.busy;
+            video=url==null?service.video:url.width>0 && url.height>0;
             audioSuppressed=service.systemMedia.suppressed();
             networkWaiting=service.wanted() && service.reconnect.initialized() && !service.reconnect.online();
-            name=service.name;failure=service.failure;width=service.width;height=service.height;
+            name=service.name;failure=urlError?service.urlFailure:service.failure;
+            width=url==null?service.width:url.width;height=url==null?service.height:url.height;
             address=service.session==null?null:service.session.localAddress();
             port=service.session==null?0:service.session.listeningPort();
             controls=service.controlState();
@@ -74,8 +81,19 @@ public final class LegacyReceiverService extends Service {
     private Exception controlFailure;
     private Exception mediaFailure;
     private LegacySystemMedia systemMedia;
-    LegacyMedia.State mediaState() {return session==null || stopping || session.mirroring()?LegacyMedia.inactive():session.media();}
-    private LegacyDacp.State controlState() {return session==null || stopping || session.mirroring()?LegacyDacp.inactive():session.controls();}
+    private LegacyUrlPlayer urlPlayer;
+    private LegacyUrlRequest pendingUrl;
+    private long urlGeneration;
+    private int urlInstance;
+    private boolean urlRequested,urlStopping;
+    private float urlGain=1;
+    private Exception urlFailure;
+    LegacyUrlPlayer.State urlState() {
+        if(!urlRequested || urlStopping || urlPlayer==null)return null;
+        LegacyUrlPlayer.State state=urlPlayer.state();return state.generation==urlGeneration?state:null;
+    }
+    LegacyMedia.State mediaState() {return urlRequested || session==null || stopping || session.mirroring()?LegacyMedia.inactive():session.media();}
+    private LegacyDacp.State controlState() {return urlRequested || session==null || stopping || session.mirroring()?LegacyDacp.inactive():session.controls();}
 
     static void dispatch(Context context,String action) {
         Intent intent=new Intent(context,LegacyReceiverService.class).setAction(action);
@@ -85,7 +103,11 @@ public final class LegacyReceiverService extends Service {
         super.onCreate();prefs=new LegacyPreferences(this);name=prefs.name();
         systemMedia=new LegacySystemMedia(this,new LegacySystemMedia.Sink() {
             @Override public void command(LegacyDacp.Command command) {control(command,null);}
-            @Override public void gain(float gain) {if(session!=null)session.audioFocusGain(gain);}
+            @Override public void gain(float gain) {
+                if(session!=null)session.audioFocusGain(gain);
+                if(urlPlayer!=null && !urlStopping)urlPlayer.focusGain(gain);
+            }
+            @Override public void stopLocal() {stopUrl();}
             @Override public void failure(RuntimeException error) {record("System media: "+error.getClass().getSimpleName());}
             @Override public void changed() {publish();}
         });
@@ -101,8 +123,8 @@ public final class LegacyReceiverService extends Service {
         promote();String action=intent==null?null:intent.getAction();
         if(action==null) {if(!opened) {desired=prefs.serviceRequested();bootSession=prefs.bootAutoStart();opened=true;}}
         else if(OPEN.equals(action)) {if(!opened) {desired=prefs.autoStart();opened=true;}}
-        else if(START.equals(action)) {desired=true;opened=true;failure=null;resetRetries();}
-        else if(STOP.equals(action)) {desired=false;opened=true;bootSession=false;failure=null;}
+        else if(START.equals(action)) {desired=true;opened=true;failure=null;urlFailure=null;resetRetries();}
+        else if(STOP.equals(action)) {desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;stopUrl();}
         else if(BOOT.equals(action)) {desired=prefs.bootAutoStart();bootSession=desired;opened=true;}
         else if(RESTART.equals(action)) {name=prefs.name();resetRetries();if(session!=null)stopNative();}
         else if(Intent.ACTION_MEDIA_BUTTON.equals(action)) {
@@ -121,6 +143,24 @@ public final class LegacyReceiverService extends Service {
         target=next;bindSurface();
     }
     void control(LegacyDacp.Command command,Runnable failed) {
+        if(urlRequested) {
+            // URL seeks are discrete. A remote seek-key release must not acquire
+            // audio focus or resume playback; RESUME belongs to native DACP.
+            if(command==LegacyDacp.Command.RESUME || command==LegacyDacp.Command.NEXT || command==LegacyDacp.Command.PREVIOUS)return;
+            if(urlPlayer==null || urlStopping || !systemMedia.prepare(command)) {if(failed!=null)failed.run();return;}
+            LegacyUrlPlayer.State state=urlState();
+            switch(command) {
+                case PLAY: urlPlayer.playing(true);break;
+                case PAUSE: urlPlayer.playing(false);break;
+                case FAST_FORWARD: case REWIND:
+                    if(state!=null && state.durationMs>0)urlPlayer.seek(Math.min(state.durationMs,Math.max(0,state.positionMs+(command==LegacyDacp.Command.REWIND?-10000:10000))));
+                    break;
+                case VOLUME_UP: case VOLUME_DOWN:
+                    urlGain=Math.max(0,Math.min(1,urlGain+(command==LegacyDacp.Command.VOLUME_UP?.05f:-.05f)));urlPlayer.gain(urlGain);break;
+                default: break;
+            }
+            return;
+        }
         if(session==null || stopping || session.mirroring())return;
         if(!systemMedia.prepare(command)) {if(failed!=null)failed.run();return;}
         int owner=generation;
@@ -135,11 +175,59 @@ public final class LegacyReceiverService extends Service {
         client=null;observer=null;visible=false;target=null;bindSurface();reconcile();
     }
     private void bindSurface() {
+        if(urlRequested && session==null) {
+            if(urlPlayer!=null && !urlStopping) {
+                if(target==null)urlPlayer.surface(null,null);
+                else {TextureTarget owned=target;urlPlayer.surface(owned.acquire(),owned::retired);}
+            }
+            return;
+        }
         if(session==null)return;
         if(target==null)session.setVideoSurface(null,null);
         else {TextureTarget owned=target;session.setVideoSurface(owned.acquire(),owned::retired);}
     }
-    private boolean wanted() {return desired && (visible || prefs.background() || bootSession);}
+    private boolean wanted() {return (desired || urlRequested) && (visible || prefs.background() || bootSession);}
+    /** Internal protocol entry point. Validate before disturbing the active receiver. */
+    void loadUrl(LegacyUrlRequest request) {
+        if(request==null)throw new IllegalArgumentException("Missing media request");
+        if(destroyed || !(visible || prefs.background()))throw new IllegalStateException("Receiver is unavailable");
+        if(urlStopping)throw new IllegalStateException("Previous media is still closing");
+        pendingUrl=request;urlRequested=true;urlFailure=null;urlGain=1;
+        if(session!=null)stopNative();
+        reconcile();
+    }
+    private void startPendingUrl() {
+        if(pendingUrl==null || urlStopping)return;
+        if(urlPlayer==null) {
+            final int owner=++urlInstance;
+            urlPlayer=new LegacyUrlPlayer(this,state->main.post(()-> {
+                if(destroyed || owner!=urlInstance)return;
+                if(urlStopping) {
+                    if(state.phase!=LegacyUrlPlayer.Phase.CLOSED)return;
+                    urlPlayer=null;urlRequested=urlStopping=false;urlGeneration=0;releaseWakeLock();
+                    if(state.failure!=null) {urlFailure=state.failure;desired=false;prefs.serviceRequested(false);}
+                    reconcile();return;
+                }
+                if(state.generation!=urlGeneration)return;
+                if(state.phase==LegacyUrlPlayer.Phase.FAILED) {
+                    urlFailure=state.failure;record("URL player: "+state.failure.getClass().getSimpleName());stopUrl();
+                } else if(state.phase==LegacyUrlPlayer.Phase.ENDED) {
+                    stopUrl();
+                } else {
+                    publish();
+                }
+            }));
+            acquireWakeLock();bindSurface();
+        }
+        LegacyUrlRequest request=pendingUrl;pendingUrl=null;
+        urlPlayer.gain(urlGain);urlGeneration=urlPlayer.load(request,true);
+    }
+    void stopUrl() {
+        pendingUrl=null;
+        if(!urlRequested || urlStopping)return;
+        if(urlPlayer==null) {urlRequested=false;reconcile();return;}
+        urlStopping=true;urlPlayer.close();publish();
+    }
     private void resetRetries() {main.removeCallbacks(retry);main.removeCallbacks(stable);reconnect.resetRetries();}
     private void closeWatcher() {
         main.removeCallbacks(retry);main.removeCallbacks(stable);
@@ -169,23 +257,22 @@ public final class LegacyReceiverService extends Service {
         if(wanted()) {
             promote();
             if(watcher==null)watcher=new LegacyNetworkWatcher(this,main,this::networkChanged);
-            if(session==null) {
+            if(urlRequested && session==null)startPendingUrl();
+            else if(session==null) {
                 busy=!reconnect.initialized();
                 if(reconnect.canStart(SystemClock.elapsedRealtime()))startNative();
             }
         } else {
             closeWatcher();
-            if(session!=null)stopNative();else {busy=false;demote();stopSelf();}
+            if(urlRequested)stopUrl();
+            else if(session!=null)stopNative();else {busy=false;demote();stopSelf();}
         }
         publish();
     }
-    @android.annotation.SuppressLint("WakelockTimeout")
     private void startNative() {
         main.removeCallbacks(retry);main.removeCallbacks(stable);
         busy=true;stopping=false;failure=null;name=prefs.name();final int owner=++generation;
-        PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
-        wakeLock=power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"buzincast:legacy-receiver");
-        wakeLock.setReferenceCounted(false);wakeLock.acquire();
+        acquireWakeLock();
         session=new LegacyReceiverSession(this,null,prefs.identity(),new LegacyReceiverSession.Listener() {
             private void post(Runnable action) {main.post(()-> {if(!destroyed && owner==generation)action.run();});}
             @Override public void ready(String receiverName) {post(()-> {
@@ -230,16 +317,27 @@ public final class LegacyReceiverService extends Service {
     private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
-        systemMedia.update(mediaState(),controlState(),running && !stopping && session!=null,
-            session!=null && session.mirroring(),session!=null && session.audioActive());
+        LegacyUrlPlayer.State url=urlState();
+        systemMedia.update(mediaState(),controlState(),url!=null || running && !stopping && session!=null,
+            session!=null && session.mirroring(),session!=null && session.audioActive(),url);
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
     }
     private void releaseWakeLock() {if(wakeLock!=null) {if(wakeLock.isHeld())wakeLock.release();wakeLock=null;}}
+    @android.annotation.SuppressLint("WakelockTimeout")
+    private void acquireWakeLock() {
+        if(wakeLock==null) {
+            PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
+            wakeLock=power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"buzincast:legacy-receiver");wakeLock.setReferenceCounted(false);
+        }
+        if(!wakeLock.isHeld())wakeLock.acquire();
+    }
     private String notificationBody() {
         if(wanted() && reconnect.initialized() && !reconnect.online())return getString(R.string.network_waiting);
         if(failure!=null)return getString(R.string.error_starting_server);
+        if(urlFailure!=null)return getString(R.string.error_label);
+        if(urlRequested)return getString(R.string.waiting_for_playback);
         LegacyMedia.State media=mediaState();
         if(media.active) {
             String title=media.track.title.isEmpty()?getString(R.string.waiting_for_playback):media.track.title;
@@ -265,6 +363,7 @@ public final class LegacyReceiverService extends Service {
     @Override public void onDestroy() {
         destroyed=true;client=null;observer=null;target=null;closeWatcher();
         if(systemMedia!=null)systemMedia.close();
+        urlInstance++;if(urlPlayer!=null) {urlStopping=true;urlPlayer.close();}
         if(session!=null)session.stop();releaseWakeLock();demote();super.onDestroy();
     }
     @android.annotation.TargetApi(26) private static final class Api26 {
