@@ -1,0 +1,163 @@
+package io.github.jqssun.airplay
+
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
+import android.media.MediaFormat
+import android.os.Build
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import io.github.jqssun.airplay.renderer.DecoderSelector
+import io.github.jqssun.airplay.renderer.DecoderSelector.Companion.videoCaps
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.util.Locale
+
+/** Real platform codec inventories/capabilities and production fallback policy. */
+@RunWith(AndroidJUnit4::class)
+class DecoderSelectorContractTest {
+    private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
+    private fun avc() = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.first {
+        !it.isEncoder && it.supportedTypes.any { mime -> mime.equals(DecoderSelector.AVC, true) }
+    }
+    private fun privateCall(selector: DecoderSelector, name: String, types: Array<Class<*>>, vararg args: Any): Boolean =
+        DecoderSelector::class.java.getDeclaredMethod(name, *types).apply { isAccessible = true }
+            .invoke(selector, *args) as Boolean
+
+    @After fun coverage() {
+        if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
+    }
+
+    @Test fun softwareSelectionUsesARealDecoderAndRejectsUnsupportedMimeAndSize() {
+        val selector = DecoderSelector(context)
+        val info = requireNotNull(selector.software(DecoderSelector.AVC, 64, 48))
+        assertFalse(info.isEncoder)
+        assertTrue(info.supportedTypes.any { it.equals(DecoderSelector.AVC, true) })
+        if (Build.VERSION.SDK_INT >= 29) assertTrue(info.isSoftwareOnly)
+        else assertTrue(info.name.lowercase(Locale.ROOT).let {
+            it.startsWith("omx.google.") || it.startsWith("c2.android.") ||
+                (!it.startsWith("omx.") && !it.startsWith("c2."))
+        })
+        val originalLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("tr", "TR"))
+            val uppercase = DecoderSelector.AVC.uppercase(Locale.ROOT)
+            assertEquals(info.name, selector.software(uppercase, 64, 48)?.name)
+            assertEquals(info.videoCaps(DecoderSelector.AVC).supportedWidths, info.videoCaps(uppercase).supportedWidths)
+        } finally { Locale.setDefault(originalLocale) }
+        assertNull(selector.software("video/x-buzin-contract-unsupported", 64, 48))
+        val caps = requireNotNull(info.getCapabilitiesForType(DecoderSelector.AVC).videoCapabilities)
+        assertNull(selector.software(DecoderSelector.AVC,
+            caps.supportedWidths.upper + caps.widthAlignment,
+            caps.supportedHeights.upper + caps.heightAlignment))
+    }
+
+    @Test fun selectedCodecsBelongToThePlatformInventoryAndForcedHevcNeverInventsOne() {
+        val selector = DecoderSelector(context)
+        val inventory = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+        val selected = requireNotNull(selector.avc())
+        assertTrue(inventory.any { it.name == selected.name && !it.isEncoder })
+        assertTrue(selected.supportedTypes.any { it.equals(DecoderSelector.AVC, true) })
+        val hevc = selector.hevc(selected, 64, 48, 30, true)
+        if (hevc != null) {
+            assertTrue(inventory.any { it.name == hevc.name && !it.isEncoder })
+            assertTrue(hevc.supportedTypes.any { it.equals(DecoderSelector.HEVC, true) })
+        } else {
+            assertNull(selector.hevc(null, 64, 48, 30, false))
+        }
+        selector.hevc(selected, 64, 48, 30, false)?.let {
+            assertEquals("Forced/unforced selection changed decoder identity", hevc?.name, it.name)
+        }
+    }
+
+    @Test fun genericDecoderRetriesRemoveRiskyKeysAndRespectOperatingRateOverride() {
+        val selector = DecoderSelector(context)
+        val info = avc()
+        assertTrue("This emulator contract requires its standard software AVC decoder",
+            info.name.startsWith("omx.google.", true) || info.name.startsWith("c2.android.", true))
+        val nativeLowLatency = Build.VERSION.SDK_INT >= 30 &&
+            info.getCapabilitiesForType(DecoderSelector.AVC).isFeatureSupported("low-latency")
+        for (override in listOf(null, false, true)) {
+            selector.maxOperatingRate = override
+            assertEquals(override, selector.maxOperatingRate)
+            for (attempt in 0..5) {
+                val format = MediaFormat.createVideoFormat(DecoderSelector.AVC, 64, 48).apply {
+                    setInteger("buzin-contract-sentinel", 47)
+                }
+                val changed = selector.lowLatencyOptions(format, info, DecoderSelector.AVC, attempt)
+                assertEquals(attempt < 3, changed)
+                assertEquals(attempt == 0, format.containsKey("low-latency"))
+                val nativeOnly = attempt == 0 && nativeLowLatency
+                assertEquals(attempt < 2 && !nativeOnly, format.containsKey("vdec-lowlatency"))
+                assertEquals(attempt < 3 && !nativeOnly && override == true,
+                    format.containsKey(MediaFormat.KEY_OPERATING_RATE))
+                assertEquals(attempt < 3 && !nativeOnly && override != true,
+                    format.containsKey(MediaFormat.KEY_PRIORITY))
+                if (format.containsKey(MediaFormat.KEY_OPERATING_RATE))
+                    assertEquals(Short.MAX_VALUE.toInt(), format.getInteger(MediaFormat.KEY_OPERATING_RATE))
+                if (format.containsKey(MediaFormat.KEY_PRIORITY)) assertEquals(0, format.getInteger(MediaFormat.KEY_PRIORITY))
+                assertEquals(47, format.getInteger("buzin-contract-sentinel"))
+                assertEquals(64, format.getInteger(MediaFormat.KEY_WIDTH))
+                assertEquals(48, format.getInteger(MediaFormat.KEY_HEIGHT))
+            }
+        }
+    }
+
+    @Test fun adaptivePlaybackMatchesCapabilitiesAndFailsClosedForUnknownMime() {
+        val selector = DecoderSelector(context)
+        val info = avc()
+        val blocked = listOf("omx.intel", "omx.mtk").any { info.name.startsWith(it, true) }
+        val supported = info.getCapabilitiesForType(DecoderSelector.AVC)
+            .isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_AdaptivePlayback)
+        assertEquals(!blocked && supported, selector.adaptive(info, DecoderSelector.AVC))
+        assertEquals(!blocked && supported, selector.adaptive(info, DecoderSelector.AVC.uppercase(Locale.ROOT)))
+        assertFalse(selector.adaptive(info, "video/x-buzin-contract-unsupported"))
+    }
+
+    @Test fun portraitFallbackOnlySwapsDimensionsAfterTheOriginalCheckFails() {
+        val selector = DecoderSelector(context)
+        data class Case(val width: Int, val height: Int, val supported: Set<Pair<Int, Int>>,
+            val expected: Boolean, val calls: List<Pair<Int, Int>>)
+        for (case in listOf(
+            Case(1080, 1920, setOf(1080 to 1920), true, listOf(1080 to 1920)),
+            Case(1080, 1920, setOf(1920 to 1080), true, listOf(1080 to 1920, 1920 to 1080)),
+            Case(1080, 1920, emptySet(), false, listOf(1080 to 1920, 1920 to 1080)),
+            Case(1920, 1080, emptySet(), false, listOf(1920 to 1080)),
+            Case(1080, 1080, emptySet(), false, listOf(1080 to 1080)),
+        )) {
+            val calls = mutableListOf<Pair<Int, Int>>()
+            val check: (Int, Int) -> Boolean = { width, height ->
+                calls += width to height
+                width to height in case.supported
+            }
+            val result = privateCall(selector, "_portraitSafe", arrayOf(Int::class.javaPrimitiveType!!,
+                Int::class.javaPrimitiveType!!, kotlin.jvm.functions.Function2::class.java), case.width, case.height, check)
+            assertEquals(case.expected, result)
+            assertEquals(case.calls, calls)
+        }
+    }
+
+    @Test fun codecPrefixPoliciesAreCaseInsensitiveAndDoNotMatchInteriorText() {
+        val selector = DecoderSelector(context)
+        val types = arrayOf<Class<*>>(List::class.java, String::class.java)
+        for (name in listOf("OMX.QCOM.video.decoder.avc", "c2.QTI.avc.decoder"))
+            assertTrue(privateCall(selector, "_inList", types, listOf("omx.qcom", "c2.qti"), name))
+        for (name in listOf("decoder.omx.qcom", "omx.google.h264.decoder", ""))
+            assertFalse(privateCall(selector, "_inList", types, listOf("omx.qcom", "c2.qti"), name))
+        assertFalse(privateCall(selector, "_inList", types, emptyList<String>(), "omx.qcom.avc"))
+    }
+
+    @Test fun rateQueriesRejectUnsupportedSizesAndRatesWithoutThrowing() {
+        val selector = DecoderSelector(context)
+        val caps = requireNotNull(avc().getCapabilitiesForType(DecoderSelector.AVC).videoCapabilities)
+        val types = arrayOf<Class<*>>(MediaCodecInfo.VideoCapabilities::class.java,
+            Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!)
+        assertTrue(privateCall(selector, "_rateSupported", types, caps, 64, 48, 30))
+        assertFalse(privateCall(selector, "_rateSupported", types, caps,
+            caps.supportedWidths.upper + caps.widthAlignment,
+            caps.supportedHeights.upper + caps.heightAlignment, 30))
+        assertFalse(privateCall(selector, "_rateSupported", types, caps, 64, 48, Int.MAX_VALUE))
+        assertFalse(privateCall(selector, "_canMeet", types, caps, 1_000_000, 1_000_000, 30))
+    }
+}

@@ -10,6 +10,7 @@ import android.media.MediaFormat
 import android.opengl.GLES20
 import android.os.Build
 import android.util.Log
+import java.util.Locale
 
 // moonlight-android MediaCodecHelper
 class DecoderSelector(private val ctx: Context) {
@@ -82,7 +83,7 @@ class DecoderSelector(private val ctx: Context) {
         }?.takeIf { _portraitSafe(w, h, it.videoCaps(mime)::isSizeSupported) }
 
     fun adaptive(info: MediaCodecInfo, mime: String) = !_inList(noAdaptive, info.name) &&
-        runCatching { info.getCapabilitiesForType(mime).isFeatureSupported(CodecCapabilities.FEATURE_AdaptivePlayback) }
+        runCatching { info.getCapabilitiesForType(mime.lowercase(Locale.ROOT)).isFeatureSupported(CodecCapabilities.FEATURE_AdaptivePlayback) }
             .getOrDefault(false)
 
     // most to least risky
@@ -139,7 +140,7 @@ class DecoderSelector(private val ctx: Context) {
         return (0..1).firstNotNullOfOrNull { round ->
             all.firstOrNull { info ->
                 (round == 1 || _lowLatency(info, mime)) &&
-                    (profile == -1 || info.getCapabilitiesForType(mime).profileLevels.any { it.profile == profile })
+                    (profile == -1 || info.getCapabilitiesForType(mime.lowercase(Locale.ROOT)).profileLevels.any { it.profile == profile })
             }
         }
     }
@@ -147,7 +148,7 @@ class DecoderSelector(private val ctx: Context) {
     private fun _first(mime: String) = _decoders(mime).firstOrNull()
 
     private fun _lowLatency(info: MediaCodecInfo, mime: String) = Build.VERSION.SDK_INT >= 30 &&
-        runCatching { info.getCapabilitiesForType(mime).isFeatureSupported(CodecCapabilities.FEATURE_LowLatency) }
+        runCatching { info.getCapabilitiesForType(mime.lowercase(Locale.ROOT)).isFeatureSupported(CodecCapabilities.FEATURE_LowLatency) }
             .getOrDefault(false)
 
     private fun _hevcWhitelisted(info: MediaCodecInfo): Boolean = when {
@@ -196,6 +197,7 @@ class DecoderSelector(private val ctx: Context) {
             listOf("omx.amlogic", "c2.amlogic") to mapOf("vendor.low-latency.enable" to 1),
         )
 
-        fun MediaCodecInfo.videoCaps(mime: String): VideoCapabilities = getCapabilitiesForType(mime).videoCapabilities!!
+        fun MediaCodecInfo.videoCaps(mime: String): VideoCapabilities =
+            getCapabilitiesForType(mime.lowercase(Locale.ROOT)).videoCapabilities!!
     }
 }
