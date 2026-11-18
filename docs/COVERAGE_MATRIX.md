@@ -17,8 +17,14 @@ rendered captions. Its archived report measures 78.2816% Android/JVM lines,
 40.4908% native MC/DC. The other measured counters also remain below 100%; the
 strict target is false. This cohort includes the MIME-query fix and paced AAC
 fixture but predates the eight selected Playback ViewModel contracts below.
-The remaining variants are still being measured; this is not a completed
-four-variant matrix. Earlier interrupted attempts add no passing evidence.
+The API28 matrix is now complete: normal passed 114 Android tests, compat 122,
+and both regional variants 123 each. Every edition also passed 18 native cases
+and all 13 UI scenarios. Compat measures 78.6029% Android/JVM lines and 57.4411%
+branches; DE/AT measures 78.1534% and 57.5427%; compat DE/AT measures 78.5475%
+and 57.8328%. Native MC/DC is 40.4908% for normal/compat and 47.8528% for the
+regional builds, which include the newer DNS contracts. All four strict targets
+remain false. The runner's final nonzero exit is the coverage gate, after all
+four reports were generated; earlier interrupted attempts add no passing evidence.
 
 Additional selected contracts passed on unchanged, fingerprint-checked APKs:
 three DACP player tests and two AudioRenderer tests on API22, and six download
@@ -30,6 +36,26 @@ be merged into its matrix as if their compiled identities matched.
 
 The coverage automation regression suite passes all 21 tests. Whole-app 100%
 coverage across all four variants remains unverified and is still outstanding.
+
+The frozen compat replay on API22 completed all 122 Android tests, 18 native
+cases and all 13 UI scenarios. Its original API28 and new API22 raw profiles
+were merged successfully using the new replay CLI and identical compiled
+fingerprints. The union measures 78.7576% Android/JVM lines, 58.1481% branches,
+77.619% native lines and 40.4908% native MC/DC; `--require-100` correctly fails.
+The replay report is `build/frozen-compat-api22-replay/replay.json`.
+
+Six additional Cast command contracts passed on API22 in 0.06 seconds using an
+unchanged app APK and a separate test APK. They check app availability limits,
+launch/stop session identity, connection destinations, cached/atomic volume,
+supported URL-media MIME types, URL precedence, protected/invalid media rejection,
+receiver ownership/busy state, load throttling, seek/resume commands, player-state
+reporting, terminal idle status and session-counter rollover. They exercise the
+real command handler on the Android main thread with a recording playback port;
+they do not open a listener, fetch external media or establish TLS certification.
+This selected preflight is not a complete matrix snapshot and its results cannot
+be merged with a different compiled test APK. The instrumentation evidence is
+`build/cast-command-probe/instrumentation.txt`; a full rebuilt matrix must
+include these contracts before claiming a measured coverage increase.
 
 ## Run all four
 
