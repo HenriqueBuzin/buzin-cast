@@ -53,6 +53,42 @@ um candidato para integração e testes; ainda não integra a prévia:
 [ExoPlayer 2.19.1](https://github.com/google/ExoPlayer/blob/r2.19.1/constants.gradle).
 
 
+## Vídeo — mux H.264/fMP4 nativo — 18 de novembro de 2026
+
+- Implementado `H264Fmp4Muxer`: recebe access units H.264 Annex B completas,
+  valida limites/NALs, exige IDR inicial e SPS/PPS correspondentes e produz
+  MP4 fragmentado incremental sem decodificar/recodificar. O FFmpeg fixado
+  converte SPS/PPS para avcC, incluindo extensões High, e preserva timestamps.
+- Entrada limitada a 2 MiB/128 NALs por access unit e 64 KiB de configuração.
+  Timestamps DTS são estritamente crescentes; duração, parâmetros, mudança
+  de formato e uso após fechamento são verificados. Cada frame é descarregado
+  como fragmento imediatamente. Índices de seek/trailer são desativados para
+  evitar guardar um índice crescente de todos os fragmentos em sessões ao vivo.
+  Mudança de SPS/PPS exige uma nova sessão.
+- A saída usa callback nativo com barreira de exceções C/C++; falha de escrita
+  fica marcada e impede novas escritas/finalização falsa. `finish()` é idempotente.
+  O consumidor futuro deve impor limite/timeout à fila de saída: o muxer não
+  oferece sozinho controle de consumo de rede.
+- O teste portátil com a revisão FFmpeg fixada passou com ASan/UBSan no código
+  próprio: saída incremental antes do fim, entrada inválida, IDR, timestamps,
+  troca de configuração, encerramento repetido e falhas do consumidor.
+  O CI executa esse ensaio junto do ALAC em `tools/test_vega_alac_decoder.py`.
+- No VVD ARM64, o executável separado remuxou a fixture própria em dois ciclos
+  (`build/vega-h264-fmp4-native`). O arquivo de saída foi lido como bytes e
+  decodificado no host: os hashes de todos os 120 frames coincidiram com a
+  entrada. Isso comprova preservação dos frames, sem comprovar renderização
+  no Vega. Os campos `surfaceAttached` e `rendered` permanecem falsos.
+- Ensaios MSSE com `video/avc`, `video/h264`, AVCC e Annex B falharam em
+  negociação/parser no VVD. Logs em `build/vega-msse-video-avcc`,
+  `build/vega-msse-video-annexb` e `build/vega-msse-video-h264-mime`.
+  Não está demonstrado se a causa é formato, superfície ausente ou backend.
+  O experimento está isolado em `kepler/probes/MsseVideoPlayer`, fora do app.
+- Próximo: servir o fMP4 por um endpoint de loopback com fila limitada e
+  ligá-lo ao VideoPlayer/superfície de URL já validados; depois integrar os
+  callbacks/vida útil AirPlay, áudio e relógio A/V. Ainda não há espelhamento
+  AirPlay exibido, vídeo ativo no app, negociação Apple completa ou validação
+  física. Não anunciar esse muxer como recepção/renderização finalizada.
+
 ## ALAC com saída PCM — 18 de novembro de 2026
 
 - Adicionado o perfil ALAC RAOP de 352 amostras, 16 bits, estéreo/44,1 kHz.

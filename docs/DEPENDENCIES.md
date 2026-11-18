@@ -142,3 +142,12 @@ A saída PCM e o foco usam bindings APMF gerados do SDK 2.0.13986, pacote
 manifesto; não há nova permissão de microfone. Não usa Oboe/JNI, não substitui
 bibliotecas do sistema e mantém AAC-LC/AAC-ELD no MSSE. O teste portátil compila
 a mesma revisão fixada com sanitizers no código próprio, sem necessidade do SDK.
+
+### Vega — encapsulamento H.264 sem recodificação — 18 de novembro de 2026
+
+A mesma build privada FFmpeg passou a habilitar `libavformat` e o muxer MP4,
+sem codecs de vídeo, protocolos de rede ou executáveis. `BuzinVideoMuxer` usa
+AVIO próprio; atualmente só o probe de desenvolvimento liga esse alvo, fora do
+VPKG. As fontes/configuração seguem a revisão já fixada e LGPL 2.1+.
+A fixture usa o FFmpeg/libx264 do host apenas como ferramenta de teste; não
+inclui encoder x264 no app. A comparação decodificada usa FFmpeg no host.

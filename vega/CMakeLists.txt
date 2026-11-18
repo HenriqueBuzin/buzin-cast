@@ -42,3 +42,9 @@ add_executable(buzin-msse-probe kepler/msse_probe_main.cpp
   kepler/AirPlayRtpProbe.cpp kepler/turbo-modules/AlacAudioPlayer.cpp)
 target_link_libraries(buzin-msse-probe PRIVATE BuzinMediaIdl BuzinAirPlayCore BuzinAudioIdl BuzinAlacDecoder)
 install(TARGETS buzin-msse-probe RUNTIME DESTINATION bin)
+
+# Development-only raw H.264/MSSE probe; no transport or advertised receiver.
+add_executable(buzin-msse-video-probe kepler/msse_video_probe_main.cpp
+  kepler/probes/MsseVideoPlayer.cpp)
+target_link_libraries(buzin-msse-video-probe PRIVATE BuzinMediaIdl BuzinVideoMuxer)
+install(TARGETS buzin-msse-video-probe RUNTIME DESTINATION bin)
