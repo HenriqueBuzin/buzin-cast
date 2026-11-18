@@ -1,4 +1,5 @@
 #include "turbo-modules/MsseAudioPlayer.h"
+#include "turbo-modules/AirPlayAudioWorker.h"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -8,7 +9,8 @@
 
 int main(int argc, char** argv) {
   try {
-    if (argc != 2) throw std::runtime_error("Expected an ADTS AAC-LC fixture");
+    const bool workerMode = argc == 3 && std::string(argv[2]) == "--worker";
+    if (argc != 2 && !workerMode) throw std::runtime_error("Expected an ADTS AAC-LC fixture");
     std::ifstream input(argv[1], std::ios::binary);
     if (!input) throw std::runtime_error("Fixture not found");
     std::vector<std::vector<uint8_t>> samples;
@@ -35,6 +37,46 @@ int main(int argc, char** argv) {
       samples.push_back(std::move(data));
     }
     if (samples.empty()) throw std::runtime_error("Empty fixture");
+    if (workerMode) {
+      if (rate != 44100 || channels != 2) throw std::runtime_error("Worker fixture requires 44.1 kHz stereo");
+      AirPlayAudioWorker worker([] {return std::make_unique<MsseAudioPlayer>();});
+      for (int cycle = 0; cycle < 2; ++cycle) {
+        worker.start(); worker.format(4,1024); worker.volume(-18);
+        auto feed = [&](size_t count, uint64_t epoch) {
+          const auto start = std::chrono::steady_clock::now();
+          for (size_t i = 0; i < count; ++i) {
+            std::this_thread::sleep_until(start + std::chrono::nanoseconds(i * 1024000000000ULL / rate));
+            const auto ntp = epoch + i * 1024000000000ULL / rate;
+            worker.sample(samples[i].data(), samples[i].size(), 4, ntp,
+              static_cast<uint32_t>(0xfffff000ULL + i * 1024));
+            if (!worker.healthy()) throw std::runtime_error(worker.state().error);
+          }
+        };
+        if (cycle == 1) {
+          feed(12,1000000000000ULL); worker.flush();
+          const auto flushed = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+          while (worker.state().flushes != 1) {
+            if (!worker.healthy() || std::chrono::steady_clock::now() >= flushed) throw std::runtime_error("Flush did not finish");
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          }
+        }
+        const auto acceptedBefore = worker.state().accepted;
+        feed(samples.size(),2000000000000ULL);
+        const double target = samples.size() * 1024.0 / rate - 0.1;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (worker.state().seconds < target || worker.state().accepted != acceptedBefore + samples.size()) {
+          if (!worker.healthy() || std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Worker clock did not advance");
+          std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        worker.stop(); worker.stop();
+        const auto state = worker.state();
+        if (!state.released || state.phase != "stopped" || !state.error.empty()) throw std::runtime_error("Worker release failed");
+        std::cout << "{\"cycle\":" << cycle+1 << ",\"frames\":" << state.accepted
+          << ",\"seconds\":" << state.seconds << ",\"flushes\":" << state.flushes
+          << ",\"released\":true}" << std::endl;
+      }
+      return 0;
+    }
     MsseAudioPlayer player;
     for (int cycle = 0; cycle < 2; ++cycle) {
       player.startAac(rate, channels, config);

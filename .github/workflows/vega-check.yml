@@ -3,10 +3,10 @@ name: Buzin Cast - verificar fontes Vega
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
+    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'tools/test_vega_msse.py', 'tools/test_vega_airplay_audio.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
   push:
     branches: [main]
-    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
+    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'tools/test_vega_msse.py', 'tools/test_vega_airplay_audio.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
 
 permissions:
   contents: read
@@ -29,7 +29,7 @@ jobs:
         run: |
           git -C .. submodule update --init --depth 1 app/src/main/cpp/third_party/UxPlay
           python3 ../tools/test_prepare_vega_airplay.py
-          python3 -m py_compile ../tools/test_vega.py
+          python3 -m py_compile ../tools/test_vega.py ../tools/test_vega_msse.py ../tools/test_vega_airplay_audio.py
       - run: npm ci
       - run: npm run lint -- --max-warnings 0
       - run: npx tsc --noEmit
@@ -44,6 +44,11 @@ jobs:
           mkdir -p ../build/vega-native-tests
           clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/FCastDiscoveryTest.cpp kepler/turbo-modules/ReceiverSettings.cpp -o ../build/vega-native-tests/fcast-discovery
           ../build/vega-native-tests/fcast-discovery
+      - name: Testar fila e relógio de áudio AirPlay
+        run: |
+          mkdir -p ../build/vega-native-tests
+          clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/AirPlayAudioWorkerTest.cpp kepler/turbo-modules/AirPlayAudioWorker.cpp -o ../build/vega-native-tests/airplay-audio-worker
+          ../build/vega-native-tests/airplay-audio-worker
       - name: Testar persistência do nome
         run: |
           mkdir -p ../build/vega-native-tests

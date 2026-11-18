@@ -1,4 +1,5 @@
 #include "BuzinNetwork.h"
+#include "MsseAudioPlayer.h"
 #include "NetworkProbe.h"
 #include "ReceiverSettings.h"
 #include "ProtocolProbe.h"
@@ -12,11 +13,30 @@
 #include <random>
 
 namespace BuzinNetworkTurboModule {
-BuzinNetwork::BuzinNetwork() = default;
+BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<MsseAudioPlayer>();}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
-double BuzinNetwork::startAirPlayUrl() {
+double BuzinNetwork::startAirPlayUrl() {return startAirPlayReceiver(false);}
+double BuzinNetwork::startAirPlayAudio() {return startAirPlayReceiver(true);}
+void BuzinNetwork::stopAirPlayAudio() {stopAirPlayUrl(); getAirPlayAudioState();}
+std::string BuzinNetwork::getAirPlayAudioState() {
+  const auto state = audio.state();
+  std::ostringstream output; output.imbue(std::locale::classic());
+  output << "{\"phase\":\"" << (airplay.healthy() ? state.phase : "error")
+    << "\",\"seconds\":" << state.seconds << ",\"accepted\":" << state.accepted
+    << ",\"volumeDb\":" << state.volumeDb << ",\"dropped\":" << state.dropped << ",\"flushes\":" << state.flushes
+    << ",\"released\":" << (state.released ? "true" : "false") << "}";
+  // Drain non-media transport notifications in this audio-only mode.
+  AirPlayEvent ignored;
+  for (int count = 0; count < 16 && airplay.poll(ignored); ++count) {}
+  const auto json = output.str();
+  std::ofstream report("/data/airplay-audio-state.json", std::ios::trunc);
+  report << json; report.close();
+  if (!report) throw std::runtime_error("Could not record native audio observation");
+  return json;
+}
+double BuzinNetwork::startAirPlayReceiver(bool audioMode) {
   std::string identity;
   std::ifstream saved("/data/airplay-identity");
   if (saved) std::getline(saved, identity);
@@ -33,8 +53,8 @@ double BuzinNetwork::startAirPlayUrl() {
     if (!output || std::rename("/data/airplay-identity.tmp", "/data/airplay-identity") != 0)
       throw std::runtime_error("Could not save local AirPlay identity");
   }
-  const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false);
-  std::ofstream report("/data/airplay-port.json", std::ios::trunc);
+  const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false, audioMode ? &audio : nullptr);
+  std::ofstream report(audioMode ? "/data/airplay-audio-port.json" : "/data/airplay-port.json", std::ios::trunc);
   report << "{\"port\":" << port << "}"; report.close();
   if (!report) {airplay.stop(); throw std::runtime_error("Could not record AirPlay listener state");}
   return port;
@@ -42,6 +62,7 @@ double BuzinNetwork::startAirPlayUrl() {
 void BuzinNetwork::stopAirPlayUrl() {
   airplay.stop();
   std::remove("/data/airplay-port.json");
+  std::remove("/data/airplay-audio-port.json");
 }
 void BuzinNetwork::updateAirPlayState(double position, double duration, double rate, bool ready) {
   airplay.updatePlayback(position, duration, rate, ready);

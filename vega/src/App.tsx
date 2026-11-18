@@ -5,6 +5,7 @@ import {getMediaReport} from './mediaCapabilities';
 import PlaybackScreen from './PlaybackScreen';
 import FCastScreen from './FCastScreen';
 import SettingsScreen from './SettingsScreen';
+import AirPlayAudioScreen from './AirPlayAudioScreen';
 import {
   BackHandler,
   Image,
@@ -15,7 +16,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const [selected, setSelected] = useState('status');
@@ -36,6 +37,10 @@ export default function App() {
     );
     return () => subscription.remove();
   }, [page]);
+
+  if (page === 'airplayAudio') {
+    return <AirPlayAudioScreen onBack={goHome} />;
+  }
 
   if (page === 'airplay') {
     return <FCastScreen onBack={goHome} protocol="airplay" />;
@@ -202,6 +207,7 @@ export default function App() {
             )}
           {page === 'status' && <Text style={styles.details}>{report}</Text>}
           {page === 'status' && action('airplay', 'Testar AirPlay por URL', () => setPage('airplay'), false)}
+          {page === 'status' && action('airplayAudio', 'Testar áudio AirPlay', () => setPage('airplayAudio'), false)}
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}

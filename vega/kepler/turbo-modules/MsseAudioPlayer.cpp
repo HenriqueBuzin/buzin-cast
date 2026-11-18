@@ -22,6 +22,8 @@
 #include <apmf/iface/com/amazon/kepler/w3cmedia/QueueMediaSampleStatus.h>
 #include <apmf/iface/com/amazon/apmf/ISubscription.h>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <condition_variable>
 #include <mutex>
 #include <stdexcept>
@@ -63,6 +65,7 @@ struct MsseAudioPlayer::Impl {
   size_t retainedBytes = 0;
   int64_t previousTimestamp = -1;
   bool ended = false;
+  bool releaseFailed = false;
   bool playingStarted = false;
   void check() {
     if (!element || !track) throw std::runtime_error("MSSE audio is not initialized");
@@ -111,7 +114,8 @@ void MsseAudioPlayer::startAac(int rate, int channels, const std::vector<uint8_t
 bool MsseAudioPlayer::append(const std::vector<uint8_t>& bytes, int64_t timestamp, int64_t duration) {
   impl->check();
   if (impl->ended || bytes.empty() || bytes.size() > 2 * 1024 * 1024 || timestamp < 0 ||
-      timestamp < impl->previousTimestamp || duration <= 0 || duration > 1000)
+      timestamp < impl->previousTimestamp || duration <= 0 || duration > 1000 ||
+      timestamp > std::numeric_limits<int64_t>::max() - duration - 1000)
     throw std::invalid_argument("Invalid MSSE audio access unit");
   const double now = impl->element->getCurrentTimeSecs() * 1000;
   while (!impl->retained.empty() && impl->retained.front().endMs + 1000 < now) {
@@ -136,17 +140,27 @@ bool MsseAudioPlayer::append(const std::vector<uint8_t>& bytes, int64_t timestam
   return accepted;
 }
 double MsseAudioPlayer::position() {impl->check(); return impl->element->getCurrentTimeSecs();}
+void MsseAudioPlayer::setVolume(double volume) {
+  impl->check();
+  if (!std::isfinite(volume) || volume < 0 || volume > 1) throw std::invalid_argument("Invalid audio gain");
+  impl->element->setVolumeLevel(volume);
+}
 void MsseAudioPlayer::end() {impl->check(); if (!impl->ended) {impl->track->end(); impl->ended = true;}}
 void MsseAudioPlayer::stop() {
   auto element = impl->element;
   impl->element = nullptr; impl->track = nullptr; impl->source = nullptr; impl->module = nullptr;
   impl->previousTimestamp = -1; impl->ended = false; impl->playingStarted = false;
-  if (!element) return;
+  if (!element) {
+    if (impl->releaseFailed) throw std::runtime_error("Previous MSSE release was not confirmed");
+    return;
+  }
+  impl->releaseFailed = true;
   auto signal = std::make_shared<Signal>();
   auto listener = apmf::Ptr<Released>::Make(signal);
   auto subscription = element->deinitializeAsync(listener);
   const bool released = signal->wait();
   subscription->unsubscribe();
   if (!released) throw std::runtime_error("MSSE deinitialization timed out");
+  impl->releaseFailed = false;
   impl->retained.clear(); impl->retainedBytes = 0;
 }
