@@ -98,6 +98,23 @@ and restored afterward. Evidence is
 2m34s. These selected contracts need inclusion in the next full matrix before
 their coverage can contribute to the four-variant target.
 
+Three new log-screen contracts passed on API22 in 20.226 seconds. Real Compose
+accessibility actions verify an initially empty screen, append/automatic scrolling
+to the last of 101 entries, clearing and subsequent recovery. Export checks read
+the actual FileProvider content URI and compare the empty and Unicode snapshots
+exactly, including the chooser/send actions, MIME type and read-permission flag.
+A recording Application intercepts chooser launches, so no external app receives
+logs. A deliberately failing chooser launch must be contained and the next export
+must succeed. Isolated files and cache directories are removed after the log
+worker closes. Initial selector failures are preserved separately: the icon label
+can be below its clickable accessibility ancestor, so the test now locates that
+ancestor and still requires its real click action and resulting state changes.
+Evidence is `build/logs-screen-accessibility-selection/instrumentation.txt`;
+the failed selector run at `build/logs-screen-selection` adds no passing evidence.
+A fresh four-variant API36 run including the brand and log-screen contracts is
+queued behind successful completion of the frozen normal retry. These selected
+results do not establish new whole-app percentages or satisfy the 100% target.
+
 ## Run all four
 
 Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial
