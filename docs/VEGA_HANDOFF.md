@@ -32,6 +32,11 @@ Player e portas RTP/controle/NTP foram liberados em todos os ciclos. O ensaio
 continua com chaves públicas de desenvolvimento, sem negociação FairPlay/RTSP
 ou comprovação de som audível/recepção Apple.
 
+A regressão AAC-LC passou no mesmo pacote em `build/vega-aac-lc-eld-regression`
+(346/358 frames aceitos, ~7,94–7,98 s). Os controles RTSP, volume/mudo,
+Voltar/segundo plano e encerramento/reabertura passaram em dois ciclos em
+`build/vega-aac-eld-controls`. Nenhum desses ensaios certifica um emissor Apple.
+
 ## Vega — ensaio RTP/AES/NTP concluído — 18 de novembro de 2026
 
 O executável de desenvolvimento agora envia a fixture AAC-LC por UDP ao núcleo
@@ -800,8 +805,3 @@ O inventário funcional detalhado está em [FEATURES.md](FEATURES.md). O atalho 
 ## Prompt para o Codex do Mac
 
 > Continue o Buzin Cast neste repositório. Leia `docs/VEGA_HANDOFF.md`, `docs/WORK_CHECKPOINT.md`, `docs/TESTING.md`, `docs/FEATURES.md` e `vega/README.md`. Quero levar Vega OS ao mesmo nível das duas edições Fire OS, preservando os recursos, a logo aprovada e o código Android compartilhado. Este é o Mac de desenvolvimento; ainda não tenho Fire TV com Vega OS. Prepare o SDK oficial, gere e integre um projeto Vega reproduzível, compile e teste no simulador, e avance no port dos receptores com as APIs reais do SDK. Registre o que foi implementado, testado e o que ainda depende de hardware. Não declare paridade completa com base só no simulador. Atualize o ponto de retomada e faça commit ao terminar cada entrega verificável.
-
-A regressão AAC-LC passou no mesmo pacote em `build/vega-aac-lc-eld-regression`
-(346/358 frames aceitos, ~7,94–7,98 s). Os controles RTSP, volume/mudo,
-Voltar/segundo plano e encerramento/reabertura passaram em dois ciclos em
-`build/vega-aac-eld-controls`. Nenhum desses ensaios certifica um emissor Apple.

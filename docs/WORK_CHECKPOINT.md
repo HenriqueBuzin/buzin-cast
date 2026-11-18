@@ -12,6 +12,35 @@ A negociação completa com Apple, ALAC, vídeo, A/V e validação física conti
 pendentes. Os relatórios do transporte desta entrega estão registrados em
 [VEGA_HANDOFF.md](VEGA_HANDOFF.md); a meta completa permanece ativa.
 
+## Alvo antigo — base do player por URL
+
+`LegacyUrlPlayer` usa MediaPlayer da plataforma em HandlerThread própria.
+Tem preparação assíncrona, posição inicial, pausa/reprodução, busca, fim,
+repetição após fim, ganho/foco separados e troca/retirada de Surface com posse
+explícita. Cada carregamento retorna um identificador, comparável ao
+`State.generation`; pedidos e callbacks substituídos não alteram a nova fonte.
+O encerramento libera player, alvos e worker. `LegacyUrlRequest` valida URL
+HTTP(S), credenciais embutidas, posição e limites/cabeçalhos de HTTP.
+
+`tools/test_fireos3_probe.py --url-player --cycles 2` passou em
+`outputs/legacy-url-player-verified`, API17/1280×720: HTTP real com cabeçalho
+customizado, MP4 sintético 160×90/4 s, preparação pausada iniciando em 1 s,
+pausa repetida antes de começar, reprodução, busca ao início, troca de
+Surface, término/repetição, erro 404, recuperação e substituição rápida.
+Build ARMv7/x86, lint e quatro testes novos de validação passaram.
+A primeira tentativa encontrou leitura do estado de erro da fonte antiga
+antes de executar o novo carregamento; o identificador de pedido resolveu
+a ambiguidade. Uma repetição perdeu ADB no segundo ciclo; a rodada final
+completa usou servidor separado. A fixture está só no probe/testes.
+
+**Ainda não é uma função integrada ao app API17.** Próximo passo: ligar a
+base ao serviço, saída da Activity, controles e adaptadores FCast/DLNA/AirPlay
+por URL, mantendo arbitragem e foco com espelhamento. HLS/DASH, HTTPS real,
+legendas, velocidade, recuperação/timeout de rede e demais funções ainda
+precisam ser portados e validados. O limite de busca deste backend segue o
+inteiro da API antiga; não tratá-lo como paridade concluída. O encerramento
+nativo intermitente registrado anteriormente também continua pendente.
+
 ## Vega — ensaio RTP/AES/NTP concluído — 18 de novembro de 2026
 
 O executável de desenvolvimento agora envia a fixture AAC-LC por UDP ao núcleo

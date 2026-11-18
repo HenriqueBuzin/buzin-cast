@@ -82,10 +82,23 @@ public final class ProbeActivity extends Activity {
         Button streamChecks = new Button(this);
         streamChecks.setText(R.string.probe_stream_checks);
         liveControls.addView(streamChecks, new LinearLayout.LayoutParams(0, -2, 1));
+        Button urlChecks=new Button(this);urlChecks.setText(R.string.probe_url_checks);
+        liveControls.addView(urlChecks,new LinearLayout.LayoutParams(0,-2,1));
 
         TextView parserResult = new TextView(this);
         TextView receiverResult = new TextView(this);
         TextView decoderResult = new TextView(this);
+        urlChecks.setOnClickListener(view-> {
+            if(decoding || liveSession!=null || previewView.getSurfaceTexture()==null)return;
+            decoding=true;SurfaceTexture texture=previewView.getSurfaceTexture();Surface surface=new Surface(texture);
+            decoderResult.setText(R.string.probe_url_checking);
+            stackCheckWorker=new Thread(()-> {
+                String result;
+                try {UrlSelfTest.run(this,surface,texture,previewUpdates);result=getString(R.string.probe_url_passed);}
+                catch(Exception error) {android.util.Log.e("LegacyUrlSelfTest","HTTP fixture failed",error);result="HTTP URL player failed: "+error;}
+                String status=result;runOnUiThread(()-> {decoding=false;stackCheckWorker=null;if(!isDestroyed())decoderResult.setText(status);});
+            },"legacy-url-selftest");stackCheckWorker.start();
+        });
         content.addView(parserResult);
         content.addView(receiverResult);
         content.addView(decoderResult);

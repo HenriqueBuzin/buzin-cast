@@ -17,6 +17,42 @@ from report_coverage import coverage_target_met
 
 
 class CoverageAutomationTest(unittest.TestCase):
+    @patch("test_emulator.time.sleep")
+    def test_focus_query_waits_for_a_real_hierarchy_instead_of_empty_focus(self, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.ui = Mock(side_effect=[UiUnavailable("opening settings"),
+            ET.fromstring('<hierarchy><node focused="true" text="Cinema"/></hierarchy>')])
+        self.assertEqual("Cinema", suite.focused())
+        self.assertEqual(2, suite.ui.call_count)
+
+    @patch("test_emulator.time.sleep")
+    @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
+    def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.ui = Mock(side_effect=UiUnavailable("missing hierarchy"))
+        with self.assertRaisesRegex(AssertionError, "Accessibility unavailable while reading focus.*missing hierarchy"):
+            suite.focused()
+
+    @patch("test_emulator.time.sleep")
+    def test_activation_waits_for_valid_focus_without_sending_blind_navigation(self, _sleep):
+        suite = Suite.__new__(Suite)
+        focused = ET.fromstring('<hierarchy><node focused="true" focusable="true" content-desc="Next"/></hierarchy>')
+        suite.ui = Mock(side_effect=[UiUnavailable("recomposing"), focused])
+        suite.key = Mock()
+        suite.activate("Next", description=True)
+        self.assertEqual(2, suite.ui.call_count)
+        suite.key.assert_called_once_with(23)
+
+    @patch("test_emulator.time.sleep")
+    @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
+    def test_activation_still_fails_when_accessibility_never_becomes_available(self, _clock, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.ui = Mock(side_effect=UiUnavailable("missing hierarchy"))
+        suite.key = Mock()
+        with self.assertRaisesRegex(AssertionError, "Accessibility unavailable.*missing hierarchy"):
+            suite.activate("Next", description=True)
+        suite.key.assert_not_called()
+
     def test_archived_source_changes_cannot_keep_a_valid_compilation_fingerprint(self):
         with TemporaryDirectory(prefix="coverage-source-fingerprint-") as directory:
             snapshot = Path(directory)

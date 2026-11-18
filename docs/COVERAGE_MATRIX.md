@@ -27,7 +27,7 @@ retry; the subsequent six-test execution passed on its first attempt.
 These supplemental test APKs differ from the full-suite test APK and must not
 be merged into its matrix as if their compiled identities matched.
 
-The coverage automation regression suite passes all 14 tests. Whole-app 100%
+The coverage automation regression suite passes all 18 tests. Whole-app 100%
 coverage across all four variants remains unverified and is still outstanding.
 
 ## Run all four
@@ -161,6 +161,22 @@ stream volume is restored. These are state contracts, not pointer-detector or
 complete touch-interface coverage. The selected six-test API22 run passes;
 whole-variant reports must include the same tests in their compiled cohort.
 
+Pointer-detector contracts dispatch Android MotionEvents through an emulator
+activity's View tree and real Compose pointer modifiers. Five selected API22
+tests check both drag axes and directions, below-slop motion, cancellation,
+multiple-pointer rejection, pinch expansion/contraction, stationary pointers,
+two-pointer pan, and events consumed in the Initial pass. This covers the
+detector pipeline without claiming Android system InputDispatcher injection or
+physical touchscreen validation. Callback positions, directions and ownership
+release are asserted; the helpers do not replace the production detectors.
+
+Photo-viewer contracts launch the real activity and serve synthetic red/blue
+PNGs over emulator-loopback HTTP. Three selected API22 tests check decoded
+pixels, rotation/scale controls, duplicate URLs, the 20-entry history limit,
+wrapped navigation, the real slideshow timer, localized failure messages and
+recovery. Bitmap recycling and visibility are checked when the activity closes;
+the tests do not require external image hosts or personal photos.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
@@ -205,6 +221,10 @@ failure and subsequent draining; it is not a physical slow-disk benchmark.
 UI profile checks wait for a complete persisted preferences XML during a profile
 change. Empty or malformed reads never count as a default profile or a successful
 change; unavailable preferences eventually fail the same bounded wait.
+
+Remote activation also waits for a valid accessibility hierarchy before reading
+focus or sending a key. A transient missing hierarchy does not advance focus;
+persistent unavailability fails the bounded wait without activating a control.
 
 DNS wire contracts exercise compressed names, pointer loops and truncated
 packets, UTF-8 label truncation and case-insensitive comparison. The decoder

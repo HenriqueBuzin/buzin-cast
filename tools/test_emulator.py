@@ -115,7 +115,7 @@ class Suite:
         return " ".join(n.get("text","") for n in node.iter())
 
     def focused(self):
-        tree = self.ui()
+        tree = self.wait(self.ui, "Accessibility unavailable while reading focus", timeout=15)
         return next((self.texts(n) for n in tree.iter() if n.get("focused")=="true"), "")
 
     def activate(self, *labels, description=False):
@@ -128,7 +128,7 @@ class Suite:
                 if child.get("focusable") != "true":
                     yield from owned_labels(child)
         for _ in range(40):
-            tree = self.ui()
+            tree = self.wait(self.ui, f"Accessibility unavailable while focusing {labels}", timeout=15)
             focused = next((n for n in tree.iter() if n.get("focused")=="true"), None)
             if focused is not None and any(label in labels for label in owned_labels(focused)):
                 print(f"ACTIVATE {labels} after {_} tabs",flush=True)
