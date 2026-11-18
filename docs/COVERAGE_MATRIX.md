@@ -27,7 +27,7 @@ retry; the subsequent six-test execution passed on its first attempt.
 These supplemental test APKs differ from the full-suite test APK and must not
 be merged into its matrix as if their compiled identities matched.
 
-The coverage automation regression suite passes all 14 tests. Whole-app 100%
+The coverage automation regression suite passes all 16 tests. Whole-app 100%
 coverage across all four variants remains unverified and is still outstanding.
 
 ## Run all four
@@ -214,6 +214,10 @@ failure and subsequent draining; it is not a physical slow-disk benchmark.
 UI profile checks wait for a complete persisted preferences XML during a profile
 change. Empty or malformed reads never count as a default profile or a successful
 change; unavailable preferences eventually fail the same bounded wait.
+
+Remote activation also waits for a valid accessibility hierarchy before reading
+focus or sending a key. A transient missing hierarchy does not advance focus;
+persistent unavailability fails the bounded wait without activating a control.
 
 DNS wire contracts exercise compressed names, pointer loops and truncated
 packets, UTF-8 label truncation and case-insensitive comparison. The decoder
