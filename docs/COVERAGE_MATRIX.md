@@ -10,12 +10,14 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
-The latest normal-APK run passed 85 Android instrumentation tests and 18 native
-cases with UBSan. Execution was interrupted before the extended UI scenarios
-finished, so it does not establish a completed matrix or a new coverage result.
-A subsequent attempt stopped while waiting for the emulator and adds no runtime
-evidence. Keep the archived inputs for replay rather than treating either
-interruption as a passing coverage gate.
+The completed normal-APK run passed 85 Android instrumentation tests, 18 native
+cases with UBSan, and all 13 UI scenarios including extended media controls and
+rendered captions. Its archived report measures 74.164% Android/JVM lines,
+53.4175% Android/JVM branches, 77.5388% native lines, 65.024% native branches and
+40.4908% native MC/DC. The other measured counters also remain below 100%; the
+strict target is false. This cohort predates the additional selected contracts
+below and is not proof of a completed four-variant matrix. Earlier interrupted
+attempts add no passing runtime evidence.
 
 Additional selected contracts passed on unchanged, fingerprint-checked APKs:
 three DACP player tests and two AudioRenderer tests on API22, and six download
