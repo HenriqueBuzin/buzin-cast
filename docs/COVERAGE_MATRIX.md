@@ -10,17 +10,20 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
-The latest normal-APK run passed 85 Android instrumentation tests and 18 native
-cases with UBSan. Execution was interrupted before the extended UI scenarios
-finished, so it does not establish a completed matrix or a new coverage result.
-A subsequent attempt stopped while waiting for the emulator and adds no runtime
-evidence. Keep the archived inputs for replay rather than treating either
-interruption as a passing coverage gate.
+The completed normal-APK run passed 85 Android instrumentation tests, 18 native
+cases with UBSan, and all 13 UI scenarios including extended media controls and
+rendered captions. Its archived report measures 74.164% Android/JVM lines,
+53.4175% Android/JVM branches, 77.5388% native lines, 65.024% native branches and
+40.4908% native MC/DC. The other measured counters also remain below 100%; the
+strict target is false. This cohort predates the additional selected contracts
+below and is not proof of a completed four-variant matrix. Earlier interrupted
+attempts add no passing runtime evidence.
 
 Additional selected contracts passed on unchanged, fingerprint-checked APKs:
-three DACP player tests and two AudioRenderer tests on API22, and three download
-publication tests on both API22 and API36. The first API36 attempt encountered a
-startup ANR; all three publication tests passed after the emulator settled.
+three DACP player tests and two AudioRenderer tests on API22, and six download
+publication/export tests on both API22 and API36. An earlier API36 attempt with
+the original three publication tests encountered a startup ANR and passed on
+retry; the subsequent six-test execution passed on its first attempt.
 These supplemental test APKs differ from the full-suite test APK and must not
 be merged into its matrix as if their compiled identities matched.
 
@@ -109,6 +112,12 @@ the run instead of pairing edited text with an intermediate APK. Snapshots recor
 the source fingerprint alongside the compiled-input identities; the merge tool
 rejects changes to those archived sources.
 
+On Windows, the Python archive and fingerprint operations use extended paths
+for generated class trees. Deep report directories can otherwise exceed the
+legacy path limit when Hilt class names are appended. The archive regression
+checks paths longer than 260 characters and still requires identical compiled
+and source fingerprints; a partial copy cannot become a valid snapshot.
+
 These are debug-instrumented execution results. They complement physical-device
 testing and store-distributed license checks; they do not prove those checks ran.
 
@@ -135,8 +144,13 @@ Download publication contracts use isolated files and, on API29+, a private
 in-process ContentProvider instead of the system download collection. They check
 exact copied bytes, pending/complete metadata, missing or unwritable destinations,
 null/empty provider query results, and idle cancellation. These utility contracts
-do not enable download controls in the DE/AT edition or test an entire network
-export through Transformer.
+do not enable download controls in the DE/AT edition. Additional lifecycle tests
+run the real Transformer: unreadable input must reset progress and remove the
+temporary export; repeated start must retain the active instance; cancellation
+must clear that instance and remove its file. A synthetic local MP4 exercises
+successful export and publication, checking all ten video samples, timestamps,
+dimensions and pending-store completion through MediaExtractor. This is a local
+media export, not a network transfer or a physical storage benchmark.
 
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.

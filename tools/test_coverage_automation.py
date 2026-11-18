@@ -1,6 +1,7 @@
 """Regression checks for coverage automation's device and evidence boundaries."""
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import unittest
@@ -10,7 +11,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from test_emulator import Suite, UiUnavailable, validate_instrumentation_output
-from run_android_coverage import archive_compiled_inputs, coverage_identity, source_identity
+from run_android_coverage import archive_compiled_inputs, coverage_identity, source_identity, filesystem_path
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
 from report_coverage import coverage_target_met
 
@@ -146,6 +147,17 @@ class CoverageAutomationTest(unittest.TestCase):
             archive_compiled_inputs(root,build,apk,test_apk,snapshot,baseline,expected_sources=source_fingerprint)
             self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk,archive=snapshot))
             self.assertEqual(source_fingerprint,source_identity(root,archive=snapshot))
+            # Match deep Hilt class names beneath a long user-selected report path.
+            long_snapshot=root/('report-'+'x'*95)/('cohort-'+'y'*95)/'snapshot'
+            self.assertGreater(len(str(long_snapshot/'classes/app/App.class')),260)
+            long_snapshot=filesystem_path(long_snapshot)
+            try:
+                long_snapshot.mkdir(parents=True)
+                archive_compiled_inputs(root,build,apk,test_apk,long_snapshot,baseline,expected_sources=source_fingerprint)
+                self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk,archive=long_snapshot))
+                self.assertEqual(source_fingerprint,source_identity(root,archive=long_snapshot))
+            finally:
+                shutil.rmtree(filesystem_path(root/('report-'+'x'*95)))
             native_source.write_text("// changed during compilation",encoding="utf-8")
             changed_snapshot=root/"changed-snapshot"
             changed_snapshot.mkdir()
