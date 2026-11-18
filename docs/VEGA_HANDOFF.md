@@ -1,5 +1,42 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## AAC-ELD integrado ao worker — 18 de novembro de 2026
+
+O worker agora aceita AAC-ELD (ct=8), 480/512 amostras, além de AAC-LC
+(ct=4), 960/1024, sempre em 44,1 kHz estéreo. A configuração AAC-ELD usa
+os mesmos bytes do receptor Fire OS: `f8e85000`/`f8e84000`. A sessão continua
+manual e experimental, sem descoberta, PIN ou vídeo. ALAC segue pendente.
+Pacotes cujo codec difere do formato negociado são recusados antes do decoder.
+
+O teste portátil passou com AddressSanitizer/UndefinedBehaviorSanitizer e
+verifica os quatro formatos, rollover/relógio, troca LC→ELD, manutenção do mudo,
+flush/reabertura e rejeição de pares codec/frame incompatíveis. Os 56 testes
+Jest e lint sem avisos passaram. A build/validação ABI das três arquiteturas
+passou. O texto da tela experimental reflete os formatos implementados.
+
+O runner aceita `--eld 480` ou `--eld 512`, combináveis com `--worker`/`--rtp`.
+Reutiliza os tons sintéticos próprios em
+`fireos3-probe/src/main/assets/audio_samples.json`, sem nova dependência de
+codec ou FDK no VPKG. O modo direto do player passou em dois ciclos por formato:
+`build/vega-aac-eld480-native` (735 frames, ~7,90 s) e
+`build/vega-aac-eld512-native` (690 frames, ~7,91–8,01 s).
+Isso comprova consumo/relógio e liberação no VVD, sem comprovar som audível
+ou interoperabilidade Apple.
+
+O transporte também passou em `build/vega-aac-eld480-rtp` (735/747 frames aceitos,
+7,981/7,936 s) e `build/vega-aac-eld512-rtp` (690/702 frames, 7,920/8,000 s).
+Cada segundo ciclo inclui 12 frames antes do flush. Todos os frames passaram
+pela comparação do payload descriptografado e receberam timestamps NTP;
+oito/nove duplicatas foram enviadas por ciclo sem aumentar o número aceito.
+Player e portas RTP/controle/NTP foram liberados em todos os ciclos. O ensaio
+continua com chaves públicas de desenvolvimento, sem negociação FairPlay/RTSP
+ou comprovação de som audível/recepção Apple.
+
+A regressão AAC-LC passou no mesmo pacote em `build/vega-aac-lc-eld-regression`
+(346/358 frames aceitos, ~7,94–7,98 s). Os controles RTSP, volume/mudo,
+Voltar/segundo plano e encerramento/reabertura passaram em dois ciclos em
+`build/vega-aac-eld-controls`. Nenhum desses ensaios certifica um emissor Apple.
+
 ## Vega — ensaio RTP/AES/NTP concluído — 18 de novembro de 2026
 
 O executável de desenvolvimento agora envia a fixture AAC-LC por UDP ao núcleo

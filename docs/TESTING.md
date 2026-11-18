@@ -1083,3 +1083,37 @@ no mesmo pacote em `build/vega-airplay-audio-rtp-controls`. As três ABIs passar
 na build; o executável de desenvolvimento permanece fora do VPKG.
 O teste usa chaves públicas determinísticas, sem negociação FairPlay/RTSP de
 chaves. Não cobre retransmissão/perda, emissor Apple ou validação física.
+
+### AAC-ELD no Vega — 18 de novembro de 2026
+
+O mesmo runner aceita `--eld 480`/`--eld 512`, além de `--worker`/`--rtp`.
+Sem estes dois últimos argumentos, exercita diretamente o sink MSSE. Com
+`--rtp`, percorre UDP, AES-CBC, NTP, callback compartilhado e worker/MSSE:
+
+```sh
+python3 tools/test_vega_msse.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-probe --eld 480 --rtp \
+  --output build/vega-aac-eld480-rtp
+# Repetir com --eld 512 e diretório de saída próprio.
+```
+
+A fixture usa os tons próprios AAC-ELD sem SBR já versionados no protótipo
+Fire OS antigo, com 44100 Hz e dois canais. O runner repete seus pacotes até
+oito segundos; não é uma gravação de emissor Apple. O executável lê registros
+com comprimento de 32 bits little-endian, limitados a 1000 pacotes de 64 KiB.
+O gerador e a procedência estão em [LEGACY_AUDIO_FIXTURES.md](../tools/LEGACY_AUDIO_FIXTURES.md).
+O player direto passou nos dois formatos em dois ciclos com liberação confirmada
+(`build/vega-aac-eld480-native` e `build/vega-aac-eld512-native`). A integração
+não adiciona dependências de codec ao pacote nem comprova validação física.
+
+Os modos RTP também passaram: `build/vega-aac-eld480-rtp` com 735/747 frames
+aceitos e `build/vega-aac-eld512-rtp` com 690/702. Os segundos ciclos incluem
+12 frames antes do flush. Todos receberam NTP e passaram na comparação do
+payload descriptografado; oito/nove duplicatas não aumentaram a contagem aceita.
+Player e portas nativas foram liberados. Os relógios chegaram a ~7,92–8,00 s.
+
+A regressão AAC-LC passou no mesmo pacote em `build/vega-aac-lc-eld-regression`
+(346/358 frames aceitos, ~7,94–7,98 s). Os controles RTSP, volume/mudo,
+Voltar/segundo plano e encerramento/reabertura passaram em dois ciclos em
+`build/vega-aac-eld-controls`. Nenhum desses ensaios certifica um emissor Apple.

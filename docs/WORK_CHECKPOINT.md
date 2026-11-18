@@ -1,5 +1,18 @@
 # Retomada — 18 de novembro de 2026
 
+
+## Vega — AAC-ELD implementado — 18 de novembro de 2026
+
+AAC-ELD de 480/512 amostras agora usa o sink MSSE no mesmo worker que AAC-LC,
+com configuração correspondente ao formato negociado, relógio/flush e volume.
+O teste C++ com sanitizers verifica troca de codec preservando mudo, nova época,
+formatos inválidos e isolamento entre codecs. Os 56 testes Jest, lint e build
+com validação ABI das três arquiteturas passaram. O ensaio direto do player
+passou em dois ciclos para cada formato usando tons sintéticos próprios.
+A negociação completa com Apple, ALAC, vídeo, A/V e validação física continuam
+pendentes. Os relatórios do transporte desta entrega estão registrados em
+[VEGA_HANDOFF.md](VEGA_HANDOFF.md); a meta completa permanece ativa.
+
 ## API17 — integração do player por URL ao serviço e à Activity
 
 O serviço agora aceita `LegacyUrlRequest` por um ponto de entrada interno.
@@ -39,6 +52,7 @@ retomada e testes físicos ainda precisam de trabalho. A investigação do
 encerramento nativo intermitente continua aberta; a regressão aprovada não
 prova que a causa foi corrigida. Ainda não há paridade completa nem APK de
 produção para todos os Sticks.
+
 
 ## Alvo antigo — base do player por URL
 

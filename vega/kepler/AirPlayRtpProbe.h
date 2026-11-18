@@ -7,7 +7,7 @@
 // not replace or bypass the production session's pairing/key negotiation.
 class AirPlayRtpProbe {
 public:
-  AirPlayRtpProbe(AirPlayAudioWorker& worker, const std::vector<std::vector<uint8_t>>& fixture);
+  AirPlayRtpProbe(AirPlayAudioWorker& worker, const std::vector<std::vector<uint8_t>>& fixture, int codec = 4, int samplesPerFrame = 1024);
   ~AirPlayRtpProbe();
   void beginEpoch();
   void send(size_t index, bool duplicate);

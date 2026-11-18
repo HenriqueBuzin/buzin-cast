@@ -54,7 +54,7 @@ struct AirPlayAudioWorker::Impl {
   void run() noexcept {
     std::unique_ptr<AudioSampleSink> sink;
     bool prepared = false;
-    int spf = 0;
+    int spf = 0, codec = 0;
     uint64_t firstNtp = 0, ticks = 0, frame = 0;
     uint32_t lastRtp = 0;
     int64_t lastPts = -1;
@@ -84,10 +84,11 @@ struct AirPlayAudioWorker::Impl {
         if (available && (event.kind == Kind::Format || event.kind == Kind::Flush)) {
           sink->stop(); prepared = false; haveEpoch = false; frame = ticks = 0; lastPts = -1;
           if (event.kind == Kind::Format) {
-            if (event.codec != 4 || (event.spf != 960 && event.spf != 1024)) {
+            if (!((event.codec == 4 && (event.spf == 960 || event.spf == 1024)) ||
+                  (event.codec == 8 && (event.spf == 480 || event.spf == 512)))) {
               std::lock_guard lock(mutex); error("unsupportedAudioFormat"); break;
             }
-            spf = event.spf;
+            spf = event.spf; codec = event.codec;
           }
           applyVolume(false);
           std::lock_guard lock(mutex);
@@ -96,13 +97,16 @@ struct AirPlayAudioWorker::Impl {
         } else if (available && event.kind == Kind::Volume) {
           applyVolume(prepared);
         } else if (available && event.kind == Kind::Sample) {
-          if (!spf || event.codec != 4) {
+          if (cancelled(event.generation)) continue;
+          if (!spf || event.codec != codec) {
             std::lock_guard lock(mutex); error("audioBeforeFormat"); break;
           }
-          if (cancelled(event.generation)) continue;
           if (!prepared) {
             {std::lock_guard lock(mutex); observation.phase = "preparing"; observation.released = false;}
-            sink->startAac(44100, 2, {0x12, static_cast<uint8_t>(spf == 960 ? 0x14 : 0x10)});
+            const std::vector<uint8_t> config = codec == 8
+              ? std::vector<uint8_t>{0xf8, 0xe8, static_cast<uint8_t>(spf == 480 ? 0x50 : 0x40), 0x00}
+              : std::vector<uint8_t>{0x12, static_cast<uint8_t>(spf == 960 ? 0x14 : 0x10)};
+            sink->startAac(44100, 2, config);
             applyVolume(true); prepared = true;
           }
           if (cancelled(event.generation)) continue;

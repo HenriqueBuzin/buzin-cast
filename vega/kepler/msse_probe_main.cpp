@@ -10,16 +10,40 @@
 
 int main(int argc, char** argv) {
   try {
-    const bool rtpMode = argc == 3 && std::string(argv[2]) == "--rtp";
-    const bool workerMode = rtpMode || (argc == 3 && std::string(argv[2]) == "--worker");
-    if (argc != 2 && !workerMode) throw std::runtime_error("Expected an ADTS AAC-LC fixture");
+    if (argc < 2) throw std::runtime_error("Expected an AAC fixture");
+    int eldSpf = 0;
+    bool rtpMode = false, workerMode = false;
+    for (int i = 2; i < argc; ++i) {
+      const std::string option(argv[i]);
+      if (option == "--eld-480") eldSpf = 480;
+      else if (option == "--eld-512") eldSpf = 512;
+      else if (option == "--rtp") rtpMode = workerMode = true;
+      else if (option == "--worker") workerMode = true;
+      else throw std::runtime_error("Unknown audio probe option");
+    }
+    const int frameSamples = eldSpf ? eldSpf : 1024;
+    const int codec = eldSpf ? 8 : 4;
     std::ifstream input(argv[1], std::ios::binary);
     if (!input) throw std::runtime_error("Fixture not found");
     std::vector<std::vector<uint8_t>> samples;
     std::vector<uint8_t> config;
     int rate = 0, channels = 0;
     constexpr int rates[] = {96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350};
-    for (;;) {
+    if (eldSpf) {
+      rate = 44100; channels = 2;
+      config = {0xf8, 0xe8, static_cast<uint8_t>(eldSpf == 480 ? 0x50 : 0x40), 0x00};
+      for (;;) {
+        uint8_t h[4]; input.read(reinterpret_cast<char*>(h), 4);
+        if (input.gcount() == 0 && input.eof()) break;
+        if (input.gcount() != 4 || samples.size() >= 1000) throw std::runtime_error("Invalid bounded ELD fixture");
+        const uint32_t length = uint32_t(h[0]) | (uint32_t(h[1]) << 8) | (uint32_t(h[2]) << 16) | (uint32_t(h[3]) << 24);
+        if (!length || length > 65536) throw std::runtime_error("Invalid ELD access unit size");
+        std::vector<uint8_t> data(length);
+        input.read(reinterpret_cast<char*>(data.data()), data.size());
+        if (input.gcount() != static_cast<std::streamsize>(data.size())) throw std::runtime_error("Truncated ELD frame");
+        samples.push_back(std::move(data));
+      }
+    } else for (;;) {
       uint8_t h[7]; input.read(reinterpret_cast<char*>(h), 7);
       if (input.gcount() == 0 && input.eof()) break;
       if (input.gcount() != 7 || h[0] != 255 || (h[1] & 0xf7) != 0xf1 || (h[2] >> 6) != 1 ||
@@ -46,22 +70,22 @@ int main(int argc, char** argv) {
         worker.start();
         std::unique_ptr<AirPlayRtpProbe> transport;
         if (rtpMode) {
-          transport = std::make_unique<AirPlayRtpProbe>(worker, samples);
+          transport = std::make_unique<AirPlayRtpProbe>(worker, samples, codec, frameSamples);
           transport->setVolume(-18); transport->beginEpoch();
           const auto ready = std::chrono::steady_clock::now() + std::chrono::seconds(3);
           while (worker.state().volumeDb != -18) {
             if (std::chrono::steady_clock::now() >= ready) throw std::runtime_error("RTP volume callback did not arrive");
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
           }
-        } else {worker.format(4,1024); worker.volume(-18);}
+        } else {worker.format(codec,frameSamples); worker.volume(-18);}
         auto feed = [&](size_t count, uint64_t epoch) {
           const auto start = std::chrono::steady_clock::now();
           for (size_t i = 0; i < count; ++i) {
-            std::this_thread::sleep_until(start + std::chrono::nanoseconds(i * 1024000000000ULL / rate));
-            const auto ntp = epoch + i * 1024000000000ULL / rate;
+            std::this_thread::sleep_until(start + std::chrono::nanoseconds(i * static_cast<uint64_t>(frameSamples) * 1000000000ULL / rate));
+            const auto ntp = epoch + i * static_cast<uint64_t>(frameSamples) * 1000000000ULL / rate;
             if (transport) transport->send(i, i % 97 == 0);
-            else worker.sample(samples[i].data(), samples[i].size(), 4, ntp,
-              static_cast<uint32_t>(0xfffff000ULL + i * 1024));
+            else worker.sample(samples[i].data(), samples[i].size(), codec, ntp,
+              static_cast<uint32_t>(0xfffff000ULL + i * frameSamples));
             if (!worker.healthy()) throw std::runtime_error(worker.state().error);
           }
         };
@@ -82,7 +106,7 @@ int main(int argc, char** argv) {
         if (transport && cycle == 1) transport->beginEpoch();
         const auto acceptedBefore = worker.state().accepted;
         feed(samples.size(),2000000000000ULL);
-        const double target = samples.size() * 1024.0 / rate - 0.1;
+        const double target = samples.size() * static_cast<double>(frameSamples) / rate - 0.1;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         while (worker.state().seconds < target || worker.state().accepted != acceptedBefore + samples.size()) {
           if (!worker.healthy() || std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Worker clock did not advance");
@@ -111,15 +135,15 @@ int main(int argc, char** argv) {
       player.startAac(rate, channels, config);
       const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
       for (size_t i = 0; i < samples.size(); ++i) {
-        const int64_t pts = static_cast<int64_t>(i) * 1024000 / rate;
-        const int64_t next = static_cast<int64_t>(i + 1) * 1024000 / rate;
+        const int64_t pts = static_cast<int64_t>(i) * frameSamples * 1000 / rate;
+        const int64_t next = static_cast<int64_t>(i + 1) * frameSamples * 1000 / rate;
         while (!player.append(samples[i], pts, next - pts)) {
           if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Native queue timed out");
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
       }
       player.end();
-      const double target = samples.size() * 1024.0 / rate - 0.1;
+      const double target = samples.size() * static_cast<double>(frameSamples) / rate - 0.1;
       double seconds = 0;
       while ((seconds = player.position()) < target) {
         if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Native audio clock did not advance");
