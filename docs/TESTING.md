@@ -1175,3 +1175,100 @@ lint e build/validação ABI das três arquiteturas passaram. Os três VPKGs tê
 a licença FFmpeg e não contêm runner, headers ou arquivos estáticos do build.
 Concessão adiada e disputa prolongada de foco ainda precisam de ensaio;
 o worker mantém o prazo de backpressure de três segundos antes de falhar.
+
+### H.264 para MP4 fragmentado no Vega — 18 de novembro de 2026
+
+```sh
+python3 tools/test_vega_alac_decoder.py
+python3 tools/test_vega_msse_video.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-video-probe --mux \
+  --output build/vega-h264-fmp4-native
+# Repetir com --profile high e diretório de saída próprio.
+```
+
+O primeiro compila ALAC e o muxer MP4 da revisão fixada do FFmpeg e executa
+os contratos C++ com sanitizers no código próprio. O segundo gera uma fixture
+H.264 de oito segundos a partir da amostra própria, envia Annex B ao executável
+nativo no sandbox, remuxa em dois ciclos e recupera o MP4 em modo binário.
+Compara os hashes de todos os frames decodificados da entrada e da saída.
+Não passa mídia através da ponte JavaScript. O perfil sem B-frames é escolhido
+somente para a fixture; reordenação e sincronismo de um emissor ainda faltam.
+
+O runner aceita só VVD. O formato de fixture limita resolução/configuração,
+600 frames, 2 MiB por frame e 16 MiB no total. O executável de desenvolvimento
+fica fora do VPKG, assim como os outros probes. `--mux` não reproduz o arquivo
+na tela; o relatório registra `surfaceAttached=false` e `rendered=false`.
+O modo MSSE sem `--mux` é investigativo e não passou em negociação H.264 no VVD;
+clock sozinho não é aceito como prova de frames nesse modo.
+
+Rodada final aprovada com os índices de seek/trailer desativados:
+`build/vega-h264-fmp4-stream-baseline` e `build/vega-h264-fmp4-stream-high`,
+dois ciclos por perfil e 120 hashes de frames coincidentes em cada arquivo.
+Build das três arquiteturas e validação dos VPKGs passaram; o runner de vídeo
+permanece excluído dos três pacotes. A regressão ALAC/RTP passou em dois ciclos
+em `build/vega-h264-mux-alac-regression`. Nenhuma tela de espelhamento foi ativada.
+
+### Fluxo H.264/fMP4 para o player por loopback — 18 de novembro de 2026
+
+```sh
+clang++ -std=c++23 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
+  vega/test/LocalVideoStreamTest.cpp vega/kepler/turbo-modules/LocalVideoStream.cpp \
+  -o build/vega-native-tests/local-video-stream
+build/vega-native-tests/local-video-stream
+python3 tools/test_vega_local_video.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-video-probe --transport-only \
+  --output build/vega-local-video-lifecycle
+# Repetir com --profile high e diretório de saída próprio.
+```
+
+O runner recusa aparelhos físicos. Usa o mesmo muxer/servidor C++: gera frames
+em tempo real no sandbox, fornece a URL via controle AirPlay por URL e observa
+relógio, superfície associada e progresso ainda durante a produção. Um ciclo
+consome a amostra completa; o segundo sai com Voltar antes do fim e exige
+`clientClosed`, liberação nativa e parada do produtor. A fila é limitada a
+8 MiB/2048 chunks, com prazo para backpressure/socket e token efêmero local.
+O teste portátil verifica também requests inválidos, bytes binários, cancelamento,
+cliente lento, reuso da porta e a fila por bytes e por quantidade de chunks.
+
+Sem `--transport-only`, exige contadores positivos de vídeo. Essa verificação
+falhou no VVD: `video-quality.json` continuou em total/dropped zero. O modo de
+transporte preserva `visualValidation=false`; relógio e associação da superfície
+não comprovam pixels. Os resultados estritos anteriores permanecem nos diretórios
+`build/vega-local-video-session-header`/`build/vega-local-video-gui`.
+Ainda não é um teste de espelhamento Apple nem de sincronismo A/V.
+
+Resultados de transporte/vida útil aprovados em
+`build/vega-local-video-final-baseline` e `build/vega-local-video-final-high`.
+A repetição High no candidato com cancelamento protegido pelo mutex passou em
+`build/vega-local-video-cancel-guard`: 120 frames no ciclo completo e 76/120
+no ciclo cancelado com `clientClosed`, player/superfície e produtor liberados.
+A regressão AirPlay por URL com pausa/busca/retomada/stop passou em
+`build/vega-local-video-url-regression`. Lint, TypeScript, 57 testes Jest e
+build/validação dos três VPKGs passaram; o produtor continua fora dos pacotes.
+Todos os relatórios de transporte mantêm `visualValidation=false`.
+
+
+### Posse da saída de vídeo e cancelamento pelo controle
+
+`python3 tools/test_vega_alac_decoder.py` também compila e executa
+`Fmp4VideoOutputTest.cpp` com ASan/UBSan. Compara o MP4 recebido via HTTP com
+os bytes do muxer de referência, em dois ciclos; testa configuração inválida,
+reabertura, cancelamento durante AVIO bloqueado, cancelamento de espera de EOF
+sem consumidor e liberação da porta pelo destrutor. O teste observa a fila
+estabilizada: cabeçalhos MP4 também ocupam slots, então o teto de chunks pode
+ser atingido antes do teto de bytes. `LocalVideoStreamTest.cpp` exige que
+`cancel()` acorde o produtor sem marcar recursos como liberados; somente
+`stop()` faz o join e libera fila/listener.
+
+O probe `--serve` usa `Fmp4VideoOutput`, a mesma implementação destinada ao
+worker de vídeo. Continua sendo um executável de desenvolvimento; os callbacks
+UxPlay do app ainda não alimentam essa saída. Isso não comprova espelhamento
+Apple, pixels exibidos ou sincronismo A/V.
+
+Ensaio High do dono comum aprovado em `build/vega-video-output-owned`:
+120 frames/179947 bytes no ciclo completo, reprodução observada com 43/120
+frames produzidos; Voltar encerrou o segundo ciclo em 62/120 com `clientClosed`,
+produtor/player/superfície liberados. Os contadores de vídeo continuaram zero;
+o relatório mantém `visualValidation=false` e não certifica imagem exibida.

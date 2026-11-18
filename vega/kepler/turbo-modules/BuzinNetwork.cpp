@@ -139,6 +139,19 @@ std::string BuzinNetwork::recordMediaCapabilities(double h264, double hevc, doub
   if (!output) throw std::runtime_error("Could not save media diagnostic");
   return report;
 }
+void BuzinNetwork::recordVideoPlaybackQuality(double total, double dropped, bool attached) {
+  const bool available = total != -1 || dropped != -1;
+  if (available && (!std::isfinite(total) || !std::isfinite(dropped) || total < 0 || total > 4294967295.0 ||
+      dropped < 0 || dropped > total || total != std::floor(total) || dropped != std::floor(dropped)))
+    throw std::invalid_argument("Invalid video quality observation");
+  std::ofstream output("/data/video-quality.json.tmp",std::ios::trunc);
+  output.imbue(std::locale::classic());
+  output << "{\"available\":" << (available ? "true" : "false") << ",\"attached\":" << (attached ? "true" : "false")
+    << ",\"total\":" << total << ",\"dropped\":" << dropped << "}\n";
+  output.close();
+  if (!output || std::rename("/data/video-quality.json.tmp","/data/video-quality.json"))
+    throw std::runtime_error("Could not save video quality observation");
+}
 void BuzinNetwork::recordPlaybackState(std::string state, double seconds) {
   if (state != "loading" && state != "playing" && state != "paused" &&
       state != "ended" && state != "error" && state != "released") {

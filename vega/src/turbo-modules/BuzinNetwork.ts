@@ -19,6 +19,7 @@ export interface BuzinNetwork extends KeplerTurboModule {
   disconnectFCastClient: (client: number) => void;
   fcastError: (client: number, message: string) => void;
   updateFCastState: (playback: string, volume: string) => void;
+  recordVideoPlaybackQuality: (total: number, dropped: number, attached: boolean) => void;
   recordPlaybackState: (state: string, seconds: number) => void;
   recordMediaCapabilities: (h264: number, hevc: number, aac: number) => string;
 }
