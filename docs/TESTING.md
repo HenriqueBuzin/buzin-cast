@@ -1117,3 +1117,41 @@ A regressão AAC-LC passou no mesmo pacote em `build/vega-aac-lc-eld-regression`
 (346/358 frames aceitos, ~7,94–7,98 s). Os controles RTSP, volume/mudo,
 Voltar/segundo plano e encerramento/reabertura passaram em dois ciclos em
 `build/vega-aac-eld-controls`. Nenhum desses ensaios certifica um emissor Apple.
+
+### ALAC/PCM no Vega — 18 de novembro de 2026
+
+```sh
+python3 tools/test_vega_alac_decoder.py
+python3 tools/test_vega_msse.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-probe --alac --rtp \
+  --output build/vega-alac-pcm-rtp
+```
+
+O primeiro compila o decoder ALAC da revisão FFmpeg fixada sem SDK, verifica
+PCM não nulo/amplitude/canais, recriação e entradas inválidas com sanitizers
+no código próprio. O segundo requer VVD/build e percorre RTP/AES-CBC/NTP,
+worker, decoder e AudioStream com foco MEDIA. `--alac` sem `--rtp`/`--worker`
+exercita diretamente o sink PCM. O perfil aceito é 352 amostras, 16 bits,
+44,1 kHz e dois canais; a fixture sintética é compartilhada com o protótipo.
+O leitor de registros é limitado a 1024 pacotes de 64 KiB para comportar oito
+segundos desse perfil. Headers/bibliotecas FFmpeg são instalados somente na
+área privada do build, com `DESTDIR=`; o VPKG leva o código ligado e as licenças.
+
+O caminho direto passou em dois ciclos (`build/vega-alac-pcm-blocks`, 1003
+frames, ~7,95 s), assim como RTP (`build/vega-alac-pcm-rtp`, 1003/1015 frames,
+~7,99 s, 11/12 duplicatas, flush no segundo ciclo). A saída exige agrupar
+pacotes no tamanho mínimo consultado no SDK; escritas menores produziram
+timeout antes desse ajuste. Os ensaios exigem relógio, contagens completas,
+liberação do player/foco e reuso das portas RTP/controle/NTP. Não comprovam
+som audível, negociação de chaves/emissor Apple, disputa real de foco ou A/V.
+
+A rodada final no mesmo pacote passou em `build/vega-alac-final-rtp`,
+`build/vega-alac-final-aac-lc`, `build/vega-alac-final-eld480`,
+`build/vega-alac-final-eld512` e `build/vega-alac-final-controls`: dois ciclos
+por formato, clocks até o fim da fixture, flush, contagens completas, portas
+liberadas e regressão RTSP/volume/mudo/Voltar/segundo plano. Os 56 testes Jest,
+lint e build/validação ABI das três arquiteturas passaram. Os três VPKGs têm
+a licença FFmpeg e não contêm runner, headers ou arquivos estáticos do build.
+Concessão adiada e disputa prolongada de foco ainda precisam de ensaio;
+o worker mantém o prazo de backpressure de três segundos antes de falhar.

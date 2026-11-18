@@ -125,3 +125,20 @@ O adaptador usa @xmldom/xmldom 0.9.12 (MIT) e base-64 1.0.0 (MIT), fixados no
 lock npm. Licenças e créditos seguem em `vega/assets/raw/licenses` e
 `vega/assets/raw/third-party-notices.txt`, incluídos no pacote. O player W3C e
 os codecs são fornecidos pelo Vega; os termos Amazon continuam aplicáveis.
+
+### Vega — ALAC por software e saída PCM — 18 de novembro de 2026
+
+O Vega agora compila estaticamente somente o decoder ALAC e libavutil do
+submódulo FFmpeg 9.0.2 já fixado (`946fcce07b6dcd0331c8cc609192aeff5e1924f8`).
+A configuração reproduzível está em `vega/cmake/AlacDecoder.cmake`: sem rede,
+programas, autodetecção, codecs extras ou assembly. As três arquiteturas são
+compiladas fora da árvore do submódulo. `DESTDIR` é explicitamente limpo na
+instalação privada para não copiar headers/bibliotecas para o pacote do app.
+O caminho selecionado usa LGPL 2.1+; o aviso e a licença integral acompanham
+os assets Vega. As fontes/configuração permanecem disponíveis neste repositório.
+
+A saída PCM e o foco usam bindings APMF gerados do SDK 2.0.13986, pacote
+`com.amazon.kepler.audio`, com termos Amazon. Serviços de áudio já constam no
+manifesto; não há nova permissão de microfone. Não usa Oboe/JNI, não substitui
+bibliotecas do sistema e mantém AAC-LC/AAC-ELD no MSSE. O teste portátil compila
+a mesma revisão fixada com sanitizers no código próprio, sem necessidade do SDK.

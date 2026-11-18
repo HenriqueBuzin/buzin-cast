@@ -56,13 +56,14 @@ a navegação pelo controle passou no VVD, e toques reais/revisão visual desta
 mudança ainda aguardam validação.
 
 O modo **Estado do port → Testar áudio AirPlay** encaminha callbacks UxPlay a um
-worker nativo para AAC-LC (960/1024) e AAC-ELD (480/512), estéreo/44,1 kHz,
-com fila limitada, flush e volume/mudo.
+worker nativo para ALAC de 16 bits (352), AAC-LC (960/1024) e AAC-ELD
+(480/512), estéreo/44,1 kHz, com fila limitada, flush e volume/mudo. ALAC usa
+FFmpeg/PCM e uma sessão própria de foco; AAC usa MSSE.
 No VVD passaram áudio injetado, controles/vida útil por RTSP e o ensaio de
 desenvolvimento RTP/UDP com AES-CBC, NTP, duplicatas e liberação das portas.
 Esse ensaio usa chaves públicas de teste; negociação completa e emissores Apple
-reais ainda precisam ser validados. Este modo é manual, sem descoberta, PIN,
-vídeo ou ALAC.
+reais ainda precisam ser validados. Este modo é manual, sem descoberta, PIN
+ou vídeo.
 
 ## Ambiente e build
 
