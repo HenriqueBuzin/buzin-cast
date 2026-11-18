@@ -22,6 +22,23 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Diagnóstico do encerramento nativo — 18/nov:** `StreamingSelfTest`
+  registra o último estágio em `BuzinLegacyStream`: criação da sessão,
+  fixtures de codecs, descoberta/RTSP, áudio nativo, relógio A/V, troca de
+  Surface, vídeo final e parada. O runner registra `apk_sha256`, salva
+  `cycle-N-phases.txt` a cada ciclo e mantém logcat completo nas falhas.
+  Um erro apenas na coleta adicional é registrado como diagnóstico;
+  os testes de streaming e a limpeza continuam sendo obrigatórios.
+  `outputs/legacy-native-phase-stress` passou com `--cycles 3`: seis sessões
+  de streaming no emulador API17, incluindo decodificação/áudio, relógio,
+  troca de display, RTSP fechado e captura com pixels. Build ARMv7/x86,
+  lint e testes JVM do runtime/probe passaram. O arquivo `final-phases.txt`
+  preserva também a coleta manual da rodada; logs antigos podem ser evictados
+  do buffer Android, por isso as próximas rodadas salvam por ciclo.
+  **A falha inicial em dlfree continua sem causa confirmada.** Não foi
+  aplicada correção de memória; seis sessões aprovadas não provam sua
+  resolução nem substituem testes com transmissor e Stick físicos.
+
 - **Áudio sem metadados API17 — 18/nov:** a mudança de estado da saída
   AudioTrack notifica o serviço. O ganho começa em zero e aguarda foco;
   não depende de título, capa ou identidade DACP. Sem comandos disponíveis,

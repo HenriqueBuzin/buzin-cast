@@ -1,5 +1,26 @@
 # Retomada — 18 de novembro de 2026
 
+## Investigação do encerramento nativo — marcos e repetição
+
+O probe registra fases de criação, codecs, RTSP, replay de áudio, relógio
+A/V, troca de superfície e encerramento. O runner registra SHA256 do APK,
+salva as fases por ciclo e continua salvando logcat completo em falhas.
+Esses diagnósticos não alteram o decoder nem a política de reprodução.
+
+`outputs/legacy-native-phase-stress/report.json` passou em três ciclos,
+com seis sessões completas de streaming. Exercitou ALAC/AAC-LC/AAC-ELD,
+H.264, relógio A/V, saída sem tela, troca de Surface e encerramento de RTSP.
+Os perfis anunciados alternaram 1080p/30 e 720p/60; isso não significa que
+a amostra decodificada tinha essas resoluções. Build ARMv7/x86, lint e testes
+JVM do runtime/probe passaram. Logs de fases foram conferidos no emulador.
+
+O endereço inválido em `dlfree` da primeira regressão não foi reproduzido
+nessas seis sessões. A causa segue sem confirmação e **não foi aplicada
+uma correção nativa**; não encerrar a pendência nem anunciar estabilidade de
+produção. Seguir investigando se reaparecer com os marcos disponíveis,
+preservando os logs anteriores. A paridade dos protocolos/player, funções
+restantes, produção e validação física continua no objetivo.
+
 ## Alvo antigo — áudio sem metadados
 
 O AudioTrack avisa quando sua saída começa/termina, permitindo solicitar foco

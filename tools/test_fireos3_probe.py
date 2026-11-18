@@ -1,5 +1,6 @@
 """Repeatable API 17 receiver callback smoke test; refuses physical devices."""
 import argparse
+import hashlib
 import json
 import plistlib
 import socket
@@ -121,7 +122,7 @@ def main():
     package = 'io.buzincast.fireos3probe'
     adb('install', '-r', str(args.apk.resolve()))
     adb('shell', 'input', 'keyevent', '82')
-    report = {'api': 17, 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
+    report = {'api': 17, 'apk_sha256': hashlib.sha256(args.apk.read_bytes()).hexdigest(), 'cycles': [], 'scope': 'real DNS-SD/RTSP sockets, synthetic H.264 and ALAC/AAC-LC/AAC-ELD, muted AudioTrack; not an Apple sender session'}
     try:
         for cycle in range(args.cycles):
             entry = {'cycle': cycle+1}
@@ -179,6 +180,11 @@ def main():
             # Repeat within the same Activity to detect a receiver/codec leak.
             tap('Render receiver callback sample')
             expect('Receiver callback H.264: frame displayed')
+            try:
+                (args.output/f'cycle-{cycle+1}-phases.txt').write_text(
+                    adb('logcat','-d','-s','BuzinLegacyStream:I'),encoding='utf-8')
+            except Exception as diagnostic:
+                report.setdefault('diagnostic_errors',[]).append(type(diagnostic).__name__)
         report['status'] = 'pass'
     except Exception as error:
         report['status'] = 'failed'

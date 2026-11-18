@@ -32,7 +32,9 @@ import org.json.JSONObject;
 
 /** Real DNS/RTSP and registered audio/video callbacks with synthetic packets, not an Apple sender. */
 final class StreamingSelfTest {
+    private static void phase(String phase) {android.util.Log.i("BuzinLegacyStream",phase);}
     static void run(Context context, Surface surface, SurfaceTexture texture,String identity, CountDownLatch displayed,AtomicInteger displayedFrames) throws Exception {
+        phase("session-create");
         LegacyReceiverSession session = new LegacyReceiverSession(context, null, identity, new LegacyReceiverSession.Listener() {
             @Override public void ready(String name) {}
             @Override public void failed(Exception error) {}
@@ -42,25 +44,27 @@ final class StreamingSelfTest {
         boolean attached=false;
         int port = 0;
         try {
+            phase("audio-codec-fixtures");
             AudioSelfTest.run(context);
             if (!session.ready.await(20, TimeUnit.SECONDS)) throw new IOException("Receiver startup timed out");
             if (session.failure != null) throw session.failure;
             port = session.port;
             if (port == 0) throw new IOException("Receiver stopped during startup");
-            checkDiscovery(session.network.address, port);
+            phase("discovery-and-rtsp");checkDiscovery(session.network.address, port);
             checkRtsp(port, "OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n");
             // /info exercises callbacks which an OPTIONS-only test cannot reach.
             checkRtsp(port, "GET /info RTSP/1.0\r\nCSeq: 2\r\nContent-Length: 0\r\n\r\n");
             checkVolume(port, session);
-            replayAudio(context, session);
+            phase("native-audio-replay");replayAudio(context, session);
             // Boot/background startup has no Activity or video Surface yet.
             session.setVideoSurface(surface,null);attached=true;
-            checkAvSync(context, session);
-            checkSurfaceTransitions(context,session,surface,texture,displayedFrames);
-            replaySample(context, session);
+            phase("av-clock-and-scheduling");checkAvSync(context, session);
+            phase("surface-transitions");checkSurfaceTransitions(context,session,surface,texture,displayedFrames);
+            phase("final-video-replay");replaySample(context, session);
             if (!session.decoded.await(5, TimeUnit.SECONDS)) throw new IOException("Live decoder produced no frame");
             if (!displayed.await(5, TimeUnit.SECONDS)) throw new IOException("Live video Surface was not updated");
         } finally {
+            phase("session-stop");
             try {
                 session.stop();
                 if (!session.closed.await(10, TimeUnit.SECONDS)) throw new IOException("Receiver shutdown timed out");
@@ -68,6 +72,7 @@ final class StreamingSelfTest {
                 if (session.audioPlayer.running || session.audioPlayer.outputActive) throw new IOException("Audio survived receiver stop");
             } finally {if(!attached)surface.release();}
         }
+        phase("verify-listener-closed");
         // A successful stop must close the RTSP listener, rather than merely hide the UI.
         try (Socket connection = new Socket()) {
             try { connection.connect(new InetSocketAddress("127.0.0.1", port), 500); }
