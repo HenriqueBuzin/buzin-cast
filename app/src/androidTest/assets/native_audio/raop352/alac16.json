@@ -1,0 +1,17 @@
+{
+  "format": "big-endian uint32 length followed by one raw ALAC packet, repeated",
+  "sample_rate": 44100,
+  "channels": 2,
+  "bits": 16,
+  "frames": 352,
+  "packet_frames": [
+    352
+  ],
+  "packet_sizes": [
+    355
+  ],
+  "pcm_sha256": "d3d83e8561ca12bed69a1d29301550111a58379a152dafe12da0406d81692ea7",
+  "packets_sha256": "06ab9b41ecd33c9f7baed85085ea2353802358491d1b59e78fc5d277306b0657",
+  "left": "(frame * 97) % 30001 - 15000",
+  "right": "(frame * 137 + 19) % 28001 - 14000"
+}

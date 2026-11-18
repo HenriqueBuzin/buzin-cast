@@ -7,16 +7,85 @@
 #include <map>
 #include <string>
 #include <thread>
+#include <vector>
 #include <oboe/Oboe.h>
 #include "audio_engine.h"
 #include "log_sink.h"
 extern "C" {
+#include <libavcodec/defs.h>
 #include "dnssd.h"
 #include "android_dnssd_shim.h"
 #include "android_raop_callbacks.h"
 }
 extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
+
+// ALAC decoding uses the production engine and its normal PCM capture tap.
+// Returned records are native-endian {int64 pts, int32 rate, int32 channels, PCM16}.
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame) {
+#define ALAC_CONTRACT(condition) do { if (!(condition)) { \
+    auto error = env->FindClass("java/lang/AssertionError"); \
+    if (error) { env->ThrowNew(error, #condition); env->DeleteLocalRef(error); } \
+    return nullptr; } } while (false)
+    ALAC_CONTRACT(packets && timestamps);
+    ALAC_CONTRACT(samplesPerFrame >= 0 && samplesPerFrame <= 4096);
+    const auto count = env->GetArrayLength(packets);
+    ALAC_CONTRACT(count > 0 && count <= 32 && env->GetArrayLength(timestamps) == count);
+    std::vector<jlong> pts(count);
+    env->GetLongArrayRegion(timestamps, 0, count, pts.data());
+    if (env->ExceptionCheck()) return nullptr;
+    struct Capture {
+        std::vector<std::vector<uint8_t>> records;
+        static void receive(void *user, const int16_t *pcm, size_t samples, int64_t time, int rate, int channels) {
+            auto &records = static_cast<Capture *>(user)->records;
+            std::vector<uint8_t> record(16 + samples * sizeof(int16_t));
+            const int32_t sampleRate = rate, channelCount = channels;
+            memcpy(record.data(), &time, 8); memcpy(record.data() + 8, &sampleRate, 4);
+            memcpy(record.data() + 12, &channelCount, 4); memcpy(record.data() + 16, pcm, samples * sizeof(int16_t));
+            records.push_back(std::move(record));
+        }
+    } capture;
+    using Engine = std::unique_ptr<AudioEngine, decltype(&audio_engine_destroy)>;
+    Engine engine(audio_engine_create(std::make_shared<LogSink>(), 44100, 2), audio_engine_destroy);
+    ALAC_CONTRACT(engine);
+    ALAC_CONTRACT(audio_engine_configure(engine.get(), 50, 95, 0, true, true, false, false, false));
+    audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
+    audio_engine_set_capture_enabled(engine.get(), true);
+    audio_engine_on_format(engine.get(), 2, samplesPerFrame);
+    for (jsize i = 0; i < count; ++i) {
+        auto packet = static_cast<jbyteArray>(env->GetObjectArrayElement(packets, i));
+        if (env->ExceptionCheck()) return nullptr;
+        ALAC_CONTRACT(packet);
+        const auto length = env->GetArrayLength(packet);
+        if (length <= 0 || length > 8192) {
+            env->DeleteLocalRef(packet);
+            ALAC_CONTRACT(false && "Invalid ALAC fixture packet length");
+        }
+        std::vector<uint8_t> bytes(length + AV_INPUT_BUFFER_PADDING_SIZE, 0);
+        env->GetByteArrayRegion(packet, 0, length, reinterpret_cast<jbyte *>(bytes.data()));
+        env->DeleteLocalRef(packet);
+        if (env->ExceptionCheck()) return nullptr;
+        audio_engine_decode(engine.get(), bytes.data(), length, 2, pts[i]);
+        ALAC_CONTRACT(capture.records.size() == static_cast<size_t>(i + 1));
+    }
+    auto bytesClass = env->FindClass("[B");
+    if (!bytesClass) return nullptr;
+    auto result = env->NewObjectArray(count, bytesClass, nullptr);
+    env->DeleteLocalRef(bytesClass);
+    if (!result) return nullptr;
+    for (jsize i = 0; i < count; ++i) {
+        const auto &record = capture.records[i];
+        auto bytes = env->NewByteArray(static_cast<jsize>(record.size()));
+        if (!bytes) return nullptr;
+        env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(record.size()), reinterpret_cast<const jbyte *>(record.data()));
+        if (!env->ExceptionCheck()) env->SetObjectArrayElement(result, i, bytes);
+        env->DeleteLocalRef(bytes);
+        if (env->ExceptionCheck()) return nullptr;
+    }
+#undef ALAC_CONTRACT
+    return result;
+}
 
 // Calls the production callback table with real JNI and an isolated Java sink.
 // No receiver, player, discovery service or network listener is created.

@@ -121,6 +121,26 @@ A fresh four-variant API36 run including the brand and log-screen contracts has
 started after successful completion of the frozen normal retry. These selected
 results do not establish new whole-app percentages or satisfy the 100% target.
 
+Two new ALAC contracts passed on API22 in 0.057 seconds using the Gradle-built
+compat DE/AT APK and test APK. They decode original, non-silent stereo PCM16
+through the production audio engine with software ALAC selected, checking every
+sample byte, channel order, rate/channel metadata and timestamp. One corpus has
+4096 frames followed by a short 128-frame packet; the other checks the engine's
+352-frame default after an invalid zero-size format announcement. The short
+packet must not publish stale samples from the larger interleave scratch buffer.
+The coverage-only JNI fixture collects the real capture tap without starting an
+audio output stream. The native engine and decoder implementation are unchanged.
+
+`tools/generate_native_alac_fixture.py` constructs both stereo channels from
+integer formulas, encodes ALAC and independently checks an exact PCM round trip
+before writing packet files and hashes. The fixtures are instrumentation assets
+and are not packaged in release apps. Both Android assemblies and lint passed
+in 3m21s; selected runtime evidence is
+`build/native-alac-default-selection/instrumentation.txt`. These selected data
+are not merged into an earlier test-APK cohort. The already-frozen normal run
+has 139 Android tests; subsequent builds can include the two new ALAC contracts.
+Their measured coverage contribution still requires complete runtime reports.
+
 ## Run all four
 
 Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial
