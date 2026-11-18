@@ -188,6 +188,15 @@ restores it afterward. These contracts do not establish vendor-chip behavior.
 The earlier 85-test whole-app report predates this production fix and must not
 be reported as coverage of the corrected APKs.
 
+Playback ViewModel contracts use an isolated application and preferences with
+no receiver service bound. Eight selected API22 tests check pending/active media
+controls, speed limits, silence settings, scrub settlement/timeout/cancellation,
+cached preference flows, external preference writes, asynchronous log persistence
+and clearing, transient service messages, PIN and permission-display state.
+The real coroutine jobs and log worker are closed at teardown. These tests
+exercise disconnected UI state, not bound-service commands or actual seeking
+in a media player; whole-variant runs must measure those paths separately.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
