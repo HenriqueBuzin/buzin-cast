@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 from run_android_coverage import VARIANTS, coverage_identity, source_identity
-from test_emulator import validate_instrumentation_output
+from test_emulator import COVERAGE_REQUIRED_RESULTS, validate_instrumentation_output
 
 
 IDENTITY_KEYS=("apk_sha256","test_apk_sha256","class_files_sha256","class_counts","native_library_sha256")
@@ -33,7 +33,7 @@ def validate_snapshots(snapshots):
         if not isinstance(manifest.get("emulator_api"),int) or manifest["emulator_api"]<minimum:
             raise ValueError("Snapshot has an invalid emulator API for its variant")
         results=json.loads((snapshot/"results.json").read_text(encoding="utf-8"))
-        required={"Android socket integration","C++ unit concurrency and timing","media remote controls and rendered captions"}
+        required=COVERAGE_REQUIRED_RESULTS
         if not results or not all(result.get("passed") is True for result in results) or not required.issubset({result.get("test") for result in results}):
             raise ValueError("Snapshot must contain a completed instrumented/native/extended UI run")
         runner=next(result for result in results if result["test"]=="Android socket integration")

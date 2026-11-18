@@ -21,6 +21,16 @@ from pathlib import Path
 PKG = "com.buzincast.tv"
 BASE = "io.github.jqssun.airplay."
 
+# Coverage snapshots require the complete instrumented/native/extended UI run.
+COVERAGE_REQUIRED_RESULTS = frozenset({
+    "Android socket integration", "C++ unit concurrency and timing",
+    "edition recording policy", "normal settings", "advanced/custom settings",
+    "cancel and restore focus", "single relay form", "device-aware profiles",
+    "about version", "shared audio controls", "native/player recovery and ownership",
+    "native codecs and recording smoke", "launcher entry and resume",
+    "guided calibration save/cancel and bounds", "media remote controls and rendered captions",
+})
+
 
 class UiUnavailable(AssertionError):
     """No trustworthy accessibility snapshot is available yet."""
