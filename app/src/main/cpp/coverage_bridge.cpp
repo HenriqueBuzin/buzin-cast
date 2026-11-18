@@ -8,8 +8,10 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <chrono>
 #include <oboe/Oboe.h>
 #include "audio_engine.h"
+#include "audio_output.h"
 #include "log_sink.h"
 extern "C" {
 #include <libavcodec/defs.h>
@@ -19,6 +21,76 @@ extern "C" {
 }
 extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
+
+// Access owns references under the production lock; no stream state is faked.
+struct AudioOutputContractAccess {
+    static std::shared_ptr<OboeCallbacks> callbacks(const std::shared_ptr<AudioOutput> &output) {
+        std::lock_guard<std::mutex> lock(output->mLock);
+        return output->mCallbacks;
+    }
+    static std::shared_ptr<oboe::AudioStream> stream(const std::shared_ptr<AudioOutput> &output) {
+        std::lock_guard<std::mutex> lock(output->mLock);
+        return output->mStream;
+    }
+};
+
+// Deliberately invokes the real post-close callback; no physical disconnection
+// is simulated at the OS level, and all opened emulator streams are closed.
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, jobject, jint scenario) {
+#define OUTPUT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    auto timeline = std::make_shared<TimelineBuffer>(44100, 2, 50, 95);
+    auto log = std::make_shared<LogSink>();
+    auto output = AudioOutput::create(scenario == 2 ? -1 : 44100, 2, 192, false, timeline, log);
+    auto callbacks = AudioOutputContractAccess::callbacks(output);
+    OUTPUT_CONTRACT(callbacks);
+    if (scenario == 0) {
+        output->stop();
+        callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        std::weak_ptr<AudioOutput> owner = output;
+        output.reset();
+        OUTPUT_CONTRACT(owner.expired());
+        callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
+        std::array<int16_t, 16> pcm;
+        pcm.fill(1234);
+        OUTPUT_CONTRACT(callbacks->onAudioReady(nullptr, pcm.data(), 8) == oboe::DataCallbackResult::Continue);
+        OUTPUT_CONTRACT(std::all_of(pcm.begin(), pcm.end(), [](int16_t sample) { return sample == 0; }));
+        OUTPUT_CONTRACT(owner.expired());
+    } else if (scenario == 1) {
+        auto started = [](const std::shared_ptr<oboe::AudioStream> &stream) {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (std::chrono::steady_clock::now() < deadline) {
+                auto before = stream->getState();
+                if (before == oboe::StreamState::Started) return true;
+                oboe::StreamState after;
+                stream->waitForStateChange(before, &after, 50'000'000);
+            }
+            return false;
+        };
+        OUTPUT_CONTRACT(output->start());
+        auto previous = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(previous && started(previous));
+        previous->stop(); previous->close();
+        OUTPUT_CONTRACT(previous->getState() == oboe::StreamState::Closed);
+        callbacks->onErrorAfterClose(previous.get(), oboe::Result::ErrorDisconnected);
+        auto recovered = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(recovered && recovered.get() != previous.get() && started(recovered));
+        output->stop();
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        OUTPUT_CONTRACT(recovered->getState() == oboe::StreamState::Closed);
+        callbacks->onErrorAfterClose(recovered.get(), oboe::Result::ErrorDisconnected);
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+    } else if (scenario == 2) {
+        callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        output->stop();
+    } else {
+        OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
+    }
+#undef OUTPUT_CONTRACT
+    return env->NewStringUTF("output contracts passed");
+}
 
 // ALAC decoding uses the production engine and its normal PCM capture tap.
 // Returned records are native-endian {int64 pts, int32 rate, int32 channels, PCM16}.

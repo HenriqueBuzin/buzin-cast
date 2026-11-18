@@ -141,6 +141,25 @@ are not merged into an earlier test-APK cohort. The already-frozen normal run
 has 139 Android tests; subsequent builds can include the two new ALAC contracts.
 Their measured coverage contribution still requires complete runtime reports.
 
+Three Oboe-output contracts passed on API22 in 0.17 seconds. They verify that
+post-close recovery opens and starts a different real stream, that callbacks
+after stop or owner destruction cannot reopen output, and that an invalid output
+format fails recovery without retaining a stream. A late data callback must
+still safely fill its buffer with silence after the owner has been destroyed.
+The fixture reads actual callback/stream references under the production mutex;
+the only output-header change grants this test-access shim friendship. No output
+handling logic or production state is replaced. OpenSLES was observed in the
+emulator log; this is controlled callback delivery, not a physical device-loss
+test. All opened streams are closed before the fixture returns.
+
+Android assemblies and lint passed in 19m31s; the long lint phase was observed
+walking source paths in Kotlin analysis, with the declared source roots intact.
+No analysis scope was excluded to shorten it. Selected runtime evidence is
+`build/native-output-selection/instrumentation.txt`. Earlier frozen normal139
+and compat141 APK cohorts do not contain these three tests; subsequent builds
+can include them. Their whole-app coverage contribution remains unmeasured
+until those complete runs produce accepted reports.
+
 ## Run all four
 
 Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial
