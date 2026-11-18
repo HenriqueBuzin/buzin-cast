@@ -1010,3 +1010,29 @@ verifica UI, RTSP OPTIONS/SET_PARAMETER, volume/mudo e encerramento dos sockets.
 Não cobre negociação/criptografia/RTP de mídia completos ou emissores Apple.
 Resultados finais aprovados em `build/vega-airplay-audio-worker-verified`,
 `build/vega-airplay-audio-lifecycle-verified` e `build/vega-airplay-audio-smoke`.
+
+### Transporte RTP de áudio Vega — 18 de novembro de 2026
+
+Com build concluído e VVD ativo:
+
+```sh
+python3 tools/test_vega_msse.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-probe --rtp \
+  --output build/vega-airplay-audio-rtp-verified
+```
+
+O modo `--rtp` usa sockets UDP reais em loopback, AES-CBC e troca NTP nativa;
+compara cada payload descriptografado com a fixture antes de encaminhá-lo pelo
+mesmo adaptador usado pela sessão ao worker/MSSE. Exige dois ciclos completos,
+timestamps em todos os frames, descarte de duplicatas, flush no segundo ciclo,
+liberação do player e possibilidade de vincular novamente as três portas nativas.
+A sequência e o timestamp RTP atravessam rollover. O flush é feito após drenar
+as 12 amostras iniciais; não comprova limpeza de pacotes atrasados no buffer RTP.
+
+Resultado aprovado: 346/358 frames, 7,980/8,029 s, quatro/cinco duplicatas
+transmitidas, todos os frames com NTP e portas liberadas. Controles RTSP passaram
+no mesmo pacote em `build/vega-airplay-audio-rtp-controls`. As três ABIs passaram
+na build; o executável de desenvolvimento permanece fora do VPKG.
+O teste usa chaves públicas determinísticas, sem negociação FairPlay/RTSP de
+chaves. Não cobre retransmissão/perda, emissor Apple ou validação física.

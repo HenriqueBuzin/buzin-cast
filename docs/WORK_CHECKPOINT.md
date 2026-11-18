@@ -1,5 +1,29 @@
 # Retomada — 18 de novembro de 2026
 
+## Vega — ensaio RTP/AES/NTP concluído — 18 de novembro de 2026
+
+O executável de desenvolvimento agora envia a fixture AAC-LC por UDP ao núcleo
+RTP UxPlay, com AES-CBC e troca real de mensagens NTP em loopback. O callback
+compartilhado com a sessão de produção encaminha as amostras ao worker/MSSE;
+cada payload descriptografado é comparado byte a byte com a fixture. O ensaio
+exercita duplicatas, rollover da sequência/timestamp RTP, volume e flush após
+drenar as primeiras 12 amostras. Ao parar, tenta vincular novamente as portas
+RTP/controle/NTP sem opções de reuso para verificar sua liberação.
+
+`build/vega-airplay-audio-rtp-verified/result.json` passou no VVD ARM64: dois
+ciclos, 346 e 358 frames, relógios de 7,980 s e 8,029 s, timestamps NTP em todos
+os frames, quatro/cinco duplicatas enviadas sem reprodução duplicada e portas
+liberadas. O segundo ciclo inclui flush e nova época. A regressão de controles
+RTSP, volume/mudo, Voltar e segundo plano passou no mesmo pacote em
+`build/vega-airplay-audio-rtp-controls/result.json`. Build/validação ABI das três
+arquiteturas passou; o runner separado não integra o VPKG.
+
+O teste usa chaves públicas determinísticas diretamente no contexto RTP de
+desenvolvimento. Não valida negociação RTSP/FairPlay de chaves, emissores Apple,
+perda/retransmissão de pacotes, som audível ou hardware físico. ALAC/AAC-ELD,
+vídeo e sincronismo A/V continuam pendentes. O modo manual permanece experimental;
+a paridade completa não está concluída.
+
 ## Investigação do encerramento nativo — marcos e repetição
 
 O probe registra fases de criação, codecs, RTSP, replay de áudio, relógio
@@ -63,7 +87,7 @@ manual Estado do port → Testar áudio AirPlay. AAC-LC estéreo/44,1 kHz é o p
 formato implementado. 56 testes, lint/TypeScript, teste C++ com sanitizers e três
 ABIs passaram. No VVD, dois ciclos de áudio injetado no worker, flush, controles
 RTSP reais, encerramento/reabertura e smoke geral passaram. Não confundir isso
-com mídia RTP/AES completa ou recepção Apple validada: ambas continuam pendentes,
+com negociação completa ou recepção Apple validada: ambas continuam pendentes,
 assim como outros codecs, vídeo e A/V. Evidências e próximo passo em
 [VEGA_HANDOFF.md](VEGA_HANDOFF.md). A meta completa permanece ativa.
 
