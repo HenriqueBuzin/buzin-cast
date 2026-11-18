@@ -112,6 +112,13 @@ sender verifies play/pause and both next/previous command forms, including the
 Active-Remote header. Missing or unresolved senders must not confirm a playback
 change; unresolved commands retain their failed future.
 
+Download publication contracts use isolated files and, on API29+, a private
+in-process ContentProvider instead of the system download collection. They check
+exact copied bytes, pending/complete metadata, missing or unwritable destinations,
+null/empty provider query results, and idle cancellation. These utility contracts
+do not enable download controls in the DE/AT edition or test an entire network
+export through Transformer.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
