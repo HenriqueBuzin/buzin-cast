@@ -36,14 +36,15 @@ final class LegacySystemMedia implements java.io.Closeable {
         this.context=context;this.sink=sink;audio=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
         component=new ComponentName(context,LegacyMediaButtonReceiver.class);
     }
-    void update(LegacyMedia.State media,LegacyDacp.State controls,boolean eligible,boolean mirroring) {
+    void update(LegacyMedia.State media,LegacyDacp.State controls,boolean eligible,boolean mirroring,boolean audioActive) {
         if(closed)return;this.media=media;this.controls=controls;this.mirroring=mirroring;
-        if(!eligible || !mirroring && !media.active && !controls.ready) {deactivate();return;}
+        if(!eligible) {deactivate();return;}
+        if(!mirroring && !audioActive && !media.active && !controls.ready) {deactivate(false);return;}
         try {
-            if(mirroring)unregisterClient();else if(!registered)activate();
+            if(mirroring || !media.active && !controls.ready)unregisterClient();else if(!registered)activate();
             ensureFocus();
             publish();
-        } catch(RuntimeException unsupported) {deactivate();sink.failure(unsupported);}
+        } catch(RuntimeException unsupported) {deactivate(false);sink.failure(unsupported);}
     }
     private void activate() {
         final int owner=++epoch;
@@ -56,13 +57,13 @@ final class LegacySystemMedia implements java.io.Closeable {
         client=new RemoteControlClient(buttons);audio.registerRemoteControlClient(client);registered=true;
     }
     private void ensureFocus() {
-        if(focus!=null)return;
-        final int owner=++focusEpoch;
-        focus=change-> {if(!closed && focus!=null && owner==focusEpoch)focusChanged(change);};
-        requestFocus();
+        if(focus==null && !permanentLoss)requestFocus();
     }
     private boolean requestFocus() {
-        if(focus==null)return false;
+        if(focus==null) {
+            final int owner=++focusEpoch;
+            focus=change-> {if(!closed && focus!=null && owner==focusEpoch)focusChanged(change);};
+        }
         focusRequested=audio.requestAudioFocus(focus,AudioManager.STREAM_MUSIC,AudioManager.AUDIOFOCUS_GAIN)==AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         if(focusRequested)permanentLoss=false;
         suppressed=!focusRequested;sink.gain(focusRequested?1:0);return focusRequested;
@@ -131,10 +132,12 @@ final class LegacySystemMedia implements java.io.Closeable {
         if(buttons!=null) {buttons.cancel();buttons=null;}
         lastTrack=null;lastArtwork=null;lastDuration=-1;lastState=-1;
     }
-    private void deactivate() {
+    private void deactivate() {deactivate(true);}
+    private void deactivate(boolean clearPermanentLoss) {
         unregisterClient();focusEpoch++;
         if(focus!=null) {AudioManager.OnAudioFocusChangeListener previous=focus;focus=null;cleanup(()->audio.abandonAudioFocus(previous));}
-        focusRequested=suppressed=permanentLoss=false;sink.gain(1);
+        if(clearPermanentLoss)permanentLoss=false;
+        focusRequested=false;suppressed=permanentLoss;sink.gain(0);
     }
     @Override public void close() {if(closed)return;closed=true;deactivate();media=LegacyMedia.inactive();controls=LegacyDacp.inactive();}
     @android.annotation.TargetApi(18) private static final class Api18 {

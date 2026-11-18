@@ -18,12 +18,17 @@ final class LegacyAudioPlayer {
     volatile int tunedCushionMs;
     volatile boolean running, outputActive;
     volatile float focusGain=1;
+    private final Runnable outputChanged;
 
     LegacyAudioPlayer(AudioPacketQueue queue, boolean muted, AudioPlaybackClock clock) {
         this(queue,muted,clock,null);
     }
     LegacyAudioPlayer(AudioPacketQueue queue,boolean muted,AudioPlaybackClock clock,ReceiverOptions options) {
+        this(queue,muted,clock,options,()->{});
+    }
+    LegacyAudioPlayer(AudioPacketQueue queue,boolean muted,AudioPlaybackClock clock,ReceiverOptions options,Runnable outputChanged) {
         this.queue = queue; this.muted = muted; this.clock = clock;
+        this.outputChanged=outputChanged;
         cushionMs=options==null?20:options.cushionMs;percentile=options==null?95:options.percentile;
     }
 
@@ -45,7 +50,7 @@ final class LegacyAudioPlayer {
                 // Release output after silence on the encoded input, then rebuild on demand.
                 if (generation != queue.generation() || (decoder != null && System.nanoTime()-lastPacketNs > 2000000000L)) {
                     if (decoder != null) { decoder.close(); decoder = null; }
-                    if (track != null) { release(track); track = null; outputActive = false; }
+                    if (track != null) { release(track); track = null; output(false); }
                     generation = queue.generation(); writtenFrames = playedFrames = decodedSamples = 0;
                     firstSignalFrame = -1; signalled = false;
                     clock.reset();
@@ -63,7 +68,7 @@ final class LegacyAudioPlayer {
                         track.setStereoVolume(0, 0); // apply sender volume before the first PCM write
                         lastGain = 0;
                         track.play();
-                        outputActive = true;
+                        output(true);
                     }
                     decoder.decode(packet.data, packet.timeNs);
                     lastPacketNs = System.nanoTime();
@@ -99,9 +104,10 @@ final class LegacyAudioPlayer {
             }
         } finally {
             try { if (track != null) release(track); }
-            finally { if (decoder != null) decoder.close(); clock.reset(); outputActive = false; running = false; }
+            finally { if (decoder != null) decoder.close(); clock.reset(); output(false); running = false; }
         }
     }
+    private void output(boolean active) {if(outputActive==active)return;outputActive=active;outputChanged.run();}
 
     private static AudioTrack createTrack() throws IOException {
         int minimum = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);

@@ -26,7 +26,9 @@ def main():
     args=parser.parse_args()
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
-    if not re.fullmatch(r'emulator-\d+',args.serial):parser.error('Only an isolated emulator is accepted.')
+    local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
+    local_emulator=local and 5555<=int(local[1])<=5683 and int(local[1])%2==1
+    if not re.fullmatch(r'emulator-\d+',args.serial) and not local_emulator:parser.error('Only an isolated emulator is accepted.')
     if not 1<=args.adb_server_port<=65535:parser.error('Invalid ADB server port.')
     def adb(*command,timeout=60):
         return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
@@ -130,6 +132,9 @@ def main():
             capture_native_view()
             report['metadata']='synthetic packets through native worker callbacks, artwork pixels/size, unsigned progress, pause, invalid packets and source cleanup'
         if args.system_media:
+            if 'INSTRUMENTATION_RESULT: plain_audio=native_decode_focus_without_metadata_idle_permanent_loss_and_explicit_restart' not in result:
+                raise AssertionError('Test APK did not run plain audio focus checks')
+            report['plain_audio']='synthetic ALAC native decode and muted AudioTrack without metadata/identity; focus gain/duck/loss, idle focus release, permanent mute across idle/resume and explicit receiver restart'
             if 'INSTRUMENTATION_RESULT: system_media=platform_metadata_artwork_background_keys_and_cleanup' not in result:
                 raise AssertionError('Test APK did not run system media checks')
             if 'INSTRUMENTATION_RESULT: mirror_modes=three_headless_native_packet_rtsp_teardown_metadata_and_focus_cycles' not in result:

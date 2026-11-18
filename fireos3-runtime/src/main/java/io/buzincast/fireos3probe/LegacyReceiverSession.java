@@ -76,7 +76,7 @@ public final class LegacyReceiverSession {
                 media.progress(start,current,end);
             }
         });
-        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options);
+        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options,listener::streamChanged);
         videoPlayer = new LegacyAvcPlayer(surface, queue, new LegacyAvcPlayer.Listener() {
             @Override public void decodedFrame() {
                 decoded.countDown();
@@ -215,6 +215,7 @@ public final class LegacyReceiverSession {
     public LegacyDacp.State controls() {LegacyDacp current=controls;return current==null?LegacyDacp.inactive():current.state();}
     public LegacyMedia.State media() {return media.state();}
     public boolean mirroring() {return mirrorActive.get();}
+    public boolean audioActive() {return audioPlayer.outputActive;}
     public void audioFocusGain(float gain) {audioPlayer.focusGain=Math.max(0,Math.min(1,gain));}
     public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
         LegacyDacp current=controls;

@@ -1,4 +1,39 @@
-# Retomada — 16 de novembro de 2026
+# Retomada — 18 de novembro de 2026
+
+## Alvo antigo — áudio sem metadados
+
+O AudioTrack avisa quando sua saída começa/termina, permitindo solicitar foco
+mesmo sem título, capa ou identificação DACP. O serviço inicia o ganho local
+em zero e só o libera após foco concedido. Áudio sem comandos não registra
+botões de música inutilizáveis. A inatividade retira saída e foco, preservando
+um bloqueio por perda permanente; pacotes novos não desfazem esse bloqueio.
+Reiniciar explicitamente o receptor permite uma nova solicitação.
+
+`--system-media` passou nas duas edições em API17/1280×720:
+`outputs/legacy-plain-audio-general-verified` e
+`outputs/legacy-plain-audio-regional-verified`. A fixture ALAC percorre o
+decoder nativo e AudioTrack silenciado, sem metadados/identidade, com disputa
+real de foco, liberação após inatividade, bloqueio permanente e reinício.
+Builds ARMv7/x86, lint e 62 testes JVM passaram. Os assets de áudio são
+compartilhados somente com o APK de instrumentação. O inventário FEATURES
+foi atualizado para refletir as etapas de rede/metadados/controles já feitas.
+
+Os runners aceitam transporte TCP local de emulador com verificação de API17
+e `ro.kernel.qemu=1`, permitindo servidor ADB separado sem reiniciar conexões
+das TVs. A captura alternativa usa o console local autenticado, preservando
+a validação de pixels; o token não é registrado. Falhas salvam logcat local.
+
+**Pendência nativa aberta:** a primeira regressão encerrou o processo com
+`INVALID HEAP ADDRESS IN dlfree`, na thread do autoteste de streaming.
+Evidências locais em `outputs/legacy-plain-audio-native-regression`.
+Uma tentativa posterior perdeu ADB; outra completou streaming e falhou no
+comando de captura pelo serial TCP. A rodada completa em
+`outputs/legacy-plain-audio-native-final` passou, incluindo H.264, codecs de
+áudio, relógio A/V e troca de display. Isso não confirma a causa nem corrige
+o encerramento anterior: investigar antes de liberar produção. Nenhuma
+sessão com transmissor real ou Stick físico foi certificada. O objetivo
+completo permanece pendente, incluindo protocolos/player restantes,
+gravação/download e segurança/licença.
 
 ## Alvo antigo — foco de áudio independente dos controles de música
 

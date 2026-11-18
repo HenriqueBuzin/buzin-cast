@@ -24,7 +24,9 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.adb_server_port <= 65535:
         parser.error('Invalid ADB server port.')
-    if not re.fullmatch(r'emulator-\d+', args.serial):
+    local = re.fullmatch(r'127\.0\.0\.1:(\d+)', args.serial)
+    local_emulator = local and 5555 <= int(local[1]) <= 5683 and int(local[1]) % 2 == 1
+    if not re.fullmatch(r'emulator-\d+', args.serial) and not local_emulator:
         parser.error('Use an isolated emulator; physical devices are not allowed.')
     if not 1 <= args.cycles <= 10:
         parser.error('--cycles must be between one and ten.')
@@ -38,6 +40,28 @@ def main():
     def ui():
         adb('shell', 'uiautomator', 'dump', '/data/local/tmp/buzin-probe.xml')
         return ET.fromstring(adb('shell', 'cat', '/data/local/tmp/buzin-probe.xml'))
+
+    def console_snapshot(folder):
+        if not local_emulator:
+            adb('emu','screenrecord','screenshot',folder)
+            return
+        # A TCP ADB serial does not support `adb emu`. Use the same local
+        # emulator console, preserving its authentication and pixel validation.
+        token=(Path.home()/'.emulator_console_auth_token').read_text(encoding='utf-8').strip()
+        if not token or any(c in token+str(folder) for c in '\r\n'):
+            raise AssertionError('Invalid emulator console authentication or capture path')
+        with socket.create_connection(('127.0.0.1',int(local[1])-1),timeout=10) as connection:
+            connection.settimeout(10)
+            with connection.makefile('rb') as response:
+                def accepted():
+                    for _ in range(100):
+                        line=response.readline()
+                        if not line or line.startswith(b'KO'):raise AssertionError('Emulator console rejected the capture request')
+                        if line.strip()==b'OK':return
+                    raise AssertionError('Emulator console did not finish its response')
+                accepted()
+                connection.sendall(('auth '+token+'\n').encode('utf-8'));accepted()
+                connection.sendall(('screenrecord screenshot '+str(folder)+'\n').encode('utf-8'));accepted()
 
     def tap(label):
         print('Tapping '+label, flush=True)
@@ -92,7 +116,7 @@ def main():
                     raise AssertionError('Configured dimensions did not reach the native receiver')
         finally:adb('forward','--remove','tcp:'+port)
 
-    if adb('shell', 'getprop', 'ro.build.version.sdk').strip() != '17':
+    if adb('shell', 'getprop', 'ro.build.version.sdk').strip() != '17' or adb('shell','getprop','ro.kernel.qemu').strip() != '1':
         parser.error('This regression must run on Android API 17.')
     package = 'io.buzincast.fireos3probe'
     adb('install', '-r', str(args.apk.resolve()))
@@ -142,7 +166,7 @@ def main():
                 # Older adbd can capture an empty framebuffer despite visible
                 # host rendering. The emulator console captures its real display.
                 with tempfile.TemporaryDirectory(dir=args.output.resolve()) as folder:
-                    adb('emu', 'screenrecord', 'screenshot', folder)
+                    console_snapshot(folder)
                     grabs = list(Path(folder).glob('*.png'))
                     if len(grabs) != 1: raise AssertionError('Emulator capture was not produced')
                     picture.write_bytes(grabs[0].read_bytes())
@@ -159,6 +183,10 @@ def main():
     except Exception as error:
         report['status'] = 'failed'
         report['error'] = str(error)
+        try:
+            (args.output/'failure-logcat.txt').write_text(adb('logcat','-d'),encoding='utf-8')
+        except Exception as diagnostic:
+            report['diagnostic_error']=str(diagnostic)
         raise
     finally:
         try:

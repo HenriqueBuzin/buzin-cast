@@ -22,6 +22,33 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **Áudio sem metadados API17 — 18/nov:** a mudança de estado da saída
+  AudioTrack notifica o serviço. O ganho começa em zero e aguarda foco;
+  não depende de título, capa ou identidade DACP. Sem comandos disponíveis,
+  não registra botões de música. A saída ociosa libera foco, mantendo um
+  bloqueio por perda permanente até ação explícita; pacotes novos não devem
+  reativar som bloqueado. A fixture do APK de teste compartilha os assets
+  sintéticos do probe, sem acrescentá-los ao APK do app.
+  `tools/test_legacy_gestures.py --system-media` acrescenta ALAC pelo decoder
+  nativo e AudioTrack silenciado, disputa de foco, liberação por inatividade,
+  retomada, perda permanente através da inatividade e reinício explícito do
+  receptor. As duas rodadas completas passaram em
+  `outputs/legacy-plain-audio-general-verified` e
+  `outputs/legacy-plain-audio-regional-verified`; builds/lint e 62 testes JVM
+  passaram. Os runners também aceitam `--adb-server-port 5038 --serial
+  127.0.0.1:5561` após conectar esse servidor ao emulador. Só aceitam TCP de
+  loopback nas portas ADB de emuladores e conferem API17 e a propriedade QEMU.
+  O fallback de captura nesse transporte usa o console autenticado local e
+  a mesma verificação de pixels. Falhas do probe salvam `failure-logcat.txt`.
+  **Regressão ainda com pendência:**
+  `outputs/legacy-plain-audio-native-regression` registrou encerramento
+  nativo com endereço inválido em `dlfree`. As tentativas seguintes incluem
+  perda de ADB e falha do antigo comando de captura pelo serial TCP.
+  `outputs/legacy-plain-audio-native-final` completou streaming e captura,
+  mas não comprova correção da falha nativa inicial, cuja causa continua
+  em investigação. Não declarar estabilidade de produção ou compatibilidade
+  física a partir desses resultados.
+
 - **Foco de áudio durante espelhamento API17:** a posse do foco é independente
   do registro de botões/capa de música. Entrar em espelhamento retira o cliente
   de música, preservando foco e ganho. Os callbacks de foco têm geração própria

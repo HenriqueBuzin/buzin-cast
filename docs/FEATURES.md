@@ -22,8 +22,12 @@ resolução/FPS e ao buffer temporal de áudio, usando `QualityProfiles` comum.
 Usa os mesmos 22 idiomas e assets, com foco por controle/toque e seleção
 persistente no menu. O serviço mantém a sessão ao sair/voltar, pode iniciar no
 boot por opção e tem retomada após morte do processo. Background desligado
-encerra o servidor ao sair. Ainda faltam os demais protocolos e funções abaixo,
-recuperação de rede, licença e validação com emissores e Sticks antigos reais.
+encerra o servidor ao sair. A recuperação de rede preserva a identidade e tem
+tentativas limitadas. Integra título/capa/progresso, comandos DACP e o cliente
+de mídia do Android, com teclas em segundo plano e foco de áudio durante
+música/espelhamento. Os testes dessas etapas usam emulador e pacotes
+sintéticos, como detalhado em [TESTING.md](TESTING.md). Ainda faltam os demais
+protocolos e funções abaixo, licença e validação com emissores e Sticks antigos reais.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.
 - Recuperação: reanúncio após mudança de rede e até três tentativas do player em falhas de conexão/timeout; AirPlay pode exigir reconexão no emissor.

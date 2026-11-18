@@ -225,12 +225,13 @@ public final class LegacyReceiverService extends Service {
                 mediaFailure=current;publish();
             });}
         },prefs.options(),selectedNetwork);
-        bindSurface();session.start();
+        session.audioFocusGain(0);bindSurface();session.start();
     }
     private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
-        systemMedia.update(mediaState(),controlState(),running && !stopping && session!=null,session!=null && session.mirroring());
+        systemMedia.update(mediaState(),controlState(),running && !stopping && session!=null,
+            session!=null && session.mirroring(),session!=null && session.audioActive());
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
