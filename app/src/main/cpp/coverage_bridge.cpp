@@ -475,3 +475,118 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDnsContracts(JNIEnv *env, jobj
 #undef DNS_CONTRACT
     return env->NewStringUTF("DNS contracts passed");
 }
+
+
+// Controlled JNI dependency failures. The real callback table is exercised;
+// no allocation failure is induced in ART itself.
+namespace {
+struct CallbackFaultFixture {
+    JNINativeInterface functions{};
+    JNIInvokeInterface invocation{};
+    JNIEnv env{};
+    JavaVM vm{};
+    android_callback_ctx_t ctx{};
+    raop_callbacks_t callbacks{};
+    inline static thread_local CallbackFaultFixture *active = nullptr;
+    int allocation = 0, failAllocation = 0, live = 0, calls = 0, writes = 0;
+    int illegal = 0, clears = 0, envStatus = JNI_OK;
+    bool pending = false, failCopy = false, callbackThrows = false;
+    void access() { if (pending || envStatus != JNI_OK) ++illegal; }
+    jobject allocate() {
+        access();
+        if (++allocation == failAllocation) { pending = true; return nullptr; }
+        ++live;
+        return reinterpret_cast<jobject>(static_cast<uintptr_t>(allocation + 100));
+    }
+    static void callVoid(JNIEnv *, jobject object, jmethodID, ...) {
+        auto &s = *active; s.access(); ++s.calls;
+        if (object != s.ctx.callback_obj) ++s.illegal;
+        if (s.callbackThrows) s.pending = true;
+    }
+    CallbackFaultFixture() {
+        active = this; env.functions = &functions; vm.functions = &invocation;
+        ctx.jvm = &vm; ctx.callback_obj = reinterpret_cast<jobject>(1);
+        ctx.require_pin = 1;
+        pthread_mutex_init(&ctx.playback_info_lock, nullptr);
+        pthread_cond_init(&ctx.play_ready_cond, nullptr);
+        functions.NewByteArray = [](JNIEnv *, jsize size) -> jbyteArray {
+            if (size <= 0) ++active->illegal;
+            return reinterpret_cast<jbyteArray>(active->allocate());
+        };
+        functions.NewStringUTF = [](JNIEnv *, const char *text) -> jstring {
+            if (!text) ++active->illegal;
+            return reinterpret_cast<jstring>(active->allocate());
+        };
+        functions.SetByteArrayRegion = [](JNIEnv *, jbyteArray array, jsize, jsize size, const jbyte *data) {
+            auto &s = *active; s.access(); ++s.writes;
+            if (!array || !data || size <= 0) ++s.illegal;
+            if (s.failCopy) s.pending = true;
+        };
+        functions.CallVoidMethod = callVoid;
+        functions.DeleteLocalRef = [](JNIEnv *, jobject object) {
+            if (object) --active->live; // Legal while an exception is pending.
+        };
+        functions.ExceptionCheck = [](JNIEnv *) -> jboolean { return active->pending ? JNI_TRUE : JNI_FALSE; };
+        functions.ExceptionDescribe = [](JNIEnv *) {};
+        functions.ExceptionClear = [](JNIEnv *) { active->pending = false; ++active->clears; };
+        invocation.GetEnv = [](JavaVM *, void **out, jint version) -> jint {
+            if (version != JNI_VERSION_1_6) ++active->illegal;
+            // The output is deliberately non-null even for a failed query.
+            *out = &active->env;
+            return active->envStatus;
+        };
+        invocation.AttachCurrentThread = [](JavaVM *, JNIEnv **out, void *) -> jint {
+            *out = &active->env; return JNI_ERR;
+        };
+        invocation.DetachCurrentThread = [](JavaVM *) -> jint { return JNI_OK; };
+        android_callbacks_fill(&callbacks, &ctx);
+    }
+    ~CallbackFaultFixture() {
+        pthread_cond_destroy(&ctx.play_ready_cond);
+        pthread_mutex_destroy(&ctx.playback_info_lock);
+        active = nullptr;
+    }
+    void deliver(int scenario) {
+        unsigned char packet[] = {0, 0, 0, 1, 7, 8};
+        switch (scenario) {
+            case 0: {
+                video_decode_struct data{}; data.data = packet; data.data_len = sizeof(packet);
+                callbacks.video_process(&ctx, nullptr, &data); break;
+            }
+            case 1: callbacks.audio_set_metadata(&ctx, packet, sizeof(packet)); break;
+            case 2: callbacks.audio_set_coverart(&ctx, packet, sizeof(packet)); break;
+            case 3: { char pin[] = "1234"; callbacks.display_pin(&ctx, pin); break; }
+            case 4: callbacks.on_video_play(&ctx, "http://127.0.0.1/fixture", 2.0f); break;
+            case 5: case 6: callbacks.audio_remote_control_id(&ctx, "fixture-dacp", "fixture-remote"); break;
+            case 7: { int16_t pcm[] = {1, 2, 3, 4}; android_capture_pcm(&ctx, pcm, 4, 123, 44100, 2); break; }
+        }
+    }
+};
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv *env, jobject, jint scenario, jint failure) {
+#define FAULT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    FAULT_CONTRACT(scenario >= 0 && scenario <= 7 && failure >= 0 && failure <= 4);
+    CallbackFaultFixture fixture;
+    if (failure == 0) fixture.failAllocation = scenario == 6 ? 2 : 1;
+    if (failure == 1) fixture.failCopy = true;
+    if (failure == 2) fixture.envStatus = JNI_ERR;
+    if (failure == 3) fixture.envStatus = JNI_EDETACHED;
+    if (failure == 4) fixture.callbackThrows = true;
+    fixture.deliver(scenario);
+    FAULT_CONTRACT(fixture.illegal == 0);
+    FAULT_CONTRACT(fixture.live == 0);
+    FAULT_CONTRACT(fixture.calls == (failure == 4 ? 1 : 0));
+    if (failure == 0) FAULT_CONTRACT(fixture.allocation == (scenario == 6 ? 2 : 1));
+    if (failure == 1) FAULT_CONTRACT(fixture.writes == 1);
+    fixture.failAllocation = 0; fixture.failCopy = false;
+    fixture.callbackThrows = false; fixture.envStatus = JNI_OK;
+    // PCM clears its own exception; the other callbacks recover at _get_env.
+    fixture.deliver(scenario);
+    FAULT_CONTRACT(fixture.illegal == 0);
+    FAULT_CONTRACT(fixture.live == 0);
+    FAULT_CONTRACT(fixture.calls == (failure == 4 ? 2 : 1));
+    FAULT_CONTRACT(!fixture.pending);
+    return env->NewStringUTF("callback fault contracts passed");
+#undef FAULT_CONTRACT
+}

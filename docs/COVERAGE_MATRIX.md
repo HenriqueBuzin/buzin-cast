@@ -10,6 +10,36 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
+The newer API36 matrix in `build/android-coverage-brand-logs-api36/matrix.json`
+is complete: normal passed 139 Android tests, compat 141, and both regional
+variants 144 each, alongside 18 UBSan native cases and all 13 UI scenarios per
+edition. Android/JVM line coverage is respectively 81.5079%, 81.603%, 81.1888%
+and 81.2604%; native lines are 93.1302%, 95.0595%, 96.1171% and 95.9524%.
+All twelve counters remain below 100% in every edition. The driver validated
+all fifteen required result labels in each immutable raw snapshot before marking
+this run complete. Test APKs differ across these cohorts: ALAC contracts were
+added after normal was archived and Oboe output contracts after compat. These
+compiled identities cannot be merged or described as one identical test suite.
+
+Four additional JNI dependency-failure contracts now exercise the real native
+callback table with controlled JNI function tables: allocation failure (including
+the second DACP string), failed array copies, unavailable VM/failed thread attach,
+and throwing Java callbacks. Every scenario checks reference cleanup, forbids
+JNI work with a pending exception or failed VM status, and delivers a successful
+follow-up callback. The original code failed three of the four tests on API22:
+video used a failed allocation, video called Java after a failed array copy, and
+PCM used the output environment after GetEnv returned JNI_ERR. The production
+bridge now guards these paths, cleans up the first DACP reference if the second
+allocation fails, and clears stale PCM exceptions before allocating again.
+
+The same four tests plus the existing normal callback-delivery contract passed
+on API22 (five tests, 0.26 seconds, no skips); assembly and lint passed in 2m12s.
+Evidence is `build/callback-fault-green-selection/instrumentation.txt`, with the
+original failing run preserved under `build/callback-fault-red-selection`.
+This is controlled fault injection, not real ART memory exhaustion. These new
+compiled APKs need their own full four-edition matrix; selected results do not
+replace whole-app coverage evidence or establish the 100% target.
+
 The completed normal-APK run passed 114 Android instrumentation tests, 18 native
 cases with UBSan, and all 13 UI scenarios including extended media controls and
 rendered captions. Its archived report measures 78.2816% Android/JVM lines,

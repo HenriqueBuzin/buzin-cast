@@ -12,6 +12,7 @@ object DebugCoverage {
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
     external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int): Array<ByteArray>
     external fun nativeOutputContracts(scenario: Int): String
+    external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     fun dump(context: Context) {
         val dir = File(context.filesDir, "coverage").apply { mkdirs() }
         val runtime = Class.forName("org.jacoco.agent.rt.RT").getMethod("getAgent").invoke(null)

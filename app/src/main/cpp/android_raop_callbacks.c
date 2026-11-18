@@ -126,14 +126,19 @@ void android_capture_pcm(void *user, const int16_t *pcm, size_t samples, int64_t
     android_callback_ctx_t *ctx = (android_callback_ctx_t *)user;
     if (!ctx || !ctx->callback_obj || samples == 0 || samples > 65536) return;
     JNIEnv *env = NULL;
-    int attached = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED;
+    int status = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6);
+    int attached = status == JNI_EDETACHED;
+    if (status != JNI_OK && !attached) return;
     if (attached && (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL) != JNI_OK) return;
     if (!env) return;
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionDescribe(env); (*env)->ExceptionClear(env); }
     jbyteArray array = (*env)->NewByteArray(env, (jsize)(samples * sizeof(int16_t)));
     if (array) {
         (*env)->SetByteArrayRegion(env, array, 0, (jsize)(samples * sizeof(int16_t)), (const jbyte *)pcm);
-        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_pcm, array, (jlong)pts_ns,
-                              (jint)sample_rate, (jint)channels);
+        if (!(*env)->ExceptionCheck(env)) {
+            (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_pcm, array, (jlong)pts_ns,
+                                  (jint)sample_rate, (jint)channels);
+        }
         (*env)->DeleteLocalRef(env, array);
     }
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionDescribe(env); (*env)->ExceptionClear(env); }
@@ -158,9 +163,12 @@ static void _video_process(void *cls, raop_ntp_t *ntp, video_decode_struct *data
     }
 
     jbyteArray arr = (*env)->NewByteArray(env, data->data_len);
+    if (!arr) return;
     (*env)->SetByteArrayRegion(env, arr, 0, data->data_len, (jbyte *)data->data);
-    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_data,
-                           arr, (jlong)data->ntp_time_local, (jboolean)data->is_h265);
+    if (!(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_data,
+                              arr, (jlong)data->ntp_time_local, (jboolean)data->is_h265);
+    }
     (*env)->DeleteLocalRef(env, arr);
 }
 
@@ -239,6 +247,7 @@ static void _display_pin(void *cls, char *pin) {
     JNIEnv *env = _get_env(ctx);
     if (!env) return;
     jstring jpin = (*env)->NewStringUTF(env, pin);
+    if (!jpin) return;
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_display_pin, jpin);
     (*env)->DeleteLocalRef(env, jpin);
 }
@@ -289,8 +298,11 @@ static void _audio_set_metadata(void *cls, const void *buf, int len) {
     JNIEnv *env = _get_env(ctx);
     if (!env || !buf || len <= 0) return;
     jbyteArray arr = (*env)->NewByteArray(env, len);
+    if (!arr) return;
     (*env)->SetByteArrayRegion(env, arr, 0, len, (jbyte *)buf);
-    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_metadata, arr);
+    if (!(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_metadata, arr);
+    }
     (*env)->DeleteLocalRef(env, arr);
 }
 
@@ -299,8 +311,11 @@ static void _audio_set_coverart(void *cls, const void *buf, int len) {
     JNIEnv *env = _get_env(ctx);
     if (!env || !buf || len <= 0) return;
     jbyteArray arr = (*env)->NewByteArray(env, len);
+    if (!arr) return;
     (*env)->SetByteArrayRegion(env, arr, 0, len, (jbyte *)buf);
-    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_coverart, arr);
+    if (!(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_coverart, arr);
+    }
     (*env)->DeleteLocalRef(env, arr);
 }
 
@@ -309,7 +324,12 @@ static void _audio_remote_control_id(void *cls, const char *dacp_id, const char 
     JNIEnv *env = _get_env(ctx);
     if (!env) return;
     jstring jdacp = (*env)->NewStringUTF(env, dacp_id ? dacp_id : "");
+    if (!jdacp) return;
     jstring jremote = (*env)->NewStringUTF(env, active_remote ? active_remote : "");
+    if (!jremote) {
+        (*env)->DeleteLocalRef(env, jdacp);
+        return;
+    }
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_dacp_id, jdacp, jremote);
     (*env)->DeleteLocalRef(env, jdacp);
     (*env)->DeleteLocalRef(env, jremote);
@@ -361,6 +381,7 @@ static void _video_play(void *cls, const char *location, const float start_posit
     JNIEnv *env = _get_env(ctx);
     if (!env || !location) return;
     jstring jloc = (*env)->NewStringUTF(env, location);
+    if (!jloc) return;
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_play, jloc, (jfloat)start_position);
     (*env)->DeleteLocalRef(env, jloc);
 }
