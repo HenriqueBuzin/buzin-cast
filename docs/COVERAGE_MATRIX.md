@@ -10,6 +10,23 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
+Three gesture-indicator contracts passed on API22 (48.68 seconds, no skips),
+using real Compose pixels and accessibility. They check progress fill at 0%,
+25%, 50%, 100% and out-of-range values while preserving the displayed number;
+updated and centered information text; and direction-specific double-tap
+highlights, the untouched center/opposite side, and removal after the real
+750 ms state timeout. Animations run at scale 1 and the original setting is
+restored; the isolated ViewModel, coroutine scope and preferences are cleaned up.
+
+The initial selected run passed the directional highlight test but failed to
+find text through accessibility's direct text-search API. The corrected fixture
+walks a nonempty accessibility tree belonging to the actual app, requires exact
+visible text, and checks both the replacement and absence of the old text in a
+valid tree. No rendering assertion was removed. Final assembly and lint passed
+in 1m25s. Evidence: `build/gesture-indicator-accessibility-selection`; the initial
+failed run remains in `build/gesture-indicator-selection`. These selected APKs
+have their own hashes and do not establish whole-app or four-edition 100%.
+
 The newer API36 matrix in `build/android-coverage-brand-logs-api36/matrix.json`
 is complete: normal passed 139 Android tests, compat 141, and both regional
 variants 144 each, alongside 18 UBSan native cases and all 13 UI scenarios per
