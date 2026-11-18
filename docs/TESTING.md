@@ -1,5 +1,19 @@
 # Testes automatizados
 
+## Passagem de saída sem encerrar o receptor API17
+
+`test_legacy_gestures.py --url-service` mantém um socket nativo anterior à
+URL através dos controles, Back, erro HTTP e retomada por ALAC. Exige a
+mesma sessão nativa e Media3 fechado antes de devolver o ganho ao áudio
+nativo. O teste FCast também exige que o receptor permaneça e que seu
+codec/Surface estejam retirados enquanto Media3 usa a saída.
+
+O modo nativo de `test_fireos3_probe.py` confirma o detach somente após a
+Surface anterior se tornar inválida, incluindo ciclos com codec real e
+continuidade da linha de áudio e do socket RTSP. Também verifica reply a
+um pedido de detach depois de o worker fechar. Nenhum desses testes é uma
+sessão com emissor Apple físico nem certificação dos codecs de cada Stick.
+
 ## Legendas externas no API17
 
 O cenário `tools/test_legacy_gestures.py --url-service` também exercita CC:

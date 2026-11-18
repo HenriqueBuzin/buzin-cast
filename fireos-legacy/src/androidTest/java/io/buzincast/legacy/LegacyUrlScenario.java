@@ -56,12 +56,27 @@ final class LegacyUrlScenario {
         try(InputStream input=runner.getContext().getAssets().open("url_sample.mp4");ByteArrayOutputStream bytes=new ByteArrayOutputStream()) {
             byte[] chunk=new byte[4096];int count;while((count=input.read(chunk))!=-1)bytes.write(chunk,0,count);sample=bytes.toByteArray();
         }
-        try(Fixture fixture=new Fixture(sample)) {
+        try(Fixture fixture=new Fixture(sample);Socket nativePeer=new Socket("127.0.0.1",initial.listeningPort())) {
+            options(nativePeer);
             String location="http://127.0.0.1:"+fixture.socket.getLocalPort();
             LegacyUrlRequest request=new LegacyUrlRequest(location+"/sample.mp4",0,Collections.singletonMap("X-Legacy-Fixture","fixture"));
-            ui(runner,()->service.loadUrl(request));
-            await(()-> {LegacyUrlPlayer.State state=state(runner,service);return state!=null && state.phase==LegacyUrlPlayer.Phase.READY && state.width==160 && state.playing;});
-            if(!initial.isClosed() || nativeSession(runner,service)!=null)throw new AssertionError("Native output overlapped the URL player");
+            ui(runner,()-> {
+                service.loadUrl(request);service.stopUrl();
+                service.loadUrl(request);service.stopUrl();
+                service.loadUrl(request);
+                service.control(LegacyDacp.Command.PAUSE,null);
+            });
+            await(()-> {LegacyUrlPlayer.State state=state(runner,service);return state!=null && state.phase==LegacyUrlPlayer.Phase.READY && state.width==160 && !state.playing;});
+            long initiallyPaused=state(runner,service).positionMs;SystemClock.sleep(200);
+            if(Math.abs(state(runner,service).positionMs-initiallyPaused)>60)throw new AssertionError("Pause during output handoff was lost");
+            ui(runner,()->service.control(LegacyDacp.Command.PLAY,null));await(()->state(runner,service).playing);
+            if(initial.isClosed() || nativeSession(runner,service)!=initial)throw new AssertionError("URL playback restarted the native receiver");
+            Object nativeVideo=field(initial,"videoPlayer");
+            if(field(nativeVideo,"codec")!=null || field(field(nativeVideo,"targets"),"active")!=null)
+                throw new AssertionError("Native output overlapped the URL player");
+            // This connection predates URL load and remains open through all
+            // subsequent URL controls, errors and native audio takeover.
+            options(nativePeer);
             runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_PAUSE);
             await(()->state(runner,service)!=null && !state(runner,service).playing);
             ui(runner,()-> {
@@ -133,21 +148,43 @@ final class LegacyUrlScenario {
             ui(runner,()-> {try {player.set((LegacyUrlPlayer)field(service,"urlPlayer"));}catch(Exception error) {throw new AssertionError(error);}activity.onBackPressed();});
             await(()->nativeSession(runner,service)!=null && nativeSession(runner,service).listeningPort()>0);
             if(!player.get().awaitClosed(1000) || state(runner,service)!=null)throw new AssertionError("URL player retained ownership after Back");
-            if(nativeSession(runner,service)==initial)throw new AssertionError("Native receiver was not recreated");
+            if(nativeSession(runner,service)!=initial || initial.isClosed())throw new AssertionError("Closing URL replaced the native receiver");
+            options(nativePeer);
             // An invalid HTTP source must return to the receiver without leaking its URL into UI metadata.
             ui(runner,()->service.loadUrl(new LegacyUrlRequest(location+"/missing",0,request.headers)));
             await(()-> {AtomicReference<Boolean> failed=new AtomicReference<>(false);ui(runner,()->failed.set(new LegacyReceiverService.State(service).urlError));return failed.get();});
             await(()->nativeSession(runner,service)!=null && nativeSession(runner,service).listeningPort()>0);
             if(state(runner,service)!=null)throw new AssertionError("Failed URL retained its session");
+            options(nativePeer);
             ui(runner,()->service.loadUrl(request));
             await(()->state(runner,service)!=null && state(runner,service).phase==LegacyUrlPlayer.Phase.READY);
             runner.sendKeyDownUpSync(KeyEvent.KEYCODE_MEDIA_STOP);
             await(()->nativeSession(runner,service)!=null && nativeSession(runner,service).listeningPort()>0);
             ui(runner,()-> {if(new LegacyReceiverService.State(service).urlError)throw new AssertionError("Previous URL failure survived a successful replacement");});
+            ui(runner,()->service.loadUrl(request));
+            await(()-> {LegacyUrlPlayer.State value=state(runner,service);return value!=null && value.phase==LegacyUrlPlayer.Phase.READY;});
+            // A real native ALAC stream must take output back from URL playback,
+            // with the same listener/session and without simultaneous audible output.
+            AtomicReference<LegacyUrlPlayer> retiredUrl=new AtomicReference<>();
+            ui(runner,()-> {try {retiredUrl.set((LegacyUrlPlayer)field(service,"urlPlayer"));}catch(Exception error) {throw new AssertionError(error);}});
+            LegacyPlainAudioScenario.check(runner,activity,()-> {
+                if(state(runner,service)!=null || nativeSession(runner,service)!=initial || initial.isClosed())
+                    throw new AssertionError("Native audio takeover did not preserve the receiver");
+                try {
+                    if(!retiredUrl.get().awaitClosed(0))throw new AssertionError("Native audio gained output before URL release");
+                    options(nativePeer);
+                }catch(Exception error) {throw new AssertionError(error);}
+            });
+            // The plain-audio suite deliberately restarts the receiver later
+            // to test recovery from permanent focus loss. Identity is checked
+            // above at takeover, before that explicit user restart.
         }
-        // Keep the process/service alive: URL cleanup must also permit native
-        // decode, AudioTrack and focus recovery afterwards, without reinstalling.
-        LegacyPlainAudioScenario.check(runner,activity);
+    }
+    private static void options(Socket socket) throws Exception {
+        socket.setSoTimeout(3000);socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nContent-Length: 0\r\n\r\n".getBytes("US-ASCII"));
+        ByteArrayOutputStream header=new ByteArrayOutputStream();String text="";
+        while(header.size()<8192 && !text.endsWith("\r\n\r\n")) {int value=socket.getInputStream().read();if(value<0)break;header.write(value);text=header.toString("US-ASCII");}
+        if(!text.startsWith("RTSP/1.0 200 OK"))throw new AssertionError("Native listener disappeared during URL playback");
     }
     static final class Fixture implements java.io.Closeable {
         final ServerSocket socket=new ServerSocket(0,8,InetAddress.getByName("127.0.0.1"));

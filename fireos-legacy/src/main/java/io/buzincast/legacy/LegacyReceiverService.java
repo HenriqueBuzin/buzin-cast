@@ -99,7 +99,10 @@ public final class LegacyReceiverService extends Service {
     private final Runnable subtitlePickerTimeout=()-> {subtitlePicker=0;reconcile();};
     private final ExecutorService subtitleWorker=Executors.newSingleThreadExecutor(action->new Thread(action,"buzin-legacy-subtitles"));
     private int urlInstance;
-    private boolean urlRequested,urlStopping;
+    private boolean urlRequested,urlStopping,urlPlay=true;
+    private LegacyReceiverSession parkedNative,detachingNative;
+    private int outputEpoch;
+    private float systemGain;
     private float urlGain=1,urlSpeed=1;
     private Exception urlFailure;
     private Protocol urlOwner;
@@ -158,7 +161,8 @@ public final class LegacyReceiverService extends Service {
         systemMedia=new LegacySystemMedia(this,new LegacySystemMedia.Sink() {
             @Override public void command(LegacyDacp.Command command) {control(command,null);}
             @Override public void gain(float gain) {
-                if(session!=null)session.audioFocusGain(gain);
+                systemGain=gain;
+                if(session!=null)session.audioFocusGain(urlRequested?0:gain);
                 if(urlPlayer!=null && !urlStopping)urlPlayer.focusGain(gain);
             }
             @Override public void stopLocal() {stopUrl();}
@@ -201,6 +205,10 @@ public final class LegacyReceiverService extends Service {
             // URL seeks are discrete. A remote seek-key release must not acquire
             // audio focus or resume playback; RESUME belongs to native DACP.
             if(command==LegacyDacp.Command.RESUME || command==LegacyDacp.Command.NEXT || command==LegacyDacp.Command.PREVIOUS)return;
+            if(pendingUrl!=null && (command==LegacyDacp.Command.PLAY || command==LegacyDacp.Command.PAUSE)) {
+                if(!systemMedia.prepare(command)) {if(failed!=null)failed.run();return;}
+                urlPlay=command==LegacyDacp.Command.PLAY;publish();return;
+            }
             if(urlPlayer==null || urlStopping || !systemMedia.prepare(command)) {if(failed!=null)failed.run();return;}
             LegacyUrlPlayer.State state=urlState();
             switch(command) {
@@ -229,7 +237,7 @@ public final class LegacyReceiverService extends Service {
         client=null;observer=null;visible=false;target=null;bindSurface();reconcile();
     }
     private void bindSurface() {
-        if(urlRequested && session==null) {
+        if(urlRequested) {
             if(urlPlayer!=null && !urlStopping) {
                 if(target==null)urlPlayer.surface(null,null);
                 else {TextureTarget owned=target;urlPlayer.surface(owned.acquire(),owned::retired);}
@@ -240,6 +248,28 @@ public final class LegacyReceiverService extends Service {
         if(target==null)session.setVideoSurface(null,null);
         else {TextureTarget owned=target;session.setVideoSurface(owned.acquire(),owned::retired);}
     }
+    private void prepareUrlOutput() {
+        if(urlStopping)return;
+        LegacyReceiverSession nativeOwner=session;
+        if(nativeOwner!=null && parkedNative!=nativeOwner) {
+            if(detachingNative==nativeOwner)return;
+            detachingNative=nativeOwner;int owner=++outputEpoch;
+            nativeOwner.audioFocusGain(0);
+            nativeOwner.detachVideoOutput(()->main.post(()-> {
+                if(destroyed || owner!=outputEpoch)return;
+                detachingNative=null;
+                if(session==nativeOwner)parkedNative=nativeOwner;
+                if(urlRequested && !urlStopping)reconcile();
+            }));
+            return;
+        }
+        startPendingUrl();
+    }
+    private void restoreNativeOutput() {
+        ++outputEpoch;parkedNative=detachingNative=null;
+        if(session!=null)session.audioFocusGain(systemGain);
+        bindSurface();
+    }
     private boolean wanted() {return (desired || urlRequested) && (visible || prefs.background() || bootSession || subtitlePicker!=0);}
     /** Internal protocol entry point. Validate before disturbing the active receiver. */
     void loadUrl(LegacyUrlRequest request) {
@@ -248,9 +278,7 @@ public final class LegacyReceiverService extends Service {
     private void loadUrl(LegacyUrlRequest request,Protocol protocol) {
         if(request==null)throw new IllegalArgumentException("Missing media request");
         if(destroyed || !(visible || prefs.background() || subtitlePicker!=0))throw new IllegalStateException("Receiver is unavailable");
-        if(urlStopping)throw new IllegalStateException("Previous media is still closing");
-        urlRequestEpoch++;pendingUrl=request;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
-        if(session!=null)stopNative();
+        urlRequestEpoch++;pendingUrl=request;urlPlay=true;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
         reconcile();
     }
     private void startPendingUrl() {
@@ -261,7 +289,12 @@ public final class LegacyReceiverService extends Service {
                 if(destroyed || owner!=urlInstance)return;
                 if(urlStopping) {
                     if(state.phase!=LegacyUrlPlayer.Phase.CLOSED)return;
-                    urlPlayer=null;urlRequested=urlStopping=false;urlGeneration=0;urlOwner=null;releaseWakeLock();
+                    urlPlayer=null;urlStopping=false;urlGeneration=0;
+                    // Stop followed immediately by Play keeps only the latest
+                    // validated request, without reattaching native output in between.
+                    if(pendingUrl!=null && state.failure==null) {reconcile();return;}
+                    pendingUrl=null;urlRequested=false;urlOwner=null;
+                    restoreNativeOutput();if(session==null || stopping)releaseWakeLock();
                     if(state.failure!=null) {urlFailure=state.failure;desired=false;prefs.serviceRequested(false);}
                     reconcile();return;
                 }
@@ -276,20 +309,20 @@ public final class LegacyReceiverService extends Service {
                     publish();
                 }
             }));
-            acquireWakeLock();bindSurface();
+            acquireWakeLock();urlPlayer.focusGain(systemGain);bindSurface();
         }
         LegacyUrlRequest request=pendingUrl;pendingUrl=null;
-        urlPlayer.gain(urlGain);urlGeneration=urlPlayer.load(request,true);urlPlayer.speed(urlSpeed);
+        urlPlayer.gain(urlGain);urlGeneration=urlPlayer.load(request,urlPlay);urlPlayer.speed(urlSpeed);
     }
     void urlSpeed(float speed) {
         if(Float.isNaN(speed) || Float.isInfinite(speed) || speed<.25f || speed>4)throw new IllegalArgumentException("Invalid playback speed");
-        if(!urlRequested || urlStopping)return;
-        urlSpeed=speed;if(urlPlayer!=null)urlPlayer.speed(speed);
+        if(!urlRequested)return;
+        urlSpeed=speed;if(urlPlayer!=null && !urlStopping)urlPlayer.speed(speed);
     }
     void stopUrl() {
         pendingUrl=null;
         if(!urlRequested || urlStopping)return;
-        if(urlPlayer==null) {urlRequested=false;urlOwner=null;reconcile();return;}
+        if(urlPlayer==null) {urlRequested=false;urlOwner=null;restoreNativeOutput();reconcile();return;}
         urlStopping=true;urlPlayer.close();publish();
     }
     private void resetRetries() {main.removeCallbacks(retry);main.removeCallbacks(stable);reconnect.resetRetries();}
@@ -321,11 +354,11 @@ public final class LegacyReceiverService extends Service {
         if(wanted()) {
             promote();
             if(watcher==null)watcher=new LegacyNetworkWatcher(this,main,this::networkChanged);
-            if(urlRequested && session==null)startPendingUrl();
-            else if(session==null) {
+            if(session==null && desired) {
                 busy=!reconnect.initialized();
                 if(reconnect.canStart(SystemClock.elapsedRealtime()))startNative();
             }
+            if(urlRequested)prepareUrlOutput();
         } else {
             closeWatcher();
             if(urlRequested)stopUrl();
@@ -386,7 +419,7 @@ public final class LegacyReceiverService extends Service {
         private boolean valid() {return owner==(kind==Protocol.FCAST?fcastEpoch:dlnaEpoch);}
         private void current() {if(!valid() || destroyed)throw new IllegalStateException("Receiver was replaced");}
         private void owns(Protocol protocol) {
-            current();if(protocol!=kind || urlOwner!=protocol || !urlRequested || urlStopping)throw new IllegalStateException("No owned media is playing");
+            current();if(protocol!=kind || urlOwner!=protocol || !urlRequested || urlStopping && pendingUrl==null)throw new IllegalStateException("No owned media is playing");
         }
         @Override public int getActiveConnections() {
             if(!valid())return 1;
@@ -415,12 +448,14 @@ public final class LegacyReceiverService extends Service {
         @Override public void seek(Protocol protocol,float seconds) {
             owns(protocol);
             if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>LegacyUrlRequest.MAX_POSITION_MS)throw new IllegalArgumentException("Unsupported media position");
-            if(urlPlayer!=null)urlPlayer.seek((long)(seconds*1000.0));
+            long position=(long)(seconds*1000.0);
+            if(pendingUrl!=null)pendingUrl=new LegacyUrlRequest(pendingUrl.location,position,pendingUrl.headers,pendingUrl.mime);
+            else if(urlPlayer!=null && !urlStopping)urlPlayer.seek(position);
         }
         @Override public void gain(Protocol protocol,float gain) {
             owns(protocol);
             if(Float.isNaN(gain) || Float.isInfinite(gain) || gain<0 || gain>1)throw new IllegalArgumentException("Invalid media gain");
-            urlGain=gain;if(urlPlayer!=null)urlPlayer.gain(gain);
+            urlGain=gain;if(urlPlayer!=null && !urlStopping)urlPlayer.gain(gain);
         }
         @Override public void speed(Protocol protocol,float speed) {
             owns(protocol);
@@ -457,12 +492,17 @@ public final class LegacyReceiverService extends Service {
                 publish();
             });}
             @Override public void stopped() {post(()-> {
-                session=null;running=busy=video=stopping=false;width=height=0;releaseWakeLock();
+                session=null;parkedNative=detachingNative=null;++outputEpoch;
+                running=busy=video=stopping=false;width=height=0;if(!urlRequested)releaseWakeLock();
                 record(getString(R.string.server_stopped));reconcile();
             });}
             @Override public void videoStarted() {post(()-> {if(!stopping) {video=true;publish();}});}
             @Override public void videoStopped() {post(()-> {video=false;publish();});}
-            @Override public void streamChanged() {post(()-> {if(!stopping)publish();});}
+            @Override public void streamChanged() {post(()-> {
+                if(stopping)return;
+                if(urlRequested && session!=null && (session.mirroring() || session.audioActive()))stopUrl();
+                publish();
+            });}
             @Override public void videoSize(int w,int h) {post(()-> {if(!stopping) {width=w;height=h;publish();}});}
             @Override public void controlsChanged() {post(()-> {
                 if(stopping)return;
@@ -483,11 +523,12 @@ public final class LegacyReceiverService extends Service {
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
         LegacyUrlPlayer.State url=urlState();
-        PlaybackInfo info=url==null?new PlaybackInfo(0,0,false,urlSpeed,false,urlRequested && !urlStopping):
+        boolean mediaPending=urlRequested && (!urlStopping || pendingUrl!=null);
+        PlaybackInfo info=url==null?new PlaybackInfo(0,0,false,urlSpeed,false,mediaPending):
             new PlaybackInfo(url.positionMs,url.durationMs,url.playing,url.speed,false,url.buffering);
-        networkState=new NetworkState(urlRequested && !urlStopping?urlOwner:null,urlRequested && !urlStopping,info);
+        networkState=new NetworkState(mediaPending?urlOwner:null,mediaPending,info);
         systemMedia.update(mediaState(),controlState(),url!=null || running && !stopping && session!=null,
-            session!=null && session.mirroring(),session!=null && session.audioActive(),url);
+            !urlRequested && session!=null && session.mirroring(),session!=null && session.audioActive(),url);
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
@@ -529,7 +570,7 @@ public final class LegacyReceiverService extends Service {
     }
     private void demote() {if(promoted) {stopForeground(true);promoted=false;}}
     @Override public void onDestroy() {
-        destroyed=true;client=null;observer=null;target=null;closeWatcher();
+        destroyed=true;++outputEpoch;client=null;observer=null;target=null;closeWatcher();
         if(systemMedia!=null)systemMedia.close();
         fcastEpoch++;
         dlnaEpoch++;networkState=EMPTY_NETWORK;

@@ -32,6 +32,9 @@ final class LegacyPlainAudioScenario {
         }catch(Exception error) {throw new AssertionError(error);}});
     }
     static void check(Instrumentation runner,Activity activity) throws Exception {
+        check(runner,activity,null);
+    }
+    static void check(Instrumentation runner,Activity activity,Runnable outputTaken) throws Exception {
         Object service=field(activity,"service");LegacyReceiverSession session=(LegacyReceiverSession)field(service,"session");
         Method replay=session.getClass().getDeclaredMethod("replayAudio",byte[].class,int.class,int.class,long.class,float.class,boolean.class);
         replay.setAccessible(true);
@@ -47,6 +50,7 @@ final class LegacyPlainAudioScenario {
         long time=System.nanoTime();
         for(int i=0;i<12;i++)replay.invoke(session,packet,codec,spf,time+i*spf*1000000000L/44100,-144f,i==0);
         await(()->session.audioActive() && LegacySystemMediaScenario.gain(activity)==1);
+        if(outputTaken!=null)outputTaken.run();
         focusOwned(runner,service,true);
         if(session.media().active || session.controls().identified)throw new AssertionError("Fixture unexpectedly supplied metadata or controls");
         AtomicReference<Boolean> client=new AtomicReference<>();

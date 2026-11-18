@@ -68,6 +68,8 @@ final class StreamingSelfTest {
             try {
                 session.stop();
                 if (!session.closed.await(10, TimeUnit.SECONDS)) throw new IOException("Receiver shutdown timed out");
+                AtomicInteger lateDetach=new AtomicInteger();session.detachVideoOutput(lateDetach::incrementAndGet);
+                if(lateDetach.get()!=1)throw new IOException("Closed receiver did not acknowledge output retirement");
                 if (session.failure != null) throw session.failure;
                 if (session.audioPlayer.running || session.audioPlayer.outputActive) throw new IOException("Audio survived receiver stop");
             } finally {if(!attached)surface.release();}
@@ -96,7 +98,11 @@ final class StreamingSelfTest {
             if(session.playbackClock.positionNs(System.nanoTime())==AudioPlaybackClock.UNKNOWN)throw new IOException("No PCM clock before display handoff");
             long generation=session.playbackClock.generation();
             for(int cycle=0;cycle<2;cycle++) {
-                session.setVideoSurface(null,null);
+                Surface retiredSurface=previous;
+                java.util.concurrent.atomic.AtomicBoolean early=new java.util.concurrent.atomic.AtomicBoolean();
+                CountDownLatch detached=new CountDownLatch(1);
+                session.detachVideoOutput(()-> {early.set(retiredSurface.isValid());detached.countDown();});
+                if(!detached.await(3,TimeUnit.SECONDS) || early.get())throw new IOException("Output handoff acknowledged before retiring the native Surface");
                 deadline=SystemClock.elapsedRealtime()+2000;
                 while(previous.isValid() && SystemClock.elapsedRealtime()<deadline) {feed.check();Thread.sleep(5);}
                 if(previous.isValid())throw new IOException("Detached display Surface was not retired");

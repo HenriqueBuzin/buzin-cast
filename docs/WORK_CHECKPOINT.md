@@ -1,5 +1,60 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — receptor persistente durante URL
+
+O serviço não encerra mais UxPlay/descoberta ao abrir uma URL. Primeiro
+`detachVideoOutput` pede ao worker AVC para retirar a Surface; só depois de
+liberar o codec e a Surface anterior ele confirma a passagem ao serviço.
+O player Media3 só começa após essa confirmação. Épocas descartam replies
+de passagens canceladas. Pedidos após o fechamento do worker também recebem
+confirmação sem aguardar uma thread já encerrada.
+
+O receptor mantém listener e identidade durante URL. Sua saída de áudio
+fica localmente silenciada enquanto Media3 tem a saída; ao chegar áudio
+nativo ou um novo modo de espelhamento, a URL fecha antes da devolução da
+Surface/ganho. O foco existente é aplicado ao novo player, e o wakelock não
+é liberado pelo fechamento de URL quando ainda pertence ao receptor ativo.
+Reiniciar explicitamente o serviço ou mudar de rede continua podendo
+substituir a sessão nativa.
+
+O teste de URL agora mantém o mesmo socket RTSP desde antes da primeira
+carga até a tomada de saída por ALAC nativo. Inclui cancelamentos rápidos,
+verificação de codec/Surface nativos retirados durante URL, Back, 404,
+Stop, legendas e comprovação de Media3 fechado antes de liberar ganho
+nativo. O roteiro de áudio faz sua própria reinicialização explícita mais
+adiante; a identidade é conferida antes dessa etapa intencional.
+Stop seguido imediatamente por Play agora mantém a última URL validada
+enquanto o player anterior fecha. Pausa, posição, volume e velocidade
+recebidos durante essa passagem ficam associados à nova carga; Stop pode
+cancelá-la. O snapshot dos protocolos mostra buffering durante a espera.
+Sem isso, a nova disponibilidade permanente do listener mascarava o fato
+de Media3 ainda estar fechando e o próximo Play recebia erro.
+O probe verifica confirmação de detach após aposentar Surfaces usadas pelo
+decoder real, continuidade de áudio/RTSP, retomada por IDR e reply tardio
+após fechar o receptor.
+
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições. URL, FCast
+(incluindo Stop/Play e a sequência de pausa/busca/volume/velocidade) e DLNA
+passaram em `outputs/legacy-output-handoff-url-service-final`,
+`outputs/legacy-output-handoff-fcast-final` e
+`outputs/legacy-output-handoff-dlna-final`; as três suítes também passaram
+nos diretórios correspondentes com `-nodownload-final`.
+SHA256 geral/DE-AT:
+`b4bc432e8a7b6eee39edfca4177c21fb72511114d3a4ed5bac2739a9149fa43b` e
+`49d821fefc5d0551f27104b91b0324727039b0e3e89d048e4a328027116c564a`.
+O probe fez dois ciclos completos em `outputs/legacy-output-handoff-native-final`;
+o APK foi preservado em `outputs/legacy-output-handoff-probe.apk`, SHA256
+`a8d1f4f1a26034916e151b184f073bba4e22f1aea0cfe02c569a815cfc665c80`.
+Os DEX desse probe foram conferidos com as novas verificações de confirmação
+e reply tardio. As instalações temporárias foram removidas. Não foi usada
+nenhuma TV física nesta etapa. Marca e auditoria pública/histórico passaram.
+
+Isso prepara a ligação dos callbacks AirPlay de URL; eles ainda não foram
+portados e os bits de recursos correspondentes não foram habilitados.
+Permanecem download/gravação, demais recursos do plano, testes físicos,
+produção e a investigação do defeito intermitente de dlfree. Não há ainda
+paridade completa com o app atual. As logos seguem preservadas.
+
 ## API17 — legendas externas
 
 O player agora aceita uma fonte de legenda isolada, carregada de bytes já

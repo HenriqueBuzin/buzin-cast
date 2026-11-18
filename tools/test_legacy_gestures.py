@@ -135,6 +135,9 @@ def main():
         expected='dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
         if args.url_service:
+            if 'INSTRUMENTATION_RESULT: native_output=same_receiver_rtsp_surface_gate_and_native_audio_takeover' not in result:
+                raise AssertionError('Test APK did not verify persistent native transport and output arbitration')
+            report['native_output']='Same native receiver and RTSP listener during URL, retired native decoder/Surface before URL output, native ALAC takeover after URL close'
             if 'INSTRUMENTATION_RESULT: subtitles=content_import_srt_vtt_pause_caption_disable_and_bounds' not in result:
                 raise AssertionError('Test APK did not run external subtitle checks')
             report['external_subtitles']='ContentResolver SRT/BOM VTT import, actual text cues and native caption UI, paused position, disable, invalid UTF8/format/size/remote rejection, picker lifetime without background playback'

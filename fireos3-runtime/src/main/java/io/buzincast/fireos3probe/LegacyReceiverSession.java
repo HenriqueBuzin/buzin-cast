@@ -94,6 +94,10 @@ public final class LegacyReceiverSession {
     public void setVideoSurface(Surface surface,Runnable whenReleased) {
         videoPlayer.setSurface(surface,whenReleased);
     }
+    public void detachVideoOutput(Runnable detached) {
+        if(detached==null)throw new IllegalArgumentException("Missing output handoff callback");
+        videoPlayer.detachSurface(detached);
+    }
     public void stop() {
         if (!stopping.compareAndSet(false, true)) return;
         queue.close(); audioQueue.close(); worker.interrupt();
