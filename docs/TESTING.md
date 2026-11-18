@@ -1,5 +1,33 @@
 # Testes automatizados
 
+## Gravação de espelhamento na prévia API17
+
+`tools/test_legacy_gestures.py --recording` usa H.264 e ALAC sintéticos no
+receptor nativo, grava com o mesmo `MatroskaRecorder` da edição principal
+e verifica a biblioteca, reprodução local via Media3 com faixa PCM estéreo,
+URI de exportação, confirmação de exclusão, captura vazia, limite de memória
+e encerramento do receptor com captura armada. `--ffprobe <executável>`
+acrescenta uma inspeção independente das faixas e contagens de pacotes;
+o MKV sintético fica no diretório de saída antes da desinstalação.
+
+No Android 4.2, o `MediaExtractor` do sistema reconhece o H.264 desse MKV,
+mas omite sua faixa PCM. O teste não usa essa omissão para concluir que o
+áudio está ausente: confere o formato selecionado no worker do Media3,
+e o verificador externo confirma os pacotes de áudio. O mesmo comando
+com `--package com.buzincast.tv.deat.legacy.preview` exige que a edição
+restrita não exponha os controles nem consiga armar ou listar gravações.
+
+O teste recusa aparelhos físicos e limpa a instalação ao terminar. Não
+comprova sincronismo perceptual, uma sessão Apple real ou armazenamento
+lento/cheio de um Stick físico.
+
+`tools/test_legacy_app.py --tools-only` captura a tela de Ferramentas,
+verifica preparar/parar sem deixar arquivo vazio e exige que esses controles
+não existam em DE/AT. `--locales en pt-BR ar` limita os idiomas; sem a opção,
+percorre todos. Aceita serial de emulador ou a conexão TCP local de um
+emulador, inclusive com servidor ADB isolado. O console autenticado fornece
+as imagens. [Referência em pt-BR](images/fireos3-native-recording-tools.png).
+
 ## URL pelo servidor nativo API17
 
 `tools/test_legacy_gestures.py --native-url` instala a prévia e testa UxPlay
@@ -10,9 +38,13 @@ Verifica recursos de `/server-info`, posição/duração/rate/ready, controles
 remotos e tecla local, RTP -> URL, EOF/Stop, fechamento de canal pausado ou
 tocando, reinício explícito durante reprodução e liberação de `/play` ao
 parar o serviço durante carregamento.
+O cenário também abre `/reverse`, exige Upgrade PTTH e atende `/event`
+com respostas `/action` binárias para playlists master/media. O player
+reproduz a playlist reescrita pelo servidor HLS nativo e segmentos HTTP
+sintéticos. Verifica prontidão, duração, pausa e busca nesse caminho.
 O mesmo cenário aceita `--package com.buzincast.tv.deat.legacy.preview`
-com os APKs correspondentes. Não representa teste do canal reverso FCUP
-nem sessão com aparelho Apple físico, HTTPS, live ou DRM.
+com os APKs correspondentes. Não representa sessão com aparelho Apple
+físico, HTTPS real, live ou DRM.
 
 ## Passagem de saída sem encerrar o receptor API17
 

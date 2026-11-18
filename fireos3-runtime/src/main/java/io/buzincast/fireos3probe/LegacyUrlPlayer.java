@@ -101,7 +101,11 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
                     throw new ProtocolException("Expected HTTP(S) media resource without embedded credentials");
                 return spec;
             });
-            sources=new DefaultMediaSourceFactory(network)
+            androidx.media3.datasource.DataSource.Factory data=network;
+            if(request.localRecording)data=new ResolvingDataSource.Factory(androidx.media3.datasource.FileDataSource::new,spec-> {
+                if(!spec.uri.toString().equals(request.location))throw new ProtocolException("Expected the selected local recording");return spec;
+            });
+            sources=new DefaultMediaSourceFactory(data)
                 .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(2));
             ExoPlayer next=new ExoPlayer.Builder(context,new DefaultRenderersFactory(context).setEnableDecoderFallback(true))
                 .setLooper(thread.getLooper()).setMediaSourceFactory(sources).build();

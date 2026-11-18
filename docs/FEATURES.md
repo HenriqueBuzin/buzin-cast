@@ -25,9 +25,14 @@ boot por opção e tem retomada após morte do processo. Background desligado
 encerra o servidor ao sair. A recuperação de rede preserva a identidade e tem
 tentativas limitadas. Integra título/capa/progresso, comandos DACP e o cliente
 de mídia do Android, com teclas em segundo plano e foco de áudio durante
-música/espelhamento. Os testes dessas etapas usam emulador e pacotes
-sintéticos, como detalhado em [TESTING.md](TESTING.md). Ainda faltam os demais
-protocolos e funções abaixo, licença e validação com emissores e Sticks antigos reais.
+música/espelhamento. Já recebe URLs nativas, inclusive HLS via canal reverso
+FCUP, FCast v2 e DLNA com fotos, usando os transportes compartilhados. Oferece
+legendas externas SRT/VTT e gravação MKV de H.264/PCM, biblioteca, reprodução
+local, URI de exportação e exclusão. A gravação fica indisponível na edição
+DE/AT. Os testes usam emulador e mídia sintética, como detalhado em
+[TESTING.md](TESTING.md). Ainda faltam download de URLs, Cast V2,
+retransmissão, aprovação/PIN, licença/produção e demais itens do plano,
+além da validação com emissores e Sticks antigos reais.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.
 - Recuperação: reanúncio após mudança de rede e até três tentativas do player em falhas de conexão/timeout; AirPlay pode exigir reconexão no emissor.

@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -27,6 +27,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         fcast=arguments!=null && "fcast".equals(arguments.getString("checks"));
         dlna=arguments!=null && "dlna".equals(arguments.getString("checks"));
         nativeUrl=arguments!=null && "native_url".equals(arguments.getString("checks"));
+        recording=arguments!=null && "recording".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -47,9 +48,13 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(nativeUrl) {
+            if(recording) {
+                LegacyRecordingScenario.check(this,activity);
+                result.putString("recording",BuildConfig.RECORDING_ENABLED?"native_h264_pcm_mkv_local_play_export_delete":"restricted_disabled");
+            } else if(nativeUrl) {
                 LegacyNativeUrlScenario.check(this,activity);
                 result.putString("native_url","native_http_play_info_rate_seek_stop_and_lifecycle");
+                result.putString("native_fcup","reverse_upgrade_playlists_local_hls_playback_and_controls");
             } else if(dlna) {
                 LegacyDlnaScenario.check(this,activity);
                 result.putString("dlna","shared_soap_playback_photos_and_lifecycle");

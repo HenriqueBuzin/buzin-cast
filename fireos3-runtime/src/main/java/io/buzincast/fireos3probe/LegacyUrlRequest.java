@@ -14,10 +14,25 @@ public final class LegacyUrlRequest {
     public final long startMs;
     public final Map<String,String> headers;
     public final String mime;
+    public final boolean localRecording;
+    /** Trusted frontend-only entry point; network constructors remain HTTP(S)-only. */
+    public static LegacyUrlRequest recording(java.io.File file) throws java.io.IOException {
+        java.io.File canonical=file.getCanonicalFile();
+        if(!canonical.isFile())throw new java.io.IOException("Recording is unavailable");
+        return new LegacyUrlRequest(canonical.toURI().toASCIIString(),0,Collections.emptyMap(),"video/x-matroska",true);
+    }
+    private LegacyUrlRequest(String location,long start,Map<String,String> headers,String mime,boolean local) {
+        this.location=location;this.startMs=start;this.headers=headers;this.mime=mime;this.localRecording=local;
+    }
+    public LegacyUrlRequest withPosition(long start) {
+        if(start<0 || start>MAX_POSITION_MS)throw new IllegalArgumentException("Invalid media position");
+        return new LegacyUrlRequest(location,start,headers,mime,localRecording);
+    }
     public LegacyUrlRequest(String location,long startMs,Map<String,String> headers) {
         this(location,startMs,headers,null);
     }
     public LegacyUrlRequest(String location,long startMs,Map<String,String> headers,String mime) {
+        this.localRecording=false;
         if(location==null || location.length()>8192 || startMs<0 || startMs>MAX_POSITION_MS)
             throw new IllegalArgumentException("Invalid media location or position");
         if(mime!=null) {

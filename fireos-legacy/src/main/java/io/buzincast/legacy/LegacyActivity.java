@@ -58,6 +58,11 @@ public final class LegacyActivity extends Activity {
     private long subtitleRequest;
     private static final int SUBTITLE_FILE=6509;
     private Button urlToggle,urlRewind,urlForward,urlSpeed;
+    private Button captureToggle;
+    private TextView captureStatus;
+    private LinearLayout captureLibrary;
+    private String captureFilesKey;
+    private LegacyMirrorCapture.State captureSnapshot;
     private LegacyMedia.State mediaState=LegacyMedia.inactive();
     private LinearLayout mediaPanel,connectionSteps;
     private TextView trackTitle,trackArtist,trackAlbum,trackTime;
@@ -192,7 +197,7 @@ public final class LegacyActivity extends Activity {
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
             video=state.video && !videoDismissed;videoWidth=state.width;videoHeight=state.height;
-            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();fitVideo();updateAwake();
+            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();fitVideo();updateAwake();
         });
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
         service.endSubtitlePicker();
@@ -342,6 +347,7 @@ public final class LegacyActivity extends Activity {
     }
     private void render() {
         if(pane==null)return;
+        captureToggle=null;captureStatus=null;captureLibrary=null;captureFilesKey=null;captureSnapshot=null;
         receiverStatus=receiverLabel=diagnosticView=null;receiverToggle=null;
         senderControls=null;
         root.removeCallbacks(mediaTick);mediaPanel=connectionSteps=null;shownArtwork=null;
@@ -456,6 +462,19 @@ public final class LegacyActivity extends Activity {
     }
     private void tools() {
         LinearLayout body=page(R.string.tab_tools);
+        if(BuildConfig.RECORDING_ENABLED) {
+            addSpaced(body,text(this,getString(R.string.tools_record_title),20,WHITE,true),-2);
+            addSpaced(body,text(this,getString(R.string.tools_record_help),13,MUTED,false),-2);
+            captureToggle=button(this,R.string.tools_record_prepare,false,()-> {
+                if(service==null)return;
+                if(service.capture().active())service.capture().stop();else service.capture().start();
+                refreshCaptureUi();
+            });captureToggle.setTag("capture-toggle");addSpaced(body,captureToggle,-2);
+            captureStatus=text(this,"",13,MUTED,false);captureStatus.setTag("capture-status");addSpaced(body,captureStatus,-2);
+            addSpaced(body,text(this,getString(R.string.tools_recordings),18,WHITE,true),-2);
+            Button refresh=button(this,R.string.tools_refresh,false,()-> {captureFilesKey=null;refreshCaptureUi();});refresh.setTag("capture-refresh");addSpaced(body,refresh,-2);
+            captureLibrary=column(this);addSpaced(body,captureLibrary,-2);refreshCaptureUi();
+        }
         LinearLayout calibrate=row(this,getString(R.string.tools_calibrate),getString(R.string.setting_tv_margin_desc),()->calibrate(prefs.margin()));
         calibrate.setTag("calibration");addSpaced(body,calibrate,-2);
         addSpaced(body,row(this,getString(R.string.tools_connection_diagnostics),null,()->diagnostics(true)),-2);
@@ -463,6 +482,47 @@ public final class LegacyActivity extends Activity {
             try {startActivity(new Intent().setComponent(new ComponentName("com.amazon.cast.sink","com.amazon.cast.sink.DisplayMirroringSinkActivity")));}
             catch(ActivityNotFoundException unavailable){Toast.makeText(this,R.string.tools_native_unavailable,Toast.LENGTH_LONG).show();}
         }),-2);
+    }
+    private void refreshCaptureUi() {
+        if(captureToggle==null || service==null)return;
+        LegacyMirrorCapture capture=service.capture();LegacyMirrorCapture.State state=capture.state();
+        if(state==captureSnapshot && captureFilesKey!=null)return;captureSnapshot=state;
+        captureToggle.setEnabled(!state.finishing);
+        captureToggle.setText(state.armed?R.string.tools_record_stop:R.string.tools_record_prepare);
+        captureStatus.setText(state.message);
+        java.io.File[] files=capture.files();StringBuilder key=new StringBuilder().append(capture.busy());
+        for(java.io.File file:files)key.append('|').append(file.getName()).append(':').append(file.length());
+        if(key.toString().equals(captureFilesKey))return;captureFilesKey=key.toString();captureLibrary.removeAllViews();
+        if(files.length==0)captureLibrary.addView(text(this,getString(R.string.tools_recordings_empty),13,MUTED,false));
+        for(java.io.File file:files) {
+            String name=file.getName();captureLibrary.addView(text(this,name+" · "+file.length()/1024+" KB",13,WHITE,false));
+            LinearLayout actions=new LinearLayout(this);captureLibrary.addView(actions);
+            Button play=button(this,R.string.tools_play,false,()->recordingAction(()->service.playRecording(name)));
+            Button share=button(this,R.string.btn_export,false,()->recordingAction(()-> {
+                Uri uri=androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".recordings",service.capture().file(name));
+                Intent send=new Intent(Intent.ACTION_SEND).setType("video/x-matroska").putExtra(Intent.EXTRA_STREAM,uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                send.setClipData(android.content.ClipData.newRawUri(name,uri));
+                startActivity(Intent.createChooser(send,getString(R.string.btn_export)));
+            }));
+            Button delete=button(this,R.string.tools_delete,false,()->deleteRecording(name));
+            play.setTag("capture-play:"+name);share.setTag("capture-share:"+name);delete.setTag("capture-delete:"+name);
+            for(Button action:new Button[]{play,share,delete}) {action.setEnabled(!capture.busy());actions.addView(action,new LinearLayout.LayoutParams(0,dp(this,48),1));}
+        }
+    }
+    private interface RecordingAction {void run() throws Exception;}
+    private void recordingAction(RecordingAction action) {
+        try {if(service!=null)action.run();}
+        catch(Exception error) {Toast.makeText(this,R.string.error_label,Toast.LENGTH_SHORT).show();}
+    }
+    private void deleteRecording(String name) {
+        Modal modal=dialog();LinearLayout body=dialogBody(modal,dp(this,260));
+        addSpaced(body,text(this,getString(R.string.tools_delete_confirm),20,WHITE,true),-2);
+        addSpaced(body,text(this,name,13,MUTED,false),-2);
+        Button confirm=button(this,R.string.tools_delete,false,()-> {
+            recordingAction(()->service.capture().delete(name));modal.dismiss();refreshCaptureUi();
+        });confirm.setTag("capture-delete-confirm");addSpaced(body,confirm,-2);
+        Button cancel=button(this,android.R.string.cancel,false,modal::dismiss);addSpaced(body,cancel,-2);show(modal);cancel.requestFocus();
     }
     private void calibrate(int margin) {
         if(calibration!=null)return;

@@ -11,6 +11,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Owns native receiver, publisher, audio worker, video decoder and Surface. */
 public final class LegacyReceiverSession {
+    /** Callbacks borrow decoder buffers; a sink must copy before returning and never block. */
+    public interface Capture {
+        boolean active();
+        void video(byte[] annexB,long ptsNs,int width,int height);
+        void audio(short[] pcm,int offset,int count,long ptsNs);
+        void ended();
+    }
+    private volatile Capture capture;
+    public void capture(Capture sink) {capture=sink;}
     public interface Listener {
         void ready(String name);
         void failed(Exception error);
@@ -72,7 +81,9 @@ public final class LegacyReceiverSession {
         this.identity = identity; this.listener = listener; this.options=options;
         media=new LegacyMedia(listener::mediaChanged);
         queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); },active-> {
-            mirrorActive.set(active);if(active)streamEpoch.incrementAndGet();media.mirroring(active);listener.streamChanged();
+            mirrorActive.set(active);if(active)streamEpoch.incrementAndGet();
+            else {Capture sink=capture;if(sink!=null && sink.active())sink.ended();}
+            media.mirroring(active);listener.streamChanged();
         });
         if(listener.acceptsUrl())queue.url.listener(new LegacyNativePlayback.Listener() {
             @Override public void play(long token,LegacyUrlRequest request) {listener.urlPlay(token,request);}
@@ -90,12 +101,21 @@ public final class LegacyReceiverSession {
             }
         });
         audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options,this::audioOutputChanged);
+        audioPlayer.tap=(pcm,offset,count,pts)-> {Capture sink=capture;if(sink!=null && sink.active())sink.audio(pcm,offset,count,pts);};
         videoPlayer = new LegacyAvcPlayer(surface, queue, new LegacyAvcPlayer.Listener() {
             @Override public void decodedFrame() {
                 decoded.countDown();
                 if (videoActive.compareAndSet(false,true)) listener.videoStarted();
             }
             @Override public void resized(int width,int height) { listener.videoSize(width,height); }
+            @Override public void encodedFrame(byte[] data,long pts,AvcConfig config) {
+                Capture sink=capture;if(sink==null || !sink.active())return;
+                byte[] sps=config.spsWithStartCode(),pps=config.ppsWithStartCode();
+                byte[] packet=new byte[sps.length+pps.length+data.length];
+                System.arraycopy(sps,0,packet,0,sps.length);System.arraycopy(pps,0,packet,sps.length,pps.length);
+                System.arraycopy(data,0,packet,sps.length+pps.length,data.length);
+                sink.video(packet,pts,config.width,config.height);
+            }
         }, playbackClock,options!=null && options.lowLatency);
         worker = new Thread(this::run, "fireos3-live-receiver");
     }
@@ -173,6 +193,7 @@ public final class LegacyReceiverSession {
             // Wake URL-ready and media queue waiters before JNI joins the HTTP
             // workers. This ordering also applies to an unexpected decoder failure.
             queue.close();audioQueue.close();
+            Capture sink=capture;capture=null;if(sink!=null)sink.ended();
             // An interrupted start must still unregister records and join native workers.
             Thread.interrupted();
             discoveryReady.countDown();

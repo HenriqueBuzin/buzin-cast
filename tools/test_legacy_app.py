@@ -25,11 +25,15 @@ def main():
     parser.add_argument('--lifecycle-checks',action='store_true',help='Check Home/Back, background opt-out and boot opt-in/out; reboots only the selected emulator twice.')
     parser.add_argument('--lifecycle-only',action='store_true',help='Run only service lifecycle/recovery checks; defaults to English, reboots only this emulator twice.')
     parser.add_argument('--about-only',action='store_true',help='Capture and verify only Home/About, saving their real accessibility tree for layout review.')
+    parser.add_argument('--tools-only',action='store_true',help='Capture Tools and verify recording prepare/stop controls, or their absence in DE/AT. Omit --locales for every app language.')
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-ui-checks'))
     args=parser.parse_args()
     if args.about_only and (args.lifecycle_only or args.lifecycle_checks):parser.error('Choose About-only or lifecycle checks.')
+    if args.tools_only and (args.about_only or args.lifecycle_only or args.lifecycle_checks):parser.error('Choose Tools-only or another UI scenario.')
     if not 1 <= args.adb_server_port <= 65535: parser.error('Invalid ADB server port.')
-    if not args.serial.startswith('emulator-'): parser.error('Only an isolated emulator is accepted.')
+    local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
+    local_emulator=local and 5555<=int(local[1])<=5683 and int(local[1])%2==1
+    if not re.fullmatch(r'emulator-\d+',args.serial) and not local_emulator:parser.error('Only an isolated emulator is accepted.')
     root=Path(__file__).resolve().parents[1]
     resources=root/'app/src/main/res'
     locales={'en':'values'}
@@ -101,7 +105,21 @@ def main():
         previous=None
         for attempt in range(8):
             with tempfile.TemporaryDirectory(dir=args.output.resolve()) as folder:
-                adb('emu','screenrecord','screenshot',folder)
+                if not local_emulator:adb('emu','screenrecord','screenshot',folder)
+                else:
+                    token=(Path.home()/'.emulator_console_auth_token').read_text(encoding='utf-8').strip()
+                    if not token or any(c in token+folder for c in '\r\n'):raise AssertionError('Invalid emulator console capture input')
+                    with socket.create_connection(('127.0.0.1',int(local[1])-1),timeout=10) as connection:
+                        connection.settimeout(10)
+                        with connection.makefile('rb') as response:
+                            def accepted():
+                                for _ in range(100):
+                                    line=response.readline()
+                                    if not line or line.startswith(b'KO'):raise AssertionError('Emulator console rejected capture')
+                                    if line.strip()==b'OK':return
+                                raise AssertionError('Emulator console did not finish capture')
+                            accepted();connection.sendall(('auth '+token+'\n').encode('utf-8'));accepted()
+                            connection.sendall(('screenrecord screenshot '+folder+'\n').encode('utf-8'));accepted()
                 images=list(Path(folder).glob('*.png'))
                 if len(images)!=1:raise AssertionError('Emulator screenshot missing')
                 path.write_bytes(images[0].read_bytes())
@@ -328,7 +346,7 @@ def main():
         open_app();expect(strings['buzin_ready']);wait_receiver(True)
         report['boot_opt_in_out_after_real_emulator_reboots']='pass'
 
-    if adb('shell','getprop','ro.build.version.sdk').strip()!='17':parser.error('Use API17.')
+    if adb('shell','getprop','ro.build.version.sdk').strip()!='17' or adb('shell','getprop','ro.kernel.qemu').strip()!='1':parser.error('Use an isolated API17 emulator.')
     # A physical Stick has a fixed TV display, without a phone accelerometer.
     # API17's emulator can otherwise freeze input while rotating after reboot.
     if args.lifecycle_checks or args.lifecycle_only:
@@ -347,6 +365,19 @@ def main():
                 lifecycle(strings,locale);report['locales'][locale]='pass';continue
             if index==0 and rtsp(7000)['name']!='Buzin Cast':raise AssertionError('Native receiver name differs from UI')
             capture(args.output/(locale+'-home.png'))
+            if args.tools_only:
+                tap(strings['tab_tools'])
+                if args.package.endswith('deat.legacy.preview'):
+                    tree=expect(strings['tools_calibrate'],strings['tools_connection_diagnostics'])
+                    if strings['tools_record_prepare'] in {n.get('text') for n in tree.iter()}:raise AssertionError('DE/AT exposed the recording button')
+                else:
+                    expect(strings['tools_record_title'],strings['tools_record_prepare'])
+                    tap(strings['tools_record_prepare']);expect(strings['tools_record_stop'],strings['capture_waiting_keyframe'])
+                    capture(args.output/(locale+'-tools-armed.png'))
+                    tap(strings['tools_record_stop']);expect(strings['tools_record_prepare'],strings['capture_no_keyframe'])
+                capture(args.output/(locale+'-tools.png'))
+                (args.output/(locale+'-tools.xml')).write_text(ET.tostring(ui(),encoding='unicode'),encoding='utf-8')
+                report['locales'][locale]='pass';continue
             tap(strings['buzin_about']); tree=expect('© '+str(datetime.datetime.now().year)+' Buzin Solutions LTDA')
             close=[n for n in tree.iter() if n.get('text')==strings['buzin_close'] and n.get('focused')=='true']
             if len(close)!=1:raise AssertionError('About must focus Close')

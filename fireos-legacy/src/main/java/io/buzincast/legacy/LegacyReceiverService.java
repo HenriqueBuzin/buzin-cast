@@ -91,6 +91,11 @@ public final class LegacyReceiverService extends Service {
     private Exception controlFailure;
     private Exception mediaFailure;
     private LegacySystemMedia systemMedia;
+    private LegacyMirrorCapture capture;
+    LegacyMirrorCapture capture() {return capture;}
+    void playRecording(String name) throws java.io.IOException {
+        loadUrl(LegacyUrlRequest.recording(capture.file(name)));
+    }
     private LegacyUrlPlayer urlPlayer;
     private LegacyUrlRequest pendingUrl;
     private long urlGeneration;
@@ -160,6 +165,7 @@ public final class LegacyReceiverService extends Service {
     }
     @Override public void onCreate() {
         super.onCreate();prefs=new LegacyPreferences(this);name=prefs.name();
+        capture=new LegacyMirrorCapture(this,()->main.post(()-> {if(!destroyed)publish();}),BuildConfig.RECORDING_ENABLED);
         systemMedia=new LegacySystemMedia(this,new LegacySystemMedia.Sink() {
             @Override public void command(LegacyDacp.Command command) {control(command,null);}
             @Override public void gain(float gain) {
@@ -452,7 +458,7 @@ public final class LegacyReceiverService extends Service {
             owns(protocol);
             if(Float.isNaN(seconds) || Float.isInfinite(seconds) || seconds<0 || seconds*1000.0>LegacyUrlRequest.MAX_POSITION_MS)throw new IllegalArgumentException("Unsupported media position");
             long position=(long)(seconds*1000.0);
-            if(pendingUrl!=null)pendingUrl=new LegacyUrlRequest(pendingUrl.location,position,pendingUrl.headers,pendingUrl.mime);
+            if(pendingUrl!=null)pendingUrl=pendingUrl.withPosition(position);
             else if(urlPlayer!=null && !urlStopping)urlPlayer.seek(position);
         }
         @Override public void gain(Protocol protocol,float gain) {
@@ -523,7 +529,7 @@ public final class LegacyReceiverService extends Service {
             @Override public void urlSeek(long token,float seconds) {post(()-> {
                 if(!ownsNativeUrl(token))return;
                 long position=(long)(seconds*1000.0);
-                if(pendingUrl!=null)pendingUrl=new LegacyUrlRequest(pendingUrl.location,position,pendingUrl.headers,pendingUrl.mime);
+                if(pendingUrl!=null)pendingUrl=pendingUrl.withPosition(position);
                 else if(urlPlayer!=null && !urlStopping)urlPlayer.seek(position);
             });}
             @Override public void urlRate(long token,float rate) {post(()-> {
@@ -546,7 +552,7 @@ public final class LegacyReceiverService extends Service {
                 mediaFailure=current;publish();
             });}
         },prefs.options(),selectedNetwork);
-        session.audioFocusGain(0);bindSurface();session.start();
+        session.capture(capture);session.audioFocusGain(0);bindSurface();session.start();
     }
     private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
@@ -608,6 +614,7 @@ public final class LegacyReceiverService extends Service {
     private void demote() {if(promoted) {stopForeground(true);promoted=false;}}
     @Override public void onDestroy() {
         destroyed=true;++outputEpoch;client=null;observer=null;target=null;closeWatcher();
+        if(capture!=null)capture.close();
         if(systemMedia!=null)systemMedia.close();
         fcastEpoch++;
         dlnaEpoch++;networkState=EMPTY_NETWORK;

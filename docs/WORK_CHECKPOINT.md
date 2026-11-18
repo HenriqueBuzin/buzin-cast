@@ -1,5 +1,67 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — gravação MKV e HLS pelo canal reverso
+
+A prévia geral integra `LegacyMirrorCapture` ao mesmo `MatroskaRecorder`
+da produção. O worker de vídeo fornece AVC original com SPS/PPS e dimensões
+conhecidas mesmo sem Surface; o worker de áudio fornece apenas os intervalos
+PCM com timestamps reais, antes do ganho local. A fila de gravação fica
+limitada a 8 MiB/120 pacotes, sem I/O de disco nas threads de recepção/decoder.
+Inicia no próximo IDR, fecha ao parar o espelhamento/receptor e preserva o
+arquivo já gravado ao terminar por erro/limite. Capturas sem IDR não deixam
+arquivos. Exige 128 MiB livres para iniciar e encerra abaixo de 32 MiB.
+
+Ferramentas oferece preparar/parar, estado, biblioteca, reprodução local,
+exportação por FileProvider restrito à pasta de gravações e exclusão com
+confirmação. Usa os textos já traduzidos e os componentes de foco por
+controle/toque. Na API17, usa armazenamento interno privado sem pedir
+permissão ampla de escrita. O seletor local de arquivo não passa pelo
+construtor de URLs de rede: a fonte FileDataSource aceita somente a URI
+selecionada, enquanto manifestos e segmentos remotos continuam HTTP(S)-only.
+Os controles, início e listagem da captura ficam bloqueados na edição DE/AT.
+
+`--recording` passou em `outputs/legacy-recording-review`: captura sintética
+via callbacks nativos H.264/ALAC, MKV real, reprodução local com formato PCM
+44100 Hz estéreo selecionado no worker Media3, URI de exportação, exclusão,
+arquivo vazio, limite de bytes e encerramento com captura armada.
+`ffprobe` confirmou 60 pacotes AVC e 188 PCM. O extrator MKV do Android 4.2
+omite PCM; essa omissão não é usada como prova de ausência de áudio.
+As duas edições passaram em build, lint e testes JVM com
+`Build-FireOs.ps1 -Target legacy -Instrumentation -Check` (com `-NoDownload`
+na regional). As regressões de URL/legendas e URL nativa/FCUP passaram nas
+duas edições; DE/AT passou também no gate negativo de gravação.
+Relatórios: `outputs/legacy-recording-regression-*`,
+`outputs/legacy-recording-deat-*` e `outputs/legacy-recording-native-probe`.
+O probe nativo completo passou após os taps de vídeo/PCM, incluindo
+ALAC/AAC, relógio A/V, troca de Surface, reprodução sem Surface e parada.
+APKs debug testados (SHA-256):
+
+- Geral: `35209c3f602ac54c30781c56caf795610eacc6fab15327945928a1c41d00d738`.
+- DE/AT: `c337b75a684f0d8dc0840c95331fc99e5aef68ea081701c5d04eaaa9c1996cb8`.
+
+`test_legacy_app.py --tools-only` acrescenta captura/verificação dos controles
+de gravação. Sem `--locales`, percorre todos os idiomas; com uma lista,
+restringe-se a ela. Passou em inglês, pt-BR e árabe (incluindo layout RTL),
+com captura preparada/parada sem arquivo vazio, e em alemão com a edição
+restrita sem controles de gravação. Também aceita a conexão local TCP de
+um emulador em servidor ADB isolado, com autenticação do console para
+screenshots e verificação `ro.kernel.qemu` antes de qualquer instalação.
+Referência visual conferida: `docs/images/fireos3-native-recording-tools.png`.
+Nenhuma TV física foi usada; as 12 imagens aprovadas do launcher permanecem
+intactas. Os APKs continuam sendo prévias sem assinatura/SDK de produção.
+
+O cenário `--native-url` agora exige também Upgrade PTTH em `/reverse`,
+requisições `/event` reais e respostas `/action` bplist para master/media,
+reprodução através do proxy HLS nativo e pausa/busca/Stop. A versão inicial
+falhou ao consultar o snapshot imediatamente; esperar a publicação assíncrona
+com limite de tempo comprovou estado ready/duração/posição corretos.
+
+Ainda faltam download de URLs, Cast V2, retransmissão, aprovação/PIN,
+licença/SDK e assinatura de produção, além das demais pendências do plano.
+Canal reverso sintético não comprova interoperabilidade Apple, HTTPS real,
+live/DRM, sincronismo físico, sessões longas ou armazenamento de um Stick
+antigo. O defeito nativo intermitente também continua pendente.
+
 ## API17 — callbacks de URL AirPlay
 
 `probe.c` registra play/wait-ready/scrub/rate/stop/playback-info/playlist-remove

@@ -11,7 +11,11 @@ import java.util.LinkedHashMap;
 /** API 17 streaming decoder. All MediaCodec operations belong to one worker. */
 final class LegacyAvcPlayer {
     interface StopSignal { boolean stopped(); }
-    interface Listener { void decodedFrame(); default void resized(int width,int height) {} }
+    interface Listener {
+        void decodedFrame();
+        default void resized(int width,int height) {}
+        default void encodedFrame(byte[] data,long ptsNs,AvcConfig config) {}
+    }
     private final OwnedTargetSlot<Surface> targets=new OwnedTargetSlot<>();
     private OwnedTargetSlot.Target<Surface> target;
     private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> detachReplies=new java.util.concurrent.ConcurrentLinkedQueue<>();
@@ -84,6 +88,7 @@ final class LegacyAvcPlayer {
                     if (received != null && (config == null || !config.matches(received))) {
                         releaseCodec();config=received;
                     }
+                    if(config!=null)listener.encodedFrame(frame.data,frame.timeNs,config);
                     if(target==null) {skippedWithoutTarget++;continue;}
                     // A fresh API17 codec cannot resume from dependent P/B frames.
                     // Keep the parameter sets across display changes, not stream resets.
