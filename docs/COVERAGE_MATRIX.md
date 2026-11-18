@@ -81,9 +81,15 @@ API36 normal run passed all 130 Android tests and 18 native cases, but stopped
 at the first UI scenario: `failure.png` shows a System UI ANR dialog over the
 already-rendered Tools screen. This is an incomplete run, not accepted coverage.
 Its artifacts remain at `build/android-coverage-callback-contracts-api36`.
-A clean-boot retry uses the exact frozen APKs, mappings and native executable,
-with fresh runtime data, at `build/callback-normal-frozen-api36-retry`.
-No coverage increase is claimed until complete runtime reports are generated.
+The clean-boot retry at `build/callback-normal-frozen-api36-retry` subsequently
+completed all 130 Android tests, 18 native cases and all 13 UI scenarios using
+the exact frozen APKs, mappings and native executable, with fresh runtime data.
+Its full raw snapshot passed the strict completeness and compiled-identity
+validator. The normal API36 report measures 79.8549% Android/JVM lines and
+60.7239% branches; native lines are 93.1302%, branches 79.9279%, functions
+97.0297%, instantiations 96.5517%, regions 90.7581% and MC/DC 61.9632%.
+Every applicable metric remains below 100%. These results apply to this normal
+APK cohort, not to the other three editions or the later brand/log test cohort.
 
 Six new rendering/launch contracts passed on API22 in 28.082 seconds using a
 Gradle-built compat DE/AT APK and test APK. They inspect actual screenshot pixels
@@ -111,8 +117,8 @@ can be below its clickable accessibility ancestor, so the test now locates that
 ancestor and still requires its real click action and resulting state changes.
 Evidence is `build/logs-screen-accessibility-selection/instrumentation.txt`;
 the failed selector run at `build/logs-screen-selection` adds no passing evidence.
-A fresh four-variant API36 run including the brand and log-screen contracts is
-queued behind successful completion of the frozen normal retry. These selected
+A fresh four-variant API36 run including the brand and log-screen contracts has
+started after successful completion of the frozen normal retry. These selected
 results do not establish new whole-app percentages or satisfy the 100% target.
 
 ## Run all four
