@@ -234,12 +234,23 @@ class NativeServerContractTest {
             NativeBridge.nativeSetCaptureEnabled(handle, true)
             val base = System.nanoTime() / 1000 * 1000
             fun pts(index: Int) = (base + index * 1024L * 1_000_000_000L / 44100) / 1000 * 1000
+            val frameDelayMs = (1024L * 1000 + 44100 - 1) / 44100
+            val packetDebug = ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder())
+            fun assertAccepted(index: Int) {
+                assertTrue(NativeBridge.nativeServerAudioDebug(handle, packetDebug))
+                assertEquals("Platform AAC rejected packet $index; PCM=${callback.pcm.size}; logs=${callback.logs}",
+                    0, packetDebug.getInt(34))
+            }
             // A live MediaCodec stream has no EOS here. Supply a silent tail so
             // decoder lookahead can release every frame of the original fixture.
             val supplied = frames.size + 8
             for (index in 0 until supplied) {
                 DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
-                Thread.sleep(10) // pace input so this is not an input-buffer-overflow test
+                assertAccepted(index)
+                // Feed at the fixture's 1024/44100-second packet duration. A
+                // 10ms interval is over twice real time and can fill codec input
+                // buffers before the emulator schedules the output thread.
+                Thread.sleep(frameDelayMs)
             }
             val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
             while (callback.pcm.size < frames.size && System.nanoTime() < deadline) Thread.sleep(10)
@@ -257,7 +268,11 @@ class NativeServerContractTest {
             if (android.os.Build.VERSION.SDK_INT < 23)
                 assertFalse("Lollipop attempted the optional named decoder", callback.logs.any { it.contains("c2.android.inproc.aac.decoder") })
             NativeBridge.nativeSetCaptureEnabled(handle, false)
-            repeat(8) { index -> DebugNativeBridge.nativeFeedAudio(handle, frames[index], pts(supplied + index)); Thread.sleep(10) }
+            repeat(8) { index ->
+                DebugNativeBridge.nativeFeedAudio(handle, frames[index], pts(supplied + index))
+                assertAccepted(supplied + index)
+                Thread.sleep(frameDelayMs)
+            }
             NativeBridge.nativeServerAudioStop(handle) // joins the drain thread before comparing callbacks
             assertEquals("Disabled capture still delivered PCM", observed, callback.pcm.size)
             for ((index, record) in callback.pcm.withIndex()) {

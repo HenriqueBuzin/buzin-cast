@@ -211,6 +211,13 @@ through the unsafe Lollipop NDK wrapper. The historical implementation is in
 the null-codec creation check appears in
 [AOSP Android 6.0](https://android.googlesource.com/platform/frameworks/av/+/android-6.0.1_r81/media/ndk/NdkMediaCodec.cpp).
 
+The platform-AAC fixture is paced at its 1024-sample/44100-Hz packet duration,
+rounded up to 24ms. The earlier 10ms schedule sent over twice real time and
+could exhaust codec input slots under emulator load. Rejected-packet counters
+are checked after every input, while exact PCM bytes, every timestamp and
+capture shutdown remain required. The revised selected test passed three API28
+executions against the unchanged APK; full-matrix validation is still required.
+
 Recorder-worker contracts create isolated files in the emulator cache. Media3's
 Matroska parser checks AVC/HEVC dimensions and sample counts plus exact PCM bytes
 and timestamps; the platform extractor can omit Matroska PCM on API22. The tests
