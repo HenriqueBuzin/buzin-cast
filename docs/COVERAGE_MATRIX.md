@@ -122,6 +122,12 @@ bits and codecs, PIN metadata, occupied-port recovery, RTSP replies, direct-buff
 bounds and audio start/stop. Temporary pairing keys stay in the emulator app's
 cache and are deleted after teardown.
 
+AudioRenderer contracts check detached configuration, gain, codec labels and
+diagnostic-buffer parsing against a real engine. Queued configuration changes
+must leave the current buffer setting intact until the next decoded packet;
+multiple queued updates apply the last value, with exact PCM and timestamps
+preserved across the rebuild.
+
 The software-AAC contract decodes checked-in silent AAC packets through the JNI
 audio engine and checks every PCM block, timestamp, sample rate and channel
 count. It also changes configuration between packets, toggles PCM capture and
