@@ -18,8 +18,12 @@ import java.util.Locale
 @RunWith(AndroidJUnit4::class)
 class DecoderSelectorContractTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
+    // New emulator images can list the goldfish hardware adapter before the
+    // standard software decoder. These contracts exercise generic software
+    // policy, not the inventory order or hardware-specific performance limits.
     private fun avc() = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.first {
-        !it.isEncoder && it.supportedTypes.any { mime -> mime.equals(DecoderSelector.AVC, true) }
+        !it.isEncoder && it.supportedTypes.any { mime -> mime.equals(DecoderSelector.AVC, true) } &&
+            (it.name.startsWith("omx.google.", true) || it.name.startsWith("c2.android.", true))
     }
     private fun privateCall(selector: DecoderSelector, name: String, types: Array<Class<*>>, vararg args: Any): Boolean =
         DecoderSelector::class.java.getDeclaredMethod(name, *types).apply { isAccessible = true }

@@ -6,15 +6,158 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <thread>
 #include <oboe/Oboe.h>
 #include "audio_engine.h"
 #include "log_sink.h"
 extern "C" {
 #include "dnssd.h"
 #include "android_dnssd_shim.h"
+#include "android_raop_callbacks.h"
 }
 extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
+
+// Calls the production callback table with real JNI and an isolated Java sink.
+// No receiver, player, discovery service or network listener is created.
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackContracts(JNIEnv *env, jobject, jobject sink) {
+    struct Context {
+        android_callback_ctx_t value{};
+        JNIEnv *env;
+        Context(JNIEnv *e, jobject sink) : env(e) { android_callbacks_init(&value, e, sink); }
+        ~Context() { android_callbacks_destroy(&value, env); }
+    } owner(env, sink);
+    auto *ctx = &owner.value;
+    if (env->ExceptionCheck()) return nullptr;
+#define CALLBACK_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    raop_callbacks_t cbs{};
+    android_callbacks_fill(&cbs, ctx);
+    CALLBACK_CONTRACT(cbs.cls == ctx && !cbs.register_client && !cbs.check_register);
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_H265) == 0);
+    ctx->h265_enabled = 0;
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_H265) == -1);
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_H264) == 0);
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_UNKNOWN) == 0);
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "allow") == 1);
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "deny") == 0);
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "throw") == 0 && !env->ExceptionCheck());
+    // The next callback after an exception must remain usable.
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "allow") == 1);
+
+    unsigned char bytes[] = {0, 0, 1, 7};
+    video_decode_struct video{};
+    cbs.video_process(ctx, nullptr, &video);
+    video.data = bytes; video.data_len = 0; cbs.video_process(ctx, nullptr, &video);
+    video.data_len = -1; cbs.video_process(ctx, nullptr, &video);
+    video.data_len = sizeof(bytes); bytes[0] = 1; cbs.video_process(ctx, nullptr, &video);
+    bytes[0] = 0; video.ntp_time_local = 1234567; video.is_h265 = false;
+    cbs.video_process(ctx, nullptr, &video);
+    video.is_h265 = true; cbs.video_process(ctx, nullptr, &video);
+    audio_decode_struct audio{}; // No engine: input must not be decoded.
+    cbs.audio_process(ctx, nullptr, &audio);
+    for (const auto callback : {cbs.audio_set_metadata, cbs.audio_set_coverart}) {
+        callback(ctx, nullptr, sizeof(bytes)); callback(ctx, bytes, 0); callback(ctx, bytes, -1);
+        callback(ctx, bytes, sizeof(bytes));
+    }
+    uint32_t start = 1, current = 0x80000000U, end = 0xffffffffU;
+    cbs.audio_set_progress(ctx, nullptr, &current, &end);
+    cbs.audio_set_progress(ctx, &start, nullptr, &end);
+    cbs.audio_set_progress(ctx, &start, &current, nullptr);
+    cbs.audio_set_progress(ctx, &start, &current, &end);
+    cbs.audio_remote_control_id(ctx, nullptr, nullptr);
+    cbs.audio_remote_control_id(ctx, "device", "remote");
+    cbs.audio_set_volume(ctx, -12.5f);
+    CALLBACK_CONTRACT(cbs.audio_set_client_volume(ctx) == -6.25);
+    unsigned char ct = 4; unsigned short spf = 1024; bool screen = true, media = false; uint64_t format = 0;
+    cbs.audio_get_format(ctx, &ct, &spf, &screen, &media, &format);
+    float sw = 640, sh = 480, w = 1920, h = 1080;
+    cbs.video_report_size(ctx, &sw, &sh, &w, &h);
+    cbs.mirror_video_running(ctx, false); cbs.mirror_video_running(ctx, true);
+    char pin[] = "1234";
+    cbs.display_pin(ctx, pin); // No PIN requested: sink must not be called.
+    ctx->require_pin = 1; android_callbacks_fill(&cbs, ctx); cbs.display_pin(ctx, pin);
+    CALLBACK_CONTRACT(cbs.register_client && cbs.check_register);
+    char key[] = "key-0";
+    CALLBACK_CONTRACT(!cbs.check_register(ctx, key));
+    cbs.register_client(ctx, "device", key, "name");
+    cbs.register_client(ctx, "device", key, "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 1 && cbs.check_register(ctx, key));
+    key[4] = 'x';
+    CALLBACK_CONTRACT(!cbs.check_register(ctx, key) && cbs.check_register(ctx, "key-0"));
+    for (int i = 1; i < 16; ++i) {
+        const auto next = std::string("key-") + std::to_string(i);
+        cbs.register_client(ctx, "device", next.c_str(), "name");
+        CALLBACK_CONTRACT(cbs.check_register(ctx, next.c_str()));
+    }
+    cbs.register_client(ctx, "device", "overflow", "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 16 && !cbs.check_register(ctx, "overflow"));
+
+    playback_info_t info{};
+    android_callbacks_update_playback_info(ctx, 12.5, 90, 1.5f, 1);
+    cbs.on_video_wait_ready(ctx); // Already ready; no timeout or player needed.
+    cbs.on_video_acquire_playback_info(ctx, &info);
+    CALLBACK_CONTRACT(info.position == 12.5 && info.duration == 90 && info.rate == 1.5f && info.ready_to_play);
+    CALLBACK_CONTRACT(info.seek_start == 0 && info.seek_duration == 90 && !info.playback_buffer_empty && info.playback_buffer_full && info.playback_likely_to_keep_up);
+    CALLBACK_CONTRACT(cbs.on_video_playlist_remove(ctx) == 12.5f);
+    cbs.conn_init(ctx); // Must preserve an active timeline.
+    CALLBACK_CONTRACT(ctx->playback_duration == 90 && ctx->playback_ready == 1);
+    cbs.on_video_play(ctx, nullptr, 2.5f);
+    CALLBACK_CONTRACT(ctx->playback_position == 2.5 && ctx->playback_duration == 0 && !ctx->playback_ready && !ctx->play_ready);
+    cbs.on_video_play(ctx, "https://example.invalid/movie", 3.5f);
+    cbs.on_video_scrub(ctx, 8.5f); cbs.on_video_rate(ctx, 0.5f);
+    cbs.on_video_stop(ctx);
+    CALLBACK_CONTRACT(ctx->playback_duration == -1 && !ctx->playback_ready);
+    cbs.conn_init(ctx); // A finished timeline must be cleared.
+    CALLBACK_CONTRACT(ctx->playback_position == 0 && ctx->playback_duration == 0 && ctx->playback_rate == 0);
+    cbs.on_video_acquire_playback_info(ctx, &info);
+    CALLBACK_CONTRACT(info.seek_duration == 0 && !info.ready_to_play);
+    cbs.video_reset(ctx, RESET_TYPE_HLS_CONN_CLOSED); // Buffering is not paused playback.
+    CALLBACK_CONTRACT(ctx->playback_duration == 0);
+    android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+    cbs.video_reset(ctx, RESET_TYPE_HLS_CONN_CLOSED);
+    CALLBACK_CONTRACT(ctx->playback_duration == 90);
+    android_callbacks_update_playback_info(ctx, 4, 90, 0, 1);
+    cbs.video_reset(ctx, RESET_TYPE_HLS_CONN_CLOSED);
+    CALLBACK_CONTRACT(ctx->playback_duration == -1);
+    for (auto reset : {RESET_TYPE_NOHOLD, RESET_TYPE_RTP_SHUTDOWN, RESET_TYPE_ON_VIDEO_PLAY, RESET_TYPE_RTP_TO_HLS_TEARDOWN}) {
+        android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+        cbs.video_reset(ctx, reset); CALLBACK_CONTRACT(ctx->playback_duration == 90);
+    }
+    for (auto reset : {RESET_TYPE_HLS_SHUTDOWN, RESET_TYPE_HLS_EOS}) {
+        android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+        cbs.video_reset(ctx, reset); CALLBACK_CONTRACT(ctx->playback_duration == -1);
+    }
+    cbs.video_pause(ctx); cbs.video_resume(ctx); cbs.conn_feedback(ctx);
+    cbs.audio_flush(ctx); cbs.video_flush(ctx); cbs.audio_stop_coverart_rendering(ctx);
+    cbs.conn_reset(ctx, 7); cbs.conn_destroy(ctx);
+    cbs.conn_reset(ctx, -1); // Sink deliberately throws: next callback must recover.
+    CALLBACK_CONTRACT(env->ExceptionCheck());
+    cbs.conn_init(ctx);
+    CALLBACK_CONTRACT(!env->ExceptionCheck());
+
+    int16_t pcm[] = {1, -2, 32767, -32768};
+    android_capture_pcm(nullptr, pcm, 4, 42, 44100, 2);
+    android_callback_ctx_t empty{};
+    android_capture_pcm(&empty, pcm, 4, 42, 44100, 2);
+    android_capture_pcm(ctx, pcm, 0, 42, 44100, 2);
+    android_capture_pcm(ctx, pcm, 65537, 42, 44100, 2);
+    android_capture_pcm(ctx, pcm, 4, 42, 44100, 2);
+    std::thread attached([&] {
+        cbs.conn_init(ctx); // _get_env attaches once; TLS destructor detaches.
+        cbs.conn_destroy(ctx);
+    });
+    attached.join();
+    std::thread captured([&] { android_capture_pcm(ctx, pcm, 4, 43, 48000, 1); });
+    captured.join(); // Capture has its own balanced attach/detach path.
+    android_capture_pcm(ctx, pcm, 4, 44, 22050, 2); // Sink throws; capture clears it.
+    CALLBACK_CONTRACT(!env->ExceptionCheck());
+    android_capture_pcm(ctx, pcm, 4, 45, 16000, 1);
+    CALLBACK_CONTRACT(!env->ExceptionCheck());
+#undef CALLBACK_CONTRACT
+    return env->NewStringUTF("callback contracts passed");
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeDump(JNIEnv *env, jobject, jstring path) {
     const char *name = env->GetStringUTFChars(path, nullptr);

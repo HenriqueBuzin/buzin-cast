@@ -57,6 +57,29 @@ be merged with a different compiled test APK. The instrumentation evidence is
 `build/cast-command-probe/instrumentation.txt`; a full rebuilt matrix must
 include these contracts before claiming a measured coverage increase.
 
+The initial frozen API36 replay stopped after two decoder-contract failures:
+the tests selected the first AVC inventory entry even though they require the
+standard software decoder. The helper now explicitly selects the Google/AOSP
+software entry; all capability, fallback and format-key assertions remain.
+The failed frozen replay is not accepted coverage evidence. A supplementary
+manually packaged probe also crashed before running any tests; its cause is
+unconfirmed and it adds no passing evidence.
+
+The final Gradle-built compat DE/AT APK and test APK passed all 14 selected
+contracts on API36 in 4.902 seconds: seven decoder contracts, six Cast command
+contracts, and the new real-JNI callback contract. The latter checks byte-exact
+video/metadata/artwork/PCM payloads, unsigned progress values, codec and PIN policy,
+owned registration keys with duplicate/capacity limits, playback snapshot/reset
+rules, and callbacks on native-created threads. Deliberately throwing Java
+callbacks verify admission rejection, recovery on the next callback and PCM
+exception cleanup. It opens no listener or player and does not exhaust memory.
+The coverage-only JNI fixture calls the production callback table; its own code
+is not added to the production inventory. Both Android assemblies and lint
+passed. The selected evidence is
+`build/native-callback-final-selection/instrumentation.txt`; a new full four-APK
+API36 matrix is running at `build/android-coverage-callback-contracts-api36`.
+No coverage increase is claimed until complete runtime reports are generated.
+
 ## Run all four
 
 Start an isolated Android x86_64 emulator with API25 or newer. Supply its serial

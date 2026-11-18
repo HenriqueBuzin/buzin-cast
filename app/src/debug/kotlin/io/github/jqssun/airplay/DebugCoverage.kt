@@ -9,6 +9,7 @@ object DebugCoverage {
     /** Contract fixture is linked only into the instrumented native library. */
     external fun nativeAudioContracts(): String
     external fun nativeDnsContracts(): String
+    external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
     fun dump(context: Context) {
         val dir = File(context.filesDir, "coverage").apply { mkdirs() }
         val runtime = Class.forName("org.jacoco.agent.rt.RT").getMethod("getAgent").invoke(null)
