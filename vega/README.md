@@ -9,7 +9,7 @@ AirPlay por URL em Estado do port. Espelhamento AirPlay, DLNA e Cast V2 ainda
 não estão disponíveis. O anúncio DNS-SD foi compilado, mas ainda aguarda
 teste no VVD e com emissores físicos.
 
-## Estado verificado em 16 de novembro de 2026
+## Estado verificado em 18 de novembro de 2026
 
 - VPKGs release ARM64, ARMv7 e x86_64 compilados e aprovados na validação ABI.
 - Aplicativo instalado e executado no VVD ARM64; controle, foco, páginas de
@@ -26,7 +26,7 @@ teste no VVD e com emissores físicos.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript, doctor e 53 testes Jest passaram.
+- Lint sem avisos, TypeScript, doctor e 56 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -54,6 +54,12 @@ seleção destacada enquanto o foco está no conteúdo. Voltar restaura o últim
 item no início. Os botões solicitam foco nativo na ativação concluída;
 a navegação pelo controle passou no VVD, e toques reais/revisão visual desta
 mudança ainda aguardam validação.
+
+O modo **Estado do port → Testar áudio AirPlay** encaminha callbacks UxPlay a um
+worker nativo para AAC-LC estéreo/44,1 kHz, com fila limitada, flush e volume/mudo.
+No VVD passaram os testes de áudio injetado no worker e controles/vida útil por
+RTSP. A negociação e mídia RTP completas e os emissores Apple reais ainda precisam
+ser validados. Este modo é manual, sem descoberta, PIN, vídeo, ALAC ou AAC-ELD.
 
 ## Ambiente e build
 

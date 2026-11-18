@@ -14,6 +14,7 @@ COMPONENT = 'com.buzincast.tv.main'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
+    parser.add_argument('--worker', action='store_true')
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--runner', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-msse-audio')
@@ -43,19 +44,21 @@ def main():
         fixture = args.output / 'sample.aac'
         subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i',
                         str(ROOT / 'vega/assets/raw/media/playback-sample.mp4'), '-vn',
-                        '-c:a', 'copy', '-f', 'adts', str(fixture)], check=True, timeout=30)
+                        *(['-c:a', 'aac', '-ar', '44100', '-ac', '2'] if args.worker else ['-c:a', 'copy']), '-f', 'adts', str(fixture)], check=True, timeout=30)
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
         # A component's /tmp differs from the developer shell's /tmp. Stream
         # our own fixtures into its sandbox, without changing its privileges.
         for source, destination in [(args.runner, '/data/buzin-msse-probe'), (fixture, '/data/buzin-msse-sample.aac')]:
             shell(f'cat > {destination}', payload=source.read_bytes())
         shell('chmod', '700', '/data/buzin-msse-probe')
-        output = shell('timeout', '55', '/data/buzin-msse-probe', '/data/buzin-msse-sample.aac', timeout=60)
+        output = shell('timeout', '55', '/data/buzin-msse-probe', '/data/buzin-msse-sample.aac', *(['--worker'] if args.worker else []), timeout=60)
         (args.output / 'runner.log').write_text(output)
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
         if len(cycles) != 2 or any(value.get('released') is not True or value.get('seconds', 0) < 7.5 for value in cycles):
             raise RuntimeError('Two completed native playback/release cycles were not observed')
-        result.update(passed=True, cycles=cycles)
+        if args.worker and cycles[1].get('flushes') != 1:
+            raise RuntimeError('Native worker flush was not observed')
+        result.update(passed=True, worker=args.worker, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)

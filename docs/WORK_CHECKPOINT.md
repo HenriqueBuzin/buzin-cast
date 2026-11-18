@@ -56,6 +56,18 @@ sessão com transmissor real ou Stick físico foi certificada. O objetivo
 completo permanece pendente, incluindo protocolos/player restantes,
 gravação/download e segurança/licença.
 
+## Vega — worker AAC e controles RTSP — 18 de novembro de 2026
+
+A sessão UxPlay agora delega áudio/formato/flush/volume ao worker nativo no modo
+manual Estado do port → Testar áudio AirPlay. AAC-LC estéreo/44,1 kHz é o primeiro
+formato implementado. 56 testes, lint/TypeScript, teste C++ com sanitizers e três
+ABIs passaram. No VVD, dois ciclos de áudio injetado no worker, flush, controles
+RTSP reais, encerramento/reabertura e smoke geral passaram. Não confundir isso
+com mídia RTP/AES completa ou recepção Apple validada: ambas continuam pendentes,
+assim como outros codecs, vídeo e A/V. Evidências e próximo passo em
+[VEGA_HANDOFF.md](VEGA_HANDOFF.md). A meta completa permanece ativa.
+
+
 ## Alvo antigo — foco de áudio independente dos controles de música
 
 Espelhamento mantém o foco de áudio sem registrar os botões/capa de música.

@@ -984,3 +984,29 @@ encaminha a porta UxPlay dinâmica pelo VVD. Exercita `/play`, `/playback-info`,
 retomada e liberação nativa ao Voltar. Resultado aprovado em
 `build/vega-airplay-url-clock/result.json`. Esta rodada não valida espelhamento,
 emissores Apple, descoberta, PIN, áudio audível ou sincronismo em hardware.
+
+
+### Worker de áudio AirPlay Vega — 18 de novembro de 2026
+
+```sh
+mkdir -p build/vega-native-tests
+clang++ -std=c++23 -Wall -Wextra -Werror -pthread \
+  vega/test/AirPlayAudioWorkerTest.cpp vega/kepler/turbo-modules/AirPlayAudioWorker.cpp \
+  -o build/vega-native-tests/airplay-audio-worker
+build/vega-native-tests/airplay-audio-worker
+python3 tools/test_vega_msse.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-probe --worker \
+  --output build/vega-airplay-audio-worker
+python3 tools/test_vega_airplay_audio.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --output build/vega-airplay-audio-lifecycle
+```
+
+O teste portátil passou também com `-fsanitize=address,undefined`. Os runners
+recusam TVs físicas. O primeiro injeta AAC da amostra própria diretamente na fila
+nativa e verifica dois ciclos, consumo completo, relógio e flush; o segundo
+verifica UI, RTSP OPTIONS/SET_PARAMETER, volume/mudo e encerramento dos sockets.
+Não cobre negociação/criptografia/RTP de mídia completos ou emissores Apple.
+Resultados finais aprovados em `build/vega-airplay-audio-worker-verified`,
+`build/vega-airplay-audio-lifecycle-verified` e `build/vega-airplay-audio-smoke`.

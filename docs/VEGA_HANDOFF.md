@@ -1,5 +1,63 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Worker de áudio ligado ao UxPlay — 18 de novembro de 2026
+
+- Adicionado modo manual **Estado do port → Testar áudio AirPlay**. A sessão
+  nativa encaminha formato, amostras, flush e volume UxPlay para um worker
+  dedicado; o JavaScript recebe somente estado/posição. Este modo não ativa
+  HLS, vídeo ou descoberta e não altera o receptor separado de URLs.
+- A primeira configuração implementada é AAC-LC, ct=4, 44,1 kHz estéreo,
+  960/1024 amostras por frame, seguindo a configuração do núcleo/Android.
+  Outros formatos encerram o experimento com erro explícito. Ainda faltam
+  ALAC, AAC-ELD, vídeo e sincronismo A/V; não anunciar esses recursos.
+- Fila limitada a 256 eventos/8 MiB e 2 MiB por amostra, além da retenção
+  limitada do sink MSSE. O callback só copia/enfileira; inicialização, volume,
+  alimentação e liberação do SDK acontecem no worker. Backpressure tem prazo
+  limitado; flush invalida a geração anterior e libera o sink antes de reabrir.
+- Uma liberação nativa não confirmada permanece marcada como falha e impede
+  reabrir outro sink no mesmo worker até reiniciar o app. O teste portátil
+  injeta a falha de liberação para verificar essa barreira.
+- Posição normalizada a partir do NTP local, com fallback pelo RTP desenrolado
+  quando o primeiro NTP não existe. Pacotes atrasados não recuam o relógio.
+  Volume usa dB AirPlay, incluindo -144 para mudo. O último volume desejado
+  sobrevive à invalidação da fila por formato/flush, incluindo mudo prévio.
+- O teste C++ portátil exercita rollover RTP, NTP, descarte atrasado, flush sob
+  backpressure, limites, formato inválido, volume/mudo e liberação repetida.
+  Passou com `-Wall -Wextra -Werror` e AddressSanitizer/UndefinedBehaviorSanitizer.
+  O CI passou a executar o teste e compilar a sintaxe dos novos runners.
+- 56 testes Jest, lint sem avisos, TypeScript e build/validação ABI das três
+  arquiteturas passaram. O módulo de áudio tem testes de estado/erro e limpeza
+  dos timers/segundo plano. A logo e as fontes Android foram preservadas.
+- VVD ARM64: `build/vega-airplay-audio-worker-release-guard/result.json` aprovado.
+  O runner `tools/test_vega_msse.py --worker` transcodifica a amostra própria
+  para AAC-LC estéreo/44,1 kHz, injeta os pacotes no worker em tempo real e exige
+  todos os pacotes aceitos e relógio até o fim da amostra antes de encerrar.
+  Dois ciclos passaram (~7,95 s), o segundo com flush e nova época de relógio.
+- `build/vega-airplay-audio-lifecycle-release-guard/result.json` aprovado: duas
+  ativações pelo controle, OPTIONS/SET_PARAMETER RTSP reais, volume -18 dB,
+  mudo, fechamento do socket e liberação ao Voltar e ao entrar em segundo plano.
+  Os relatórios do sandbox guardam apenas porta/estado/contadores, sem áudio.
+- Smoke completo no mesmo pacote passou em
+  `build/vega-airplay-audio-smoke/result.json`. A regressão de URL no candidato
+  anterior também passou em `build/vega-airplay-audio-url-regression/result.json`.
+- Limite da evidência: o áudio de teste é injetado diretamente no worker;
+  RTSP foi usado para controles/vida útil. Esta rodada não percorre negociação,
+  criptografia e transporte RTP de mídia completos nem valida emissores Apple,
+  som audível, latência ou sincronismo físico. Esses passos continuam necessários
+  para a meta completa. O modo é experimental, não um AirPlay finalizado.
+
+Repetir os ensaios, com VVD iniciado e build concluído:
+
+```sh
+python3 tools/test_vega_msse.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-probe --worker \
+  --output build/vega-airplay-audio-worker
+python3 tools/test_vega_airplay_audio.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --output build/vega-airplay-audio-lifecycle
+```
+
 ## Ponto pausado — áudio MSSE nativo — 16 de novembro de 2026
 
 - `MsseAudioPlayer` usa os bindings oficiais APMF/W3C gerados pelo CMake,
