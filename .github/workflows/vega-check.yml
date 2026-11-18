@@ -54,6 +54,10 @@ jobs:
           mkdir -p ../build/vega-native-tests
           clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/LocalVideoStreamTest.cpp kepler/turbo-modules/LocalVideoStream.cpp -o ../build/vega-native-tests/local-video-stream
           ../build/vega-native-tests/local-video-stream
+      - name: Testar callbacks, gerações e fila de vídeo AirPlay
+        run: |
+          clang++ -std=c++23 -Wall -Wextra -Werror -pthread -Igenerated/UxPlay/lib test/AirPlayVideoWorkerTest.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp -o ../build/vega-native-tests/airplay-video-worker
+          ../build/vega-native-tests/airplay-video-worker
       - name: Testar ALAC e MP4 incremental com FFmpeg fixado
         run: python3 ../tools/test_vega_alac_decoder.py
       - name: Testar persistência do nome

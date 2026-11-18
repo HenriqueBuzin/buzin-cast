@@ -1,5 +1,6 @@
 #include "BuzinNetwork.h"
 #include "AirPlayAudioPlayer.h"
+#include "Fmp4VideoOutput.h"
 #include "NetworkProbe.h"
 #include "ReceiverSettings.h"
 #include "ProtocolProbe.h"
@@ -13,12 +14,28 @@
 #include <random>
 
 namespace BuzinNetworkTurboModule {
-BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}) {}
+BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}),
+  video([] {return std::make_unique<Fmp4VideoOutput>();}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
 double BuzinNetwork::startAirPlayUrl() {return startAirPlayReceiver(false);}
 double BuzinNetwork::startAirPlayAudio() {return startAirPlayReceiver(true);}
+double BuzinNetwork::startAirPlayVideo() {return startAirPlayReceiver(false,true);}
+std::string BuzinNetwork::getAirPlayVideoState() {
+  const auto state = video.state();
+  std::ostringstream output; output.imbue(std::locale::classic());
+  output << "{\"phase\":\"" << state.phase << "\",\"generation\":" << state.generation
+    << ",\"accepted\":" << state.accepted << ",\"dropped\":" << state.dropped << ",\"flushes\":" << state.flushes
+    << ",\"queuedBytes\":" << state.queuedBytes << ",\"released\":" << (state.released ? "true" : "false")
+    << ",\"error\":\"" << state.error << "\"}";
+  const auto json = output.str();
+  std::ofstream report("/data/airplay-video-state.json.tmp",std::ios::trunc);
+  report << json; report.close();
+  if (!report || std::rename("/data/airplay-video-state.json.tmp","/data/airplay-video-state.json"))
+    throw std::runtime_error("Could not record native video observation");
+  return json;
+}
 void BuzinNetwork::stopAirPlayAudio() {stopAirPlayUrl(); getAirPlayAudioState();}
 std::string BuzinNetwork::getAirPlayAudioState() {
   const auto state = audio.state();
@@ -36,7 +53,7 @@ std::string BuzinNetwork::getAirPlayAudioState() {
   if (!report) throw std::runtime_error("Could not record native audio observation");
   return json;
 }
-double BuzinNetwork::startAirPlayReceiver(bool audioMode) {
+double BuzinNetwork::startAirPlayReceiver(bool audioMode, bool videoMode) {
   std::string identity;
   std::ifstream saved("/data/airplay-identity");
   if (saved) std::getline(saved, identity);
@@ -53,8 +70,10 @@ double BuzinNetwork::startAirPlayReceiver(bool audioMode) {
     if (!output || std::rename("/data/airplay-identity.tmp", "/data/airplay-identity") != 0)
       throw std::runtime_error("Could not save local AirPlay identity");
   }
-  const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false, audioMode ? &audio : nullptr);
-  std::ofstream report(audioMode ? "/data/airplay-audio-port.json" : "/data/airplay-port.json", std::ios::trunc);
+  const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false,
+    audioMode ? &audio : nullptr,videoMode ? &video : nullptr);
+  videoModeActive = videoMode;
+  std::ofstream report(videoMode ? "/data/airplay-video-port.json" : audioMode ? "/data/airplay-audio-port.json" : "/data/airplay-port.json", std::ios::trunc);
   report << "{\"port\":" << port << "}"; report.close();
   if (!report) {airplay.stop(); throw std::runtime_error("Could not record AirPlay listener state");}
   return port;
@@ -63,17 +82,21 @@ void BuzinNetwork::stopAirPlayUrl() {
   airplay.stop();
   std::remove("/data/airplay-port.json");
   std::remove("/data/airplay-audio-port.json");
+  std::remove("/data/airplay-video-port.json");
+  if (videoModeActive) {videoModeActive = false; getAirPlayVideoState();}
 }
 void BuzinNetwork::updateAirPlayState(double position, double duration, double rate, bool ready) {
   airplay.updatePlayback(position, duration, rate, ready);
 }
 std::string BuzinNetwork::pollAirPlayCommand() {
+  if (videoModeActive) getAirPlayVideoState();
   if (!airplay.healthy()) throw std::runtime_error("AirPlay callback queue failed");
   AirPlayEvent event;
   for (int n = 0; n < 16 && airplay.poll(event); ++n) {
     const char* kind = nullptr;
     switch (event.kind) {
       case AirPlayEvent::Kind::PlayUrl: kind = "play"; break;
+      case AirPlayEvent::Kind::MirrorUrl: kind = "mirror"; break;
       case AirPlayEvent::Kind::Seek: kind = "seek"; break;
       case AirPlayEvent::Kind::Rate: kind = "rate"; break;
       case AirPlayEvent::Kind::Stop: case AirPlayEvent::Kind::Reset: kind = "stop"; break;

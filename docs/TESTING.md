@@ -1272,3 +1272,44 @@ Ensaio High do dono comum aprovado em `build/vega-video-output-owned`:
 frames produzidos; Voltar encerrou o segundo ciclo em 62/120 com `clientClosed`,
 produtor/player/superfície liberados. Os contadores de vídeo continuaram zero;
 o relatório mantém `visualValidation=false` e não certifica imagem exibida.
+
+
+### Callbacks e worker de vídeo AirPlay
+
+```sh
+clang++ -std=c++23 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
+  -Ivega/generated/UxPlay/lib vega/test/AirPlayVideoWorkerTest.cpp \
+  vega/kepler/turbo-modules/AirPlayVideoWorker.cpp \
+  -o build/vega-native-tests/airplay-video-worker
+build/vega-native-tests/airplay-video-worker
+python3 tools/test_vega_airplay_audio.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg --video \
+  --output build/vega-video-worker-ui
+```
+
+O teste C++ usa um sink controlado para verificar geração, SPS/PPS/IDR,
+propriedade da thread, cópia, timestamps, cancelamento em startup e AVIO,
+limites de fila incluindo callback em processamento e bloqueio de reinício
+quando a liberação não foi confirmada. O modo `--video` do runner de UI
+confere a tela nova, OPTIONS, Voltar/background e fechamento do socket/worker;
+não testa negociação nem mídia de um emissor. Sem `--video` permanece o
+ensaio de áudio, incluindo callbacks de volume/mute.
+
+`test_vega_local_video.py` agora exige evidência `workerOwned=true`, ausência
+de descarte da fixture e orçamento de callbacks limitado. O produtor `--serve`
+usa `forwardAirPlayVideo`/`forwardAirPlayVideoSize` e o worker real, com NTP
+sintético conhecido; o player continua sendo acionado pela tela por URL. Este
+ensaio ainda não injeta vídeo via RTSP/FairPlay/AES da nova tela. Não confundir
+contrato de callback/saída e ciclo de vida com validação de emissor Apple.
+A marca `visualValidation=false` e o teste estrito de contadores positivos
+continuam obrigatórios; o worker ainda pressupõe H.264 sem reordenação, duração
+inicial estimada em 30 Hz e épocas de áudio/vídeo independentes.
+
+Evidência do worker em VVD High: `build/vega-video-worker-stream` passou com
+`nativeCallbackWorker=true`, 120 frames/179947 bytes no ciclo completo e
+61/120 frames no ciclo cancelado, `clientClosed`, filas vazias e recursos
+liberados. A reprodução começou com 39/120 frames aceitos. O relatório mantém
+`visualValidation=false`, com contadores total/dropped zero. A regressão de
+UI/volume/mute/encerramento de áudio passou em dois ciclos em
+`build/vega-video-worker-audio-regression`; a nova tela passou em
+`build/vega-video-worker-ui`. Nenhum desses relatórios negocia mídia Apple real.

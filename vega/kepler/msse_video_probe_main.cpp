@@ -1,6 +1,7 @@
 #include "probes/MsseVideoPlayer.h"
 #include "turbo-modules/H264Fmp4Muxer.h"
 #include "turbo-modules/Fmp4VideoOutput.h"
+#include "turbo-modules/AirPlayVideoCallbacks.h"
 #include <cstdio>
 #include <apmf/errors.h>
 #include <chrono>
@@ -40,43 +41,69 @@ int main(int argc, char** argv) {
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
     if (argc == 3 && std::string(argv[2]) == "--serve") {
-      Fmp4VideoOutput stream;
-      const auto url = stream.start(width,height,config);
-      size_t fed = 0;
+      AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
+      worker.start();
+      const float reportedWidth = width, reportedHeight = height;
+      forwardAirPlayVideoSize(worker,&reportedWidth,&reportedHeight);
+      auto submit = [&](const Frame& frame) {
+        video_decode_struct sample{};
+        sample.data = const_cast<uint8_t*>(frame.data.data()); sample.data_len = frame.data.size();
+        sample.ntp_time_local = uint64_t(1000000000)+uint64_t(frame.pts)*1000000;
+        forwardAirPlayVideo(worker,&sample);
+      };
       auto report = [&] {
-        const auto state = stream.state();
+        const auto workerState = worker.state();
+        const auto& state = workerState.output;
         std::ofstream output("/data/local-video-state.json.tmp");
-        output << "{\"framesFed\":" << fed << ",\"sentBytes\":" << state.sentBytes
+        output << "{\"framesFed\":" << workerState.accepted << ",\"sentBytes\":" << state.sentBytes
+          << ",\"workerOwned\":true,\"callbackQueuedBytes\":" << workerState.queuedBytes
+          << ",\"dropped\":" << workerState.dropped << ",\"generation\":" << workerState.generation
           << ",\"queuedBytes\":" << state.queuedBytes << ",\"connected\":" << (state.connected ? "true" : "false")
-          << ",\"complete\":" << (state.complete ? "true" : "false") << ",\"released\":" << (state.released ? "true" : "false")
-          << ",\"error\":\"" << state.error << "\"}" << std::endl;
+          << ",\"complete\":" << (state.complete ? "true" : "false") << ",\"released\":" << (workerState.released ? "true" : "false")
+          << ",\"error\":\"" << workerState.error << "\"}" << std::endl;
         output.close();
         if (!output || std::rename("/data/local-video-state.json.tmp","/data/local-video-state.json"))
           throw std::runtime_error("Could not save native stream observation");
       };
-      {
-        std::ofstream descriptor("/data/local-video-url.json"); descriptor << "{\"url\":\"" << url << "\"}" << std::endl;
-        if (!descriptor) throw std::runtime_error("Could not publish local stream URL");
-      }
+      auto check = [&] {if (!worker.healthy()) throw std::runtime_error("Native video worker failed");};
       try {
+        submit(frames.front());
+        AirPlayVideoCommand command;
+        auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
+        for (;;) {
+          check();
+          if (worker.poll(command) && command.kind == AirPlayVideoCommand::Kind::Play) break;
+          if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Video worker did not publish a URL");
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        {
+          std::ofstream descriptor("/data/local-video-url.json"); descriptor << "{\"url\":\"" << command.url << "\"}" << std::endl;
+          if (!descriptor) throw std::runtime_error("Could not publish local stream URL");
+        }
         report();
-        const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
-        while (!stream.state().connected) {
+        while (!worker.state().output.connected) {
+          check(); report();
           if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Video player did not connect");
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         const auto start = std::chrono::steady_clock::now();
-        for (const auto& frame : frames) {
+        for (size_t i = 1; i < frames.size(); ++i) {
+          const auto& frame = frames[i];
           std::this_thread::sleep_until(start+std::chrono::milliseconds(frame.pts));
-          stream.append(frame.data,int64_t(frame.pts)*1000,int64_t(frame.pts)*1000,int64_t(frame.duration)*1000);
-          ++fed; report();
+          check(); submit(frame); report();
         }
-        stream.finish(); stream.waitFinished();
+        worker.end();
+        deadline = std::chrono::steady_clock::now()+std::chrono::seconds(20);
+        while (worker.state().phase != "ended") {
+          check(); report();
+          if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Video output did not finish");
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
       } catch (...) {
-        const auto error = stream.state().error; stream.stop(); report();
+        const auto error = worker.state().error; worker.stop(); report();
         if (error != "clientClosed") throw;
       }
-      stream.stop(); stream.stop(); report();
+      worker.stop(); worker.stop(); report();
       return 0;
     }
     if (argc == 3 && std::string(argv[2]) == "--mux") {

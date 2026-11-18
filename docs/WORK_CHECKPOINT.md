@@ -1,5 +1,52 @@
 # Retomada — 18 de novembro de 2026
 
+## Worker de vídeo ligado à sessão AirPlay — 18 de novembro de 2026
+
+- `AirPlayVideoWorker` recebe cópias dos callbacks UxPlay em fila de até
+  256 eventos/8 MiB, incluindo o callback em processamento; cada access unit
+  tem no máximo 2 MiB. Libera a cópia concluída antes de devolver seu orçamento
+  à fila. Overflow, entrada inválida ou consumidor desconectado encerram a
+  saída, marcam erro e produzem comando de parada.
+- SPS/PPS e IDR inicial são obrigatórios. O parser Annex B limitado é
+  compartilhado com o muxer. Mudança de dimensões invalida fila e parâmetros;
+  flush preserva a configuração negociada, mas exige novo IDR e nova época.
+  Mudança de SPS/PPS recria muxer/URL. Comandos de saída são coalescidos para
+  não reter URLs antigas. NTP local em ns vira PTS relativo em microssegundos;
+  timestamps duplicados/anteriores são descartados.
+- Esta primeira etapa pressupõe H.264 sem reordenação: DTS=PTS. A duração do
+  primeiro frame é estimada em 30 Hz; depois usa a cadência observada, limitada
+  a um segundo por amostra. Ainda não é sincronismo A/V nem suporte a B-frames.
+- `AirPlaySession` inicia e para o worker dentro de seu rollback de transporte;
+  encaminha tamanho, amostras, flush/reset e stop. Só a URL efêmera cruza o
+  TurboModule. `BuzinNetwork` possui o worker antes da sessão, preservando a
+  ordem de destruição, e liga a saída fMP4 real no app nas três arquiteturas.
+- Estado do port tem `Testar vídeo AirPlay`: modo manual experimental, sem
+  descoberta/PIN/áudio integrado. O receptor JS aceita nesse modo somente URLs
+  de loopback com o token gerado nativamente; permite substituições rápidas de
+  formato e rejeita comandos de carga do modo URL. Não oferece pausa manual
+  de uma saída ao vivo. Recursos de descoberta AirPlay continuam zerados.
+- Contratos C++ com ASan/UBSan passaram: cópia de payload, gating de IDR,
+  timestamps, flush, dimensão/SPS/PPS, cancelamento durante startup/escrita,
+  limites por bytes/eventos, falha do consumidor e barreira de liberação.
+  CI executa o novo teste. Lint, TypeScript, 62 testes Jest, regressão portátil
+  ALAC/mux/saída e build/validação dos três VPKGs passaram.
+- A nova tela passou em dois ciclos VVD de OPTIONS/Voltar/background, com
+  worker parado, fila vazia e EOF do socket RTSP em `build/vega-video-worker-ui`.
+  Isso não negocia mídia Apple. O probe de mídia agora alimenta o mesmo helper
+  de callback e worker com fixture própria; não executa FairPlay/RTSP/AES do
+  espelhamento. Integração criptografada real, pixels, A/V, reconexões completas
+  e paridade com Fire OS continuam pendentes.
+
+
+Evidência do worker em VVD High: `build/vega-video-worker-stream` passou com
+`nativeCallbackWorker=true`, 120 frames/179947 bytes no ciclo completo e
+61/120 frames no ciclo cancelado, `clientClosed`, filas vazias e recursos
+liberados. A reprodução começou com 39/120 frames aceitos. O relatório mantém
+`visualValidation=false`, com contadores total/dropped zero. A regressão de
+UI/volume/mute/encerramento de áudio passou em dois ciclos em
+`build/vega-video-worker-audio-regression`; a nova tela passou em
+`build/vega-video-worker-ui`. Nenhum desses relatórios negocia mídia Apple real.
+
 ## Posse e cancelamento da saída de vídeo — 18 de novembro de 2026
 
 - `VideoSampleSink` define a fronteira nativa para o futuro worker de vídeo:

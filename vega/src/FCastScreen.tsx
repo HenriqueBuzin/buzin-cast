@@ -7,7 +7,7 @@ import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
 import type {PlaybackSnapshot} from './playbackSession';
 
-export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: 'fcast' | 'airplay'}) {
+export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: 'fcast' | 'airplay' | 'mirror'}) {
   const receiver = useRef<ReturnType<typeof createFCastReceiver> | null>(null);
   const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
@@ -17,12 +17,11 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [focus, setFocus] = useState('back');
   useEffect(() => {
     try {
-      receiver.current = (protocol === 'fcast' ? createFCastReceiver : createAirPlayReceiver)(
-        setToken,
-        setSnapshot,
-        () => setFailed(true),
-        (activePort?: number) => {setPort(activePort || 46899); setListening(true);},
-      );
+      const onFailure = () => setFailed(true);
+      const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
+      receiver.current = protocol === 'fcast'
+        ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening)
+        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url');
     } catch {
       setFailed(true);
     }
@@ -39,7 +38,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   }, [onBack, protocol]);
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>{protocol === 'fcast' ? 'FCast v2 experimental' : 'AirPlay por URL experimental'}</Text>
+      <Text style={styles.title}>{protocol === 'fcast' ? 'FCast v2 experimental' : protocol === 'mirror' ? 'Vídeo AirPlay experimental' : 'AirPlay por URL experimental'}</Text>
       {token === null ? (
         <View style={styles.waiting}>
           <Text style={styles.details}>
@@ -52,6 +51,8 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           <Text style={styles.details}>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
+              : protocol === 'mirror'
+              ? 'Teste de vídeo H.264 por conexão manual. Sem descoberta, PIN ou áudio integrado. Compatibilidade com emissores Apple e imagem exibida ainda em validação.'
               : 'Somente URLs por conexão manual na rede local. Sem descoberta, PIN ou espelhamento de tela/áudio nesta etapa.'}
           </Text>
           <Text style={styles.details}>Voltar desativa este receptor.</Text>
@@ -85,7 +86,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           : ''}
       </Text>
       <View style={styles.actions}>
-        {(token === null ? ['back'] : ['pause', 'back']).map((id) => (
+        {(token === null || protocol === 'mirror' ? ['back'] : ['pause', 'back']).map((id) => (
           <TvButton
             key={id}
             role="button"

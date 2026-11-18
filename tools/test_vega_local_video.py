@@ -105,6 +105,8 @@ def main():
             active = read('/data/local-video-state.json')
             if active['framesFed'] >= frame_count or not active['connected']:
                 raise RuntimeError('Playback did not start while native frames were still being produced')
+            if active.get('workerOwned') is not True or active.get('dropped') != 0 or not 0 <= active.get('callbackQueuedBytes', -1) <= 8 * 1024 * 1024:
+                raise RuntimeError('Expected the shared native callback worker with bounded queue and no fixture drops')
             entry = {'playing': playing, 'quality': quality, 'whileProducing': active, 'positiveFrameCounters': quality.get('available') is True and quality.get('total', 0) > quality.get('dropped', 0)}
             if cycle == 0:
                 entry['end'] = observe('/data/playback-state.json', lambda value: value.get('seconds', 0) > 7 and value.get('state') in ['playing', 'ended'])
@@ -124,7 +126,7 @@ def main():
             log.close(); log = None
             client.close(); client = None
             cycles.append(entry)
-        result.update(passed=True, profile=args.profile, cycles=cycles)
+        result.update(passed=True, nativeCallbackWorker=True, profile=args.profile, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)

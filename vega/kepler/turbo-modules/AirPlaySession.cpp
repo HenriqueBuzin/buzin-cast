@@ -1,6 +1,7 @@
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
 #include "AirPlayAudioCallbacks.h"
+#include "AirPlayVideoCallbacks.h"
 #include "ReceiverSettings.h"
 #include <arpa/inet.h>
 #include <atomic>
@@ -22,6 +23,7 @@ struct AirPlaySession::Impl {
   std::atomic<bool> failed{false};
   bool loopbackOnly = true;
   AirPlayAudioWorker* audio = nullptr;
+  AirPlayVideoWorker* video = nullptr;
   raop_t* receiver = nullptr;
   dnssd_t* discovery = nullptr;
 
@@ -56,7 +58,7 @@ struct AirPlaySession::Impl {
 AirPlaySession::AirPlaySession() : impl(std::make_unique<Impl>()) {}
 AirPlaySession::~AirPlaySession() {stop();}
 uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& name,
-                             const std::string& identity, bool loopbackOnly, AirPlayAudioWorker* audio) {
+                             const std::string& identity, bool loopbackOnly, AirPlayAudioWorker* audio, AirPlayVideoWorker* video) {
   if (impl->receiver) throw std::runtime_error("AirPlay session already running");
   validateReceiverName(name);
   unsigned int octets[6]; char trailing;
@@ -70,7 +72,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   impl->failed = false;
   impl->loopbackOnly = loopbackOnly;
   impl->audio = audio;
-  if (audio) audio->start();
+  impl->video = video;
   raop_callbacks_t callbacks{};
   callbacks.cls = impl.get();
   callbacks.conn_admit = [](void* cls, const char* peer) {
@@ -83,16 +85,27 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   callbacks.audio_process = [](void* cls, raop_ntp_t*, audio_decode_struct* data) {
     auto& state = Impl::self(cls);
     if (data && state.audio) forwardAirPlayAudio(*state.audio, data);
-    else if (data) state.sample(AirPlayEvent::Kind::Audio, data->data, data->data_len, data->ct, data->ntp_time_local, data->ntp_time_remote);
+    else if (data && !state.video) state.sample(AirPlayEvent::Kind::Audio, data->data, data->data_len, data->ct, data->ntp_time_local, data->ntp_time_remote);
   };
   callbacks.video_process = [](void* cls, raop_ntp_t*, video_decode_struct* data) {
-    if (Impl::self(cls).audio) {Impl::self(cls).failed = true; return;}
-    if (data) Impl::self(cls).sample(AirPlayEvent::Kind::Video, data->data, data->data_len, data->is_h265 ? 265 : 264, data->ntp_time_local, data->ntp_time_remote);
+    auto& state = Impl::self(cls);
+    if (state.video) {forwardAirPlayVideo(*state.video,data); return;}
+    if (state.audio) {state.failed = true; return;}
+    if (data) state.sample(AirPlayEvent::Kind::Video, data->data, data->data_len, data->is_h265 ? 265 : 264, data->ntp_time_local, data->ntp_time_remote);
   };
-  callbacks.video_set_codec = [](void* cls, video_codec_t codec) {return !Impl::self(cls).audio && codec == VIDEO_CODEC_H264 ? 0 : -1;};
+  callbacks.video_set_codec = [](void* cls, video_codec_t codec) {
+    const auto& state = Impl::self(cls);
+    return (state.video || !state.audio) && codec == VIDEO_CODEC_H264 ? 0 : -1;
+  };
+  callbacks.video_report_size = [](void* cls, float*, float*, float* width, float* height) {
+    if (auto* video = Impl::self(cls).video) forwardAirPlayVideoSize(*video,width,height);
+  };
   callbacks.video_pause = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Rate, 0);};
   callbacks.video_resume = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Rate, 1);};
-  callbacks.video_flush = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::FlushVideo);};
+  callbacks.video_flush = [](void* cls) {
+    auto& state = Impl::self(cls);
+    if (state.video) state.video->flush(); else state.simple(AirPlayEvent::Kind::FlushVideo);
+  };
   callbacks.audio_flush = [](void* cls) {
     auto& state = Impl::self(cls);
     if (state.audio) state.audio->flush(); else state.simple(AirPlayEvent::Kind::FlushAudio);
@@ -105,7 +118,10 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   callbacks.audio_set_volume = [](void* cls, float value) {
     if (auto* audio = Impl::self(cls).audio) audio->volume(value);
   };
-  callbacks.video_reset = [](void* cls, reset_type_t reason) {Impl::self(cls).simple(AirPlayEvent::Kind::Reset, reason);};
+  callbacks.video_reset = [](void* cls, reset_type_t reason) {
+    auto& state = Impl::self(cls);
+    if (state.video) state.video->flush(); else state.simple(AirPlayEvent::Kind::Reset, reason);
+  };
   callbacks.conn_feedback = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Feedback);};
   callbacks.audio_set_client_volume = [](void* cls) {
     const auto* audio = Impl::self(cls).audio;
@@ -113,7 +129,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   };
   callbacks.on_video_play = [](void* cls, const char* url, float position) {
     auto& state = Impl::self(cls);
-    if (state.audio) {state.failed = true; return;}
+    if (state.audio || state.video) {state.failed = true; return;}
     if (!url || strnlen(url, 8193) > 8192 || !std::isfinite(position) || position < 0) {state.failed = true; return;}
     try {AirPlayEvent event; event.kind = AirPlayEvent::Kind::PlayUrl;
       event.url = url; event.value = position; state.push(std::move(event));
@@ -121,14 +137,20 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   };
   callbacks.on_video_scrub = [](void* cls, float position) {Impl::self(cls).simple(AirPlayEvent::Kind::Seek, position);};
   callbacks.on_video_rate = [](void* cls, float rate) {Impl::self(cls).simple(AirPlayEvent::Kind::Rate, rate);};
-  callbacks.on_video_stop = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Stop);};
+  callbacks.on_video_stop = [](void* cls) {
+    auto& state = Impl::self(cls);
+    if (state.video) state.video->flush(); else state.simple(AirPlayEvent::Kind::Stop);
+  };
   callbacks.on_video_wait_ready = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Ready);};
   callbacks.on_video_playlist_remove = [](void*) {return 0.0f;};
   callbacks.on_video_acquire_playback_info = [](void* cls, playback_info_t* info) {
     if (info) {auto& state = Impl::self(cls); std::lock_guard lock(state.mutex); *info = state.playback;}
   };
-  impl->receiver = raop_init(&callbacks);
   try {
+    // Startup of either worker is covered by the same rollback as transport.
+    if (audio) audio->start();
+    if (video) video->start();
+    impl->receiver = raop_init(&callbacks);
     if (!impl->receiver || raop_init2(impl->receiver, 1, identity.c_str(), keyPath.c_str()) != 0)
       throw std::runtime_error("Could not initialize AirPlay session");
     raop_set_log_level(impl->receiver, 0);
@@ -138,7 +160,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
     // No rendering capability is advertised before the Vega pipeline exists.
     for (int bit = 0; bit < 64; ++bit) dnssd_set_airplay_features(impl->discovery, bit, 0);
     raop_set_dnssd(impl->receiver, impl->discovery);
-    raop_set_plist(impl->receiver, "hls", audio ? 0 : 1);
+    raop_set_plist(impl->receiver, "hls", audio || video ? 0 : 1);
     unsigned short port = 0;
     if (raop_start_httpd(impl->receiver, &port) < 0 || !port)
       throw std::runtime_error("Could not start AirPlay transport");
@@ -150,16 +172,27 @@ void AirPlaySession::stop() noexcept {
   if (impl->receiver) {raop_destroy(impl->receiver); impl->receiver = nullptr;}
   if (impl->discovery) {dnssd_destroy(impl->discovery); impl->discovery = nullptr;}
   if (impl->audio) {impl->audio->stop(); impl->audio = nullptr;}
+  if (impl->video) {impl->video->stop(); impl->video = nullptr;}
   std::lock_guard lock(impl->mutex);
   impl->events.clear(); impl->queuedBytes = 0; impl->playback = {};
 }
 bool AirPlaySession::poll(AirPlayEvent& event) {
+  if (impl->video) {
+    AirPlayVideoCommand command;
+    if (impl->video->poll(command)) {
+      event = {}; event.kind = command.kind == AirPlayVideoCommand::Kind::Play ? AirPlayEvent::Kind::MirrorUrl : AirPlayEvent::Kind::Stop;
+      event.url = std::move(command.url); return true;
+    }
+  }
   std::lock_guard lock(impl->mutex);
   if (impl->events.empty()) return false;
   event = std::move(impl->events.front()); impl->events.pop_front();
   impl->queuedBytes -= event.bytes.size(); return true;
 }
-bool AirPlaySession::healthy() const {std::lock_guard lock(impl->mutex); return !impl->failed && (!impl->audio || impl->audio->healthy());}
+bool AirPlaySession::healthy() const {
+  std::lock_guard lock(impl->mutex);
+  return !impl->failed && (!impl->audio || impl->audio->healthy()) && (!impl->video || impl->video->healthy());
+}
 
 void AirPlaySession::updatePlayback(double position, double duration, double rate, bool ready) {
   if (!std::isfinite(position) || !std::isfinite(duration) || !std::isfinite(rate) ||

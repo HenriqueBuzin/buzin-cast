@@ -17,7 +17,7 @@ target_link_options(BuzinNetwork PRIVATE "LINKER:--no-undefined" "LINKER:-z,defs
 apmf_add_idl_import_library(BuzinMediaIdl PACKAGES com.amazon.kepler.w3cmedia)
 target_link_libraries(BuzinNetwork PRIVATE BuzinMediaIdl)
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/MsseAudioPlayer.cpp
-  kepler/turbo-modules/AirPlayAudioWorker.cpp)
+  kepler/turbo-modules/AirPlayAudioWorker.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp)
 install(TARGETS BuzinNetwork)
 # Small diagnostic runner for component-shell integration tests, using the same
 # implementation as the UI. It has no privileges beyond the app sandbox.
@@ -29,7 +29,7 @@ include(cmake/AirPlayCore.cmake)
 include(cmake/AlacDecoder.cmake)
 apmf_add_idl_import_library(BuzinAudioIdl PACKAGES com.amazon.kepler.audio)
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/AlacAudioPlayer.cpp)
-target_link_libraries(BuzinNetwork PRIVATE BuzinAudioIdl BuzinAlacDecoder)
+target_link_libraries(BuzinNetwork PRIVATE BuzinAudioIdl BuzinAlacDecoder BuzinVideoOutput)
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
   kepler/turbo-modules/AirPlaySession.cpp
   "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c")
@@ -45,6 +45,6 @@ install(TARGETS buzin-msse-probe RUNTIME DESTINATION bin)
 
 # Development-only H.264/MSSE/mux/loopback probe, excluded from the VPKG.
 add_executable(buzin-msse-video-probe kepler/msse_video_probe_main.cpp
-  kepler/probes/MsseVideoPlayer.cpp)
-target_link_libraries(buzin-msse-video-probe PRIVATE BuzinMediaIdl BuzinVideoOutput)
+  kepler/probes/MsseVideoPlayer.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp)
+target_link_libraries(buzin-msse-video-probe PRIVATE BuzinMediaIdl BuzinVideoOutput BuzinAirPlayCore)
 install(TARGETS buzin-msse-video-probe RUNTIME DESTINATION bin)

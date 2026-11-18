@@ -11,6 +11,7 @@
 #include "FCastDiscovery.h"
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
+#include "AirPlayVideoWorker.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -23,6 +24,8 @@ public:
   void setReceiverName(std::string name) override;
   double startAirPlayUrl() override;
   double startAirPlayAudio() override;
+  double startAirPlayVideo() override;
+  std::string getAirPlayVideoState() override;
   void stopAirPlayAudio() override;
   std::string getAirPlayAudioState() override;
   void stopAirPlayUrl() override;
@@ -40,9 +43,11 @@ public:
   void recordPlaybackState(std::string state, double seconds) override;
   std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
 private:
-  double startAirPlayReceiver(bool audioMode);
+  double startAirPlayReceiver(bool audioMode, bool videoMode = false);
   AirPlayAudioWorker audio;
+  AirPlayVideoWorker video;
   AirPlaySession airplay;
+  bool videoModeActive = false;
   FCastTransport fcast;
   FCastDiscovery discovery;
 };

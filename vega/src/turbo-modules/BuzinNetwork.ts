@@ -7,6 +7,8 @@ export interface BuzinNetwork extends KeplerTurboModule {
   setReceiverName: (name: string) => void;
   startAirPlayUrl: () => number;
   startAirPlayAudio: () => number;
+  startAirPlayVideo: () => number;
+  getAirPlayVideoState: () => string;
   stopAirPlayAudio: () => void;
   getAirPlayAudioState: () => string;
   stopAirPlayUrl: () => void;

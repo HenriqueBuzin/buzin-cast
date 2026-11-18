@@ -5,9 +5,10 @@
 #include <vector>
 
 class AirPlayAudioWorker;
+class AirPlayVideoWorker;
 
 struct AirPlayEvent {
-  enum class Kind {Audio, Video, PlayUrl, Seek, Rate, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
+  enum class Kind {Audio, Video, PlayUrl, MirrorUrl, Seek, Rate, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
   Kind kind = Kind::Stop;
   int codec = 0;
   uint64_t localTime = 0;
@@ -27,7 +28,7 @@ public:
   AirPlaySession& operator=(const AirPlaySession&) = delete;
   uint16_t start(const std::string& keyPath, const std::string& name,
                  const std::string& identity, bool loopbackOnly = true,
-                 AirPlayAudioWorker* audio = nullptr);
+                 AirPlayAudioWorker* audio = nullptr, AirPlayVideoWorker* video = nullptr);
   void stop() noexcept;
   bool poll(AirPlayEvent& event);
   bool healthy() const;
