@@ -115,7 +115,7 @@ class DlnaReceiver(
                 } else {
                     val info = playback.playbackInfo
                     if (!info.buffering && info.playing) session.onPlayerPrepared()
-                    if (!info.playing && session.state == TransportState.PLAYING) session.pause()
+                    if (!info.buffering && !info.playing && session.state == TransportState.PLAYING) session.pause()
                     if (info.playing && session.state == TransportState.PAUSED_PLAYBACK) session.resume()
                 }
             }

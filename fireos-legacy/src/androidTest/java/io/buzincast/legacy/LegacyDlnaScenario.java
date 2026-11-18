@@ -92,6 +92,15 @@ final class LegacyDlnaScenario {
             soap(port,"Seek","<Unit>REL_TIME</Unit><Target>0:00:01</Target>");await(()->Math.abs(state(runner,service).positionMs-1000)<100);
             if(!soap(port,"GetPositionInfo","").contains("0:00:01"))throw new AssertionError("Position was not exposed to sender");
             soap(port,"Play","<Speed>1</Speed>");await(()->state(runner,service).playing);
+            // Reloading the main source while adding captions deliberately
+            // buffers for longer than the DLNA status tick. This must not pause.
+            fixture.delayMs=1200;
+            ui(runner,()->service.subtitle(android.net.Uri.parse("content://com.buzincast.legacy.subtitle.fixture/srt"),service.subtitleSession()));
+            await(()-> {LegacyUrlPlayer.State value=state(runner,service);return value!=null && value.externalSubtitle && value.buffering;});
+            SystemClock.sleep(650);
+            if(soap(port,"GetTransportInfo","").contains("PAUSED_PLAYBACK"))throw new AssertionError("DLNA treated buffering as a user pause");
+            await(()-> {LegacyUrlPlayer.State value=state(runner,service);return value!=null && value.playing && value.caption.equals("Synthetic SRT caption");});
+            fixture.delayMs=0;
             soap(port,"Stop","");await(()->state(runner,service)==null && read(runner,service,"session")!=null);
             Instrumentation.ActivityMonitor monitor=runner.addMonitor(PhotoActivity.class.getName(),null,false);
             try {
@@ -118,12 +127,13 @@ final class LegacyDlnaScenario {
         }finally {configure(runner,activity,false);await(()->read(runner,service,"dlna")==null && !(Boolean)read(runner,service,"dlnaClosing"));}
     }
     private static final class Fixture implements java.io.Closeable {
-        final ServerSocket socket=new ServerSocket(0,8,InetAddress.getByName("127.0.0.1"));final Thread worker;volatile boolean closed;
+        final ServerSocket socket=new ServerSocket(0,8,InetAddress.getByName("127.0.0.1"));final Thread worker;volatile boolean closed;volatile long delayMs;
         Fixture(byte[] video,byte[] photo) throws Exception {
             worker=new Thread(()-> {while(!closed)try(Socket peer=socket.accept()) {
                 peer.setSoTimeout(5000);ByteArrayOutputStream head=new ByteArrayOutputStream();String text="";
                 while(head.size()<8192 && !text.endsWith("\r\n\r\n")) {int value=peer.getInputStream().read();if(value<0)break;head.write(value);text=head.toString("US-ASCII");}
                 byte[] bytes=text.startsWith("GET /video.mp4 ")?video:text.startsWith("GET /photo.png ")?photo:new byte[]{1,2,3};
+                if(delayMs>0)SystemClock.sleep(delayMs);
                 peer.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Length: "+bytes.length+"\r\nConnection: close\r\n\r\n").getBytes("US-ASCII"));peer.getOutputStream().write(bytes);
             }catch(Exception error) {if(closed)break;}},"legacy-dlna-fixture");worker.start();
         }

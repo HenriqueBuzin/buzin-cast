@@ -77,6 +77,7 @@ final class LegacyUrlScenario {
             await(()->!state(runner,service).playing);
             long paused=state(runner,service).positionMs;SystemClock.sleep(350);
             if(Math.abs(state(runner,service).positionMs-paused)>60)throw new AssertionError("Service pause kept advancing");
+            LegacySubtitleScenario.check(runner,activity,service);
             ui(runner,()-> {
                 View root=activity.findViewById(android.R.id.content);
                 if(!root.findViewWithTag("url-speed").requestFocus())throw new AssertionError("Speed control cannot receive remote focus");

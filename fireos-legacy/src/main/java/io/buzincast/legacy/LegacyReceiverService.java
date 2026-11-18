@@ -94,6 +94,10 @@ public final class LegacyReceiverService extends Service {
     private LegacyUrlPlayer urlPlayer;
     private LegacyUrlRequest pendingUrl;
     private long urlGeneration;
+    private long urlRequestEpoch;
+    private long subtitlePicker;
+    private final Runnable subtitlePickerTimeout=()-> {subtitlePicker=0;reconcile();};
+    private final ExecutorService subtitleWorker=Executors.newSingleThreadExecutor(action->new Thread(action,"buzin-legacy-subtitles"));
     private int urlInstance;
     private boolean urlRequested,urlStopping;
     private float urlGain=1,urlSpeed=1;
@@ -121,6 +125,26 @@ public final class LegacyReceiverService extends Service {
     LegacyUrlPlayer.State urlState() {
         if(!urlRequested || urlStopping || urlPlayer==null)return null;
         LegacyUrlPlayer.State state=urlPlayer.state();return state.generation==urlGeneration?state:null;
+    }
+    long subtitleSession() {return urlRequested && !urlStopping?urlRequestEpoch:0;}
+    void beginSubtitlePicker(long expected) {
+        if(expected==0 || expected!=subtitleSession())return;
+        subtitlePicker=expected;main.removeCallbacks(subtitlePickerTimeout);main.postDelayed(subtitlePickerTimeout,5*60*1000);
+    }
+    void endSubtitlePicker() {if(subtitlePicker==0)return;subtitlePicker=0;main.removeCallbacks(subtitlePickerTimeout);reconcile();}
+    void subtitle(android.net.Uri uri,long expected) {
+        if(destroyed || expected==0 || expected!=subtitleSession() || urlPlayer==null)return;
+        LegacyUrlPlayer owner=urlPlayer;long generation=urlGeneration;
+        if(uri==null) {owner.subtitle(generation,null,null);return;}
+        subtitleWorker.execute(()-> {
+            try {
+                kotlin.Pair<byte[],String> imported=LegacySubtitleImport.read(this,uri);
+                main.post(()-> {if(!destroyed && expected==subtitleSession() && owner==urlPlayer)owner.subtitle(generation,imported.getFirst(),imported.getSecond());});
+            }catch(Exception error) {
+                main.post(()-> {if(!destroyed && expected==subtitleSession() && owner==urlPlayer)
+                    android.widget.Toast.makeText(this,R.string.subtitle_load_failed,android.widget.Toast.LENGTH_LONG).show();});
+            }
+        });
     }
     LegacyMedia.State mediaState() {return urlRequested || session==null || stopping || session.mirroring()?LegacyMedia.inactive():session.media();}
     private LegacyDacp.State controlState() {return urlRequested || session==null || stopping || session.mirroring()?LegacyDacp.inactive():session.controls();}
@@ -216,16 +240,16 @@ public final class LegacyReceiverService extends Service {
         if(target==null)session.setVideoSurface(null,null);
         else {TextureTarget owned=target;session.setVideoSurface(owned.acquire(),owned::retired);}
     }
-    private boolean wanted() {return (desired || urlRequested) && (visible || prefs.background() || bootSession);}
+    private boolean wanted() {return (desired || urlRequested) && (visible || prefs.background() || bootSession || subtitlePicker!=0);}
     /** Internal protocol entry point. Validate before disturbing the active receiver. */
     void loadUrl(LegacyUrlRequest request) {
         loadUrl(request,Protocol.LOCAL);
     }
     private void loadUrl(LegacyUrlRequest request,Protocol protocol) {
         if(request==null)throw new IllegalArgumentException("Missing media request");
-        if(destroyed || !(visible || prefs.background()))throw new IllegalStateException("Receiver is unavailable");
+        if(destroyed || !(visible || prefs.background() || subtitlePicker!=0))throw new IllegalStateException("Receiver is unavailable");
         if(urlStopping)throw new IllegalStateException("Previous media is still closing");
-        pendingUrl=request;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
+        urlRequestEpoch++;pendingUrl=request;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
         if(session!=null)stopNative();
         reconcile();
     }
@@ -512,6 +536,8 @@ public final class LegacyReceiverService extends Service {
         if(fcast!=null) {FCastReceiver previous=fcast;fcast=null;protocolWorker.execute(previous::close);}
         if(dlna!=null) {DlnaReceiver previous=dlna;dlna=null;protocolWorker.execute(previous::close);}
         protocolWorker.shutdown();
+        subtitleWorker.shutdownNow();
+        main.removeCallbacks(subtitlePickerTimeout);
         urlInstance++;if(urlPlayer!=null) {urlStopping=true;urlPlayer.close();}
         if(session!=null)session.stop();releaseWakeLock();demote();super.onDestroy();
     }

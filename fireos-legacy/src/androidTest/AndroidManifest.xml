@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Supplies synthetic test data only; never reads a user path. -->
+        <provider android:name="io.buzincast.legacy.LegacySubtitleFixtureProvider"
+            android:authorities="com.buzincast.legacy.subtitle.fixture" android:exported="true" />
+    </application>
+</manifest>

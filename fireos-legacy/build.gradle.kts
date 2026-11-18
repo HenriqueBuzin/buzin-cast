@@ -61,6 +61,7 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
         include("io/github/jqssun/airplay/discovery/FCastReceiver.kt", "io/github/jqssun/airplay/discovery/DlnaReceiver.kt",
             "io/leancast/app/ControlServer.kt", "io/leancast/app/SubscriptionRegistry.kt", "io/leancast/app/SsdpAgent.kt",
             "io/github/jqssun/airplay/media/PhotoActivity.kt")
+        include("io/github/jqssun/airplay/media/ExternalSubtitles.kt")
         filesMatching("**/PhotoActivity.kt") {
             filter { line: String -> when {
                 line == "import androidx.lifecycle.lifecycleScope" || line == "import androidx.activity.ComponentActivity" -> ""
@@ -98,6 +99,9 @@ android {
         versionCode = 1
         versionName = "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
         multiDexEnabled = true
+        // The synthetic provider can start in the test APK's own process,
+        // before the instrumentation runner installs secondary dex files.
+        multiDexKeepProguard = file("main-dex-rules.pro")
         ndk { abiFilters += setOf("armeabi-v7a", "x86") }
         buildConfigField("boolean", "VIDEO_DOWNLOAD_ENABLED", (!noDownload).toString())
         buildConfigField("boolean", "RECORDING_ENABLED", (!noDownload).toString())

@@ -1,5 +1,53 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — legendas externas
+
+O player agora aceita uma fonte de legenda isolada, carregada de bytes já
+importados pelo usuário. A fábrica de vídeo/manifestos continua HTTP-only;
+não passa a abrir arquivos/ContentProviders por causa de uma URI remota.
+O frontend compartilha `ExternalSubtitles` com o app moderno: SRT/VTT UTF-8,
+BOM aceito, limite de 2 MiB. O arquivo intermediário do importador é removido.
+Texto de cues é limitado a 4000 caracteres, como no frontend Compose.
+
+O botão CC abre um diálogo traduzido com escolher arquivo/desativar. Na
+API17 usa ACTION_GET_CONTENT; ACTION_OPEN_DOCUMENT só existe desde API19.
+A legenda é mesclada ao vídeo no worker Media3, preservando posição,
+playWhenReady e velocidade. O serviço rejeita resultados de sessões antigas
+e mantém uma permissão temporária de execução enquanto o seletor fica
+aberto (até cinco minutos), inclusive com segundo plano desativado.
+
+O teste de URL foi ampliado com ContentProvider sintético exclusivo do
+APK de testes, importação SRT/BOM VTT pelo resultado de Activity, cues
+reais, texto na View, pausa/posição/velocidade, desativação, formatos
+inválidos e limite de tamanho. O provider precisa estar no primeiro DEX
+para iniciar no processo próprio do APK de testes antes do runner instalar
+multidex; `main-dex-rules.pro` garante isso, sem incluí-lo no app.
+O roteiro verifica pausa/posição antes de dar Play para observar cues,
+pois o renderer Media3 1.2.1 só os entrega ao iniciar a reprodução.
+
+O receptor DLNA compartilhado agora distingue buffering de Pause. O teste
+de DLNA adiciona legenda com atraso HTTP de 1,2 s (maior que seu tick de
+500 ms) e exige retomada com texto, sem PAUSED_PLAYBACK indevido.
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições.
+Os relatórios `outputs/legacy-subtitles-final` e
+`outputs/legacy-subtitles-dlna-final` passaram no emulador API17.
+`outputs/legacy-subtitles-formats-final` passou novamente MP4/HLS/DASH/AAC,
+velocidade, fontes sem extensão/MIME e a recusa de segmento local válido.
+As mesmas suítes de serviço/CC e DLNA passaram na edição DE/AT em
+`outputs/legacy-subtitles-nodownload-final` e
+`outputs/legacy-subtitles-dlna-nodownload-final`. As instalações temporárias
+foram removidas. O provider e os textos sintéticos não existem nos DEX dos
+APKs do app. Marca aprovada e auditoria pública/histórico passaram.
+SHA256 geral/DE-AT:
+`fb1d519f3798c88cee78bd4876996a67c990b769c5b5b5a7db255e8303e95481` e
+`1010a595f99f0ea2bc03a2094915dadd34267ad83cd9486edace6288d23644d9`.
+
+Continuam pendentes AirPlay por URL, arbitragem sem suspender o receptor
+nativo, download/gravação e demais recursos do plano. HTTPS real, sessões
+longas, defeito nativo intermitente e validação física/produção ainda não
+estão concluídos. As legendas foram verificadas com mídia sintética, não
+com todos os formatos/transmissões ou emissores físicos.
+
 ## API17 — receptor DLNA e fotos compartilhadas
 
 O alvo antigo passou a compilar os mesmos `DlnaReceiver`, `ControlServer`,

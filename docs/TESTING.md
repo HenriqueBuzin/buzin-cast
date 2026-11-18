@@ -1,5 +1,21 @@
 # Testes automatizados
 
+## Legendas externas no API17
+
+O cenário `tools/test_legacy_gestures.py --url-service` também exercita CC:
+resultado de ACTION_GET_CONTENT, ContentProvider de dados sintéticos do APK
+de testes, importador compartilhado de SRT/VTT, preservação de pausa,
+posição e velocidade, cues reais e texto na View, desativação e rejeição de
+UTF-8 inválido, formato incorreto, mais de 2 MiB e URL remota.
+O teste verifica a preservação de pausa antes de dar Play para observar
+os cues: o renderer de texto Media3 1.2.1 processa esses cues ao iniciar.
+O provider fica explicitamente no primeiro DEX para poder iniciar sozinho
+na API17. Não existe no APK do aplicativo.
+
+O cenário `--dlna` acrescenta uma troca de legenda com atraso HTTP maior
+que o intervalo do tick de transporte. Buffering não pode se transformar
+em Pause, e a reprodução deve retomar com a legenda.
+
 ## DLNA no frontend API17
 
 Compile com `tools/Build-FireOs.ps1 -Target legacy -Instrumentation -Check`.

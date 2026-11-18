@@ -54,6 +54,9 @@ public final class LegacyActivity extends Activity {
     private LegacyUrlPlayer.State urlState;
     private LinearLayout urlControls;
     private TextView urlTime;
+    private TextView urlCaption;
+    private long subtitleRequest;
+    private static final int SUBTITLE_FILE=6509;
     private Button urlToggle,urlRewind,urlForward,urlSpeed;
     private LegacyMedia.State mediaState=LegacyMedia.inactive();
     private LinearLayout mediaPanel,connectionSteps;
@@ -100,6 +103,7 @@ public final class LegacyActivity extends Activity {
         displayLocale=getResources().getConfiguration().locale;
         prefs=new LegacyPreferences(this); shownName=prefs.name();
         desired=state==null?prefs.autoStart():state.getBoolean("desired");
+        subtitleRequest=state==null?0:state.getLong("subtitle_request");
         root=new FrameLayout(this);root.setBackgroundColor(BG);
         texture=new TextureView(this);root.addView(texture,new FrameLayout.LayoutParams(-1,-1));
         texture.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
@@ -124,12 +128,14 @@ public final class LegacyActivity extends Activity {
         foreground=false;root.removeCallbacks(mediaTick);if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
     }
     @Override protected void onDestroy() {
+        if(isFinishing() && service!=null)service.endSubtitlePicker();
         if(service!=null)service.detach(serviceOwner);
         if(bound) {unbindService(connection);bound=false;}
         service=null;super.onDestroy();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putBoolean("desired",desired);
+        state.putLong("subtitle_request",subtitleRequest);
         if(calibration!=null)state.putInt("calibration_margin",calibration.margin());
         super.onSaveInstanceState(state);
     }
@@ -189,6 +195,7 @@ public final class LegacyActivity extends Activity {
             shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();fitVideo();updateAwake();
         });
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
+        service.endSubtitlePicker();
     }
     private void toggleReceiver() {
         if(busy && !desired)return;
@@ -213,17 +220,25 @@ public final class LegacyActivity extends Activity {
             urlToggle=button(this,R.string.cd_play_pause,false,()->senderCommand(senderPlaying()?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY));urlToggle.setTag("url-toggle");
             urlForward=button(this,R.string.cd_fast_forward,false,()->senderCommand(LegacyDacp.Command.FAST_FORWARD));urlForward.setTag("url-forward");
             urlSpeed=button(this,R.string.select_playback_speed,false,this::urlSpeedDialog);urlSpeed.setTag("url-speed");
+            Button subtitles=button(this,R.string.subtitle_external,false,this::subtitleDialog);subtitles.setText("CC");subtitles.setTag("url-subtitles");subtitles.setContentDescription(getString(R.string.subtitle_external));
             Button stop=button(this,R.string.btn_stop,false,()-> {if(service!=null)service.stopUrl();});stop.setTag("url-stop");
-            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,urlSpeed,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,urlSpeed,subtitles,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
             FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);params.setMargins(dp(this,24),0,dp(this,24),dp(this,16));root.addView(urlControls,params);
             urlControls.setVisibility(View.GONE);
+            urlCaption=text(this,"",22,WHITE,true);urlCaption.setTag("url-caption");urlCaption.setGravity(Gravity.CENTER);
+            urlCaption.setPadding(dp(this,12),dp(this,8),dp(this,12),dp(this,8));urlCaption.setBackground(shape(this,0xbf000000,0,0,8));
+            FrameLayout.LayoutParams captionParams=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);captionParams.setMargins(dp(this,48),0,dp(this,48),dp(this,124));root.addView(urlCaption,captionParams);
+            urlCaption.setVisibility(View.GONE);
         }
         boolean wasVisible=urlControls.getVisibility()==View.VISIBLE;
         if(urlState==null) {
+            urlCaption.setText("");urlCaption.setVisibility(View.GONE);
             if(urlControls.hasFocus()) {View nav=shell.findViewWithTag("nav-overview");if(nav!=null)nav.requestFocus();}
             urlControls.setVisibility(View.GONE);return;
         }
         urlControls.setVisibility(View.VISIBLE);
+        urlCaption.setText(urlState.caption);urlCaption.setVisibility(urlState.caption.isEmpty()?View.GONE:View.VISIBLE);
+        urlControls.findViewWithTag("url-subtitles").setSelected(urlState.externalSubtitle);
         urlRewind.setText(R.string.cd_rewind);urlForward.setText(R.string.cd_fast_forward);
         ((Button)urlControls.findViewWithTag("url-stop")).setText(R.string.btn_stop);
         urlTime.setText("\u202a"+clock(urlState.positionMs)+" / "+clock(urlState.durationMs)+"\u202c");
@@ -234,6 +249,27 @@ public final class LegacyActivity extends Activity {
         if(!wasVisible) {
             if(ready)urlToggle.requestFocus();else urlControls.findViewWithTag("url-stop").requestFocus();
         }
+    }
+    private void subtitleDialog() {
+        if(service==null || urlState==null)return;
+        Modal modal=dialog();LinearLayout outer=dialogBody(modal,Math.min(dp(this,400),Math.round(getResources().getDisplayMetrics().heightPixels*.85f)));
+        addSpaced(outer,text(this,getString(R.string.subtitle_external),20,WHITE,true),-2);
+        addSpaced(outer,text(this,getString(R.string.subtitle_picker_help),14,MUTED,false),-2);
+        Button choose=button(this,R.string.subtitle_choose_file,false,()-> {
+            if(service==null)return;subtitleRequest=service.subtitleSession();
+            service.beginSubtitlePicker(subtitleRequest);
+            // ACTION_OPEN_DOCUMENT starts at API19. GET_CONTENT keeps the same
+            // local-provider workflow available on the original API17 Stick.
+            try {startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),SUBTITLE_FILE);modal.dismiss();}
+            catch(ActivityNotFoundException unavailable) {subtitleRequest=0;service.endSubtitlePicker();Toast.makeText(this,R.string.subtitle_picker_unavailable,Toast.LENGTH_LONG).show();}
+        });choose.setTag("subtitle-choose");addSpaced(outer,choose,48);
+        Button disable=button(this,R.string.subtitle_disable,false,()-> {if(service!=null)service.subtitle(null,service.subtitleSession());modal.dismiss();});disable.setTag("subtitle-disable");addSpaced(outer,disable,48);
+        outer.addView(button(this,R.string.buzin_close,true,modal::dismiss));show(modal);choose.requestFocus();
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request==SUBTITLE_FILE && result==RESULT_OK && data!=null && data.getData()!=null && service!=null)service.subtitle(data.getData(),subtitleRequest);
+        if(request==SUBTITLE_FILE)subtitleRequest=0;
     }
     private void urlSpeedDialog() {
         if(service==null || urlState==null)return;
