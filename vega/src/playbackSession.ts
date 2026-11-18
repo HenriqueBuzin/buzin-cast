@@ -99,6 +99,22 @@ export function createPlaybackSession(
     return sourceBarrier;
   }
 
+  function recordQuality() {
+    let total = -1;
+    let dropped = -1;
+    try {
+      if (initialized && player && !failed) {
+        const quality = player.getVideoPlaybackQuality();
+        if (Number.isInteger(quality.totalVideoFrames) && quality.totalVideoFrames >= 0 && quality.totalVideoFrames <= 4294967295 &&
+            Number.isInteger(quality.droppedVideoFrames) && quality.droppedVideoFrames >= 0 && quality.droppedVideoFrames <= quality.totalVideoFrames) {
+          total = quality.totalVideoFrames;
+          dropped = quality.droppedVideoFrames;
+        }
+      }
+    } catch { /* Some platform players do not expose video counters. */ }
+    try {Network.recordVideoPlaybackQuality(total, dropped, !!surface);} catch { /* Diagnostics must not interrupt playback. */ }
+  }
+
   function publish(state = snapshot.state) {
     if (closed || (failed && state !== 'error')) {
       return;
@@ -117,6 +133,7 @@ export function createPlaybackSession(
     } catch {
       snapshot = {...snapshot, state: 'error'};
     }
+    recordQuality();
     onChange(snapshot);
   }
 
@@ -265,6 +282,8 @@ export function createPlaybackSession(
           player = undefined;
         }
         if (adaptiveReleaseError) {throw adaptiveReleaseError;}
+        initialized = false; surface = undefined;
+        recordQuality();
         Network.recordPlaybackState('released', snapshot.seconds);
       });
       // A failed release is reported, but does not leave an unhandled rejection.

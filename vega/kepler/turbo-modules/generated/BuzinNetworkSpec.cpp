@@ -35,6 +35,7 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("disconnectFCastClient", &BuzinNetworkSpec::disconnectFCastClient);
   methodAggregator.addMethod("fcastError", &BuzinNetworkSpec::fcastError);
   methodAggregator.addMethod("updateFCastState", &BuzinNetworkSpec::updateFCastState);
+  methodAggregator.addMethod("recordVideoPlaybackQuality", &BuzinNetworkSpec::recordVideoPlaybackQuality);
   methodAggregator.addMethod("recordPlaybackState", &BuzinNetworkSpec::recordPlaybackState);
   methodAggregator.addMethod("recordMediaCapabilities", &BuzinNetworkSpec::recordMediaCapabilities);
 }

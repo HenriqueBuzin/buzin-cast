@@ -1208,3 +1208,43 @@ dois ciclos por perfil e 120 hashes de frames coincidentes em cada arquivo.
 Build das três arquiteturas e validação dos VPKGs passaram; o runner de vídeo
 permanece excluído dos três pacotes. A regressão ALAC/RTP passou em dois ciclos
 em `build/vega-h264-mux-alac-regression`. Nenhuma tela de espelhamento foi ativada.
+
+### Fluxo H.264/fMP4 para o player por loopback — 18 de novembro de 2026
+
+```sh
+clang++ -std=c++23 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
+  vega/test/LocalVideoStreamTest.cpp vega/kepler/turbo-modules/LocalVideoStream.cpp \
+  -o build/vega-native-tests/local-video-stream
+build/vega-native-tests/local-video-stream
+python3 tools/test_vega_local_video.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-video-probe --transport-only \
+  --output build/vega-local-video-lifecycle
+# Repetir com --profile high e diretório de saída próprio.
+```
+
+O runner recusa aparelhos físicos. Usa o mesmo muxer/servidor C++: gera frames
+em tempo real no sandbox, fornece a URL via controle AirPlay por URL e observa
+relógio, superfície associada e progresso ainda durante a produção. Um ciclo
+consome a amostra completa; o segundo sai com Voltar antes do fim e exige
+`clientClosed`, liberação nativa e parada do produtor. A fila é limitada a
+8 MiB/2048 chunks, com prazo para backpressure/socket e token efêmero local.
+O teste portátil verifica também requests inválidos, bytes binários, cancelamento,
+cliente lento, reuso da porta e a fila por bytes e por quantidade de chunks.
+
+Sem `--transport-only`, exige contadores positivos de vídeo. Essa verificação
+falhou no VVD: `video-quality.json` continuou em total/dropped zero. O modo de
+transporte preserva `visualValidation=false`; relógio e associação da superfície
+não comprovam pixels. Os resultados estritos anteriores permanecem nos diretórios
+`build/vega-local-video-session-header`/`build/vega-local-video-gui`.
+Ainda não é um teste de espelhamento Apple nem de sincronismo A/V.
+
+Resultados de transporte/vida útil aprovados em
+`build/vega-local-video-final-baseline` e `build/vega-local-video-final-high`.
+A repetição High no candidato com cancelamento protegido pelo mutex passou em
+`build/vega-local-video-cancel-guard`: 120 frames no ciclo completo e 76/120
+no ciclo cancelado com `clientClosed`, player/superfície e produtor liberados.
+A regressão AirPlay por URL com pausa/busca/retomada/stop passou em
+`build/vega-local-video-url-regression`. Lint, TypeScript, 57 testes Jest e
+build/validação dos três VPKGs passaram; o produtor continua fora dos pacotes.
+Todos os relatórios de transporte mantêm `visualValidation=false`.

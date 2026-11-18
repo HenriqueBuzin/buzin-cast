@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise our own raw H.264 fixture through native MSSE on VVD only."""
+"""Generate our own H.264 fixture and exercise native mux/MSSE probes on VVD."""
 import argparse
 import json
 from pathlib import Path
@@ -10,6 +10,57 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENT = 'com.buzincast.tv.main'
+
+
+def make_fixture(output, profile='baseline', annex_b=True):
+    media = output / 'sample.mp4'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(ROOT / 'vega/assets/raw/media/playback-sample.mp4'),
+                    '-an', '-c:v', 'libx264', '-profile:v', profile, '-pix_fmt', 'yuv420p',
+                    '-bf', '0', '-g', '15', '-preset', 'fast' if profile == 'high' else 'ultrafast', str(media)], check=True, timeout=30)
+    info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                     '-show_entries', 'stream=width,height,extradata:packet=pts_time,dts_time,pos,size,flags',
+                     '-show_streams', '-show_packets', '-show_data', '-of', 'json', str(media)], timeout=30))
+    stream = info['streams'][0]
+    config = bytes.fromhex(''.join(line.split(':', 1)[1].strip().split('  ', 1)[0]
+                           for line in stream['extradata'].splitlines() if ':' in line))
+    prefix = b''
+    if annex_b:
+        offset = 6
+        for count in [config[5] & 31, None]:
+            if count is None:
+                count = config[offset]
+                offset += 1
+            for _ in range(count):
+                size = int.from_bytes(config[offset:offset + 2], 'big')
+                offset += 2
+                prefix += b'\0\0\0\1' + config[offset:offset + size]
+                offset += size
+        config = prefix
+    packets = info['packets']
+    encoded = media.read_bytes()
+    number = lambda n: struct.pack('<I', n)
+    payload = lambda data: number(len(data)) + data
+    fixture = number(stream['width']) + number(stream['height']) + payload(config) + number(len(packets))
+    for i, packet in enumerate(packets):
+        if packet['pts_time'] != packet['dts_time']:
+            raise RuntimeError('Probe requires a fixture without reordered frames')
+        pts = round(float(packet['pts_time']) * 1000)
+        following = round(float(packets[i + 1]['pts_time']) * 1000) if i + 1 < len(packets) else 8000
+        data = encoded[int(packet['pos']):int(packet['pos']) + int(packet['size'])]
+        if annex_b:
+            units = b''
+            offset = 0
+            while offset < len(data):
+                size = int.from_bytes(data[offset:offset + 4], 'big')
+                offset += 4
+                if size < 1 or offset + size > len(data):
+                    raise RuntimeError('Invalid fixture AVC access unit')
+                units += b'\0\0\0\1' + data[offset:offset + size]
+                offset += size
+            data = (prefix if 'K' in packet['flags'] else b'') + units
+        fixture += number(pts) + number(following - pts) + number('K' in packet['flags']) + payload(data)
+    (output / 'sample.bin').write_bytes(fixture)
+    return media, fixture, len(packets)
 
 
 def main():
@@ -47,53 +98,7 @@ def main():
         devices = run('exec', 'vda', 'devices')
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
             raise RuntimeError('VVD is not connected')
-        media = args.output / 'sample.mp4'
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(ROOT / 'vega/assets/raw/media/playback-sample.mp4'),
-                        '-an', '-c:v', 'libx264', '-profile:v', args.profile, '-pix_fmt', 'yuv420p',
-                        '-bf', '0', '-g', '15', '-preset', 'fast' if args.profile == 'high' else 'ultrafast', str(media)], check=True, timeout=30)
-        info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-                         '-show_entries', 'stream=width,height,extradata:packet=pts_time,dts_time,pos,size,flags',
-                         '-show_streams', '-show_packets', '-show_data', '-of', 'json', str(media)], timeout=30))
-        stream = info['streams'][0]
-        config = bytes.fromhex(''.join(line.split(':', 1)[1].strip().split('  ', 1)[0]
-                               for line in stream['extradata'].splitlines() if ':' in line))
-        prefix = b''
-        if args.annex_b:
-            offset = 6
-            for count in [config[5] & 31, None]:
-                if count is None:
-                    count = config[offset]
-                    offset += 1
-                for _ in range(count):
-                    size = int.from_bytes(config[offset:offset + 2], 'big')
-                    offset += 2
-                    prefix += b'\0\0\0\1' + config[offset:offset + size]
-                    offset += size
-            config = prefix
-        packets = info['packets']
-        encoded = media.read_bytes()
-        number = lambda n: struct.pack('<I', n)
-        payload = lambda data: number(len(data)) + data
-        fixture = number(stream['width']) + number(stream['height']) + payload(config) + number(len(packets))
-        for i, packet in enumerate(packets):
-            if packet['pts_time'] != packet['dts_time']:
-                raise RuntimeError('Probe requires a fixture without reordered frames')
-            pts = round(float(packet['pts_time']) * 1000)
-            following = round(float(packets[i + 1]['pts_time']) * 1000) if i + 1 < len(packets) else 8000
-            data = encoded[int(packet['pos']):int(packet['pos']) + int(packet['size'])]
-            if args.annex_b:
-                units = b''
-                offset = 0
-                while offset < len(data):
-                    size = int.from_bytes(data[offset:offset + 4], 'big')
-                    offset += 4
-                    if size < 1 or offset + size > len(data):
-                        raise RuntimeError('Invalid fixture AVC access unit')
-                    units += b'\0\0\0\1' + data[offset:offset + size]
-                    offset += size
-                data = (prefix if 'K' in packet['flags'] else b'') + units
-            fixture += number(pts) + number(following - pts) + number('K' in packet['flags']) + payload(data)
-        (args.output / 'sample.bin').write_bytes(fixture)
+        media, fixture, packet_count = make_fixture(args.output, args.profile, args.annex_b)
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
         shell('cat > /data/buzin-msse-video-probe', payload=args.runner.read_bytes())
         shell('cat > /data/buzin-msse-video.bin', payload=fixture)
@@ -116,7 +121,7 @@ def main():
             for path in [media, remux]:
                 raw = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', str(path), '-an', '-f', 'framemd5', '-'], timeout=30).decode()
                 hashes.append([line.rsplit(',', 1)[1].strip() for line in raw.splitlines() if line and not line.startswith('#')])
-            if len(hashes[0]) != len(packets) or hashes[0] != hashes[1]:
+            if len(hashes[0]) != packet_count or hashes[0] != hashes[1]:
                 raise RuntimeError('Decoded frames changed during native MP4 remuxing')
             result['decodedFramesIdentical'] = len(hashes[0])
         result.update(passed=True, mux=args.mux, rendered=False, annexB=args.annex_b, profile=args.profile, cycles=cycles)

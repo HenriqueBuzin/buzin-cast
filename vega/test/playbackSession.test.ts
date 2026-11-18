@@ -10,7 +10,7 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
 }));
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
   __esModule: true,
-  default: {recordPlaybackState: jest.fn()},
+  default: {recordPlaybackState: jest.fn(), recordVideoPlaybackQuality: jest.fn()},
 }));
 
 function fakePlayer() {
@@ -310,4 +310,31 @@ test('troca de fonte cancela um manifesto pendente antes de aguardar sua carga',
   expect(player.src).toBe('https://example.com/new.mp4');
   expect(player.setSrcWithCustomHeaders).not.toHaveBeenCalled();
   await session.stop();
+});
+
+test('registra frames e superfície sem interromper reprodução quando a métrica falha', async () => {
+  jest.useFakeTimers();
+  const quality = jest.fn(() => ({totalVideoFrames: 20, droppedVideoFrames: 2}));
+  const player = {...fakePlayer(), getVideoPlaybackQuality: quality};
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let ready!: () => void;
+  const opened = new Promise<void>((resolve) => {ready = resolve;});
+  const changed = jest.fn();
+  const session = createPlaybackSession(ready, changed);
+  await opened;
+  session.attachSurface('surface-1');
+  player.listeners.get('playing')?.();
+  expect(Network.recordVideoPlaybackQuality).toHaveBeenLastCalledWith(20, 2, true);
+  session.detachSurface('stale-surface');
+  jest.advanceTimersByTime(250);
+  expect(Network.recordVideoPlaybackQuality).toHaveBeenLastCalledWith(20, 2, true);
+  session.detachSurface('surface-1');
+  jest.advanceTimersByTime(250);
+  expect(Network.recordVideoPlaybackQuality).toHaveBeenLastCalledWith(20, 2, false);
+  quality.mockImplementation(() => {throw new Error('Metric unavailable');});
+  jest.advanceTimersByTime(250);
+  expect(Network.recordVideoPlaybackQuality).toHaveBeenLastCalledWith(-1, -1, false);
+  expect(changed).toHaveBeenLastCalledWith({state: 'playing', seconds: 1.5});
+  await session.stop();
+  expect(Network.recordVideoPlaybackQuality).toHaveBeenLastCalledWith(-1, -1, false);
 });

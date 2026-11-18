@@ -1,5 +1,46 @@
 # Retomada — 18 de novembro de 2026
 
+## Fluxo local de vídeo e diagnóstico da superfície — 18 de novembro de 2026
+
+- Adicionado `LocalVideoStream`, servidor HTTP exclusivo de loopback, porta
+  dinâmica e caminho com token aleatório. Usa uma única conexão GET de mídia,
+  HTTP chunked, sem busca; HEAD e início em Range zero são aceitos. Pedidos
+  têm limite de 4 KiB/três segundos. Não anuncia serviço na LAN.
+- A fila retém no máximo 8 MiB e 2048 chunks, incluindo o chunk em envio.
+  Escrita aguarda espaço por até três segundos; sockets são não bloqueantes,
+  com verificação de cancelamento a cada 25 ms e prazo de falta de progresso.
+  Diferencia `clientClosed`, `consumerTimeout` e `outputBackpressure`.
+  Encerramento acorda produtores e libera worker, fila e listener.
+- Teste C++ com ASan/UBSan passou: resposta binária/chunked, HEAD, URL/Range
+  rejeitados, reabertura com token novo, reuso da porta, consumidor desconectado,
+  limites de bytes/chunks, timeout, encerramento sob backpressure e cliente
+  parado no cabeçalho. O CI passou a executar o contrato portátil.
+- O probe `--serve` produz H.264 da fixture em ritmo real e envia ao muxer/
+  endpoint nativo; o runner ativa a tela AirPlay por URL existente e entrega
+  somente a URL ao JavaScript. Confere consumo antes de todos os frames terem
+  sido produzidos, conclusão de oito segundos, Voltar e cancelamento antecipado.
+  O produtor é um executável de desenvolvimento separado, fora do VPKG; ainda
+  não está ligado aos callbacks de espelhamento da sessão UxPlay do app.
+- `playbackSession` registra em `/data/video-quality.json` somente contadores
+  numéricos e associação da superfície, sem mídia, URL ou handle. Consulta
+  indisponível/falha de diagnóstico não interrompe reprodução. Ao liberar o
+  player, marca a superfície como desassociada. Os 57 testes Jest passaram,
+  incluindo falha de métricas e descarte de handle antigo.
+- Evidência inicial: `build/vega-local-video-lifecycle` passou nos contratos de
+  transporte/vida útil. O player começou com 36–38/120 frames produzidos,
+  avançou até ~8 s e liberou player/superfície; no segundo ciclo Voltar encerrou
+  a produção antes de completar 120 frames. Isso não confirma imagem exibida.
+- A execução estrita em `build/vega-local-video-session-header` falhou porque
+  o SDK retornou total/dropped de vídeo iguais a zero, apesar de superfície
+  associada e relógio avançando. A tentativa GUI não trouxe captura utilizável.
+  O teste estrito continua exigindo contadores positivos; `--transport-only`
+  verifica os contratos independentes e registra `visualValidation=false`.
+  Não usar o resultado de transporte para declarar renderização certificada.
+- Próximo: integrar a posse do muxer/endpoint ao worker e aos callbacks AirPlay,
+  com encerramento explícito pela sessão; integrar áudio/época comum e tratar
+  reconexão/mudança de formato. Frames visíveis, A/V e emissor Apple real
+  continuam pendentes, assim como a paridade completa do aplicativo.
+
 ## API17 — FCast compartilhado e logger nativo
 
 `syncSharedTransport` compila na prévia API17 o mesmo `FCastReceiver.kt`

@@ -1,5 +1,7 @@
 #include "probes/MsseVideoPlayer.h"
 #include "turbo-modules/H264Fmp4Muxer.h"
+#include "turbo-modules/LocalVideoStream.h"
+#include <cstdio>
 #include <apmf/errors.h>
 #include <chrono>
 #include <fstream>
@@ -37,6 +39,47 @@ int main(int argc, char** argv) {
       frames.push_back({pts,duration,key != 0,std::move(data)});
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
+    if (argc == 3 && std::string(argv[2]) == "--serve") {
+      LocalVideoStream stream;
+      const auto url = stream.start();
+      size_t fed = 0;
+      auto report = [&] {
+        const auto state = stream.state();
+        std::ofstream output("/data/local-video-state.json.tmp");
+        output << "{\"framesFed\":" << fed << ",\"sentBytes\":" << state.sentBytes
+          << ",\"queuedBytes\":" << state.queuedBytes << ",\"connected\":" << (state.connected ? "true" : "false")
+          << ",\"complete\":" << (state.complete ? "true" : "false") << ",\"released\":" << (state.released ? "true" : "false")
+          << ",\"error\":\"" << state.error << "\"}" << std::endl;
+        output.close();
+        if (!output || std::rename("/data/local-video-state.json.tmp","/data/local-video-state.json"))
+          throw std::runtime_error("Could not save native stream observation");
+      };
+      {
+        std::ofstream descriptor("/data/local-video-url.json"); descriptor << "{\"url\":\"" << url << "\"}" << std::endl;
+        if (!descriptor) throw std::runtime_error("Could not publish local stream URL");
+      }
+      try {
+        H264Fmp4Muxer mux(width,height,config,[&](const uint8_t* data, size_t size) {stream.write(data,size);});
+        report();
+        const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
+        while (!stream.state().connected) {
+          if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Video player did not connect");
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        const auto start = std::chrono::steady_clock::now();
+        for (const auto& frame : frames) {
+          std::this_thread::sleep_until(start+std::chrono::milliseconds(frame.pts));
+          mux.append(frame.data,int64_t(frame.pts)*1000,int64_t(frame.pts)*1000,int64_t(frame.duration)*1000);
+          ++fed; report();
+        }
+        mux.finish(); stream.finish(); stream.waitFinished();
+      } catch (...) {
+        const auto error = stream.state().error; stream.stop(); report();
+        if (error != "clientClosed") throw;
+      }
+      stream.stop(); stream.stop(); report();
+      return 0;
+    }
     if (argc == 3 && std::string(argv[2]) == "--mux") {
       for (int cycle = 0; cycle < 2; ++cycle) {
         std::ofstream output("/data/buzin-video-remux.mp4",std::ios::binary);
