@@ -161,6 +161,15 @@ stream volume is restored. These are state contracts, not pointer-detector or
 complete touch-interface coverage. The selected six-test API22 run passes;
 whole-variant reports must include the same tests in their compiled cohort.
 
+Pointer-detector contracts dispatch Android MotionEvents through an emulator
+activity's View tree and real Compose pointer modifiers. Five selected API22
+tests check both drag axes and directions, below-slop motion, cancellation,
+multiple-pointer rejection, pinch expansion/contraction, stationary pointers,
+two-pointer pan, and events consumed in the Initial pass. This covers the
+detector pipeline without claiming Android system InputDispatcher injection or
+physical touchscreen validation. Callback positions, directions and ownership
+release are asserted; the helpers do not replace the production detectors.
+
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.
 The protocol JVM tests use an independent DOM parser to check the reconstructed
