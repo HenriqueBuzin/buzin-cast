@@ -10,14 +10,15 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
-The completed normal-APK run passed 85 Android instrumentation tests, 18 native
+The completed normal-APK run passed 114 Android instrumentation tests, 18 native
 cases with UBSan, and all 13 UI scenarios including extended media controls and
-rendered captions. Its archived report measures 74.164% Android/JVM lines,
-53.4175% Android/JVM branches, 77.5388% native lines, 65.024% native branches and
+rendered captions. Its archived report measures 78.2816% Android/JVM lines,
+57.0034% Android/JVM branches, 77.718% native lines, 65.625% native branches and
 40.4908% native MC/DC. The other measured counters also remain below 100%; the
-strict target is false. This cohort predates the additional selected contracts
-below and is not proof of a completed four-variant matrix. Earlier interrupted
-attempts add no passing runtime evidence.
+strict target is false. This cohort includes the MIME-query fix and paced AAC
+fixture but predates the eight selected Playback ViewModel contracts below.
+The remaining variants are still being measured; this is not a completed
+four-variant matrix. Earlier interrupted attempts add no passing evidence.
 
 Additional selected contracts passed on unchanged, fingerprint-checked APKs:
 three DACP player tests and two AudioRenderer tests on API22, and six download
@@ -187,6 +188,15 @@ type on Android. The regression also changes the default locale to Turkish and
 restores it afterward. These contracts do not establish vendor-chip behavior.
 The earlier 85-test whole-app report predates this production fix and must not
 be reported as coverage of the corrected APKs.
+
+Playback ViewModel contracts use an isolated application and preferences with
+no receiver service bound. Eight selected API22 tests check pending/active media
+controls, speed limits, silence settings, scrub settlement/timeout/cancellation,
+cached preference flows, external preference writes, asynchronous log persistence
+and clearing, transient service messages, PIN and permission-display state.
+The real coroutine jobs and log worker are closed at teardown. These tests
+exercise disconnected UI state, not bound-service commands or actual seeking
+in a media player; whole-variant runs must measure those paths separately.
 
 SOAP metadata contracts cover escaping, inherited and rebound namespaces,
 default-namespace resets, raw XML fragments and already escaped argument text.

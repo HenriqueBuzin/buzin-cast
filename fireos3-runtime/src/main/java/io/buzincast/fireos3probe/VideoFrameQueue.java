@@ -11,6 +11,18 @@ final class VideoFrameQueue {
     private final ArrayDeque<Frame> frames = new ArrayDeque<>();
     private int bytes;
     private boolean closed;
+    private volatile int activeConnections;
+    private volatile Runnable connectionsChanged;
+    void connections(Runnable changed) {connectionsChanged=changed;}
+    int connectionCount() {return activeConnections;}
+    @SuppressWarnings("unused") public void onConnectionChanged(boolean connected) {
+        Runnable changed;
+        synchronized(this) {
+            if(closed)return;
+            activeConnections=Math.max(0,activeConnections+(connected?1:-1));changed=connectionsChanged;
+        }
+        if(changed!=null)changed.run();
+    }
     private String failure;
     private int generation;
     private final AudioPacketQueue audio;
@@ -106,6 +118,7 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        activeConnections=0;connectionsChanged=null;
         mirrorMode(false);
         controls=null;
         media=null;

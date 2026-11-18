@@ -392,6 +392,7 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_boot_auto_start,R.string.setting_boot_auto_start_desc,"boot_auto_start",prefs.bootAutoStart());
         toggle(body,R.string.setting_network_recovery,R.string.setting_network_recovery_desc,"network_recovery",prefs.networkRecovery());
         toggle(body,R.string.setting_keep_screen_on,R.string.setting_keep_screen_on_desc,"keep_screen_on",prefs.keepScreenOn());
+        toggle(body,R.string.setting_fcast,R.string.setting_fcast_desc,"fcast_enabled",prefs.fcast());
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
     }
     private void toggle(LinearLayout body,int title,int detail,String key,boolean value) {

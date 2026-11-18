@@ -32,6 +32,7 @@ final class LegacyPreferences {
     int port() { int value=preferences.getInt("server_port",7000); return value>0 && value<=65535?value:7000; }
     boolean autoStart() { return preferences.getBoolean("auto_start",true); }
     boolean background() {return preferences.getBoolean("run_in_background",true);}
+    boolean fcast() {return preferences.getBoolean("fcast_enabled",false);}
     boolean networkRecovery() {return preferences.getBoolean("network_recovery",true);}
     boolean bootAutoStart() {return preferences.getBoolean("boot_auto_start",false);}
     boolean serviceRequested() {return preferences.getBoolean("legacy_service_requested",false);}

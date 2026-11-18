@@ -124,7 +124,7 @@ final class LegacyUrlScenario {
             ui(runner,()-> {if(new LegacyReceiverService.State(service).urlError)throw new AssertionError("Previous URL failure survived a successful replacement");});
         }
     }
-    private static final class Fixture implements java.io.Closeable {
+    static final class Fixture implements java.io.Closeable {
         final ServerSocket socket=new ServerSocket(0,8,InetAddress.getByName("127.0.0.1"));
         final Thread worker;volatile boolean closed;
         Fixture(byte[] sample) throws Exception {

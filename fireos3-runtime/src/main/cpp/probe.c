@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <android/log.h>
 #include "llhttp.h"
 #include "raop.h"
 #include "android_dnssd_shim.h"
@@ -26,6 +27,7 @@ typedef struct {
     jmethodID on_audio_data, on_audio_format, on_audio_flush, on_audio_volume, get_audio_volume;
     jmethodID on_dacp_id, on_sender_stopped;
     jmethodID on_metadata,on_artwork,on_progress;
+    jmethodID on_connection;
     bool audio_enabled;
     uint32_t network;
     uint32_t netmask;
@@ -100,6 +102,21 @@ static int allow_local_peer(void *context, const char *peer) {
 }
 
 static void noop(void *context) {}
+static void native_log(void *context, int level, const char *message) {
+    // UxPlay's logger asserts when a warning/error has no configured sink.
+    // Install this before init2(), which can also emit initialization errors.
+    __android_log_print(ANDROID_LOG_WARN,"BuzinLegacyNative","%s",message);
+}
+static void connection_changed(void *context, bool connected) {
+    receiver_probe_t *probe=context;
+    bool attached;
+    JNIEnv *env=callback_env(probe,&attached);
+    if(!env)return;
+    (*env)->CallVoidMethod(env,probe->video_callback,probe->on_connection,(jboolean)connected);
+    finish_callback(probe,env,attached);
+}
+static void connection_opened(void *context) {connection_changed(context,true);}
+static void connection_closed(void *context) {connection_changed(context,false);}
 static void control_identity(void *context,const char *id,const char *token) {
     receiver_probe_t *probe=context;
     if(!id || !token || strnlen(id,512)>=512 || strnlen(token,512)>=512)return;
@@ -238,12 +255,13 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         probe->on_metadata=(*env)->GetMethodID(env,callback_type,"onMetadata","([B)V");
         probe->on_artwork=(*env)->GetMethodID(env,callback_type,"onArtwork","([B)V");
         probe->on_progress=(*env)->GetMethodID(env,callback_type,"onProgress","(JJJ)V");
+        probe->on_connection=(*env)->GetMethodID(env,callback_type,"onConnectionChanged","(Z)V");
         jmethodID enabled = (*env)->GetMethodID(env, callback_type, "audioEnabled", "()Z");
         if (enabled) probe->audio_enabled = (*env)->CallBooleanMethod(env, video_callback, enabled);
         (*env)->DeleteLocalRef(env, callback_type);
         if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
             !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !probe->on_dacp_id || !probe->on_sender_stopped ||
-            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !enabled ||
+            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !enabled ||
             (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
         if (!probe->video_callback) { free(probe); return 0; }
@@ -260,6 +278,8 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         .audio_set_volume = audio_volume,
         .video_process = forward_video,
         .conn_admit = allow_local_peer,
+        .conn_init = connection_opened,
+        .conn_destroy = connection_closed,
         .video_set_codec = set_codec,
         .video_pause = noop,
         .video_resume = noop,
@@ -277,6 +297,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
     };
     raop_t *receiver = raop_init(&callbacks);
     probe->receiver = receiver;
+    if(receiver)raop_set_log_callback(receiver,native_log,NULL);
     int initialized = receiver && raop_init2(receiver, 1, device_id, path) == 0;
     (*env)->ReleaseStringUTFChars(env, key_path, path);
 

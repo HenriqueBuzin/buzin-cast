@@ -22,6 +22,26 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **FCast/API17 — 18/nov:** `tools/test_legacy_gestures.py --fcast` usa o
+  mesmo transporte de produção compilado no app moderno. Testa PTR/TXT reais,
+  handshake TCP, ping, validação de fonte, HTTP/MP4, cabeçalho customizado,
+  pausa, busca, volume e estado, retomada/parada, reabertura de porta e prazo
+  de quadro incompleto. Um peer RTSP ocioso deve impedir a tomada do player
+  pelo FCast; após fechar o peer, o carregamento deve funcionar. Verifica a
+  liberação do multicast/worker ao desligar a opção. O contador tem um teste
+  JVM para conexões, fechamento e callbacks tardios. O cenário encontrou a
+  ausência da callback do logger nativo: um reset de socket abortava o
+  processo. A instalação do sink antes de `raop_init2` permite registrar o
+  aviso e concluir o mesmo cenário. Relatórios locais:
+  `outputs/legacy-fcast-final`, `outputs/legacy-fcast-nodownload-final`,
+  `outputs/legacy-fcast-native-regression` e
+  `outputs/legacy-fcast-url-regression`. O runner captura logcat nas falhas.
+  As quatro suítes passaram no emulador API17/1280×720, com build ARMv7/x86,
+  lint e testes JVM aprovados para as duas edições.
+  Somente velocidade 1 está implementada neste backend; outras velocidades
+  retornam erro explícito e não contam como função concluída. Os testes são
+  sintéticos em emulador; não validam hardware físico ou emissores externos.
+
 - **URL no serviço/API17 — 18/nov:** `--url-service` em
   `tools/test_legacy_gestures.py` verifica a transferência do receptor nativo
   para MediaPlayer e o retorno após Voltar, Parar e erro HTTP. Usa o serviço
@@ -37,7 +57,7 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
   `outputs/legacy-url-service-native-regression` (controles, metadados,
   AudioTrack sem metadados, foco e três ciclos de espelhamento sem tela).
   A descoberta nativa é suspensa durante o player local. Ainda faltam os
-  adaptadores de protocolos e os demais formatos/funções; esse ensaio não
+  adaptadores DLNA/AirPlay por URL e os demais formatos/funções; esse ensaio não
   comprova reprodução por URL iniciada por um emissor nem paridade completa.
 
 - **Backend de URL API17 — 18/nov:** `LegacyUrlPlayer` isola MediaPlayer,

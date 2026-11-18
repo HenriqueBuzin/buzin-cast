@@ -9,5 +9,5 @@ set_target_properties(fireos3_probe PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQU
 target_compile_definitions(fireos3_probe PRIVATE BUZIN_SOFTWARE_AUDIO_ONLY)
 add_dependencies(fireos3_probe ffmpeg_ep)
 target_include_directories(fireos3_probe PRIVATE ../../../../app/src/main/cpp)
-target_link_libraries(fireos3_probe PRIVATE airplay_native llhttp ffmpeg::avcodec ffmpeg::avutil)
+target_link_libraries(fireos3_probe PRIVATE airplay_native llhttp ffmpeg::avcodec ffmpeg::avutil log)
 target_link_options(fireos3_probe PRIVATE "-Wl,--exclude-libs,libcrypto.a")

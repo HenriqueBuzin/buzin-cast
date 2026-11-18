@@ -21,11 +21,12 @@ def main():
     parser.add_argument('--metadata',action='store_true',help='Also exercise synthetic native metadata/art/progress packets and save a render of the actual native Views; implies --controls.')
     parser.add_argument('--system-media',action='store_true',help='Also verify platform metadata, audio focus, background media keys and three native mirror teardown/recovery cycles; implies --metadata.')
     parser.add_argument('--url-service',action='store_true',help='Verify native-to-URL handoff, platform playback, UI/media controls, HTTP failure and receiver recovery.')
+    parser.add_argument('--fcast',action='store_true',help='Verify shared production FCast transport: TCP v2, DNS-SD/TXT, HTTP playback, controls and lifecycle.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
     args=parser.parse_args()
-    if args.url_service and (args.controls or args.metadata or args.system_media):parser.error('--url-service is a separate scenario.')
+    if (args.url_service or args.fcast) and (args.controls or args.metadata or args.system_media) or args.url_service and args.fcast:parser.error('--url-service and --fcast are separate scenarios.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -47,6 +48,7 @@ def main():
         'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),
         'test_apk_sha256':hashlib.sha256(args.test_apk.read_bytes()).hexdigest()}
     if args.url_service:report['scope']='Real API17 receiver service to HTTP platform player handoff, UI/media keys, HTTP failure and native restart; synthetic MP4, not physical sender interoperability'
+    if args.fcast:report['scope']='Shared production FCast v2 TCP transport, DNS-SD/TXT, synthetic HTTP MP4 playback, controls and lifecycle; not physical sender interoperability'
     if display:report['display_init']=display
     def capture_native_view():
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-metadata.b64',timeout=30))
@@ -122,12 +124,13 @@ def main():
         for package,path in [(args.package,args.apk),(args.package+'.test',args.test_apk)]:
             adb('install','-r',path.resolve());installed.append(package)
         adb('shell','pm','clear',args.package)
-        options=['-e','checks','url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service else []
+        adb('logcat','-c')
+        options=['-e','checks','fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast else []
         result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
-        expected='url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
+        expected='fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
         if args.metadata:
             if 'INSTRUMENTATION_RESULT: metadata=synthetic_native_worker_packets_artwork_progress_pause_ui_and_sender_cleanup' not in result:
@@ -144,9 +147,14 @@ def main():
                 raise AssertionError('Test APK did not run mirror transition checks')
             report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, duck/transient/permanent audio focus without music commands, explicit Play focus recovery, fresh audio metadata, same native receiver; not decoded video or a real sender'
             report['system_media']='platform client metadata/artwork ownership, audio focus duck/loss/gain, real background media keys, launcher return, unregister and no RTSP resurrection after stop'
-        report['status']='pass';report['url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
+        report['status']='pass';report['fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
     except Exception as error:
-        report['status']='failed';report['error']=str(error);raise
+        report['status']='failed';report['error']=str(error)
+        try:
+            (args.output/'failure-logcat.txt').write_text(adb('logcat','-d',timeout=30),encoding='utf-8')
+            report['failure_logcat']='failure-logcat.txt'
+        except Exception as capture_error:report['failure_logcat_error']=type(capture_error).__name__
+        raise
     finally:
         try:
             if args.metadata and args.package in installed and 'ui_render' not in report:
