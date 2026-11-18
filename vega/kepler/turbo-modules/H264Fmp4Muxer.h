@@ -1,0 +1,21 @@
+#pragma once
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <vector>
+
+// Remuxes complete Annex B H.264 access units without decoding/re-encoding.
+// All operations and output callbacks belong to one media worker.
+class H264Fmp4Muxer {
+public:
+  using Output = std::function<void(const uint8_t*, size_t)>;
+  H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& parameterSets, Output output);
+  ~H264Fmp4Muxer();
+  H264Fmp4Muxer(const H264Fmp4Muxer&) = delete;
+  H264Fmp4Muxer& operator=(const H264Fmp4Muxer&) = delete;
+  void append(const std::vector<uint8_t>& annexB, int64_t ptsUs, int64_t dtsUs, int64_t durationUs);
+  void finish();
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl;
+};

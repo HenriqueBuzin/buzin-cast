@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the pinned ALAC decoder on the host and check our synthetic PCM fixture."""
+"""Build the pinned media libraries and check ALAC PCM and H.264 MP4 mux contracts."""
 import argparse
 import base64
 import json
@@ -28,7 +28,7 @@ def main():
         run(['bash', source / 'configure', f'--prefix={prefix}', '--disable-all',
              '--disable-asm', '--disable-x86asm', '--disable-autodetect', '--disable-network',
              '--disable-doc', '--disable-programs', '--enable-avcodec', '--enable-decoder=alac',
-             '--enable-static', '--disable-shared', '--enable-pic'])
+             '--enable-static', '--disable-shared', '--enable-pic', '--enable-avformat', '--enable-muxer=mp4'])
         run(['make', '-j2'])
         run(['make', 'DESTDIR=', 'install'])
         fixtures = json.loads((ROOT / 'fireos3-probe/src/main/assets/audio_samples.json').read_text())
@@ -40,9 +40,15 @@ def main():
              ROOT / 'vega/kepler/turbo-modules/AlacDecoder.cpp', prefix / 'lib/libavcodec.a',
              prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', executable])
         run([executable, output / 'packet.bin'])
+        mux_test = output / 'h264-mux-test'
+        run([args.compiler, '-std=c++23', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
+             f'-I{prefix / "include"}', ROOT / 'vega/test/H264Fmp4MuxerTest.cpp',
+             ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', prefix / 'lib/libavformat.a',
+             prefix / 'lib/libavcodec.a', prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', mux_test])
+        run([mux_test])
     result['passed'] = True
     (output / 'result.json').write_text(json.dumps(result) + '\n')
-    print('Pinned ALAC decoder: synthetic PCM and malformed-packet checks passed')
+    print('Pinned media libraries: ALAC PCM and H.264 incremental MP4 contracts passed')
 
 
 if __name__ == '__main__':

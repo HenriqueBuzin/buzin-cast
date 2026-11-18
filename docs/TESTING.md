@@ -1155,3 +1155,36 @@ lint e build/validação ABI das três arquiteturas passaram. Os três VPKGs tê
 a licença FFmpeg e não contêm runner, headers ou arquivos estáticos do build.
 Concessão adiada e disputa prolongada de foco ainda precisam de ensaio;
 o worker mantém o prazo de backpressure de três segundos antes de falhar.
+
+### H.264 para MP4 fragmentado no Vega — 18 de novembro de 2026
+
+```sh
+python3 tools/test_vega_alac_decoder.py
+python3 tools/test_vega_msse_video.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg \
+  --runner vega/build/aarch64-release/bin/buzin-msse-video-probe --mux \
+  --output build/vega-h264-fmp4-native
+# Repetir com --profile high e diretório de saída próprio.
+```
+
+O primeiro compila ALAC e o muxer MP4 da revisão fixada do FFmpeg e executa
+os contratos C++ com sanitizers no código próprio. O segundo gera uma fixture
+H.264 de oito segundos a partir da amostra própria, envia Annex B ao executável
+nativo no sandbox, remuxa em dois ciclos e recupera o MP4 em modo binário.
+Compara os hashes de todos os frames decodificados da entrada e da saída.
+Não passa mídia através da ponte JavaScript. O perfil sem B-frames é escolhido
+somente para a fixture; reordenação e sincronismo de um emissor ainda faltam.
+
+O runner aceita só VVD. O formato de fixture limita resolução/configuração,
+600 frames, 2 MiB por frame e 16 MiB no total. O executável de desenvolvimento
+fica fora do VPKG, assim como os outros probes. `--mux` não reproduz o arquivo
+na tela; o relatório registra `surfaceAttached=false` e `rendered=false`.
+O modo MSSE sem `--mux` é investigativo e não passou em negociação H.264 no VVD;
+clock sozinho não é aceito como prova de frames nesse modo.
+
+Rodada final aprovada com os índices de seek/trailer desativados:
+`build/vega-h264-fmp4-stream-baseline` e `build/vega-h264-fmp4-stream-high`,
+dois ciclos por perfil e 120 hashes de frames coincidentes em cada arquivo.
+Build das três arquiteturas e validação dos VPKGs passaram; o runner de vídeo
+permanece excluído dos três pacotes. A regressão ALAC/RTP passou em dois ciclos
+em `build/vega-h264-mux-alac-regression`. Nenhuma tela de espelhamento foi ativada.
