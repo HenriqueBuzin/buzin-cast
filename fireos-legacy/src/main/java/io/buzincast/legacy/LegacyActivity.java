@@ -3,6 +3,7 @@ package io.buzincast.legacy;
 import android.app.Activity;
 import io.buzincast.fireos3probe.LegacyDacp;
 import io.buzincast.fireos3probe.LegacyMedia;
+import io.buzincast.fireos3probe.LegacyUrlPlayer;
 import android.graphics.Bitmap;
 import android.widget.ImageView;
 import android.content.ActivityNotFoundException;
@@ -50,6 +51,10 @@ import static io.buzincast.legacy.LegacyUi.*;
 public final class LegacyActivity extends Activity {
     private LegacyDacp.State controlState=LegacyDacp.inactive();
     private LinearLayout senderControls;
+    private LegacyUrlPlayer.State urlState;
+    private LinearLayout urlControls;
+    private TextView urlTime;
+    private Button urlToggle,urlRewind,urlForward;
     private LegacyMedia.State mediaState=LegacyMedia.inactive();
     private LinearLayout mediaPanel,connectionSteps;
     private TextView trackTitle,trackArtist,trackAlbum,trackTime;
@@ -76,7 +81,7 @@ public final class LegacyActivity extends Activity {
             service=((LegacyReceiverService.LocalBinder)binder).service();startIfNeeded();
         }
         @Override public void onServiceDisconnected(ComponentName component) {
-            service=null;running=busy=video=false;controlState=LegacyDacp.inactive();mediaState=LegacyMedia.inactive();shell.setVisibility(View.VISIBLE);refreshReceiverUi();updateAwake();
+            service=null;running=busy=video=false;urlState=null;controlState=LegacyDacp.inactive();mediaState=LegacyMedia.inactive();shell.setVisibility(View.VISIBLE);refreshReceiverUi();refreshUrlUi();updateAwake();
         }
     };
     private LegacyCalibrationView calibration;
@@ -134,7 +139,7 @@ public final class LegacyActivity extends Activity {
             while(!modals.isEmpty())modals.peekLast().dismiss();
             finishCalibration(false);displayLocale=config.locale;
         }
-        buildShell();fitVideo();
+        buildShell();fitVideo();refreshUrlUi();
     }
     // This frontend targets pre-API21 Fire Sticks and their hardware Back key.
     // AndroidX's current activity stack cannot be linked on API17.
@@ -142,24 +147,27 @@ public final class LegacyActivity extends Activity {
     @Override public void onBackPressed() {
         if(calibration!=null) {finishCalibration(false);return;}
         if(!modals.isEmpty()) {modals.peekLast().dismiss();return;}
+        if(urlState!=null && service!=null) {service.stopUrl();return;}
         if (video) { videoDismissed=true;video=false;shell.setVisibility(View.VISIBLE);updateAwake();return; }
         if (!destination.equals("overview")) { destination="overview";render();return; }
         super.onBackPressed();
     }
     private void senderCommand(LegacyDacp.Command command) {
-        if(service!=null && controlState.ready)service.control(command,()-> {
+        if(service!=null && (controlState.ready || urlState!=null))service.control(command,()-> {
             if(foreground && !isFinishing())Toast.makeText(this,R.string.error_label,Toast.LENGTH_SHORT).show();
         });
     }
     @Override public boolean onKeyDown(int key,KeyEvent event) {
-        if(controlState.ready && LegacyMediaKeys.handles(key)) {
+        if(urlState!=null && key==KeyEvent.KEYCODE_MEDIA_STOP) {if(event.getRepeatCount()==0 && service!=null)service.stopUrl();return true;}
+        if((controlState.ready || urlState!=null) && LegacyMediaKeys.handles(key)) {
             LegacyDacp.Command command=LegacyMediaKeys.command(key,true,event.getRepeatCount(),senderPlaying());
             if(command!=null)senderCommand(command);return true;
         }
         return super.onKeyDown(key,event);
     }
     @Override public boolean onKeyUp(int key,KeyEvent event) {
-        if(controlState.ready && LegacyMediaKeys.handles(key)) {
+        if(urlState!=null && key==KeyEvent.KEYCODE_MEDIA_STOP)return true;
+        if((controlState.ready || urlState!=null) && LegacyMediaKeys.handles(key)) {
             LegacyDacp.Command command=LegacyMediaKeys.command(key,false,event.getRepeatCount(),senderPlaying());
             if(command!=null)senderCommand(command);
             return true;
@@ -173,11 +181,12 @@ public final class LegacyActivity extends Activity {
             networkWaiting=state.networkWaiting;audioSuppressed=state.audioSuppressed;
             controlState=state.controls;
             mediaState=state.media;
-            error=state.failure==null?null:getString(R.string.error_starting_server);
+            urlState=state.url;
+            error=state.failure==null?null:getString(state.urlError?R.string.error_label:R.string.error_starting_server);
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
             video=state.video && !videoDismissed;videoWidth=state.width;videoHeight=state.height;
-            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();fitVideo();updateAwake();
+            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();fitVideo();updateAwake();
         });
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
     }
@@ -193,7 +202,37 @@ public final class LegacyActivity extends Activity {
         if(networkWaiting)return getString(R.string.network_waiting);
         return error!=null?error:getString(busy?R.string.waiting_for_connection:running?R.string.buzin_ready:R.string.buzin_stopped);
     }
-    private boolean senderPlaying() {return controlState.playing && !audioSuppressed;}
+    private boolean senderPlaying() {return (urlState==null?controlState.playing:urlState.playing) && !audioSuppressed;}
+    private void refreshUrlUi() {
+        if(urlControls==null) {
+            urlControls=column(this);urlControls.setTag("url-controls");
+            urlControls.setPadding(dp(this,16),dp(this,8),dp(this,16),dp(this,8));urlControls.setBackgroundColor(0xee111e2a);
+            urlTime=text(this,"",13,WHITE,false);urlTime.setTag("url-time");urlControls.addView(urlTime);
+            LinearLayout buttons=new LinearLayout(this);urlControls.addView(buttons);
+            urlRewind=button(this,R.string.cd_rewind,false,()->senderCommand(LegacyDacp.Command.REWIND));urlRewind.setTag("url-rewind");
+            urlToggle=button(this,R.string.cd_play_pause,false,()->senderCommand(senderPlaying()?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY));urlToggle.setTag("url-toggle");
+            urlForward=button(this,R.string.cd_fast_forward,false,()->senderCommand(LegacyDacp.Command.FAST_FORWARD));urlForward.setTag("url-forward");
+            Button stop=button(this,R.string.btn_stop,false,()-> {if(service!=null)service.stopUrl();});stop.setTag("url-stop");
+            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);params.setMargins(dp(this,24),0,dp(this,24),dp(this,16));root.addView(urlControls,params);
+            urlControls.setVisibility(View.GONE);
+        }
+        boolean wasVisible=urlControls.getVisibility()==View.VISIBLE;
+        if(urlState==null) {
+            if(urlControls.hasFocus()) {View nav=shell.findViewWithTag("nav-overview");if(nav!=null)nav.requestFocus();}
+            urlControls.setVisibility(View.GONE);return;
+        }
+        urlControls.setVisibility(View.VISIBLE);
+        urlRewind.setText(R.string.cd_rewind);urlForward.setText(R.string.cd_fast_forward);
+        ((Button)urlControls.findViewWithTag("url-stop")).setText(R.string.btn_stop);
+        urlTime.setText("\u202a"+clock(urlState.positionMs)+" / "+clock(urlState.durationMs)+"\u202c");
+        urlToggle.setText(senderPlaying()?"Ⅱ":"▶");urlToggle.setContentDescription(getString(R.string.cd_play_pause));
+        boolean ready=urlState.phase==LegacyUrlPlayer.Phase.READY;
+        urlToggle.setEnabled(ready);urlRewind.setEnabled(ready && urlState.durationMs>0);urlForward.setEnabled(ready && urlState.durationMs>0);
+        if(!wasVisible) {
+            if(ready)urlToggle.requestFocus();else urlControls.findViewWithTag("url-stop").requestFocus();
+        }
+    }
     // Runtime callbacks must not replace controls between ACTION_DOWN and UP.
     private void refreshReceiverUi() {
         refreshMediaUi();

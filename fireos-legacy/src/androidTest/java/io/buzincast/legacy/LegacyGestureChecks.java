@@ -19,10 +19,11 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia;
+    private boolean controls,metadata,systemMedia,url;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
+        url=arguments!=null && "url".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -43,8 +44,11 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            checkGesture(false);checkGesture(true);
-            result.putString("status","pass");result.putString("gestures","touch_and_dpad_across_receiver_restart");
+            if(url) {
+                LegacyUrlScenario.check(this,activity);
+                result.putString("url_service","native_handoff_http_controls_error_recovery_and_cleanup");
+            } else {checkGesture(false);checkGesture(true);result.putString("gestures","touch_and_dpad_across_receiver_restart");}
+            result.putString("status","pass");
             }
         } catch(Throwable failure) {status=Activity.RESULT_CANCELED;result.putString("status","failed");result.putString("error",failure.toString());}
         finally {

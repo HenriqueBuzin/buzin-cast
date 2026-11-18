@@ -22,6 +22,24 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
 
 ### Próxima versão 0.6.7 — trabalho iniciado
 
+- **URL no serviço/API17 — 18/nov:** `--url-service` em
+  `tools/test_legacy_gestures.py` verifica a transferência do receptor nativo
+  para MediaPlayer e o retorno após Voltar, Parar e erro HTTP. Usa o serviço
+  e a TextureView reais, cabeçalho HTTP, MP4 sintético 160×90/4 s, verificação
+  de pixels, callbacks da UI, teclas de mídia, pausa, busca ao início e foco
+  transitório/permanente com recuperação explícita. Liberar a tecla de busca
+  não deve recuperar foco. O fechamento precisa terminar antes de recriar o
+  receptor; o teste espera o worker fechar. Relatórios locais finais:
+  `outputs/legacy-url-service-final` e
+  `outputs/legacy-url-service-nodownload-final`. Build/lint ARMv7/x86 e testes
+  JVM das duas edições passaram, assim como as duas suítes finais API17.
+  A regressão nativa está em
+  `outputs/legacy-url-service-native-regression` (controles, metadados,
+  AudioTrack sem metadados, foco e três ciclos de espelhamento sem tela).
+  A descoberta nativa é suspensa durante o player local. Ainda faltam os
+  adaptadores de protocolos e os demais formatos/funções; esse ensaio não
+  comprova reprodução por URL iniciada por um emissor nem paridade completa.
+
 - **Backend de URL API17 — 18/nov:** `LegacyUrlPlayer` isola MediaPlayer,
   preparação, leitura de posição e Surface em HandlerThread. A carga retorna
   um identificador; consumidores devem comparar `State.generation` para não
@@ -46,10 +64,10 @@ A versão 0.6.0 acrescenta testes de comportamento e medição de cobertura. Aut
   aceitar a nova fonte; agora espera o identificador retornado pela carga.
   `legacy-url-player-controls` teve um ciclo aprovado e perda de ADB no
   segundo; a rodada final completa passou em servidor ADB separado.
-  **Base ainda não integrada à Activity/serviço ou aos protocolos do app.**
+  **Este ensaio da base não cobre integração; a suíte do serviço está acima.**
   Não anunciar reprodução por URL na prévia por esse teste. HTTPS real,
   HLS/DASH, áudio por URL, legendas, velocidade, recuperação/timeout e
-  integração/arbitragem continuam pendentes, junto da investigação nativa.
+  integração aos protocolos continuam pendentes, junto da investigação nativa.
 
 - **Diagnóstico do encerramento nativo — 18/nov:** `StreamingSelfTest`
   registra o último estágio em `BuzinLegacyStream`: criação da sessão,

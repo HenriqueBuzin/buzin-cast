@@ -13,11 +13,12 @@ import android.view.KeyEvent;
 import io.buzincast.fireos3probe.LegacyDacp;
 import io.buzincast.fireos3probe.LegacyMedia;
 import io.buzincast.fireos3probe.LegacyTrack;
+import io.buzincast.fireos3probe.LegacyUrlPlayer;
 
 /** Platform client available before MediaSession/Media3, owned by the receiver service. */
 @SuppressWarnings("deprecation")
 final class LegacySystemMedia implements java.io.Closeable {
-    interface Sink {void command(LegacyDacp.Command command);void gain(float gain);void failure(RuntimeException error);void changed();}
+    interface Sink {void command(LegacyDacp.Command command);void stopLocal();void gain(float gain);void failure(RuntimeException error);void changed();}
     private final Context context;
     private final AudioManager audio;
     private final ComponentName component;
@@ -27,6 +28,8 @@ final class LegacySystemMedia implements java.io.Closeable {
     private AudioManager.OnAudioFocusChangeListener focus;
     private LegacyMedia.State media=LegacyMedia.inactive();
     private LegacyDacp.State controls=LegacyDacp.inactive();
+    private LegacyUrlPlayer.State url;
+    private boolean lastWasUrl;
     private LegacyTrack lastTrack;
     private Bitmap lastArtwork;
     private long lastDuration=-1;
@@ -36,12 +39,12 @@ final class LegacySystemMedia implements java.io.Closeable {
         this.context=context;this.sink=sink;audio=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
         component=new ComponentName(context,LegacyMediaButtonReceiver.class);
     }
-    void update(LegacyMedia.State media,LegacyDacp.State controls,boolean eligible,boolean mirroring,boolean audioActive) {
-        if(closed)return;this.media=media;this.controls=controls;this.mirroring=mirroring;
+    void update(LegacyMedia.State media,LegacyDacp.State controls,boolean eligible,boolean mirroring,boolean audioActive,LegacyUrlPlayer.State url) {
+        if(closed)return;this.media=media;this.controls=controls;this.mirroring=mirroring;this.url=url;
         if(!eligible) {deactivate();return;}
-        if(!mirroring && !audioActive && !media.active && !controls.ready) {deactivate(false);return;}
+        if(url==null && !mirroring && !audioActive && !media.active && !controls.ready) {deactivate(false);return;}
         try {
-            if(mirroring || !media.active && !controls.ready)unregisterClient();else if(!registered)activate();
+            if(url==null && (mirroring || !media.active && !controls.ready))unregisterClient();else if(!registered)activate();
             ensureFocus();
             publish();
         } catch(RuntimeException unsupported) {deactivate(false);sink.failure(unsupported);}
@@ -78,7 +81,7 @@ final class LegacySystemMedia implements java.io.Closeable {
         else if(change==AudioManager.AUDIOFOCUS_LOSS || change==AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
             permanentLoss|=change==AudioManager.AUDIOFOCUS_LOSS;
             focusRequested=false;suppressed=true;sink.gain(0);
-            if(!mirroring && controls.ready)sink.command(LegacyDacp.Command.PAUSE);
+            if(!mirroring && (controls.ready || url!=null))sink.command(LegacyDacp.Command.PAUSE);
         }
         publish();
         sink.changed();
@@ -93,8 +96,11 @@ final class LegacySystemMedia implements java.io.Closeable {
     }
     boolean suppressed() {return suppressed;}
     void key(KeyEvent event,int owner) {
-        if(!registered || owner!=epoch || !controls.ready)return;
-        LegacyDacp.Command command=LegacyMediaKeys.command(event.getKeyCode(),event.getAction()==KeyEvent.ACTION_DOWN,event.getRepeatCount(),!suppressed && controls.playing);
+        if(!registered || owner!=epoch || url==null && !controls.ready)return;
+        if(url!=null && event.getKeyCode()==KeyEvent.KEYCODE_MEDIA_STOP) {
+            if(event.getAction()==KeyEvent.ACTION_DOWN && event.getRepeatCount()==0)sink.stopLocal();return;
+        }
+        LegacyDacp.Command command=LegacyMediaKeys.command(event.getKeyCode(),event.getAction()==KeyEvent.ACTION_DOWN,event.getRepeatCount(),!suppressed && (url==null?controls.playing:url.playing));
         if(command!=null)sink.command(command);
     }
     private void publish() {
@@ -102,11 +108,24 @@ final class LegacySystemMedia implements java.io.Closeable {
         int actions=controls.ready?RemoteControlClient.FLAG_KEY_MEDIA_PLAY|RemoteControlClient.FLAG_KEY_MEDIA_PAUSE|
             RemoteControlClient.FLAG_KEY_MEDIA_PLAY_PAUSE|RemoteControlClient.FLAG_KEY_MEDIA_NEXT|RemoteControlClient.FLAG_KEY_MEDIA_PREVIOUS|
             RemoteControlClient.FLAG_KEY_MEDIA_FAST_FORWARD|RemoteControlClient.FLAG_KEY_MEDIA_REWIND:0;
+        if(url!=null) {
+            actions=RemoteControlClient.FLAG_KEY_MEDIA_PLAY|RemoteControlClient.FLAG_KEY_MEDIA_PAUSE|RemoteControlClient.FLAG_KEY_MEDIA_PLAY_PAUSE|RemoteControlClient.FLAG_KEY_MEDIA_STOP;
+            if(url.durationMs>0)actions|=RemoteControlClient.FLAG_KEY_MEDIA_FAST_FORWARD|RemoteControlClient.FLAG_KEY_MEDIA_REWIND;
+        }
         client.setTransportControlFlags(actions);
-        int state=!suppressed && (media.active?media.playing:controls.playing)?RemoteControlClient.PLAYSTATE_PLAYING:RemoteControlClient.PLAYSTATE_PAUSED;
-        if(Build.VERSION.SDK_INT>=18)Api18.state(client,state,media.positionMs,state==RemoteControlClient.PLAYSTATE_PLAYING?1:0);
+        int state=!suppressed && (url!=null?url.playing:media.active?media.playing:controls.playing)?RemoteControlClient.PLAYSTATE_PLAYING:RemoteControlClient.PLAYSTATE_PAUSED;
+        if(url!=null && url.buffering && !suppressed)state=RemoteControlClient.PLAYSTATE_BUFFERING;
+        if(Build.VERSION.SDK_INT>=18)Api18.state(client,state,url==null?media.positionMs:url.positionMs,state==RemoteControlClient.PLAYSTATE_PLAYING?1:0);
         else if(state!=lastState)client.setPlaybackState(state);
         lastState=state;
+        if(url!=null) {
+            if(!lastWasUrl || lastDuration!=url.durationMs) {
+                client.editMetadata(true).putString(MediaMetadataRetriever.METADATA_KEY_TITLE,context.getString(R.string.app_name))
+                    .putLong(MediaMetadataRetriever.METADATA_KEY_DURATION,url.durationMs).apply();
+                lastDuration=url.durationMs;lastTrack=null;lastArtwork=null;
+            }
+            lastWasUrl=true;return;
+        }
         if(lastTrack!=media.track || lastArtwork!=media.artwork || lastDuration!=media.durationMs) {
             RemoteControlClient.MetadataEditor editor=client.editMetadata(true);
             editor.putString(MediaMetadataRetriever.METADATA_KEY_TITLE,media.track.title.isEmpty()?context.getString(R.string.app_name):media.track.title);
@@ -121,6 +140,7 @@ final class LegacySystemMedia implements java.io.Closeable {
             }
             editor.apply();lastTrack=media.track;lastArtwork=media.artwork;lastDuration=media.durationMs;
         }
+        lastWasUrl=false;
     }
     private void cleanup(Runnable action) {try {action.run();}catch(RuntimeException error) {sink.failure(error);}}
     private void unregisterClient() {
@@ -130,7 +150,7 @@ final class LegacySystemMedia implements java.io.Closeable {
             if(Build.VERSION.SDK_INT>=18)Api18.unregister(audio,buttons);else audio.unregisterMediaButtonEventReceiver(component);
         });}
         if(buttons!=null) {buttons.cancel();buttons=null;}
-        lastTrack=null;lastArtwork=null;lastDuration=-1;lastState=-1;
+        lastTrack=null;lastArtwork=null;lastDuration=-1;lastState=-1;lastWasUrl=false;
     }
     private void deactivate() {deactivate(true);}
     private void deactivate(boolean clearPermanentLoss) {

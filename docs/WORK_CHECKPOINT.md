@@ -1,5 +1,45 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — integração do player por URL ao serviço e à Activity
+
+O serviço agora aceita `LegacyUrlRequest` por um ponto de entrada interno.
+Encerra a sessão nativa antes de transferir a TextureView ao MediaPlayer;
+no fim, erro, Parar ou Voltar, aguarda o fechamento do player e a liberação
+das superfícies antes de recriar o receptor. A descoberta nativa fica
+temporariamente indisponível durante essa reprodução. Pedidos substituídos
+e callbacks de instâncias antigas não controlam a nova sessão.
+
+A Activity tem controles estáveis de reprodução/pausa, busca de 10 s,
+posição/duração e parada, usando textos compartilhados e o estilo de foco
+existente. Teclas de mídia e RemoteControlClient passam a controlar o player
+local; metadados usam o nome do app e não expõem a URL/cabeçalhos.
+Perda transitória ou permanente de foco pausa e silencia; Play explícito
+recupera foco. A liberação de uma tecla de busca não recupera foco sozinha.
+Erros de URL usam a mensagem genérica traduzida, separada do erro de início
+do receptor. Os recursos de marca permanecem os aprovados.
+
+`tools/test_legacy_gestures.py --url-service` exercita o serviço real, HTTP
+com cabeçalho da fixture, MP4 sintético, pixels da TextureView, controles de
+UI/teclas, perda e recuperação de foco, busca, Voltar, 404, nova reprodução,
+Parar e retorno ao receptor. O runner desinstala os dois APKs ao terminar.
+Relatórios locais: `outputs/legacy-url-service-final` e
+`outputs/legacy-url-service-nodownload-final`, ambos aprovados no emulador
+API17/1280×720. SHA256 dos APKs: geral
+`e8c5db696bddfb80463c9ba8abdbb5513fd7464b41233d2283405f33370163a9`;
+DE/AT `ca82f50f97997f7964f45adc87201fa6f6463a6b5408cfde93cfb4168284ba47`.
+Build ARMv7/x86, lint e testes JVM das duas edições passaram.
+A regressão nativa de controles,
+metadados, áudio sem metadados, foco e três ciclos de espelhamento sem tela
+está em `outputs/legacy-url-service-native-regression`.
+
+**O ponto de entrada ainda não está ligado aos adaptadores de protocolos.**
+Não anunciar URLs recebidas de emissores nessa prévia. FCast/DLNA/AirPlay por
+URL, HTTPS real, HLS/DASH, áudio por URL, legendas, velocidade, timeout/rede,
+retomada e testes físicos ainda precisam de trabalho. A investigação do
+encerramento nativo intermitente continua aberta; a regressão aprovada não
+prova que a causa foi corrigida. Ainda não há paridade completa nem APK de
+produção para todos os Sticks.
+
 ## Alvo antigo — base do player por URL
 
 `LegacyUrlPlayer` usa MediaPlayer da plataforma em HandlerThread própria.
@@ -21,9 +61,9 @@ antes de executar o novo carregamento; o identificador de pedido resolveu
 a ambiguidade. Uma repetição perdeu ADB no segundo ciclo; a rodada final
 completa usou servidor separado. A fixture está só no probe/testes.
 
-**Ainda não é uma função integrada ao app API17.** Próximo passo: ligar a
-base ao serviço, saída da Activity, controles e adaptadores FCast/DLNA/AirPlay
-por URL, mantendo arbitragem e foco com espelhamento. HLS/DASH, HTTPS real,
+**A integração posterior com serviço/Activity está descrita acima.**
+Próximo passo: ligar adaptadores FCast/DLNA/AirPlay por URL, mantendo
+arbitragem e foco com espelhamento. HLS/DASH, HTTPS real,
 legendas, velocidade, recuperação/timeout de rede e demais funções ainda
 precisam ser portados e validados. O limite de busca deste backend segue o
 inteiro da API antiga; não tratá-lo como paridade concluída. O encerramento
