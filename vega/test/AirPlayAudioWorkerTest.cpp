@@ -11,6 +11,7 @@ struct Trace {
   int starts = 0, stops = 0, attempts = 0;
   double seconds = 0, gain = 0;
   std::vector<int64_t> pts;
+  std::vector<std::vector<uint8_t>> configs;
   std::atomic<bool> blocked{false};
   std::atomic<bool> releaseFails{false};
 };
@@ -19,11 +20,13 @@ struct Sink : AudioSampleSink {
   bool active = false;
   explicit Sink(std::shared_ptr<Trace> value) : trace(std::move(value)) {}
   void startAac(int rate, int channels, const std::vector<uint8_t>& config) override {
-    assert(rate == 44100 && channels == 2 && config == std::vector<uint8_t>({0x12, 0x10}));
-    std::lock_guard lock(trace->mutex); ++trace->starts; trace->seconds = 0; active = true;
+    assert(rate == 44100 && channels == 2);
+    assert(config == std::vector<uint8_t>({0x12, 0x10}) || config == std::vector<uint8_t>({0x12, 0x14}) ||
+      config == std::vector<uint8_t>({0xf8, 0xe8, 0x50, 0}) || config == std::vector<uint8_t>({0xf8, 0xe8, 0x40, 0}));
+    std::lock_guard lock(trace->mutex); ++trace->starts; trace->configs.push_back(config); trace->seconds = 0; active = true;
   }
   bool append(const std::vector<uint8_t>& bytes, int64_t pts, int64_t duration) override {
-    assert(active && !bytes.empty() && duration >= 21 && duration <= 24);
+    assert(active && !bytes.empty() && duration >= 10 && duration <= 24);
     std::lock_guard lock(trace->mutex); ++trace->attempts;
     if (trace->blocked) return false;
     trace->pts.push_back(pts); trace->seconds = (pts + duration) / 1000.0; return true;
@@ -69,7 +72,43 @@ int main() {
   worker.stop(); worker.stop();
   assert(worker.state().released && worker.state().phase == "stopped");
   {std::lock_guard lock(trace->mutex); assert(trace->starts == 2 && trace->stops == 2 && trace->pts.back() == 0);}
-  worker.start(); worker.format(8,480);
+  worker.start(); worker.format(2,352);
+  waitFor([&] {return !worker.healthy();});
+  assert(worker.state().error == "unsupportedAudioFormat"); worker.stop();
+  // The negotiated frame size selects the real AAC configuration and RTP clock.
+  for (const auto [codec, spf] : {std::pair{4,960}, std::pair{8,480}, std::pair{8,512}}) {
+    worker.start(); worker.format(codec,spf);
+    size_t before;
+    {std::lock_guard lock(trace->mutex); before = trace->pts.size();}
+    for (int i = 0; i < 3; ++i)
+      worker.sample(data,3,codec,0,static_cast<uint32_t>(0xffffff00ULL+i*spf));
+    waitFor([&] {return worker.state().accepted == 3;});
+    {std::lock_guard lock(trace->mutex);
+      const std::vector<int64_t> expected = spf == 960 ? std::vector<int64_t>{0,21,43}
+        : spf == 480 ? std::vector<int64_t>{0,10,21} : std::vector<int64_t>{0,11,23};
+      assert(std::vector<int64_t>(trace->pts.begin()+before, trace->pts.end()) == expected);
+      const std::vector<uint8_t> config = spf == 960 ? std::vector<uint8_t>{0x12,0x14}
+        : spf == 480 ? std::vector<uint8_t>{0xf8,0xe8,0x50,0} : std::vector<uint8_t>{0xf8,0xe8,0x40,0};
+      assert(trace->configs.back() == config);
+    }
+    worker.stop(); assert(worker.state().released);
+  }
+  // A new codec releases the previous sink, retains mute and starts a fresh epoch.
+  worker.start(); worker.format(4,1024); worker.volume(-144);
+  worker.sample(data,3,4,1,0);
+  waitFor([&] {return worker.state().accepted == 1;});
+  worker.format(8,480); worker.sample(data,3,8,2000000000000ULL,100);
+  waitFor([&] {return worker.state().accepted == 2;});
+  {std::lock_guard lock(trace->mutex); assert(trace->gain == 0 && trace->pts.back() == 0);}
+  worker.flush(); waitFor([&] {return worker.state().flushes == 1;});
+  worker.sample(data,3,8,3000000000000ULL,1000);
+  waitFor([&] {return worker.state().accepted == 3;});
+  worker.stop(); assert(worker.state().released);
+  // A packet from another codec must never enter the configured decoder.
+  worker.start(); worker.format(8,512); worker.sample(data,3,4,1,0);
+  waitFor([&] {return !worker.healthy();});
+  assert(worker.state().accepted == 0); worker.stop();
+  worker.start(); worker.format(8,960);
   waitFor([&] {return !worker.healthy();});
   assert(worker.state().error == "unsupportedAudioFormat"); worker.stop();
   // Missing NTP observations use an unwrapped RTP sample clock.

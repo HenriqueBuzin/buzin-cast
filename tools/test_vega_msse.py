@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Exercise native MSSE AAC access units in two sandboxed VVD cycles."""
 import argparse
+import base64
+import math
+import struct
 import json
 from pathlib import Path
 import re
@@ -15,6 +18,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--worker', action='store_true')
+    parser.add_argument('--eld', type=int, choices=[480, 512], help='Probe native AAC-ELD using our synthetic fixture')
     parser.add_argument('--rtp', action='store_true', help='Use real loopback RTP/AES/NTP instead of direct queue injection')
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--runner', type=Path, required=True)
@@ -44,16 +48,24 @@ def main():
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
             raise RuntimeError('VVD is not connected')
         fixture = args.output / 'sample.aac'
-        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i',
-                        str(ROOT / 'vega/assets/raw/media/playback-sample.mp4'), '-vn',
-                        *(['-c:a', 'aac', '-ar', '44100', '-ac', '2'] if args.worker else ['-c:a', 'copy']), '-f', 'adts', str(fixture)], check=True, timeout=30)
+        if args.eld:
+            fixtures = json.loads((ROOT / 'fireos3-probe/src/main/assets/audio_samples.json').read_text())
+            packets = next(f['packets'] for f in fixtures if f['codec'] == 8 and f['samplesPerFrame'] == args.eld)
+            count = math.ceil(8 * 44100 / args.eld)
+            fixture.write_bytes(b''.join(struct.pack('<I', len(raw)) + raw for raw in
+                                (base64.b64decode(packets[i % len(packets)], validate=True) for i in range(count))))
+        else:
+            subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i',
+                            str(ROOT / 'vega/assets/raw/media/playback-sample.mp4'), '-vn',
+                            *(['-c:a', 'aac', '-ar', '44100', '-ac', '2'] if args.worker else ['-c:a', 'copy']), '-f', 'adts', str(fixture)], check=True, timeout=30)
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
         # A component's /tmp differs from the developer shell's /tmp. Stream
         # our own fixtures into its sandbox, without changing its privileges.
         for source, destination in [(args.runner, '/data/buzin-msse-probe'), (fixture, '/data/buzin-msse-sample.aac')]:
             shell(f'cat > {destination}', payload=source.read_bytes())
         shell('chmod', '700', '/data/buzin-msse-probe')
-        output = shell('timeout', '55', '/data/buzin-msse-probe', '/data/buzin-msse-sample.aac', *(['--rtp'] if args.rtp else ['--worker'] if args.worker else []), timeout=60)
+        options = ([f'--eld-{args.eld}'] if args.eld else []) + (['--rtp'] if args.rtp else ['--worker'] if args.worker else [])
+        output = shell('timeout', '55', '/data/buzin-msse-probe', '/data/buzin-msse-sample.aac', *options, timeout=60)
         (args.output / 'runner.log').write_text(output)
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
         if len(cycles) != 2 or any(value.get('released') is not True or value.get('seconds', 0) < 7.5 for value in cycles):
@@ -62,7 +74,7 @@ def main():
             raise RuntimeError('Native worker flush was not observed')
         if args.rtp and any(value.get('rtpFrames') != value.get('frames') or value.get('ntpFrames') != value.get('frames') or value.get('duplicatesSent', 0) <= 0 or value.get('rtpSocketsReleased') is not True for value in cycles):
             raise RuntimeError('RTP/AES/NTP did not cover every decoded sample')
-        result.update(passed=True, worker=args.worker, rtp=args.rtp, cycles=cycles)
+        result.update(passed=True, worker=args.worker, rtp=args.rtp, eldSamplesPerFrame=args.eld, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)

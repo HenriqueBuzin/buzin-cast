@@ -47,12 +47,14 @@ struct AirPlayRtpProbe::Impl {
   std::unique_ptr<aes_ctx_t, decltype(&aes_cbc_destroy)> cipher{nullptr, aes_cbc_destroy};
   int sender = -1, timer = -1;
   uint16_t controlPort = 0, dataPort = 0, ntpPort = 0, sequence = 65530;
+  const int codec, spf;
   bool socketsReleased = false;
   static constexpr uint32_t baseRtp = 0xfffff000;
   std::atomic<bool> closing{false}, mismatch{false};
   std::atomic<uint64_t> received{0}, timed{0}, duplicateCount{0};
   std::thread timing;
-  Impl(AirPlayAudioWorker& output, const std::vector<std::vector<uint8_t>>& input) : worker(output), fixture(input) {}
+  Impl(AirPlayAudioWorker& output, const std::vector<std::vector<uint8_t>>& input, int ct, int frameSamples)
+    : worker(output), fixture(input), codec(ct), spf(frameSamples) {}
   ~Impl() {
     rtp.reset(); ntp.reset(); closing = true;
     if (timing.joinable()) timing.join();
@@ -70,8 +72,8 @@ struct AirPlayRtpProbe::Impl {
       auto& self = *static_cast<Impl*>(cls);
       if (!frame) {self.mismatch = true; return;}
       const uint32_t delta = frame->rtp_time - baseRtp;
-      const size_t index = delta / 1024;
-      if (delta % 1024 || index >= self.fixture.size() || frame->data_len < 0 ||
+      const size_t index = delta / self.spf;
+      if (delta % self.spf || index >= self.fixture.size() || frame->data_len < 0 ||
           static_cast<size_t>(frame->data_len) != self.fixture[index].size() ||
           std::memcmp(frame->data, self.fixture[index].data(), self.fixture[index].size())) {
         self.mismatch = true; return;
@@ -110,20 +112,24 @@ struct AirPlayRtpProbe::Impl {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     unsigned short remoteControl = 0;
-    unsigned char codec = 4; unsigned int rate = 44100;
-    raop_rtp_start_audio(rtp.get(), &remoteControl, &controlPort, &dataPort, &codec, &rate);
+    unsigned char ct = static_cast<unsigned char>(codec); unsigned int rate = 44100;
+    raop_rtp_start_audio(rtp.get(), &remoteControl, &controlPort, &dataPort, &ct, &rate);
     if (!controlPort || !dataPort || !raop_rtp_is_running(rtp.get())) throw std::runtime_error("Native RTP sockets did not start");
-    worker.format(4,1024);
+    worker.format(codec,spf);
   }
 };
-AirPlayRtpProbe::AirPlayRtpProbe(AirPlayAudioWorker& worker, const std::vector<std::vector<uint8_t>>& fixture)
-  : impl(std::make_unique<Impl>(worker, fixture)) {impl->initialize();}
+AirPlayRtpProbe::AirPlayRtpProbe(AirPlayAudioWorker& worker, const std::vector<std::vector<uint8_t>>& fixture, int codec, int spf)
+  : impl(std::make_unique<Impl>(worker, fixture, codec, spf)) {
+  if (!((codec == 4 && spf == 1024) || (codec == 8 && (spf == 480 || spf == 512))))
+    throw std::invalid_argument("Unsupported RTP fixture format");
+  impl->initialize();
+}
 AirPlayRtpProbe::~AirPlayRtpProbe() = default;
 void AirPlayRtpProbe::beginEpoch() {
   std::vector<uint8_t> sync(20); sync[0]=0x90; sync[1]=0xd4; put16(sync.data()+2,4);
   put32(sync.data()+4,Impl::baseRtp);
   byteutils_put_ntp_timestamp(sync.data(),8,raop_ntp_get_remote_time(impl->ntp.get()));
-  put32(sync.data()+16,Impl::baseRtp+1024);
+  put32(sync.data()+16,Impl::baseRtp+impl->spf);
   transmit(impl->sender,impl->controlPort,sync);
 }
 void AirPlayRtpProbe::send(size_t index, bool duplicate) {
@@ -131,7 +137,7 @@ void AirPlayRtpProbe::send(size_t index, bool duplicate) {
   const auto& frame = impl->fixture[index];
   if (frame.empty() || frame.size()+12 > RAOP_PACKET_LEN) throw std::runtime_error("Invalid RTP fixture access unit");
   std::vector<uint8_t> packet(frame.size()+12); packet[0]=0x80; packet[1]=0x60;
-  put16(packet.data()+2,impl->sequence++); put32(packet.data()+4,Impl::baseRtp+static_cast<uint32_t>(index*1024));
+  put16(packet.data()+2,impl->sequence++); put32(packet.data()+4,Impl::baseRtp+static_cast<uint32_t>(index*impl->spf));
   const auto blocks = frame.size()/16*16;
   aes_cbc_encrypt(impl->cipher.get(),frame.data(),packet.data()+12,static_cast<int>(blocks));
   aes_cbc_reset(impl->cipher.get());
