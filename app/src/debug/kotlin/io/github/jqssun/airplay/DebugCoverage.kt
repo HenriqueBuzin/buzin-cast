@@ -8,6 +8,7 @@ object DebugCoverage {
     external fun nativeDump(path: String): Int
     /** Contract fixture is linked only into the instrumented native library. */
     external fun nativeAudioContracts(): String
+    external fun nativeDnsContracts(): String
     fun dump(context: Context) {
         val dir = File(context.filesDir, "coverage").apply { mkdirs() }
         val runtime = Class.forName("org.jacoco.agent.rt.RT").getMethod("getAgent").invoke(null)

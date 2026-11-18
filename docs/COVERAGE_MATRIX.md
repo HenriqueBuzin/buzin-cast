@@ -208,6 +208,15 @@ bits and codecs, PIN metadata, occupied-port recovery, RTSP replies, direct-buff
 bounds and audio start/stop. Temporary pairing keys stay in the emulator app's
 cache and are deleted after teardown.
 
+The coverage-only DNS JNI fixture calls the production Android DNS-SD shim's C
+APIs in memory. It checks empty and rebuilt TXT records, owned name/address
+copies, optional length pointers, invalid record indices, feature bits at both
+32-bit boundaries, invalid bit/value arguments, all PIN modes, codec combinations,
+public-key removal and compressed-audio metadata changes. Oversized hardware
+addresses must fail registration safely. The shim's record builder performs no
+network announcement. The new contract passed within the DE/AT 123-test API28
+instrumentation run; the full edition report still requires its UI scenarios.
+
 AudioRenderer contracts check detached configuration, gain, codec labels and
 diagnostic-buffer parsing against a real engine. Queued configuration changes
 must leave the current buffer setting intact until the next decoded packet;
