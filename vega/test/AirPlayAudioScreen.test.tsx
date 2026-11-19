@@ -6,6 +6,7 @@ import Network from '../src/turbo-modules/BuzinNetwork';
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({__esModule: true, default: {
   startAirPlayAudio: jest.fn(() => 7001), stopAirPlayAudio: jest.fn(),
   getAirPlayAudioState: jest.fn(() => '{"phase":"waiting","seconds":0}'),
+  pollAirPlayApproval: jest.fn(() => ''), answerAirPlayApproval: jest.fn(),
 }}));
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => {jest.useRealTimers(); jest.clearAllMocks();});
@@ -35,6 +36,16 @@ test('erro nativo ou observação inválida desativa o receptor', () => {
   act(() => jest.advanceTimersByTime(250));
   expect(again.getByText(/Não foi possível receber/)).toBeTruthy();
   again.unmount();
+});
+test('encaminha a decisão do controle ao pedido AirPlay correto', () => {
+  const screen = render(<AirPlayAudioScreen onBack={jest.fn()} />);
+  jest.mocked(Network.pollAirPlayApproval).mockReturnValueOnce('{"approval":{"id":4,"peer":"127.0.0.1"}}');
+  act(() => jest.advanceTimersByTime(250));
+  fireEvent.press(screen.getByRole('button', {name: 'Permitir'}));
+  expect(Network.answerAirPlayApproval).toHaveBeenCalledWith(4, true);
+  jest.mocked(Network.pollAirPlayApproval).mockReturnValueOnce('{"approval":null}');
+  act(() => jest.advanceTimersByTime(250));
+  expect(screen.queryByRole('button', {name: 'Permitir'})).toBeNull();
 });
 test('sair para segundo plano solicita o encerramento', () => {
   let state!: (value: AppStateStatus) => void;

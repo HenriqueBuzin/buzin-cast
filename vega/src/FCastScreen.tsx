@@ -1,5 +1,6 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system video surface. */
 import TvButton from './TvButton';
+import ConnectionApprovalPrompt from './ConnectionApprovalPrompt';
 import React, {useEffect, useRef, useState} from 'react';
 import {AppState, Image, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
@@ -36,7 +37,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
         ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening, setApproval)
         : protocol === 'dlna'
         ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto, setApproval)
-        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
+        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin, setApproval);
     } catch {
       setFailed(true);
     }
@@ -123,30 +124,12 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           : ''}
       </Text>
       {approval && (
-        <View style={styles.approval}>
-          <Text style={styles.details} aria-live="polite">
-            {protocol === 'fcast'
-              ? `Permitir a conexão FCast de ${approval.peer}?`
-              : `Permitir que ${approval.peer} controle o DLNA por cinco minutos?`}
-          </Text>
-          <View style={styles.actions}>
-            {[false, true].map(allow => {
-              const id = allow ? 'allow' : 'deny';
-              return (
-                <TvButton
-                  key={id}
-                  role="button"
-                  hasTVPreferredFocus={!allow}
-                  onFocus={() => setFocus(id)}
-                  onBlur={() => setFocus(current => current === id ? '' : current)}
-                  style={[styles.button, focus === id && styles.focused]}
-                  onPress={() => receiver.current?.answerApproval?.(approval.id, allow)}>
-                  <Text style={styles.label}>{allow ? 'Permitir' : 'Recusar'}</Text>
-                </TvButton>
-              );
-            })}
-          </View>
-        </View>
+        <ConnectionApprovalPrompt
+          key={approval.id}
+          request={approval}
+          protocol={protocol === 'fcast' ? 'FCast' : protocol === 'dlna' ? 'DLNA' : 'AirPlay'}
+          onAnswer={(id, allow) => receiver.current?.answerApproval?.(id, allow)}
+        />
       )}
       <View style={styles.actions}>
         {(token === null || protocol === 'mirror' ? ['back'] : ['pause', 'back']).map((id) => (
@@ -197,7 +180,6 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   actions: {flexDirection: 'row', gap: 24},
-  approval: {alignItems: 'center', marginBottom: 16},
   button: {
     paddingVertical: 10,
     paddingHorizontal: 28,

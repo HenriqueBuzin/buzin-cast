@@ -1,5 +1,18 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Aprovação de conexões AirPlay no Vega
+
+**Configurações → Aprovar conexões AirPlay, DLNA e FCast** também
+protege os três modos AirPlay no Vega. O servidor aguarda a decisão
+antes de processar a primeira solicitação. Permitir vale por cinco
+minutos para novas conexões AirPlay do emissor enquanto a tela estiver
+aberta. O espelhamento também exige PIN verificado para aceitar mídia.
+
+O patch UxPlay 0020 fornece o socket ao callback opcional do Vega.
+A preparação aplicou os 20 patches na cópia isolada. Lint, TypeScript
+e 70 testes Jest passaram. A negociação e a reprodução completas com
+emissor Apple em aparelho físico continuam pendentes.
+
 ## Aprovação de conexões FCast no Vega
 
 **Configurações → Aprovar conexões DLNA e FCast** aplica a preferência

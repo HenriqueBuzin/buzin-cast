@@ -1,0 +1,30 @@
+--- a/lib/raop.h
++++ b/lib/raop.h
+@@ -114,6 +114,7 @@
+     void  (*on_video_acquire_playback_info) (void *cls, playback_info_t *playback_video);
+     float  (*on_video_playlist_remove) (void *cls);
+     bool require_verified_pin; /* gate media on PIN setup and key verification */
+     bool mirror_end_on_eof; /* require a fresh session after the media socket closes */
++    int (*conn_admit_socket)(void *cls, const char *peer, int fd); /* optional socket-aware admission */
+ };
+ 
+--- a/lib/raop.c
++++ b/lib/raop.c
+@@ -195,10 +195,15 @@
+     raop_conn_t *conn = ptr;
+     raop_t *raop = conn->raop;
+     /* Ask before dispatch: no setup, audio or video is processed on denial. */
+-    if (conn->connection_type == CONNECTION_TYPE_UNKNOWN && raop->callbacks.conn_admit) {
++    if (conn->connection_type == CONNECTION_TYPE_UNKNOWN &&
++        (raop->callbacks.conn_admit_socket || raop->callbacks.conn_admit)) {
+         char peer[80] = {0};
+         utils_ipaddress_to_string(conn->remotelen, conn->remote, conn->zone_id, peer, sizeof(peer));
+-        if (!raop->callbacks.conn_admit(raop->callbacks.cls, peer)) {
++        const int allowed = raop->callbacks.conn_admit_socket ?
++            raop->callbacks.conn_admit_socket(raop->callbacks.cls, peer,
++                httpd_get_connection_socket(raop->httpd, conn)) :
++            raop->callbacks.conn_admit(raop->callbacks.cls, peer);
++        if (!allowed) {
+             *response = http_response_create();
+             http_response_init(*response, http_request_get_protocol(request), 403, "Forbidden");
+             http_response_set_disconnect(*response, 1);

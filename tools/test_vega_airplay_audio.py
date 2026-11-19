@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """VVD-only UI/RTSP lifecycle for experimental AirPlay audio or video."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import plistlib
@@ -34,6 +35,7 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--vpkg', required=True, type=Path)
     parser.add_argument('--video', action='store_true', help='Test video worker ownership; no Apple media negotiation or rendering proof')
+    parser.add_argument('--approval', action='store_true', help='Check TV approval before RTSP dispatch')
     parser.add_argument('--output', type=Path, default=Path('build/vega-airplay-audio'))
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -44,6 +46,7 @@ def main():
     mode = 'video' if args.video else 'audio'
     report = {'passed': False, 'physicalValidation': False, 'mode': mode, 'mediaNegotiation': False, 'visualValidation': False}
     client = None
+    saved_approval = None
 
     def run(*command, timeout=30):
         result = subprocess.run([sdk, *command], capture_output=True, text=True, timeout=timeout)
@@ -92,6 +95,17 @@ def main():
             data += packet
         return data
 
+    def answer_on_tv(allow):
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            waiting = pool.submit(request, 'OPTIONS', 1, status=200 if allow else 403)
+            time.sleep(0.8)
+            if waiting.done():
+                raise RuntimeError('RTSP request did not wait for TV approval')
+            if allow:
+                shell('inputd-cli', 'button_press', 'KEY_RIGHT')
+            shell('inputd-cli', 'button_press', 'KEY_ENTER')
+            waiting.result(timeout=5)
+
     try:
         devices = run('exec', 'vda', 'devices')
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
@@ -99,8 +113,14 @@ def main():
         if COMPONENT in shell('vlcm', 'list', '--app-id', COMPONENT):
             shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
+        if args.approval:
+            saved = shell('-c', COMPONENT, 'if test -f /data/dlna-approval; then cat /data/dlna-approval; fi')
+            if saved not in ('', '0', '1'):
+                raise RuntimeError('Unexpected approval preference')
+            saved_approval = saved
+            shell('-c', COMPONENT, 'printf 1 > /data/dlna-approval')
         first_identity = None
-        for cycle in range(2):
+        for cycle in range(-2 if args.approval else 0, 2):
             shell('-c', COMPONENT, 'rm', '-f', f'/data/airplay-{mode}-port.json', f'/data/airplay-{mode}-state.json')
             for key in ['KEY_ENTER', *(['KEY_DOWN'] * (3 if args.video else 2)), 'KEY_ENTER']:
                 shell('inputd-cli', 'button_press', key)
@@ -117,7 +137,35 @@ def main():
             run('device', 'start-port-forwarding', '-d', args.serial, '--port', str(port), '--forward', 'true')
             forwards.append(port)
             client = socket.create_connection(('127.0.0.1', port), timeout=3)
-            request('OPTIONS', 1)
+            if cycle == -2:
+                client.sendall(b'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\nContent-Length: 0\r\n\r\n')
+                client.settimeout(0.8)
+                try:
+                    client.recv(1, socket.MSG_PEEK)
+                    raise RuntimeError('RTSP control socket did not wait for approval')
+                except TimeoutError:
+                    pass
+                before = time.monotonic()
+                shell('inputd-cli', 'button_press', 'KEY_BACK')
+                observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
+                if time.monotonic() - before >= 5:
+                    raise RuntimeError('Closing the receiver did not cancel the pending approval')
+                client.close(); client = None
+                report['pendingApprovalCancelledOnBack'] = True
+                continue
+            if args.approval:
+                answer_on_tv(allow=cycle >= 0)
+            else:
+                request('OPTIONS', 1)
+            if cycle < 0:
+                client.close()
+                client = socket.create_connection(('127.0.0.1', port), timeout=3)
+                request('OPTIONS', 1, status=403)
+                client.close(); client = None
+                shell('inputd-cli', 'button_press', 'KEY_BACK')
+                observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
+                report['refusedAndCached'] = True
+                continue
             waiting = observation(lambda value: value.get('phase') == 'waiting')
             if args.video:
                 txt = {}
@@ -165,7 +213,7 @@ def main():
             client.close(); client = None
             cycles.append({**cycle_result, 'waiting': waiting, 'stopped': stopped,
                            'controlSocketClosed': True, 'rtspIdentityVerified': args.video})
-        report.update(passed=True, cycles=cycles)
+        report.update(passed=True, cycles=cycles, approvalAfterReopen=args.approval)
         print(json.dumps(report, indent=2))
     except Exception as error:
         report['error'] = str(error)
@@ -173,6 +221,9 @@ def main():
     finally:
         if client:
             client.close()
+        if saved_approval is not None:
+            restore = f'printf {saved_approval} > /data/dlna-approval' if saved_approval else 'rm -f /data/dlna-approval'
+            shell('-c', COMPONENT, restore)
         for port in forwards:
             try:
                 run('device', 'stop-port-forwarding', '-d', args.serial, '--port', str(port), '--forward', 'true')

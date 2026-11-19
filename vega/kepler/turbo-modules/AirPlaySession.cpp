@@ -1,4 +1,5 @@
 #include "AirPlaySession.h"
+#include "ConnectionApproval.h"
 #include "AirPlayAudioWorker.h"
 #include "AirPlayAudioCallbacks.h"
 #include "AirPlayVideoCallbacks.h"
@@ -19,6 +20,7 @@ extern "C" {
 }
 
 struct AirPlaySession::Impl {
+  ConnectionApproval approval;
   std::mutex mutex;
   std::deque<AirPlayEvent> events;
   size_t queuedBytes = 0;
@@ -72,7 +74,8 @@ struct AirPlaySession::Impl {
 AirPlaySession::AirPlaySession() : impl(std::make_unique<Impl>()) {}
 AirPlaySession::~AirPlaySession() {stop();}
 uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& name,
-                             const std::string& identity, bool loopbackOnly, AirPlayAudioWorker* audio, AirPlayVideoWorker* video) {
+                             const std::string& identity, bool loopbackOnly, AirPlayAudioWorker* audio,
+                             AirPlayVideoWorker* video, bool requireApproval) {
   if (impl->receiver) throw std::runtime_error("AirPlay session already running");
   validateReceiverName(name);
   unsigned int octets[6]; char trailing;
@@ -92,12 +95,17 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   callbacks.mirror_end_on_eof = video != nullptr;
   const bool advertise = video && !loopbackOnly;
   callbacks.require_verified_pin = advertise;
-  callbacks.conn_admit = [](void* cls, const char* peer) {
+  callbacks.conn_admit_socket = [](void* cls, const char* peer, int fd) {
+    auto& state = Impl::self(cls);
     in_addr ip{};
     if (!peer || inet_pton(AF_INET, peer, &ip) != 1) return 0;
     const auto value = ntohl(ip.s_addr);
-    if (Impl::self(cls).loopbackOnly) return (value >> 24) == 127 ? 1 : 0;
-    return ((value >> 24) == 127 || (value >> 24) == 10 || (value >> 20) == 0xac1 || (value >> 16) == 0xc0a8) ? 1 : 0;
+    const bool loopback = (value >> 24) == 127;
+    const bool allowed = loopback || (!state.loopbackOnly &&
+        ((value >> 24) == 10 || (value >> 20) == 0xac1 || (value >> 16) == 0xc0a8));
+    if (!allowed || fd < 0) return 0;
+    try {return state.approval.authorize(fd, ip.s_addr).has_value() ? 1 : 0;}
+    catch (...) {return 0;}
   };
   callbacks.audio_process = [](void* cls, raop_ntp_t*, audio_decode_struct* data) {
     auto& state = Impl::self(cls);
@@ -208,6 +216,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
     if (dnssd_register_airplay(impl->discovery, port) != 0 ||
         dnssd_register_raop(impl->discovery, port) != 0)
       throw std::runtime_error("Could not prepare AirPlay identity records");
+    impl->approval.start(requireApproval);
     if (raop_start_httpd(impl->receiver, &port) < 0 || !port)
       throw std::runtime_error("Could not start AirPlay transport");
     raop_set_port(impl->receiver, port);
@@ -232,6 +241,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   } catch (...) {stop(); throw;}
 }
 void AirPlaySession::stop() noexcept {
+  impl->approval.stop();
   impl->mdns.stop();
   if (impl->receiver) {raop_destroy(impl->receiver); impl->receiver = nullptr;}
   if (impl->discovery) {dnssd_destroy(impl->discovery); impl->discovery = nullptr;}
@@ -241,6 +251,8 @@ void AirPlaySession::stop() noexcept {
   impl->events.clear(); impl->queuedBytes = 0; impl->playback = {};
   impl->requestedVolumeDb = 0; impl->volumePending = false;
 }
+std::string AirPlaySession::pollApproval() {return impl->approval.poll();}
+void AirPlaySession::answerApproval(double requestId, bool allow) {impl->approval.respond(requestId, allow);}
 bool AirPlaySession::poll(AirPlayEvent& event) {
   if (impl->video) {
     AirPlayVideoCommand command;

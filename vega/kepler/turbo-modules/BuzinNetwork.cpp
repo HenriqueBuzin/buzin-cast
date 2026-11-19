@@ -76,7 +76,7 @@ double BuzinNetwork::startAirPlayReceiver(bool audioMode, bool videoMode) {
       throw std::runtime_error("Could not save local AirPlay identity");
   }
   const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false,
-    audioMode ? &audio : nullptr,videoMode ? &video : nullptr);
+    audioMode ? &audio : nullptr, videoMode ? &video : nullptr, getConnectionApproval());
   videoModeActive = videoMode;
   std::ofstream report(videoMode ? "/data/airplay-video-port.json" : audioMode ? "/data/airplay-audio-port.json" : "/data/airplay-port.json", std::ios::trunc);
   report << "{\"port\":" << port << "}"; report.close();
@@ -93,6 +93,8 @@ void BuzinNetwork::stopAirPlayUrl() {
 void BuzinNetwork::updateAirPlayState(double position, double duration, double rate, bool ready) {
   airplay.updatePlayback(position, duration, rate, ready);
 }
+std::string BuzinNetwork::pollAirPlayApproval() {return airplay.pollApproval();}
+void BuzinNetwork::answerAirPlayApproval(double requestId, bool allow) {airplay.answerApproval(requestId, allow);}
 std::string BuzinNetwork::pollAirPlayCommand() {
   if (videoModeActive) getAirPlayVideoState();
   if (!airplay.healthy()) throw std::runtime_error("AirPlay callback queue failed");

@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. Cast V2 está pendente.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 69 testes Jest passaram.
+- Lint sem avisos, TypeScript e 70 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -77,16 +77,17 @@ estado e posição, pausar, buscar, retomar, parar e ajustar volume ou mudo.
 A descoberta SSDP e os comandos passaram no VVD com um MP4. O receptor
 também abre JPEG e PNG de até 16 MiB e cerca de 25 megapixels. Emissores
 inscritos recebem notificações GENA de transporte, volume e mudo.
-**Configurações → Aprovar conexões DLNA e FCast** ativa a confirmação
-na TV. Cada protocolo mantém sua aprovação por cinco minutos ou até
-fechar o receptor. A validação em aparelho físico está pendente.
+**Configurações → Aprovar conexões AirPlay, DLNA e FCast** ativa a
+confirmação na TV. Cada protocolo mantém sua aprovação por cinco
+minutos ou até fechar o receptor. O espelhamento AirPlay também
+continua exigindo PIN. A validação em aparelho físico está pendente.
 
 ## Ambiente e build
 
 O bundle inclui Shaka/MSE para HLS/DASH experimentais no FCast. Os hooks de build preparam a versão fixada pelo script
 `tools/prepare_vega_shaka.py`; precisam de Git, curl, Python 3.12+ e Java 21+.
 A distribuição gerada fica em `vega/generated` e não é versionada.
-Os hooks também preparam o UxPlay fixado com os 19 patches Buzin numa cópia
+Os hooks também preparam o UxPlay fixado com os 20 patches Buzin numa cópia
 isolada nessa pasta; inicialize os submódulos antes do primeiro build.
 
 

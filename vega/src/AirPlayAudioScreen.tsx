@@ -2,11 +2,14 @@ import React, {useEffect, useState} from 'react';
 import {AppState, StyleSheet, Text, View} from 'react-native';
 import Network from './turbo-modules/BuzinNetwork';
 import TvButton from './TvButton';
+import ConnectionApprovalPrompt from './ConnectionApprovalPrompt';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 
 type Snapshot = {phase: 'waiting' | 'preparing' | 'playing' | 'stopped' | 'error'; seconds: number};
 export default function AirPlayAudioScreen({onBack}: {onBack: () => void}) {
   const [port, setPort] = useState(0);
   const [focus, setFocus] = useState(true);
+  const [approval, setApproval] = useState<ConnectionApprovalRequest | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot>({phase: 'waiting', seconds: 0});
   useEffect(() => {
     let stopped = false;
@@ -24,12 +27,15 @@ export default function AirPlayAudioScreen({onBack}: {onBack: () => void}) {
       setPort(listeningPort);
       poll = setInterval(() => {
         try {
+          const inbox = Network.pollAirPlayApproval();
+          if (inbox) {setApproval(JSON.parse(inbox).approval as ConnectionApprovalRequest | null);}
           const state = JSON.parse(Network.getAirPlayAudioState()) as Snapshot;
           if (!['waiting', 'preparing', 'playing', 'stopped', 'error'].includes(state.phase) ||
               !Number.isFinite(state.seconds) || state.seconds < 0) {throw new Error('Invalid audio observation');}
           setSnapshot(state);
-          if (state.phase === 'error') {stop();}
+          if (state.phase === 'error') {setApproval(null); stop();}
         } catch {
+          setApproval(null);
           setSnapshot({phase: 'error', seconds: 0});
           try {stop();} catch { /* the error remains visible */ }
         }
@@ -57,7 +63,11 @@ export default function AirPlayAudioScreen({onBack}: {onBack: () => void}) {
           : snapshot.phase === 'playing' ? `Reproduzindo áudio • ${snapshot.seconds.toFixed(1)} s`
           : snapshot.phase === 'preparing' ? 'Preparando áudio…' : 'Aguardando áudio compatível…'}
       </Text>
-      <TvButton role="button" hasTVPreferredFocus accessibilityHint="Desativa o receptor e retorna ao início"
+      {approval && (
+        <ConnectionApprovalPrompt key={approval.id} request={approval} protocol="AirPlay"
+          onAnswer={(id, allow) => Network.answerAirPlayApproval(id, allow)} />
+      )}
+      <TvButton role="button" hasTVPreferredFocus={!approval} accessibilityHint="Desativa o receptor e retorna ao início"
         onPress={onBack} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
         style={[styles.button, focus && styles.focused]}>
         <Text style={styles.label}>Desativar e voltar</Text>

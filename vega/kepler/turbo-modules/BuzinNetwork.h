@@ -31,6 +31,8 @@ public:
   std::string getAirPlayAudioState() override;
   void stopAirPlayUrl() override;
   std::string pollAirPlayCommand() override;
+  std::string pollAirPlayApproval() override;
+  void answerAirPlayApproval(double requestId, bool allow) override;
   void updateAirPlayState(double position, double duration, double rate, bool ready) override;
   double startFCast() override;
   void stopFCast() override;

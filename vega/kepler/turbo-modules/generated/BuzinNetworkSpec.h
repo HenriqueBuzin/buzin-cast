@@ -43,6 +43,8 @@ public:
   virtual std::string getAirPlayAudioState() = 0;
   virtual void stopAirPlayUrl() = 0;
   virtual std::string pollAirPlayCommand() = 0;
+  virtual std::string pollAirPlayApproval() = 0;
+  virtual void answerAirPlayApproval(double requestId, bool allow) = 0;
   virtual void updateAirPlayState(double position, double duration, double rate, bool ready) = 0;
   virtual double startFCast() = 0;
   virtual void stopFCast() = 0;

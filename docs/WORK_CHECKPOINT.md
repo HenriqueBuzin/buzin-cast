@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Aprovação AirPlay no Vega
+
+A preferência de aprovação agora inclui AirPlay por URL, áudio e
+espelhamento. O VVD confirmou a espera antes da execução do comando,
+recusa, reapertura com nova confirmação e bloqueio de SETUP de
+espelhamento sem PIN. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Aprovação FCast no Vega
 
 A preferência salva para DLNA também ativa a confirmação no FCast.

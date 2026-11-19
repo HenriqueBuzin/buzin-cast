@@ -3,6 +3,7 @@ import type {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import Network from './turbo-modules/BuzinNetwork';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 import {number, object, playRequest} from './fcastProtocol';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 
 export function createAirPlayReceiver(
   onReady: (token: number | null) => void,
@@ -11,6 +12,7 @@ export function createAirPlayReceiver(
   onListening?: (port: number) => void,
   mode: 'url' | 'mirror' = 'url',
   onPin?: (pin: string) => void,
+  onApproval?: (request: ConnectionApprovalRequest | null) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -57,7 +59,7 @@ export function createAirPlayReceiver(
   function fail() {
     if (closed) {return;}
     endMedia();
-    try {stop();} finally {onFailure();}
+    try {stop();} finally {onApproval?.(null); onFailure();}
   }
   session = createPlaybackSession((ready) => {
     if (closed) {return;}
@@ -76,6 +78,10 @@ export function createAirPlayReceiver(
   poll = setInterval(() => {
     if (!port) {return;}
     try {
+      if (onApproval) {
+        const approval = Network.pollAirPlayApproval();
+        if (approval) {onApproval(JSON.parse(approval).approval as ConnectionApprovalRequest | null);}
+      }
       for (let n = 0; n < 8; ++n) {
         const packet = Network.pollAirPlayCommand();
         if (!packet) {break;}
@@ -122,6 +128,10 @@ export function createAirPlayReceiver(
     attachSurface(current: number, handle: string) {if (current === token && ownsMedia) {session?.attachSurface(handle);}},
     detachSurface(current: number, handle: string) {if (current === token) {session?.detachSurface(handle);}},
     togglePause() {if (ownsMedia && mode !== 'mirror') {session?.togglePause();}},
+    answerApproval(requestId: number, allow: boolean) {
+      if (!port || closed) {return;}
+      try {Network.answerAirPlayApproval(requestId, allow);} catch {fail();}
+    },
     stop,
   };
 }
