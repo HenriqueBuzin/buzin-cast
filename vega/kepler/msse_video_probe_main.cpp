@@ -2,6 +2,8 @@
 #include "turbo-modules/H264Fmp4Muxer.h"
 #include "turbo-modules/Fmp4VideoOutput.h"
 #include "turbo-modules/MirrorRecording.h"
+#include "turbo-modules/RelaySender.h"
+#include "turbo-modules/H264AnnexB.h"
 #include "turbo-modules/AirPlayVideoCallbacks.h"
 #include "turbo-modules/AirPlayAudioFormat.h"
 #include "AirPlayMirrorProbe.h"
@@ -90,10 +92,11 @@ int main(int argc, char** argv) {
       frames.push_back({pts,duration,key != 0,std::move(data)});
     }
     const std::string mode = argc == 3 ? argv[2] : "";
+    const bool relaySend = mode == "--relay-send";
     const bool recording = mode == "--av-transcode-record";
     const bool avServe = recording || mode == "--av-transcode-serve";
     const bool convertAlac = avServe || mode == "--av-transcode";
-    const bool avMux = convertAlac || mode == "--av-mux";
+    const bool avMux = convertAlac || mode == "--av-mux" || relaySend;
     std::vector<std::vector<uint8_t>> audio;
     uint32_t audioOffsetUs = 0;
     int audioSamplesPerFrame = 0, audioCodec = 0;
@@ -169,6 +172,55 @@ int main(int argc, char** argv) {
       sample.ntp_time_local = EpochNs+audioPts(index)*1000;
       forwardAirPlayMirrorAudio(worker,&sample);
     };
+    if (relaySend) {
+      std::ifstream descriptor("/data/buzin-relay-sender-settings");
+      std::string host, code;
+      int port;
+      if (!(descriptor >> host >> port >> code) || port < 1 || port > 65535)
+        throw std::runtime_error("Relay sender probe endpoint missing");
+      RelaySender sender;
+      Fmp4VideoOutput output(nullptr, &sender);
+      output.start(width, height, config, audioSamplesPerFrame);
+      auto videoFrame = [&](size_t index) {
+        const auto& frame = frames[index];
+        std::vector<uint8_t> picture;
+        for (const auto& nal : BuzinH264::split(frame.data)) {
+          if (nal.type == 7 || nal.type == 8) continue;
+          picture.insert(picture.end(), {0, 0, 0, 1});
+          picture.insert(picture.end(), nal.bytes, nal.bytes + nal.size);
+        }
+        output.append(picture, frame.pts * 1000, frame.pts * 1000, frame.duration * 1000);
+      };
+      videoFrame(0);
+      output.appendAudio(audio.front(), audioPts(0));
+      sender.start(host, static_cast<uint16_t>(port), code);
+      const auto paired = std::chrono::steady_clock::now() + std::chrono::seconds(12);
+      while (sender.state() == "connecting" && std::chrono::steady_clock::now() < paired)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      if (sender.state() != "waiting") throw std::runtime_error("Relay sender did not pair");
+      const auto start = std::chrono::steady_clock::now();
+      size_t videoIndex = 1, audioIndex = 1;
+      while (videoIndex < frames.size() && audioIndex < audio.size()) {
+        const auto videoTime = uint64_t(frames[videoIndex].pts) * 1000;
+        const auto audioTime = audioPts(audioIndex);
+        const auto next = std::min(videoTime, audioTime);
+        if (next > 3000000) break;
+        std::this_thread::sleep_until(start + std::chrono::microseconds(next));
+        if (sender.state() == "error") throw std::runtime_error("Relay sender media failed");
+        if (videoTime <= audioTime) videoFrame(videoIndex++);
+        else {
+          output.appendAudio(audio[audioIndex], audioTime);
+          ++audioIndex;
+        }
+      }
+      output.finish();
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+      while (sender.state() == "ending" && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      if (sender.state() != "ended") throw std::runtime_error("Relay sender did not finalize");
+      std::cout << "{\"passed\":true,\"samplesPerFrame\":" << audioSamplesPerFrame << "}" << std::endl;
+      return 0;
+    }
     if (avServe || mode == "--serve" || mode == "--mirror-serve") {
       if (avServe && frames.size() < 2) throw std::runtime_error("A/V stream needs two initial video frames");
       MirrorRecording capture("/data/recordings");

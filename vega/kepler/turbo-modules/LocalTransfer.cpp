@@ -18,6 +18,19 @@ bool privateAddress(uint32_t address) {
   return (ip >> 24) == 10 || (ip >> 20) == 0xac1 || (ip >> 16) == 0xc0a8 || (ip >> 16) == 0xa9fe;
 }
 
+bool localAddress(uint32_t address) {
+  return privateAddress(address) || (ntohl(address) >> 24) == 127;
+}
+
+bool setNonblocking(int fd) {
+  if (fd < 0 || fcntl(fd, F_SETFL, O_NONBLOCK) < 0) return false;
+#ifdef SO_NOSIGPIPE
+  constexpr int enabled = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0) return false;
+#endif
+  return true;
+}
+
 std::string lanAddress() {
   ifaddrs* list = nullptr;
   if (getifaddrs(&list) != 0) throw std::runtime_error("Could not inspect network interfaces");
@@ -55,14 +68,33 @@ int accept(int listener) {
   sockaddr_in peer{};
   socklen_t size = sizeof(peer);
   Socket client{::accept(listener, reinterpret_cast<sockaddr*>(&peer), &size)};
-  if (client.fd < 0 || fcntl(client.fd, F_SETFL, O_NONBLOCK) < 0) return -1;
-#ifdef SO_NOSIGPIPE
-  constexpr int enabled = 1;
-  if (setsockopt(client.fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0) return -1;
-#endif
-  const auto ip = ntohl(peer.sin_addr.s_addr);
-  if (!privateAddress(peer.sin_addr.s_addr) && (ip >> 24) != 127) return -1;
+  if (!setNonblocking(client.fd) || !localAddress(peer.sin_addr.s_addr)) return -1;
   return std::exchange(client.fd, -1);
+}
+
+bool isLocalHost(const std::string& host) {
+  in_addr ip{};
+  return inet_pton(AF_INET, host.c_str(), &ip) == 1 && localAddress(ip.s_addr);
+}
+
+int connect(const std::atomic<bool>& active, const std::string& host, uint16_t port, Clock::time_point end) {
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(port);
+  if (!port || inet_pton(AF_INET, host.c_str(), &address.sin_addr) != 1 || !localAddress(address.sin_addr.s_addr))
+    throw std::invalid_argument("Relay requires a local IPv4 address");
+  Socket socket{::socket(AF_INET, SOCK_STREAM, 0)};
+  if (!setNonblocking(socket.fd)) throw std::runtime_error("Could not open the relay connection");
+  const auto result = ::connect(socket.fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+  if (result != 0) {
+    if (errno != EINPROGRESS || !waitFor(active, socket.fd, POLLOUT, end))
+      throw std::runtime_error("Relay connection failed");
+    int error = 0;
+    socklen_t size = sizeof(error);
+    if (getsockopt(socket.fd, SOL_SOCKET, SO_ERROR, &error, &size) != 0 || error)
+      throw std::runtime_error("Relay connection failed");
+  }
+  return std::exchange(socket.fd, -1);
 }
 
 std::string randomPath(unsigned bytes) {

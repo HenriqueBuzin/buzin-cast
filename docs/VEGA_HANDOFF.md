@@ -1,5 +1,22 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Envio da retransmissão Buzin no Vega
+
+**Estado do port → Testar vídeo AirPlay → Retransmitir** conecta o Vega ao
+receptor Buzin no IP e porta mostrados pela TV de destino. O código
+temporário autoriza a conexão BZCAST02. O envio usa o próximo IDR com
+SPS/PPS e converte áudio para PCM estéreo de 44,1 kHz em um worker
+separado. Parar o envio mantém o player local e Voltar fecha ambos.
+
+O canal Kotlin compartilhado pelo Fire OS autenticou o emissor do
+Vega e leu vídeo, PCM, keepalive e End. No VVD ARM64,
+`tools/test_vega_relay_sender.py` exercitou o mesmo fluxo nativo de
+espelhamento com H.264 e áudio ALAC 352, AAC-LC 1024 e AAC-ELD 480 e
+512. O receptor de teste recebeu PCM e vídeo decodificável com
+FFmpeg em todos os perfis. Lint, TypeScript, 81 testes Jest e as
+três ABIs passaram. A interoperabilidade em aparelhos físicos
+continua pendente.
+
 ## Recepção da retransmissão Buzin no Vega
 
 **Estado do port → Receber retransmissão Buzin** abre o receptor
@@ -16,8 +33,7 @@ observou o player do Vega avançar a partir da saída do receptor.
 Verificou também a abertura e o fechamento do modo pelo controle.
 A gravação AirPlay com conversão ALAC → AAC foi revalidada.
 Lint, TypeScript, 80 testes Jest e os VPKGs Release ARM64, ARMv7
-e x86_64 passaram. Envio a partir do Vega e ensaios com aparelhos
-físicos ainda estão pendentes.
+e x86_64 passaram. Ensaios com aparelhos físicos ainda estão pendentes.
 
 ## Exportação da biblioteca no Vega
 

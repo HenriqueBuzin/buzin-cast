@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Envio da retransmissão Buzin no Vega
+
+A tela de espelhamento pode encaminhar H.264 e PCM a outro Buzin Cast
+com código temporário. O receptor Kotlin leu os pacotes enviados pelo
+Vega. No VVD ARM64, o teste verificou vídeo decodificável e áudio PCM
+a partir de ALAC, AAC-LC e AAC-ELD. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Recepção da retransmissão Buzin no Vega
 
 O menu Estado do port abre o receptor autenticado BZCAST02 para

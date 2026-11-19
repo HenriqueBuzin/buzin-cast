@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. O menu também oferece Cast V2 experimental.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 80 testes Jest passaram.
+- Lint sem avisos, TypeScript e 81 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -111,8 +111,12 @@ Em **Estado do port → Receber retransmissão Buzin**, o Vega mostra
 um endereço IPv4, uma porta e um código de pareamento. Informe esses
 dados na tela de retransmissão do Buzin Cast emissor na mesma rede.
 O receptor aceita uma sessão autenticada com vídeo H.264 e áudio PCM
-estéreo de 44,1 kHz. Voltar encerra a sessão. O modo de enviar do Vega
-a outro aparelho ainda está em desenvolvimento.
+estéreo de 44,1 kHz. Voltar encerra a sessão.
+Em **Testar vídeo AirPlay → Retransmitir**, o Vega também envia o
+espelhamento H.264 para outro Buzin Cast. Informe o IP, a porta e o código
+exibidos no receptor. O envio começa no próximo quadro-chave, com áudio
+convertido para PCM. **Parar retransmissão** encerra o envio e a reprodução
+local continua.
 
 ## Ambiente e build
 

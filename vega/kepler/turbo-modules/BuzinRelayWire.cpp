@@ -90,6 +90,16 @@ void Channel::accept(std::string_view code) {
   send(Ready, end);
 }
 
+void Channel::connect(std::string_view code) {
+  const auto end = Clock::now() + 8s;
+  write(Magic.data(), Magic.size(), end);
+  std::array<uint8_t, 16> salt{};
+  read(salt.data(), salt.size(), end);
+  derive(code, salt);
+  send(Hello, end);
+  if (receive(end) != Ready) throw std::runtime_error("Invalid relay handshake");
+}
+
 Bytes Channel::receive(Clock::time_point deadline) {
   std::array<uint8_t, HeaderSize> header{};
   read(header.data(), header.size(), deadline);
@@ -114,6 +124,21 @@ void Channel::send(const Bytes& plain, Clock::time_point deadline) {
   write(header.data(), header.size(), deadline);
   write(encrypted.data(), encrypted.size(), deadline);
   ++tx;
+}
+
+Bytes encode(const Packet& packet) {
+  if (packet.kind == Packet::Kind::End) return {3};
+  const bool video = packet.kind == Packet::Kind::Video;
+  const size_t prefix = video ? 22 : 21;
+  Bytes wire(prefix + packet.data.size());
+  wire[0] = video ? 1 : 2;
+  put(wire.data() + 1, 8, packet.timestamp);
+  put(wire.data() + 9, 4, video ? packet.width : 44100);
+  put(wire.data() + 13, 4, video ? packet.height : 2);
+  if (video) wire[17] = packet.hevc ? 1 : 0;
+  put(wire.data() + prefix - 4, 4, packet.data.size());
+  std::copy(packet.data.begin(), packet.data.end(), wire.begin() + prefix);
+  return wire;
 }
 
 Packet decode(Bytes wire) {

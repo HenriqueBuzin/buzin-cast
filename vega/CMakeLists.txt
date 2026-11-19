@@ -11,8 +11,6 @@ kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/ReceiverSettings.cpp
   kepler/turbo-modules/FCastTransport.cpp
   kepler/turbo-modules/CastV2Transport.cpp
-  kepler/turbo-modules/LocalTransfer.cpp
-  kepler/turbo-modules/BuzinRelayWire.cpp
   kepler/turbo-modules/RelayReceiver.cpp
   kepler/turbo-modules/RecordingExport.cpp
   kepler/turbo-modules/SubtitleUpload.cpp
@@ -45,6 +43,10 @@ target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
 target_include_directories(BuzinNetwork PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp")
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c"
   PROPERTIES COMPILE_DEFINITIONS BUZIN_DNSSD_WIRE_TXT)
+add_library(BuzinRelaySender STATIC kepler/turbo-modules/RelaySender.cpp
+  kepler/turbo-modules/BuzinRelayWire.cpp kepler/turbo-modules/LocalTransfer.cpp)
+target_link_libraries(BuzinRelaySender PUBLIC BuzinAlacDecoder buzin_crypto)
+target_link_libraries(BuzinVideoOutput PUBLIC BuzinRelaySender)
 target_link_libraries(BuzinNetwork PRIVATE BuzinAirPlayCore buzin_ssl)
 target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")
 
@@ -63,7 +65,6 @@ install(TARGETS buzin-msse-video-probe RUNTIME DESTINATION bin)
 
 # Development-only BZCAST02 receiver with the production media pipeline.
 add_executable(buzin-relay-receiver-probe test/RelayReceiverProbe.cpp
-  kepler/turbo-modules/RelayReceiver.cpp kepler/turbo-modules/BuzinRelayWire.cpp
-  kepler/turbo-modules/LocalTransfer.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp)
+  kepler/turbo-modules/RelayReceiver.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp)
 target_link_libraries(buzin-relay-receiver-probe PRIVATE BuzinVideoOutput buzin_crypto)
 install(TARGETS buzin-relay-receiver-probe RUNTIME DESTINATION bin)

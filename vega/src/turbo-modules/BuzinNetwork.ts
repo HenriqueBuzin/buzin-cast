@@ -12,6 +12,9 @@ export interface BuzinNetwork extends KeplerTurboModule {
   getRelayReceiverState: () => string;
   pollRelayCommand: () => string;
   stopRelayReceiver: () => void;
+  startRelaySender: (host: string, port: number, code: string) => void;
+  getRelaySenderState: () => string;
+  stopRelaySender: () => void;
   getMirrorRecordingState: () => string;
   startMirrorRecording: () => void;
   stopMirrorRecording: () => void;

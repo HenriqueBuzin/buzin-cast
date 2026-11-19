@@ -1,6 +1,7 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system video surface. */
 import TvButton from './TvButton';
 import RecordingButton from './RecordingButton';
+import RelaySenderControls from './RelaySenderControls';
 import ConnectionApprovalPrompt from './ConnectionApprovalPrompt';
 import React, {useEffect, useRef, useState} from 'react';
 import {AppState, Image, StyleSheet, Text, View} from 'react-native';
@@ -159,6 +160,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           onAnswer={(id, allow) => receiver.current?.answerApproval?.(id, allow)}
         />
       )}
+      {protocol === 'mirror' && listening && !failed && <RelaySenderControls disabled={!!approval} />}
       {subtitleMedia !== null && <SubtitleNotice link={subtitles.link} message={subtitles.message} />}
       <View style={styles.actions}>
         {protocol === 'mirror' && listening && !failed && <RecordingButton disabled={!!approval} />}

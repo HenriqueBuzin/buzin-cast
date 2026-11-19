@@ -42,6 +42,9 @@ public:
   virtual std::string getRelayReceiverState() = 0;
   virtual std::string pollRelayCommand() = 0;
   virtual void stopRelayReceiver() = 0;
+  virtual void startRelaySender(std::string host, double port, std::string code) = 0;
+  virtual std::string getRelaySenderState() = 0;
+  virtual void stopRelaySender() = 0;
   virtual std::string getMirrorRecordingState() = 0;
   virtual void startMirrorRecording() = 0;
   virtual void stopMirrorRecording() = 0;

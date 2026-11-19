@@ -18,6 +18,7 @@ public:
   Channel(int fd, const std::atomic<bool>& active);
   ~Channel();
   void accept(std::string_view code);
+  void connect(std::string_view code);
   Bytes receive(Clock::time_point deadline);
   void send(const Bytes& plain, Clock::time_point deadline);
 private:
@@ -39,6 +40,7 @@ struct Packet {
   bool hevc = false;
   Bytes data;
 };
+Bytes encode(const Packet& packet);
 Packet decode(Bytes wire);
 
 }

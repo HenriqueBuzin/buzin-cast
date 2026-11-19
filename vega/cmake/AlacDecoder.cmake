@@ -16,12 +16,13 @@ ExternalProject_Add(buzin_alac_ffmpeg
     "--extra-cflags=${CMAKE_C_FLAGS} -fPIC -O2" "--extra-ldflags=${CMAKE_C_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}"
     --enable-pic --disable-asm --disable-x86asm --disable-all --disable-debug
     --disable-network --disable-autodetect --disable-doc --disable-programs
-    --enable-avcodec --enable-decoder=alac --enable-encoder=aac --enable-avformat --enable-muxer=mp4 --enable-static --disable-shared
+    --enable-avcodec --enable-decoder=alac,aac --enable-encoder=aac --enable-avformat --enable-muxer=mp4 --enable-static --disable-shared
   BUILD_COMMAND ${BUZIN_MAKE} -j2
   INSTALL_COMMAND ${BUZIN_MAKE} DESTDIR= install
   BUILD_BYPRODUCTS "${_alac_prefix}/lib/libavcodec.a" "${_alac_prefix}/lib/libavutil.a" "${_alac_prefix}/lib/libavformat.a"
   LOG_CONFIGURE TRUE LOG_BUILD TRUE LOG_INSTALL TRUE)
-add_library(BuzinAlacDecoder STATIC kepler/turbo-modules/AlacDecoder.cpp)
+add_library(BuzinAlacDecoder STATIC
+  kepler/turbo-modules/AlacDecoder.cpp kepler/turbo-modules/AacPcmDecoder.cpp)
 add_dependencies(BuzinAlacDecoder buzin_alac_ffmpeg)
 target_include_directories(BuzinAlacDecoder PRIVATE "${_alac_prefix}/include")
 target_link_libraries(BuzinAlacDecoder PUBLIC "${_alac_prefix}/lib/libavcodec.a" "${_alac_prefix}/lib/libavutil.a" m pthread)

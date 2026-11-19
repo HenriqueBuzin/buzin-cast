@@ -28,6 +28,9 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("getRelayReceiverState", &BuzinNetworkSpec::getRelayReceiverState);
   methodAggregator.addMethod("pollRelayCommand", &BuzinNetworkSpec::pollRelayCommand);
   methodAggregator.addMethod("stopRelayReceiver", &BuzinNetworkSpec::stopRelayReceiver);
+  methodAggregator.addMethod("startRelaySender", &BuzinNetworkSpec::startRelaySender);
+  methodAggregator.addMethod("getRelaySenderState", &BuzinNetworkSpec::getRelaySenderState);
+  methodAggregator.addMethod("stopRelaySender", &BuzinNetworkSpec::stopRelaySender);
   methodAggregator.addMethod("getMirrorRecordingState", &BuzinNetworkSpec::getMirrorRecordingState);
   methodAggregator.addMethod("startMirrorRecording", &BuzinNetworkSpec::startMirrorRecording);
   methodAggregator.addMethod("stopMirrorRecording", &BuzinNetworkSpec::stopMirrorRecording);

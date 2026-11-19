@@ -18,7 +18,7 @@
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}),
   recording("/data/recordings"),
-  video([this] {return std::make_unique<Fmp4VideoOutput>(&recording);}) {}
+  video([this] {return std::make_unique<Fmp4VideoOutput>(&recording, &relaySender);}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
@@ -62,6 +62,13 @@ std::string BuzinNetwork::pollRelayCommand() {
   return "{\"kind\":\"mirror\",\"value\":0,\"url\":\"" + command.url + "\"}";
 }
 void BuzinNetwork::stopRelayReceiver() {relayReceiver.stop();}
+void BuzinNetwork::startRelaySender(std::string host, double port, std::string code) {
+  if (!videoModeActive || !std::isfinite(port) || port < 1 || port > 65535 || std::floor(port) != port)
+    throw std::invalid_argument("Open AirPlay mirroring and enter a valid relay port");
+  relaySender.start(host, static_cast<uint16_t>(port), code);
+}
+std::string BuzinNetwork::getRelaySenderState() {return relaySender.state();}
+void BuzinNetwork::stopRelaySender() {relaySender.finish();}
 
 std::string BuzinNetwork::getAirPlayVideoState() {
   const auto state = video.state();
@@ -130,6 +137,7 @@ void BuzinNetwork::stopAirPlayUrl() {
   if (videoModeActive) {
     videoModeActive = false;
     recording.stop();
+    relaySender.stop();
     getAirPlayVideoState();
   }
 }

@@ -2,12 +2,14 @@
 #include "AirPlayAudioFormat.h"
 #include "H264Fmp4Muxer.h"
 #include "MirrorRecording.h"
+#include "RelaySender.h"
 #include <mutex>
 #include <stdexcept>
 
 struct Fmp4VideoOutput::Impl {
-  explicit Impl(MirrorRecording* capture) : recording(capture) {}
+  Impl(MirrorRecording* capture, RelaySender* sender) : recording(capture), relay(sender) {}
   MirrorRecording* const recording;
+  RelaySender* const relay;
   struct Run {
     LocalVideoStream stream;
     int width = 0, height = 0, audioSamples = 0;
@@ -27,13 +29,14 @@ struct Fmp4VideoOutput::Impl {
     return value;
   }
 };
-Fmp4VideoOutput::Fmp4VideoOutput(MirrorRecording* recording) : impl(std::make_unique<Impl>(recording)) {}
+Fmp4VideoOutput::Fmp4VideoOutput(MirrorRecording* recording, RelaySender* relay)
+  : impl(std::make_unique<Impl>(recording, relay)) {}
 Fmp4VideoOutput::~Fmp4VideoOutput() {stop();}
 std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint8_t>& parameters,
                                  int audioSamplesPerFrame) {
   stop();
   auto next = std::make_shared<Impl::Run>();
-  if (impl->recording) {
+  if (impl->recording || impl->relay) {
     next->width = width;
     next->height = height;
     next->audioSamples = audioSamplesPerFrame;
@@ -55,8 +58,10 @@ std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint
   } catch (...) {stop(); throw;}
 }
 void Fmp4VideoOutput::appendAudio(const std::vector<uint8_t>& sample, int64_t ptsUs) {
-  impl->active()->mux->appendAudio(sample, ptsUs);
+  const auto run = impl->active();
+  run->mux->appendAudio(sample, ptsUs);
   if (impl->recording) impl->recording->audio(sample, ptsUs);
+  if (impl->relay) impl->relay->audio(run->audioSamples, sample, ptsUs);
 }
 void Fmp4VideoOutput::append(const std::vector<uint8_t>& sample, int64_t pts, int64_t dts, int64_t duration) {
   const auto run = impl->active();
@@ -65,11 +70,13 @@ void Fmp4VideoOutput::append(const std::vector<uint8_t>& sample, int64_t pts, in
     impl->recording->video(run->width, run->height, run->parameters, run->audioSamples,
                           sample, pts, dts, duration);
   }
+  if (impl->relay) impl->relay->video(run->width, run->height, run->parameters, sample, pts);
 }
 void Fmp4VideoOutput::finish() {
   const auto run = impl->active();
   run->mux->finish();
   if (impl->recording) impl->recording->endSource();
+  if (impl->relay) impl->relay->endSource();
   run->stream.finish();
 }
 void Fmp4VideoOutput::waitFinished(std::chrono::milliseconds timeout) {
@@ -84,6 +91,7 @@ void Fmp4VideoOutput::stop() noexcept {
     // Cancellation wakes any output callback before the owner destroys its mux.
     run->mux.reset();
     if (impl->recording) impl->recording->endSource();
+    if (impl->relay) impl->relay->endSource();
     run->stream.stop();
   }
 }
