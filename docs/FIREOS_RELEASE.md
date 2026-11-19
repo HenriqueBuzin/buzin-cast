@@ -71,8 +71,12 @@ uma edição na mesma chamada. `--output` salva o JSON; erros encerram com
 status 1. Sem artefatos, a chamada só verifica o plano e informa
 `completeSet=false`.
 
-A conferência cobre pacote, API mínima, ausência de filtro de API máxima,
-versão e ausência de depuração. Não comprova assinatura, licença Amazon,
-restrições regionais, funcionalidades ou compatibilidade física. Um
-relatório com seis manifestos válidos não equivale a seis APKs reconstruídos.
-Continuam necessários os testes dos releases e a revisão do console.
+A conferência padrão cobre pacote, API mínima, ausência de filtro de API
+máxima, versão e ausência de depuração. Para verificar as assinaturas dos
+APKs, passe também `--apksigner-jar` com o caminho de `lib/apksigner.jar` do
+Android SDK Build Tools. A conferência valida a assinatura a partir da API
+mínima de cada APK e exige o mesmo certificado nos arquivos da mesma
+ficha. O JSON registra `signaturesVerified` e a impressão digital do
+certificado de cada APK. Os testes de execução, a licença Amazon, as
+restrições regionais e a revisão da seleção de aparelhos permanecem etapas
+separadas.
