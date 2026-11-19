@@ -1,5 +1,25 @@
 # Retomada — 19 de novembro de 2026
 
+## Linha do tempo comum no MP4 de espelhamento — 19 de novembro de 2026
+
+O muxer nativo e a saída HTTP local aceitam uma trilha opcional AAC-LC estéreo
+a 44,1 kHz, com 960 ou 1024 amostras por pacote. A inicialização espera um
+pacote de cada trilha. Assim, o muxer preserva o início relativo no MP4.
+Também preserva lacunas entre fragmentos e rejeita intervalos sobrepostos.
+O modo só de vídeo mantém o cabeçalho imediato.
+
+Os testes com ASan/UBSan cobrem início em ambas as ordens, atraso inicial de
+80 ms, lacunas, sobreposição, encerramento e a saída HTTP com ambas as trilhas.
+Os três builds e a validação de ABI passaram. No VVD ARM64, o probe
+`--av-mux` produziu dois arquivos com 120 quadros H.264 e 346 pacotes AAC-LC
+por ciclo. O arquivo recuperado preservou os timestamps e o atraso de 80 ms.
+No host, os quadros decodificados e os bytes de áudio coincidiram com as fontes
+e o AAC foi decodificado sem erro. Relatório em `build/vega-av-mux-native`.
+
+O worker do app ainda precisa conectar os callbacks de áudio a essa saída
+usando a época NTP da mesma sessão. Continuam pendentes AAC-ELD no muxer,
+sincronismo durante reprodução no Vega e validação com um emissor real.
+
 ## API17 — candidatos de produção assinados e SDK Appstore
 
 `Build-FireOs.ps1 -Target legacy -Release` agora produz os pacotes reais

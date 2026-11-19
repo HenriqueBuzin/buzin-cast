@@ -81,6 +81,29 @@ int main() {
     assert(received == expected && output.state().complete && output.state().sentBytes == expected.size());
     output.stop(); output.stop(); assert(output.state().released && output.state().queuedBytes == 0); target.released();
   }
+  {
+    const std::vector<uint8_t> aac{0x21,0x10,0x04,0x60,0x8c,0x1c};
+    std::vector<uint8_t> expectedAv;
+    H264Fmp4Muxer reference(320,180,parameters,[&](const uint8_t* bytes, size_t size) {
+      expectedAv.insert(expectedAv.end(),bytes,bytes+size);
+    },1024);
+    reference.append(idr,0,0,33333);
+    reference.appendAac(aac,80000);
+    reference.finish();
+    Target target(output.start(320,180,parameters,1024));
+    std::vector<uint8_t> received;
+    std::thread consumer([&] {received = target.read();});
+    await([&] {return output.state().connected;});
+    output.append(idr,0,0,33333);
+    assert(output.state().sentBytes == 0);
+    output.appendAac(aac,80000);
+    output.finish();
+    output.waitFinished();
+    consumer.join();
+    assert(received == expectedAv);
+    output.stop();
+    target.released();
+  }
   // Media owner is deliberately blocked in the AVIO callback, with no GET.
   // Control cancellation must unblock it before the three-second queue timeout.
   std::atomic<bool> stopped{false}, rejected{false};

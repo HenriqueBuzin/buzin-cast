@@ -40,6 +40,25 @@ int main(int argc, char** argv) {
       if (key > 1 || total > 16*1024*1024) throw std::runtime_error("Unbounded video fixture");
       frames.push_back({pts,duration,key != 0,std::move(data)});
     }
+    const bool avMux = argc == 3 && std::string(argv[2]) == "--av-mux";
+    std::vector<std::vector<uint8_t>> audio;
+    uint32_t audioOffsetUs = 0;
+    if (avMux) {
+      audioOffsetUs = number();
+      const auto audioCount = number();
+      if (audioOffsetUs > 1000000 || !audioCount || audioCount > 600) {
+        throw std::runtime_error("Invalid AAC fixture timing");
+      }
+      audio.reserve(audioCount);
+      for (uint32_t i = 0; i < audioCount; ++i) {
+        auto data = payload();
+        total += data.size();
+        if (data.size() > 65536 || total > 16*1024*1024) {
+          throw std::runtime_error("Unbounded AAC fixture");
+        }
+        audio.push_back(std::move(data));
+      }
+    }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
     if (argc == 3 && (std::string(argv[2]) == "--serve" || std::string(argv[2]) == "--mirror-serve")) {
       AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
@@ -132,17 +151,38 @@ int main(int argc, char** argv) {
       worker.stop(); worker.stop(); report();
       return 0;
     }
-    if (argc == 3 && std::string(argv[2]) == "--mux") {
+    if (avMux || (argc == 3 && std::string(argv[2]) == "--mux")) {
       for (int cycle = 0; cycle < 2; ++cycle) {
         std::ofstream output("/data/buzin-video-remux.mp4",std::ios::binary);
         H264Fmp4Muxer mux(width,height,config,[&](const uint8_t* bytes, size_t size) {
           output.write(reinterpret_cast<const char*>(bytes),size);
           if (!output) throw std::runtime_error("Could not write remuxed fixture");
-        });
-        for (const auto& frame : frames) mux.append(frame.data,int64_t(frame.pts)*1000,int64_t(frame.pts)*1000,int64_t(frame.duration)*1000);
+        }, avMux ? 1024 : 0);
+        auto appendVideo = [&](size_t index) {
+          const auto& frame = frames[index];
+          mux.append(frame.data, int64_t(frame.pts)*1000, int64_t(frame.pts)*1000, int64_t(frame.duration)*1000);
+        };
+        auto audioPts = [&](size_t index) {
+          return audioOffsetUs+(int64_t(index)*1024*1000000+22050)/44100;
+        };
+        appendVideo(0);
+        size_t nextAudio = 0;
+        if (avMux) mux.appendAac(audio[nextAudio++],audioPts(0));
+        for (size_t i = 1; i < frames.size(); ++i) {
+          while (nextAudio < audio.size() && audioPts(nextAudio) <= int64_t(frames[i].pts)*1000) {
+            mux.appendAac(audio[nextAudio],audioPts(nextAudio));
+            ++nextAudio;
+          }
+          appendVideo(i);
+        }
+        while (nextAudio < audio.size()) {
+          mux.appendAac(audio[nextAudio],audioPts(nextAudio));
+          ++nextAudio;
+        }
         mux.finish(); mux.finish(); output.close();
         if (!output) throw std::runtime_error("Could not close remuxed fixture");
-        std::cout << "{\"cycle\":" << cycle+1 << ",\"frames\":" << count << ",\"released\":true}" << std::endl;
+        std::cout << "{\"cycle\":" << cycle+1 << ",\"frames\":" << count
+          << ",\"audioPackets\":" << audio.size() << ",\"released\":true}" << std::endl;
       }
       return 0;
     }
