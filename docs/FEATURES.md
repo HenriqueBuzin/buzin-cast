@@ -43,7 +43,8 @@ as raízes e a verificação de domínio do sistema para player, downloads e fot
 Os testes usam emulador, mídia sintética e amostras HTTPS públicas, como detalhado em
 [TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
 compatíveis com o muxer MP4,
-retransmissão, licença/produção e demais itens do plano,
+retransmissão (transporte compartilhado já validado; serviço, reprodução e
+interface ainda pendentes), licença/produção e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.

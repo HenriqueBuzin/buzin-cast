@@ -1,5 +1,49 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — canal e transporte de retransmissão compartilhados
+
+`SecureMirrorChannel` agora aceita a implementação de cifra. O motor JVM
+atual foi isolado numa classe própria, mantendo o padrão moderno e o
+formato de rede. API17 fornece AES-256-GCM pelo OpenSSL já incluído, com
+limites JNI antes de alocação/cópia, verificação de tag e limpeza das cópias
+nativas. Não rebaixa protocolo, PBKDF2, sequência, AAD, nonce ou tag.
+
+O build copia `MirrorRelay.kt` da edição moderna, adaptando R, injeção da
+cifra e uma fila com limite adicional de 8 MiB. As âncoras exigem revisão
+se as linhas adaptadas mudarem. A implementação compartilhada continua
+limitando tentativas, prazo de pareamento, timeouts e um par por sessão.
+
+`outputs/legacy-relay-final-relay` passou no emulador API17, com cliente Python
+independente de PBKDF2/AES-GCM: recepção e envio com bytes exatos de vídeo/PCM,
+keepalive, End, código incorreto, tag, sequência, tamanho, truncamento,
+pacote inválido, ocupado e parada durante handshake. Passaram os limites
+da cifra, o orçamento de bytes da fila e a ausência de threads restantes.
+O teste não depende de duas pontas com o mesmo motor criptográfico.
+
+A compilação geral com `-Check` passou, assim como `dlna-domain:check`,
+incluindo o gate de cobertura e o motor JVM padrão. As regressões PIN,
+Cast V2/TLS e gravação passaram com os artefatos finais da edição geral.
+O teste de PIN revelou uma condição de corrida na própria verificação:
+o serviço publica o PIN antes do retorno assíncrono da Activity de segundo
+plano. Agora aguarda apresentação, foco e notificação, mantendo as mesmas
+exigências e acrescentando `isShown()` antes de publicar o código ao host.
+
+`outputs/legacy-relay-deat-relay` passou pelos mesmos 12 estágios. Os testes
+negativos DE/AT de download e gravação também passaram. Os 12 recursos de
+marca e a auditoria direcionada de arquivos/histórico público passaram.
+Os testes usaram somente o emulador próprio; nenhuma TV foi ocupada.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `6869e2456c15f46a4757bcfb2a4386eb49e6b6c3168c8b510c7d3a67614945db`.
+- DE/AT: `8eb40c01eac58cf6ce3bc5ee777d0fc04e271c69f390a61ff44e85e38fb6f3f6`.
+
+Essa etapa NÃO oferece retransmissão no menu: ainda falta integrar o
+transporte ao serviço, renderização/sincronismo de vídeo e PCM, arbitragem
+de Surface/foco, captura de saída e interface. O próximo passo continua
+sendo a função completa, sem limitar a meta ao transporte. Transcodificação,
+produção e validação física também permanecem pendentes.
+
 ## API17 — HTTPS do player, exportador e fotos
 
 O ensaio público reproduziu uma falha concreta: o HEAD do Sintel/W3C

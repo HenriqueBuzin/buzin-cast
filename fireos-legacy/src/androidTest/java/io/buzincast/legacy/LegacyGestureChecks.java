@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2,https;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2,https,relay;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -33,6 +33,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         pin=arguments!=null && "pin".equals(arguments.getString("checks"));
         castV2=arguments!=null && "castv2".equals(arguments.getString("checks"));
         https=arguments!=null && "https".equals(arguments.getString("checks"));
+        relay=arguments!=null && "relay".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -53,7 +54,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(https) {
+            if(relay) {
+                LegacyRelayScenario.check(this,activity);
+                result.putString("relay","shared_channel_native_gcm_independent_peer_both_directions_and_bounds");
+            } else if(https) {
                 LegacyHttpsScenario.check(this,activity);
                 result.putString("https","public_media_export_photos_and_certificate_rejection");
             } else if(castV2) {

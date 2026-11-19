@@ -50,11 +50,18 @@ final class LegacyPinScenario {
             if(!expectPin && code!=null)throw new AssertionError("Disabled PIN mode displayed a code");
             if(expectPin && code!=null && !published) {
                 if(!code.matches("[0-9]{4}"))throw new AssertionError("Native PIN is not four ASCII digits");
-                ui(runner,()-> {
-                    View root=activity.findViewById(android.R.id.content);TextView shown=root.findViewWithTag("pin-code");View close=root.findViewWithTag("pin-close");
-                    if(shown==null || !shown.getText().toString().equals(code) || close==null || !close.isFocused())throw new AssertionError("PIN did not reach the focused native dialog");
+                // The service publishes its code before a background Activity
+                // completes onResume. Require the same UI/focus/notification
+                // assertions, but wait for the asynchronous presentation.
+                await(()-> {
+                    AtomicReference<Boolean> displayed=new AtomicReference<>(false);
+                    ui(runner,()-> {
+                        View root=activity.findViewById(android.R.id.content);TextView shown=root.findViewWithTag("pin-code");View close=root.findViewWithTag("pin-close");
+                        displayed.set(shown!=null && shown.isShown() && shown.getText().toString().equals(code) && close!=null && close.isFocused());
+                    });
+                    String notification=(String)read(runner,service,"notificationText");
+                    return displayed.get() && notification!=null && notification.contains(code);
                 });
-                if(!((String)read(runner,service,"notificationText")).contains(code))throw new AssertionError("Foreground PIN notification was not updated");
                 if(stage.equals("pairing")) {
                     capture(runner,activity);
                     File rendered=new File(activity.getFilesDir(),"legacy-approval.b64");

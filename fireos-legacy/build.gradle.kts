@@ -65,6 +65,17 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
         include("io/github/jqssun/airplay/media/ExternalSubtitles.kt")
         include("io/github/jqssun/airplay/media/ConnectionApproval.kt")
         include("io/github/jqssun/airplay/discovery/CastV2Receiver.kt")
+        include("io/github/jqssun/airplay/media/MirrorRelay.kt")
+        filesMatching("**/MirrorRelay.kt") {
+            filter { line: String -> when {
+                line == "import io.github.jqssun.airplay.R" -> "import io.buzincast.legacy.R"
+                line == "    private val queue = ArrayBlockingQueue<MirrorPacket>(120)" ->
+                    "    private val queue = io.buzincast.legacy.LegacyRelayQueue(120)"
+                line.trimStart().startsWith("val channel = SecureMirrorChannel(") ->
+                    line.dropLast(1) + ", io.buzincast.legacy.LegacyMirrorCipher.INSTANCE)"
+                else -> line
+            } }
+        }
         filesMatching("**/CastV2Receiver.kt") {
             var replacingTls = false
             filter { line: String -> when {
@@ -90,6 +101,10 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
         }
     }
     doFirst {
+        val relay = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/media/MirrorRelay.kt").readText()
+        check(relay.lineSequence().count { it.trimStart().startsWith("val channel = SecureMirrorChannel(") && it.endsWith("))") } == 2 &&
+            relay.contains("    private val queue = ArrayBlockingQueue<MirrorPacket>(120)") &&
+            relay.contains("import io.github.jqssun.airplay.R")) { "Review API17 relay crypto/resource/queue bindings: shared source changed" }
         val cast = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/discovery/CastV2Receiver.kt").readText().replace("\r\n", "\n")
         listOf("    private fun tls(): SSLContext {", "    @Synchronized override fun start() {").forEach {
             check(cast.split(it).size == 2) { "Review the API17 Cast TLS binding: upstream source changed" }

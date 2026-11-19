@@ -1,5 +1,40 @@
 # Testes automatizados
 
+## Transporte de retransmissão na prévia API17
+
+`tools/test_legacy_gestures.py --relay` usa o próprio `MirrorRelay.kt`
+copiado da edição moderna, com adaptações de recursos, fila e fábrica do
+canal. `SecureMirrorChannel` continua compartilhado: BZCAST02, salt de
+16 bytes, PBKDF2-HMAC-SHA1/100.000/256, nonce de 12 bytes, tag GCM de
+16 bytes, sequência de 64 bits no AAD, limites e codec dos pacotes.
+O construtor aceita uma implementação de cifra; a implementação JVM atual
+fica em classe separada e permanece como padrão das edições existentes.
+API17 fornece explicitamente o binding OpenSSL, sem carregar o tipo
+`GCMParameterSpec` ausente na plataforma. Os testes JVM e o gate de
+cobertura do `dlna-domain:check` continuam obrigatórios.
+
+O JNI aceita somente chave de 32 bytes, nonce de 12 e AAD de 8; verifica
+tamanhos antes de copiar/alocar, limita o payload ao máximo do canal e
+verifica a tag antes de devolver texto claro. Libera contexto e limpa as
+cópias nativas de chave, entrada e saída em todos os caminhos. A fila do
+adaptador API17 mantém 120 pacotes e acrescenta um teto de 8 MiB; exceder
+um limite encerra o envio pela mesma política de rede lenta compartilhada.
+
+`tools/legacy_relay_client.py` usa `cryptography` como testemunha independente
+no host. O roteiro verifica código errado seguido de autenticação válida,
+keepalive, bytes exatos de vídeo/PCM e End nos dois sentidos, tag alterada,
+sequência inválida, tamanho excessivo, truncamento e pacote autenticado
+inválido. Também exige recusa quando ocupado e fechamento de conexão parada
+antes do handshake. Os testes locais cobrem os limites da cifra e a liberação
+do orçamento da fila. O relatório só passa com os 12 estágios independentes
+completos, resultado da instrumentação e ausência das threads de transporte.
+Os forwards ADB são removidos e os APKs são desinstalados na limpeza.
+Não registra códigos de pareamento no relatório do host.
+
+Isso valida o transporte de pacotes, não decodificação de retransmissão,
+sessão física, integração ao serviço ou controles da tela Ferramentas.
+Esses itens continuam necessários antes de oferecer a função na prévia.
+
 ## HTTPS na prévia API17
 
 `tools/test_legacy_gestures.py --https` exige Internet e um emulador API17

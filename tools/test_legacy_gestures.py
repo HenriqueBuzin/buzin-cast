@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--pin',action='store_true',help='Verify real native SRP PIN proofs with an independent host client, focused UI, DNS-SD flags, background and lifecycle; requires cryptography.')
     parser.add_argument('--castv2',action='store_true',help='Verify shared Cast V2 over actual API17 TLS1.2, discovery, protobuf, playback, approval and private identity persistence/recovery.')
     parser.add_argument('--https',action='store_true',help='Verify authenticated public HTTPS media/photo/export and negative certificate/hostname fixtures on API17; requires Internet access.')
+    parser.add_argument('--relay',action='store_true',help='Verify shared Buzin relay transport with native GCM and independent host peers in both directions; not rendering or service integration.')
     parser.add_argument('--ffprobe',type=Path,help='Optional ffprobe executable for independent packet/track validation of the synthetic recording.')
     parser.add_argument('--ffmpeg',type=Path,help='Optional FFmpeg executable for independent decoding of exported download fixtures.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
@@ -43,7 +44,7 @@ def main():
         with ZipFile(path) as archive:
             if not {'AndroidManifest.xml','classes.dex'}.issubset(archive.namelist()) or archive.testzip() is not None:
                 parser.error('APK is incomplete or corrupt: '+str(path))
-    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,args.pin,args.castv2,args.https,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
+    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,args.pin,args.castv2,args.https,args.relay,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -74,6 +75,7 @@ def main():
     if args.pin:report['scope']='Actual API17 native PIN/SRP, independent SHA1/SRP/AES-GCM/Ed25519/X25519 client, malformed input rejection, native UI, DNS-SD flags, background and stop; not a physical Apple sender or universal access-control certification'
     if args.castv2:report['scope']='Actual API17 TLS1.2 with the owned experimental identity, shared Cast V2 discovery/protobuf/media/approval and key persistence/recovery; synthetic sender, no Google certification or protected services'
     if args.https:report['scope']='Public HTTPS media playback, photo redirect and permitted MP4 export with default Android roots; owned untrusted/wrong-hostname rejection; not universal server or physical-device validation'
+    if args.relay:report['scope']='Shared BZCAST02 relay transport on API17 with native AES-GCM and independent PBKDF2/AES-GCM host peers; both roles, malformed frames, admission, queue bounds and teardown; not service/UI/decoded media or physical interoperability'
     if display:report['display_init']=display
     def capture_native_view(source='legacy-metadata.b64',target='metadata-ui.png'):
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/'+source,timeout=30))
@@ -156,7 +158,10 @@ def main():
         if args.approval:options=['-e','checks','approval']
         if args.castv2:options=['-e','checks','castv2']
         if args.https:options=['-e','checks','https']
-        if args.pin:
+        if args.relay:
+            from legacy_relay_client import run_instrument
+            result=run_instrument(args,adb)
+        elif args.pin:
             from legacy_pin_client import run_instrument
             result=run_instrument(args,adb)
         elif args.castv2:
@@ -171,6 +176,7 @@ def main():
         if args.pin:expected='pin=native_srp_proofs_ui_txt_background_disabled_and_stop'
         if args.castv2:expected='castv2=shared_tls12_dns_proto_media_approval_and_identity_lifecycle'
         if args.https:expected='https=public_media_export_photos_and_certificate_rejection'
+        if args.relay:expected='relay=shared_channel_native_gcm_independent_peer_both_directions_and_bounds'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
         if args.approval:capture_native_view('legacy-approval.b64','approval-ui.png')
         if args.pin:capture_native_view('legacy-pin.b64','pin-ui.png')
@@ -256,6 +262,10 @@ def main():
             report.pop('touch_and_dpad_across_receiver_restart',None)
             report['castv2_tls_transport_playback_approval_identity']='pass'
             report['independent_tls']=json.loads((args.output/'host-tls.json').read_text(encoding='utf-8'))
+        if args.relay:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['relay_shared_transport_and_native_cipher']='pass'
+            report['independent_relay']=json.loads((args.output/'host-relay.json').read_text(encoding='utf-8'))
         if args.https:
             report.pop('touch_and_dpad_across_receiver_restart',None)
             if not args.package.endswith('deat.legacy.preview'):

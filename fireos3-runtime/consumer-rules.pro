@@ -1,4 +1,6 @@
 -keepnames class io.buzincast.fireos3probe.NativeReceiver
+-keepnames class io.buzincast.fireos3probe.LegacyRelayCrypto
+-keepclassmembers,allowshrinking class io.buzincast.fireos3probe.LegacyRelayCrypto { native <methods>; }
 -keepnames class io.buzincast.fireos3probe.LegacyAudioDecoder
 -keepclassmembers,allowshrinking class io.buzincast.fireos3probe.NativeReceiver { native <methods>; }
 -keepclassmembers,allowshrinking class io.buzincast.fireos3probe.LegacyAudioDecoder { native <methods>; }
