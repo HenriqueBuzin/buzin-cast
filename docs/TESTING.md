@@ -1,5 +1,39 @@
 # Testes automatizados
 
+## Criptografia do espelhamento na API17
+
+`tools/build_native_tests.py --legacy --mirror-crypto` compila o mesmo
+`MirrorCryptoTest.cpp` usado pelo teste Vega, contra `mirror_buffer.c`,
+`crypto.c`, `utils.c` e o OpenSSL estático do runtime Android. Exige
+`--openssl-prefix` da ABI selecionada e mantém C++17/NDK r23, stack protector
+forte e UBSan por trap, sem runtime de sanitizer incompatível com a API17.
+São 66 combinações de fragmentação/re-key: fragmentos iniciais de 1–33 bytes,
+partições seguintes de 1–31 bytes, chamadas vazias e saída separada ou no mesmo
+buffer. A referência codifica os 4097 bytes de uma vez; cada trecho decodificado
+precisa preservar os bytes dessa referência. O teste não negocia FairPlay.
+
+Com `--serial` e `--adb`, o helper só executa em um emulador TCP local API17
+da mesma ABI, registra hashes da biblioteca/entradas/binário e remove a cópia
+remota. Exige também o status zero do shell, pois o adbd antigo pode retornar
+zero mesmo quando o programa aborta. Sem `--serial`, `passed` permanece nulo:
+compilar ARM não conta como executá-lo.
+
+O ensaio inicial detectou uma incompatibilidade de stack guard em x86:
+TLS slot 5 começou em zero e mudou durante o primeiro uso de pthread keys
+pelo OpenSSL. O [Bionic 4.2.2](https://android.googlesource.com/platform/bionic/+/refs/tags/android-4.2.2_r1/libc/private/bionic_tls.h)
+ainda não reserva esse slot; o [Bionic 4.3](https://android.googlesource.com/platform/bionic/+/refs/tags/android-4.3_r1/libc/private/bionic_tls.h)
+passa a reservá-lo para a guarda. O runtime x86 anterior à API18 usa
+`-mstack-protector-guard=global`, mantendo a proteção e a guarda global do
+Bionic. ARM e o build moderno mantêm suas opções. O diretório separado
+`production-core-global-stack-guard` evita reutilizar o OpenSSL anterior:
+o wrapper trata uma instalação existente como imutável mesmo se CFLAGS mudar.
+
+Exemplo depois de compilar o runtime na configuração desejada:
+
+```powershell
+python tools/build_native_tests.py --legacy --mirror-crypto --abi x86 --openssl-prefix $api17OpenSslX86 --adb $adb --adb-server-port 5099 --serial 127.0.0.1:5561 --output outputs/legacy-mirror-crypto
+```
+
 ## Candidato assinado da edição API17
 
 `tools/Build-FireOs.ps1 -Target legacy -Release` ativa o ID real da ficha,

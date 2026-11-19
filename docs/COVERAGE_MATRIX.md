@@ -927,3 +927,25 @@ original PIN generator/JNI initialization are present while fault wrappers and
 LLVM profile symbols are absent. No release APK was signed or published.
 The current complete cohort now requires 192 Android and 19 native tests across
 all four editions, with every metric and mandatory runtime gate still required.
+
+Discovery-map contracts now exercise a missing TXT key and a missing TXT value
+for each advertised protocol through the shipped JNI map getters. Scoped,
+thread-local coverage fixtures affect only the requested owned context and
+first record. Each case verifies that exactly one entry disappears, all other
+entries remain unchanged and a subsequent ordinary request restores the full
+map. Registration populates in-memory records without starting a listener.
+
+All 20 selected JNI/server/init cases passed on API28 in 16.276 seconds without
+skips. The matching library-only export has no LLVM warnings and covers all
+47 bridge MC/DC conditions. It retains all 24 shipped JNI entries and exactly
+the preceding recovery inventory: 920 branches, 202 functions, 204
+instantiations, 1732 lines, 169 MC/DC conditions and 1514 regions. A separate
+noncoverage native Debug build passed in 13 seconds; its library is byte-identical
+to the preceding noncoverage build and contains none of the new fault wrappers
+or coverage helper exports. No release APK was signed or published.
+
+This adds one Android contract, bringing the current source suite to 193 Android
+and 19 native cases. The already-running complete four-edition cohort remains
+frozen at its preceding 192-test source identity. Its profiles must not be mixed
+with this changed fixture mapping. These selected results establish neither
+100% project coverage nor completion of the four-edition acceptance gates.

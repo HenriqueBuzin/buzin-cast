@@ -1,13 +1,20 @@
 """Build Android native tests; --legacy uses the API17 probe's NDK and C++17."""
-import argparse, os, re, subprocess, platform
+import argparse, os, re, subprocess, platform, hashlib, json
 from pathlib import Path
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--abi",choices=["x86","x86_64","armeabi-v7a","arm64-v8a"])
 parser.add_argument("--api",type=int)
 parser.add_argument("--legacy",action="store_true",help="NDK r23/C++17, no coverage or sanitizer runtime; API17 by default")
+parser.add_argument("--mirror-crypto",action="store_true",help="Build the shared mirror CTR regression with production crypto on API17; uses trap-only UBSan.")
+parser.add_argument("--openssl-prefix",type=Path,help="API17 OpenSSL install prefix containing include/ and lib/libcrypto.a.")
+parser.add_argument("--adb",default="adb")
+parser.add_argument("--adb-server-port",type=int,default=5037)
+parser.add_argument("--serial",help="For --mirror-crypto only: run on an isolated API17 TCP emulator after building.")
 parser.add_argument("--sdk-root",type=Path)
 parser.add_argument("--output",type=Path,required=True)
 args=parser.parse_args();root=Path(__file__).resolve().parents[1]
+if args.mirror_crypto and (not args.legacy or not args.openssl_prefix):parser.error("--mirror-crypto requires --legacy and --openssl-prefix.")
+if not args.mirror_crypto and (args.openssl_prefix or args.serial):parser.error("--openssl-prefix and --serial require --mirror-crypto.")
 version="23.2.8568313" if args.legacy else re.search(r'^ndk = "([^"]+)"',(root/"gradle/libs.versions.toml").read_text(),re.M).group(1)
 args.api=args.api or (17 if args.legacy else 25)
 args.abi=args.abi or ("x86" if args.legacy else "x86_64")
@@ -21,6 +28,46 @@ toolchain=Path(sdk_value)/("ndk/"+version+"/toolchains/llvm/prebuilt/"+host)
 compiler=toolchain/"bin"/("clang++.exe" if platform.system()=="Windows" else "clang++")
 triple={"x86":"i686-linux-android","x86_64":"x86_64-linux-android","armeabi-v7a":"armv7a-linux-androideabi","arm64-v8a":"aarch64-linux-android"}[args.abi]
 args.output.mkdir(parents=True,exist_ok=True)
+if args.mirror_crypto:
+    prefix=args.openssl_prefix.resolve()
+    if not (prefix/"include/openssl/evp.h").is_file() or not (prefix/"lib/libcrypto.a").is_file():parser.error("Use a built API17 OpenSSL prefix for the selected ABI.")
+    source=root/"app/src/main/cpp/third_party/UxPlay/lib"
+    fixture=root/"vega/test/MirrorCryptoTest.cpp"
+    result={"built":False,"passed":None,"api":args.api,"abi":args.abi,"physicalValidation":False,"fairPlayNegotiation":False,"scope":"Shared production CTR packet boundaries, in-place decode and re-key; not FairPlay or physical validation",
+            "openssl_sha256":hashlib.sha256((prefix/"lib/libcrypto.a").read_bytes()).hexdigest(),
+            "stack_protector":"strong with global guard" if args.abi=="x86" and args.api<18 else "strong with target default guard",
+            "source_sha256":{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (source/"mirror_buffer.c",source/"crypto.c",source/"utils.c",fixture)}}
+    def save():(args.output/"mirror-crypto-result.json").write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
+    save()
+    common=["--target="+triple+str(args.api),"--sysroot="+str(toolchain/"sysroot"),"-g","-O1","-fstack-protector-strong","-fsanitize=undefined","-fsanitize-trap=undefined",
+            "-ffile-prefix-map="+str(root)+"=.","-I"+str(source),"-I"+str(root/"app/src/main/cpp/third_party/libplist/include"),"-I"+str(prefix/"include")]
+    if args.abi=="x86" and args.api<18:common.append("-mstack-protector-guard=global")
+    c_compiler=toolchain/"bin"/("clang.exe" if platform.system()=="Windows" else "clang")
+    with (args.output/"build.log").open("w",encoding="utf-8") as log:
+        objects=[]
+        for name in ("mirror_buffer","crypto","utils"):
+            target=args.output/(name+".o")
+            subprocess.run([str(c_compiler),*common,"-std=c11","-D_GNU_SOURCE","-Wno-deprecated-declarations","-c",str(source/(name+".c")),"-o",str(target)],stdout=log,stderr=subprocess.STDOUT,check=True)
+            objects.append(str(target))
+        executable=args.output/"mirror_crypto_tests"
+        subprocess.run([str(compiler),*common,"-std=c++17","-static-libstdc++",str(fixture),*objects,str(prefix/"lib/libcrypto.a"),"-ldl","-llog","-pthread","-o",str(executable)],stdout=log,stderr=subprocess.STDOUT,check=True)
+    result.update(built=True,binary_sha256=hashlib.sha256(executable.read_bytes()).hexdigest());save()
+    if args.serial:
+        local=re.fullmatch(r"127\.0\.0\.1:(\d+)",args.serial)
+        if not local or not 5555<=int(local[1])<=5683 or int(local[1])%2!=1 or args.api!=17 or not 1<=args.adb_server_port<=65535:parser.error("Run only on an isolated API17 TCP emulator.")
+        def adb(*command):return subprocess.check_output([args.adb,"-P",str(args.adb_server_port),"-s",args.serial,*map(str,command)],timeout=60).decode("utf-8","replace")
+        if adb("shell","getprop","ro.kernel.qemu").strip()!="1" or adb("shell","getprop","ro.build.version.sdk").strip()!="17" or adb("shell","getprop","ro.product.cpu.abi").strip()!=args.abi:parser.error("Emulator API/ABI differs from the native test target.")
+        remote="/data/local/tmp/buzin-mirror-crypto-tests"
+        try:
+            result["passed"]=False;save();adb("push",executable,remote);adb("shell","chmod","755",remote)
+            # Old adbd does not propagate the program's exit code. Check the
+            # shell status too, including failures during C++/OpenSSL teardown.
+            output=adb("shell",remote+"; result=$?; echo MIRROR_CRYPTO_EXIT=$result");(args.output/"run.txt").write_text(output,encoding="utf-8")
+            if "Mirror AES-CTR: 66 partition/re-key cases passed" not in output or not re.search(r"^MIRROR_CRYPTO_EXIT=0$",output.replace("\r",""),re.M):raise AssertionError("Native mirror crypto regression failed; inspect run.txt")
+            result["passed"]=True;save();print(output.strip())
+        finally:adb("shell","rm","-f",remote)
+    else:print("Built mirror crypto test; execution is not yet verified.")
+    raise SystemExit(0)
 instrumentation=[] if args.legacy else ["-fprofile-instr-generate","-fcoverage-mapping","-fcoverage-mcdc","-fprofile-update=atomic",
          "-fsanitize=undefined","-fsanitize-trap=undefined","-fno-omit-frame-pointer"]
 callback_inputs=[]
