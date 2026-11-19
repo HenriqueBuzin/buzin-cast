@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <future>
 #include <string>
 #include <thread>
 #include <vector>
@@ -196,6 +197,25 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCreatePartialServer(
 
 // Access owns references under the production lock; no stream state is faked.
 struct AudioOutputContractAccess {
+    static bool debugWhileLocked(const std::shared_ptr<AudioOutput> &output,
+                                 AudioOutput::Debug &result) {
+        std::promise<void> acquired, release;
+        auto ready = acquired.get_future();
+        auto released = release.get_future();
+        std::thread holder([&] {
+            std::lock_guard<std::mutex> lock(output->mLock);
+            acquired.set_value();
+            // A regression in debugInfo must fail in bounded time, not deadlock.
+            released.wait_for(std::chrono::seconds(2));
+        });
+        const bool locked = ready.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+        const auto begin = std::chrono::steady_clock::now();
+        if (locked) result = output->debugInfo();
+        const auto elapsed = std::chrono::steady_clock::now() - begin;
+        release.set_value();
+        holder.join();
+        return locked && elapsed < std::chrono::milliseconds(500);
+    }
     static std::shared_ptr<OboeCallbacks> callbacks(const std::shared_ptr<AudioOutput> &output) {
         std::lock_guard<std::mutex> lock(output->mLock);
         return output->mCallbacks;
@@ -257,6 +277,18 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
         callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
         OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
         output->stop();
+    } else if (scenario == 3) {
+        OUTPUT_CONTRACT(output->start());
+        auto stream = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(stream);
+        const auto cached = output->debugInfo();
+        AudioOutput::Debug concurrent{};
+        OUTPUT_CONTRACT(AudioOutputContractAccess::debugWhileLocked(output, concurrent));
+        OUTPUT_CONTRACT(concurrent.xrun == cached.xrun);
+        OUTPUT_CONTRACT(AudioOutputContractAccess::stream(output) == stream);
+        output->stop();
+        OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
+        OUTPUT_CONTRACT(output->debugInfo().xrun == cached.xrun);
     } else {
         OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
     }

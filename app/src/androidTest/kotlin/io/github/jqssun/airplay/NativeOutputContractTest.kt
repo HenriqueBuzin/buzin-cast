@@ -20,4 +20,5 @@ class NativeOutputContractTest {
     @Test fun lateCallbacksDoNotReopenStoppedOrDestroyedOwners() = scenario(0)
     @Test fun postCloseRecoveryOpensAndStartsADifferentStream() = scenario(1)
     @Test fun invalidOutputFormatFailsRecoveryWithoutLeavingAStream() = scenario(2)
+    @Test fun debugPollingReturnsCachedUnderrunsWhileOutputIsLocked() = scenario(3)
 }
