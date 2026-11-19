@@ -17,13 +17,34 @@
 
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}),
-  video([] {return std::make_unique<Fmp4VideoOutput>();}) {}
+  recording("/data/recordings"),
+  video([this] {return std::make_unique<Fmp4VideoOutput>(&recording);}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
 double BuzinNetwork::startAirPlayUrl() {return startAirPlayReceiver(false);}
 double BuzinNetwork::startAirPlayAudio() {return startAirPlayReceiver(true);}
 double BuzinNetwork::startAirPlayVideo() {return startAirPlayReceiver(false,true);}
+std::string BuzinNetwork::getMirrorRecordingState() {return recording.state();}
+void BuzinNetwork::startMirrorRecording() {
+  if (!videoModeActive) throw std::runtime_error("Open AirPlay mirroring before recording");
+  recording.arm();
+}
+void BuzinNetwork::stopMirrorRecording() {recording.stop();}
+std::string BuzinNetwork::listMirrorRecordings() {
+  const auto entries = recording.list();
+  std::ostringstream output;
+  output << '[';
+  for (size_t i = 0; i < entries.size(); ++i) {
+    if (i) output << ',';
+    output << "{\"name\":\"" << entries[i].name << "\",\"bytes\":" << entries[i].bytes << '}';
+  }
+  output << ']';
+  return output.str();
+}
+std::string BuzinNetwork::getMirrorRecordingUrl(std::string name) {return recording.url(name);}
+void BuzinNetwork::removeMirrorRecording(std::string name) {recording.remove(name);}
+
 std::string BuzinNetwork::getAirPlayVideoState() {
   const auto state = video.state();
   std::ostringstream output; output.imbue(std::locale::classic());
@@ -88,7 +109,11 @@ void BuzinNetwork::stopAirPlayUrl() {
   std::remove("/data/airplay-port.json");
   std::remove("/data/airplay-audio-port.json");
   std::remove("/data/airplay-video-port.json");
-  if (videoModeActive) {videoModeActive = false; getAirPlayVideoState();}
+  if (videoModeActive) {
+    videoModeActive = false;
+    recording.stop();
+    getAirPlayVideoState();
+  }
 }
 void BuzinNetwork::updateAirPlayState(double position, double duration, double rate, bool ready) {
   airplay.updatePlayback(position, duration, rate, ready);

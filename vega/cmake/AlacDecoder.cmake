@@ -33,5 +33,6 @@ target_include_directories(BuzinVideoMuxer PRIVATE "${_alac_prefix}/include")
 target_link_libraries(BuzinVideoMuxer PUBLIC "${_alac_prefix}/lib/libavformat.a" BuzinAlacDecoder)
 
 add_library(BuzinVideoOutput STATIC kepler/turbo-modules/Fmp4VideoOutput.cpp
-  kepler/turbo-modules/LocalVideoStream.cpp)
+  kepler/turbo-modules/LocalVideoStream.cpp
+  kepler/turbo-modules/MirrorRecording.cpp)
 target_link_libraries(BuzinVideoOutput PUBLIC BuzinVideoMuxer)

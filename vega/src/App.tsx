@@ -3,6 +3,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import Network from './turbo-modules/BuzinNetwork';
 import {getMediaReport} from './mediaCapabilities';
 import PlaybackScreen from './PlaybackScreen';
+import RecordingLibrary from './RecordingLibrary';
 import FCastScreen from './FCastScreen';
 import SettingsScreen from './SettingsScreen';
 import AirPlayAudioScreen from './AirPlayAudioScreen';
@@ -16,9 +17,12 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
+  const goLibrary = useCallback(() => setPage('recordings'), []);
+  const goMedia = useCallback(() => setPage('media'), []);
+  const [recording, setRecording] = useState<{title: string; url: string}>();
   const [selected, setSelected] = useState('status');
   const [focused, setFocused] = useState('status');
   const [report, setReport] = useState('');
@@ -31,7 +35,7 @@ export default function App() {
         if (page === 'home') {
           return false;
         }
-        setPage('home');
+        setPage(page === 'recording' ? 'recordings' : page === 'recordings' ? 'media' : 'home');
         return true;
       },
     );
@@ -59,6 +63,15 @@ export default function App() {
     return <FCastScreen onBack={goHome} protocol="dlna" />;
   }
 
+  if (page === 'recordings') {
+    return <RecordingLibrary onBack={goMedia} onPlay={(title, url) => {
+      setRecording({title, url});
+      setPage('recording');
+    }} />;
+  }
+  if (page === 'recording') {
+    return <PlaybackScreen onBack={goLibrary} recording={recording} />;
+  }
   if (page === 'playback') {
     return <PlaybackScreen onBack={goHome} />;
   }
@@ -230,6 +243,7 @@ export default function App() {
               () => setPage('playback'),
               true,
             )}
+          {page === 'media' && action('recordings', 'Biblioteca de gravações', goLibrary, false)}
           {action('back', 'Voltar', goHome, page === 'about')}
         </View>
       )}

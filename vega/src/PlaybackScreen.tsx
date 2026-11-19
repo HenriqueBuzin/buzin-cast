@@ -6,7 +6,10 @@ import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 
-export default function PlaybackScreen({onBack}: {onBack: () => void}) {
+export default function PlaybackScreen({onBack, recording}: {
+  onBack: () => void;
+  recording?: {title: string; url: string};
+}) {
   const session = useRef<ReturnType<typeof createPlaybackSession> | null>(null);
   const [ready, setReady] = useState(false);
   const [focused, setFocused] = useState('pause');
@@ -17,7 +20,10 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
   const activeMedia = ['playing', 'paused'].includes(snapshot.state);
   const subtitles = usePlaybackSubtitles(activeMedia ? 1 : null);
   useEffect(() => {
-    const active = createPlaybackSession(() => setReady(true), setSnapshot);
+    const request = recording
+      ? {url: recording.url, headers: {}, position: 0, speed: 1}
+      : undefined;
+    const active = createPlaybackSession(() => setReady(true), setSnapshot, request);
     session.current = active;
     const listener = AppState.addEventListener('change', (state) => {
       if (state !== 'active') {
@@ -29,17 +35,17 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
       session.current = null;
       active.stop();
     };
-  }, [onBack]);
+  }, [onBack, recording]);
   const labels = {
-    loading: 'Preparando amostra local…',
+    loading: recording ? 'Preparando gravação…' : 'Preparando amostra local…',
     playing: 'Reproduzindo',
     paused: 'Pausado',
-    ended: 'Amostra concluída',
-    error: 'Não foi possível reproduzir a amostra neste dispositivo.',
+    ended: recording ? 'Gravação concluída' : 'Amostra concluída',
+    error: 'Não foi possível reproduzir o vídeo neste dispositivo.',
   };
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Teste de reprodução local</Text>
+      <Text style={styles.title}>{recording?.title ?? 'Teste de reprodução local'}</Text>
       <View style={styles.video}>
         {ready && (
           <KeplerVideoSurfaceView
@@ -67,8 +73,8 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
             role="button"
             accessibilityHint={
               id === 'back'
-                ? 'Encerra o teste e retorna ao início'
-                : 'Pausa ou retoma a amostra local'
+                ? 'Encerra a reprodução e volta à tela anterior'
+                : 'Pausa ou retoma o vídeo'
             }
             hasTVPreferredFocus={id === 'pause'}
             onFocus={() => setFocused(id)}

@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. O menu também oferece Cast V2 experimental.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 77 testes Jest passaram.
+- Lint sem avisos, TypeScript e 78 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -97,6 +97,11 @@ arquivo SRT ou WebVTT em UTF-8 de até 2 MiB. A legenda acompanha o relógio
 do vídeo e pode ser desligada pelo controle. Cada importação aceita um
 arquivo e fecha ao cancelar, sair do vídeo ou após dois minutos. O arquivo
 fica em memória durante a sessão.
+
+Em **Estado do port → Testar vídeo AirPlay**, use **Gravar espelhamento**
+para começar no próximo quadro-chave. A gravação salva vídeo H.264 e áudio
+compatível em MP4 no sandbox. **Mídia → Biblioteca de gravações** lista os
+arquivos salvos, permite reproduzir e pede confirmação antes de excluir.
 
 ## Ambiente e build
 

@@ -15,6 +15,7 @@
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
 #include "AirPlayVideoWorker.h"
+#include "MirrorRecording.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -28,6 +29,12 @@ public:
   double startAirPlayUrl() override;
   double startAirPlayAudio() override;
   double startAirPlayVideo() override;
+  std::string getMirrorRecordingState() override;
+  void startMirrorRecording() override;
+  void stopMirrorRecording() override;
+  std::string listMirrorRecordings() override;
+  std::string getMirrorRecordingUrl(std::string name) override;
+  void removeMirrorRecording(std::string name) override;
   std::string getAirPlayVideoState() override;
   void stopAirPlayAudio() override;
   std::string getAirPlayAudioState() override;
@@ -68,6 +75,7 @@ public:
 private:
   double startAirPlayReceiver(bool audioMode, bool videoMode = false);
   AirPlayAudioWorker audio;
+  MirrorRecording recording;
   AirPlayVideoWorker video;
   AirPlaySession airplay;
   bool videoModeActive = false;

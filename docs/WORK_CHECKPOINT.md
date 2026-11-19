@@ -1,5 +1,13 @@
 # Retomada — 19 de novembro de 2026
 
+## Gravação e biblioteca no Vega
+
+O espelhamento AirPlay agora pode salvar MP4 no sandbox. A Biblioteca
+reproduz e exclui gravações com confirmação. No VVD ARM64, callbacks
+sintéticos geraram MP4 H.264/AAC no encerramento normal e ao sair durante
+a transmissão. A Biblioteca abriu o arquivo pelo player do Vega.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Legendas externas no Vega
 
 O player agora importa arquivos SRT e WebVTT pela rede local e sincroniza

@@ -1,5 +1,24 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Gravação e biblioteca no Vega
+
+A tela **Estado do port → Testar vídeo AirPlay** permite armar e parar
+uma gravação. O gravador começa no próximo quadro-chave H.264,
+mantém a linha do tempo do áudio e vídeo e finaliza em MP4 ao parar ou
+encerrar a sessão. Um worker separado escreve no sandbox, com fila
+limitada e verificação de espaço. **Mídia → Biblioteca de gravações**
+abre o player local e pede confirmação antes da exclusão.
+
+No VVD ARM64, `tools/test_vega_local_video.py --transport-only
+--alac-conversion --recording` alimentou callbacks sintéticos H.264/ALAC
+pelo worker nativo durante a reprodução. A gravação começou depois do
+primeiro IDR e salvou H.264/AAC tanto no encerramento normal quanto
+ao voltar durante a transmissão. FFmpeg decodificou ambos os arquivos
+e o player do Vega abriu uma gravação pela Biblioteca. Lint, TypeScript,
+78 testes Jest e ABI das três arquiteturas passaram. O teste ainda
+deixa pendentes a captura de um emissor Apple em aparelho físico e
+a exportação de gravações.
+
 ## Legendas externas no Vega
 
 **Importar legenda** durante um vídeo abre um endereço de uso único por
