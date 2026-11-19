@@ -25,7 +25,11 @@ class NativeAlacContractTest {
     @Test fun defaultRaopFrameSizeDecodesEveryStereoAlacSample() =
         decodeFixture("native_audio/raop352", intArrayOf(352), 0)
 
-    private fun decodeFixture(assetPath: String, frameCounts: IntArray, samplesPerFrame: Int) {
+    @Test fun enabledCaptureWithoutAConsumerCanAttachALaterSinkWithoutLosingStereoSamples() =
+        decodeFixture("native_audio", intArrayOf(4096, 128), 4096, attachSinkAfterFirstDecode = true)
+
+    private fun decodeFixture(assetPath: String, frameCounts: IntArray, samplesPerFrame: Int,
+                              attachSinkAfterFirstDecode: Boolean = false) {
         assumeTrue("Requires coverage JNI fixture", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val assets = instrumentation.context.assets
@@ -53,7 +57,8 @@ class NativeAlacContractTest {
         assertEquals(manifest.getString("pcm_sha256"), sha256(expected.array()))
         System.loadLibrary("airplay_native")
         try {
-            val records = DebugCoverage.nativeDecodeAlac(packets.toTypedArray(), timestamps, samplesPerFrame)
+            val records = DebugCoverage.nativeDecodeAlac(packets.toTypedArray(), timestamps, samplesPerFrame,
+                attachSinkAfterFirstDecode)
             assertEquals(packets.size, records.size)
             val actual = ByteBuffer.allocate(expected.capacity())
             records.forEachIndexed { index, bytes ->
