@@ -36,8 +36,8 @@ void verifyAvTimeline(bool audioFirst, int samples, const char* exportPath) {
   },samples);
   assert(output.empty());
   if (audioFirst) {
-    mux.appendAac(aac,audioStart);
-    refuses([&] {mux.appendAac(aac,audioStart+40000);});
+    mux.appendAudio(aac,audioStart);
+    refuses([&] {mux.appendAudio(aac,audioStart+40000);});
   } else {
     mux.append(idr,videoStart,videoStart,33333);
     refuses([&] {mux.append(delta,33333,33333,33333);});
@@ -45,7 +45,7 @@ void verifyAvTimeline(bool audioFirst, int samples, const char* exportPath) {
   assert(output.empty());
   refuses([&] {mux.finish();});
   if (audioFirst) mux.append(idr,videoStart,videoStart,33333);
-  else mux.appendAac(aac,audioStart);
+  else mux.appendAudio(aac,audioStart);
 
   const auto header = boxTag(output,"moov");
   const auto firstFragment = boxTag(output,"moof");
@@ -67,16 +67,16 @@ void verifyAvTimeline(bool audioFirst, int samples, const char* exportPath) {
     offset = edits+4;
   }
   assert(delayedTracks == 1);
-  refuses([&] {mux.appendAac({},audioStart+40000);});
-  refuses([&] {mux.appendAac(aac,audioStart);});
-  refuses([&] {mux.appendAac(aac,audioStart+10000);});
+  refuses([&] {mux.appendAudio({},audioStart+40000);});
+  refuses([&] {mux.appendAudio(aac,audioStart);});
+  refuses([&] {mux.appendAudio(aac,audioStart+1000);});
   refuses([&] {mux.append(delta,videoStart+10000,videoStart+10000,33333);});
   const auto beforeVideo = output.size();
   mux.append(delta,videoStart+60000,videoStart+60000,33333);
   const auto videoTfdt = boxTag(output,"tfdt",beforeVideo);
   assert(readBigEndian(output,videoTfdt+8,8) == 60000);
   const auto beforeAudio = output.size();
-  mux.appendAac(aac,audioStart+40000);
+  mux.appendAudio(aac,audioStart+40000);
   const auto audioTfdt = boxTag(output,"tfdt",beforeAudio);
   assert(readBigEndian(output,audioTfdt+8,8) == 1764);
   mux.finish();
@@ -91,13 +91,14 @@ void verifyAvTimeline(bool audioFirst, int samples, const char* exportPath) {
 int main(int argc, char** argv) {
   verifyAvTimeline(true,960,nullptr);
   verifyAvTimeline(false,1024,argc == 2 ? argv[1] : nullptr);
+  for (int samples : {352,480,512}) verifyAvTimeline(false,samples,nullptr);
   std::vector<uint8_t> previous;
   for (int cycle = 0; cycle < 2; ++cycle) {
     std::vector<uint8_t> output;
     H264Fmp4Muxer mux(320,180,parameters,[&](const uint8_t* data, size_t size) {output.insert(output.end(),data,data+size);});
     assert(output.size() > 8);
     const auto initial = output.size();
-    refuses([&] {mux.appendAac({0x21},0);});
+    refuses([&] {mux.appendAudio({0x21},0);});
     refuses([&] {mux.append(delta,0,0,66667);});
     refuses([&] {mux.append({},0,0,66667);});
     refuses([&] {mux.append({0,0,1,0xe5},0,0,66667);});

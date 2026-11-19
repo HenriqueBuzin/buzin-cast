@@ -2,6 +2,7 @@
 #include "turbo-modules/H264Fmp4Muxer.h"
 #include "turbo-modules/Fmp4VideoOutput.h"
 #include "turbo-modules/AirPlayVideoCallbacks.h"
+#include "turbo-modules/AirPlayAudioFormat.h"
 #include "AirPlayMirrorProbe.h"
 #include <cstdio>
 #include <apmf/errors.h>
@@ -16,7 +17,7 @@ namespace {
 // fixture file for independent decoding/timestamp checks on the host.
 class FileVideoOutput final : public VideoSampleSink {
 public:
-  std::string start(int width, int height, const std::vector<uint8_t>& config, int aacSamples) override {
+  std::string start(int width, int height, const std::vector<uint8_t>& config, int audioSamples) override {
     stop();
     file.clear();
     file.open("/data/buzin-video-remux.mp4",std::ios::binary);
@@ -27,13 +28,13 @@ public:
     mux = std::make_unique<H264Fmp4Muxer>(width,height,config,[this](const uint8_t* bytes,size_t size) {
       file.write(reinterpret_cast<const char*>(bytes),size);
       if (!file) throw std::runtime_error("Could not write A/V probe output");
-    },aacSamples);
+    },audioSamples);
     return "file-probe-output";
   }
   void append(const std::vector<uint8_t>& sample, int64_t pts, int64_t dts, int64_t duration) override {
     mux->append(sample,pts,dts,duration);
   }
-  void appendAac(const std::vector<uint8_t>& sample, int64_t pts) override {mux->appendAac(sample,pts);}
+  void appendAudio(const std::vector<uint8_t>& sample, int64_t pts) override {mux->appendAudio(sample,pts);}
   void finish() override {
     mux->finish();
     file.close();
@@ -87,18 +88,21 @@ int main(int argc, char** argv) {
     const bool avMux = argc == 3 && std::string(argv[2]) == "--av-mux";
     std::vector<std::vector<uint8_t>> audio;
     uint32_t audioOffsetUs = 0;
+    int audioSamplesPerFrame = 0, audioCodec = 0;
     if (avMux) {
       audioOffsetUs = number();
+      audioSamplesPerFrame = static_cast<int>(number());
+      audioCodec = airPlayAudioCodec(audioSamplesPerFrame);
       const auto audioCount = number();
-      if (audioOffsetUs > 1000000 || !audioCount || audioCount > 600) {
-        throw std::runtime_error("Invalid AAC fixture timing");
+      if (!audioCodec || audioOffsetUs > 1000000 || !audioCount || audioCount > 1200) {
+        throw std::runtime_error("Invalid audio fixture format or timing");
       }
       audio.reserve(audioCount);
       for (uint32_t i = 0; i < audioCount; ++i) {
         auto data = payload();
         total += data.size();
         if (data.size() > 65536 || total > 16*1024*1024) {
-          throw std::runtime_error("Unbounded AAC fixture");
+          throw std::runtime_error("Unbounded audio fixture");
         }
         audio.push_back(std::move(data));
       }
@@ -199,12 +203,12 @@ int main(int argc, char** argv) {
       for (int cycle = 0; cycle < 2; ++cycle) {
         AirPlayVideoWorker worker([] {return std::make_unique<FileVideoOutput>();});
         worker.start();
-        worker.audioFormat(4,1024);
+        worker.audioFormat(audioCodec,audioSamplesPerFrame);
         const float reportedWidth = width, reportedHeight = height;
         forwardAirPlayVideoSize(worker,&reportedWidth,&reportedHeight);
         constexpr uint64_t EpochNs = 1000000000;
         auto audioPts = [&](size_t index) {
-          return audioOffsetUs+(uint64_t(index)*1024*1000000+22050)/44100;
+          return audioOffsetUs+(uint64_t(index)*audioSamplesPerFrame*1000000+22050)/44100;
         };
         size_t nextVideo = 0, nextAudio = 0;
         const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(10);
@@ -234,7 +238,7 @@ int main(int argc, char** argv) {
             audio_decode_struct sample{};
             sample.data = bytes.data();
             sample.data_len = bytes.size();
-            sample.ct = 4;
+            sample.ct = audioCodec;
             sample.ntp_time_local = EpochNs+audioPts(nextAudio++)*1000;
             forwardAirPlayMirrorAudio(worker,&sample);
           }

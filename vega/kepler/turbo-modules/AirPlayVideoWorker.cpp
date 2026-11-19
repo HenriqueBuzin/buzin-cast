@@ -1,4 +1,5 @@
 #include "AirPlayVideoWorker.h"
+#include "AirPlayAudioFormat.h"
 #include "H264AnnexB.h"
 #include <algorithm>
 #include <chrono>
@@ -28,7 +29,7 @@ struct AirPlayVideoWorker::Impl {
   AirPlayVideoState observation;
   bool closing = true, processing = false, inputEnded = false;
   size_t inFlightBytes = 0, heldBytes = 0, heldCount = 0;
-  int aacSamples = 0;
+  int audioSamples = 0;
 
   // Called with mutex held; cancel never joins the media worker. Keep this
   // ordering so a late cancellation cannot stop the next generation's output.
@@ -64,7 +65,7 @@ struct AirPlayVideoWorker::Impl {
     std::shared_ptr<VideoSampleSink> sink;
     uint64_t outputGeneration = 0, epoch = 0;
     int64_t lastPts = -1;
-    int outputAacSamples = 0;
+    int outputAudioSamples = 0;
     int64_t lastAudioTicks = -1;
     bool prepared = false, draining = false;
     std::vector<uint8_t> sps, pps;
@@ -87,7 +88,7 @@ struct AirPlayVideoWorker::Impl {
         if (!state.released) throw std::runtime_error("Video output release was not confirmed");
       }
       prepared = draining = false; epoch = 0; lastPts = -1;
-      outputAacSamples = 0;
+      outputAudioSamples = 0;
       lastAudioTicks = -1;
     };
     auto stage = [&](std::deque<Event>& pending, Event& event) {
@@ -110,11 +111,11 @@ struct AirPlayVideoWorker::Impl {
       --heldCount;
       observation.queuedBytes -= bytes;
     };
-    auto prepare = [&](uint64_t generation, uint64_t firstNtp, int aac) {
+    auto prepare = [&](uint64_t generation, uint64_t firstNtp, int samples) {
       int width, height;
       {
         std::lock_guard lock(mutex);
-        if (closing || generation != observation.generation || aac != aacSamples ||
+        if (closing || generation != observation.generation || samples != audioSamples ||
             !observation.error.empty()) return std::string{};
         width = observation.width;
         height = observation.height;
@@ -125,9 +126,9 @@ struct AirPlayVideoWorker::Impl {
       parameters.insert(parameters.end(),sps.begin(),sps.end());
       parameters.insert(parameters.end(),{0,0,0,1});
       parameters.insert(parameters.end(),pps.begin(),pps.end());
-      auto url = sink->start(width,height,parameters,aac);
+      auto url = sink->start(width,height,parameters,samples);
       prepared = true;
-      outputAacSamples = aac;
+      outputAudioSamples = samples;
       epoch = firstNtp;
       outputGeneration = generation;
       connectionDeadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
@@ -149,15 +150,15 @@ struct AirPlayVideoWorker::Impl {
     };
     auto writeAudio = [&](const Event& sample) {
       if (sample.ntp >= epoch) {
-        // Quantize to the AAC track's 44.1 kHz timescale. Allow a one-tick
+        // Quantize to the audio track's 44.1 kHz timescale. Allow a one-tick
         // rounding discrepancy, but preserve real gaps and discard overlap.
         const auto pts = ptsUs(sample);
         auto ticks = pts/1000000*44100 + (pts%1000000*44100+500000)/1000000;
-        const auto expected = lastAudioTicks+outputAacSamples;
+        const auto expected = lastAudioTicks+outputAudioSamples;
         if (lastAudioTicks < 0 || (ticks > lastAudioTicks && ticks >= expected-1)) {
           if (lastAudioTicks >= 0) ticks = std::max(ticks,expected);
           const auto timeUs = ticks/44100*1000000 + (ticks%44100*1000000+22050)/44100;
-          sink->appendAac(sample.bytes,timeUs);
+          sink->appendAudio(sample.bytes,timeUs);
           lastAudioTicks = ticks;
           std::lock_guard lock(mutex);
           ++observation.audioAccepted;
@@ -206,7 +207,7 @@ struct AirPlayVideoWorker::Impl {
           std::unique_lock lock(mutex);
           changed.wait_for(lock,std::chrono::milliseconds(25),[&] {return closing || !observation.error.empty() || !queue.empty();});
           if (closing || !observation.error.empty()) break;
-          samples = aacSamples;
+          samples = audioSamples;
           if (!queue.empty()) {
             event = std::move(queue.front()); queue.pop_front();
             processing = haveEvent = true; inFlightBytes = event.bytes.size();
@@ -345,7 +346,7 @@ void AirPlayVideoWorker::start() {
   if (!impl->observation.released) throw std::runtime_error("Previous native video release was not confirmed");
   const auto generation = impl->observation.generation+1;
   impl->observation = {}; impl->observation.generation = generation; impl->observation.phase = "waiting";
-  impl->command.reset(); impl->inputEnded = false; impl->closing = false; impl->aacSamples = 0;
+  impl->command.reset(); impl->inputEnded = false; impl->closing = false; impl->audioSamples = 0;
   try {impl->worker = std::thread([this] {impl->run();});}
   catch (...) {impl->closing = true; impl->observation.phase = "error"; impl->observation.error = "videoWorkerStartFailure"; throw;}
 }
@@ -382,20 +383,21 @@ void AirPlayVideoWorker::audioFormat(int codec, int samplesPerFrame) noexcept {
   try {
     std::lock_guard lock(impl->mutex);
     if (impl->closing || !impl->observation.error.empty()) return;
-    const int samples = codec == 4 && (samplesPerFrame == 960 || samplesPerFrame == 1024) ? samplesPerFrame : 0;
-    if (samples == impl->aacSamples) return;
+    const int samples = codec && airPlayAudioCodec(samplesPerFrame) == codec ? samplesPerFrame : 0;
+    if (samples == impl->audioSamples) return;
     // The RTSP audio and video setups can arrive in either order. Keep
-    // already queued H.264 configuration when AAC is negotiated before
+    // already queued H.264 configuration when audio is negotiated before
     // the first output opens. Reconfiguration of a running output resets it.
-    const bool initial = impl->aacSamples == 0 && impl->observation.phase == "waiting" && !impl->heldCount;
-    impl->aacSamples = samples;
+    const bool initial = impl->audioSamples == 0 && impl->observation.phase == "waiting" && !impl->heldCount;
+    impl->audioSamples = samples;
     if (!initial) impl->resetLocked(false);
   } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
 }
 void AirPlayVideoWorker::audioSample(const uint8_t* bytes, size_t size, int codec, uint64_t ntp) noexcept {
   try {
     std::lock_guard lock(impl->mutex);
-    if (impl->closing || !impl->observation.error.empty() || !impl->aacSamples || codec != 4) return;
+    if (impl->closing || !impl->observation.error.empty() || !codec ||
+        airPlayAudioCodec(impl->audioSamples) != codec) return;
     if (impl->inputEnded || !ntp || !bytes || !size || size > 65536) {
       ++impl->observation.audioDropped;
       return;

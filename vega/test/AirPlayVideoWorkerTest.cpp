@@ -1,4 +1,5 @@
 #include "../kepler/turbo-modules/AirPlayVideoCallbacks.h"
+#include "../kepler/turbo-modules/AirPlayAudioFormat.h"
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -21,7 +22,7 @@ struct Trace {
   LocalVideoStreamState state;
   bool holdStart = false, holdAppend = false, enteredStart = false, enteredAppend = false, cancelled = false, failRelease = false;
   unsigned starts = 0, stops = 0;
-  int aacSamples = 0;
+  int audioSamples = 0;
   std::thread::id owner;
   struct Sample {std::vector<uint8_t> bytes; int64_t pts, duration;};
   std::vector<Sample> samples, audio;
@@ -31,21 +32,21 @@ class Sink final : public VideoSampleSink {
   void owner() {assert(trace->owner == std::this_thread::get_id());}
 public:
   explicit Sink(std::shared_ptr<Trace> value) : trace(std::move(value)) {trace->owner = std::this_thread::get_id();}
-  std::string start(int width, int height, const std::vector<uint8_t>& parameters, int aacSamples) override {
+  std::string start(int width, int height, const std::vector<uint8_t>& parameters, int audioSamples) override {
     owner(); assert(width >= 16 && height >= 16 && !parameters.empty());
     std::unique_lock lock(trace->mutex);
     trace->state = {}; trace->state.released = false; trace->state.connected = true;
-    trace->aacSamples = aacSamples;
+    trace->audioSamples = audioSamples;
     ++trace->starts; trace->cancelled = false; trace->enteredStart = true; trace->changed.notify_all();
     trace->changed.wait(lock,[&] {return !trace->holdStart || trace->cancelled;});
     if (trace->cancelled) throw std::runtime_error("Cancelled mock start");
     return "http://127.0.0.1:1234/"+std::to_string(trace->starts)+".mp4";
   }
-  void appendAac(const std::vector<uint8_t>& bytes, int64_t pts) override {
+  void appendAudio(const std::vector<uint8_t>& bytes, int64_t pts) override {
     owner();
     std::lock_guard lock(trace->mutex);
-    assert(trace->aacSamples == 960 || trace->aacSamples == 1024);
-    trace->audio.push_back({bytes,pts,trace->aacSamples});
+    assert(airPlayAudioCodec(trace->audioSamples) != 0);
+    trace->audio.push_back({bytes,pts,trace->audioSamples});
   }
   void append(const std::vector<uint8_t>& bytes, int64_t pts, int64_t dts, int64_t duration) override {
     owner(); assert(dts == pts && duration > 0 && duration <= 1000000);
@@ -105,7 +106,7 @@ int main() {
     const auto first = test.play();
     await([&] {return test.worker.state().accepted == 2;});
     test.inspect([&](Trace& trace) {
-      assert(trace.aacSamples == 1024);
+      assert(trace.audioSamples == 1024);
       assert(trace.samples[0].pts == (audioFirst ? 80000 : 0));
       assert(trace.samples[0].duration == 20000 && trace.samples[1].duration == 40000);
       assert(trace.audio[0].pts == (audioFirst ? 0 : 80000));
@@ -130,11 +131,25 @@ int main() {
   }
   {
     Test test;
-    test.worker.audioFormat(8,480);
+    test.worker.audioFormat(8,1024);
     test.submitAudio({0x21},1000000000,8);
     test.submit(initial());
     test.play();
-    test.inspect([](Trace& trace) {assert(trace.aacSamples == 0 && trace.audio.empty());});
+    test.inspect([](Trace& trace) {assert(trace.audioSamples == 0 && trace.audio.empty());});
+  }
+  for (const int samples : {352,480,512}) {
+    Test test;
+    const auto codec = airPlayAudioCodec(samples);
+    test.worker.audioFormat(codec,samples);
+    test.submit(initial());
+    test.submit(delta,1066667000);
+    test.submitAudio({0x21},1080000000,4);
+    test.submitAudio({0x22},1080000000,codec);
+    test.play();
+    test.inspect([&](Trace& trace) {
+      assert(trace.audioSamples == samples && trace.audio.size() == 1);
+      assert(trace.audio[0].pts == 80000 && trace.audio[0].bytes == std::vector<uint8_t>{0x22});
+    });
   }
   {
     Test test;

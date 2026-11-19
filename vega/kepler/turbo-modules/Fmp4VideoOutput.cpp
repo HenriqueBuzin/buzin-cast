@@ -24,7 +24,7 @@ struct Fmp4VideoOutput::Impl {
 Fmp4VideoOutput::Fmp4VideoOutput() : impl(std::make_unique<Impl>()) {}
 Fmp4VideoOutput::~Fmp4VideoOutput() {stop();}
 std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint8_t>& parameters,
-                                 int aacSamplesPerFrame) {
+                                 int audioSamplesPerFrame) {
   stop();
   auto next = std::make_shared<Impl::Run>();
   std::string url;
@@ -37,12 +37,12 @@ std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint
   }
   try {
     next->mux = std::make_unique<H264Fmp4Muxer>(width,height,parameters,
-      [run = next.get()](const uint8_t* data, size_t size) {run->stream.write(data,size);}, aacSamplesPerFrame);
+      [run = next.get()](const uint8_t* data, size_t size) {run->stream.write(data,size);}, audioSamplesPerFrame);
     return url;
   } catch (...) {stop(); throw;}
 }
-void Fmp4VideoOutput::appendAac(const std::vector<uint8_t>& sample, int64_t ptsUs) {
-  impl->active()->mux->appendAac(sample, ptsUs);
+void Fmp4VideoOutput::appendAudio(const std::vector<uint8_t>& sample, int64_t ptsUs) {
+  impl->active()->mux->appendAudio(sample, ptsUs);
 }
 void Fmp4VideoOutput::append(const std::vector<uint8_t>& sample, int64_t pts, int64_t dts, int64_t duration) {
   impl->active()->mux->append(sample,pts,dts,duration);

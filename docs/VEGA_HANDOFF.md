@@ -1,5 +1,35 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## AAC-ELD e ALAC no espelhamento Vega — 19 de novembro de 2026
+
+A sessão de espelhamento aceita AAC-LC (960/1024 amostras) e AAC-ELD
+(480/512), estéreo a 44,1 kHz. O muxer também gera ALAC de 352 amostras
+no probe e usa a mesma configuração do receptor de áudio isolado. O player
+do VVD ficou em carregamento com a trilha ALAC, inclusive começando de zero.
+Por isso a sessão manual mantém o vídeo ativo sem essa trilha. Troca de perfil
+inicia outra saída. O receptor de áudio isolado mantém seu caminho ALAC próprio.
+
+O ensaio `test_vega_msse_video.py --av-mux --audio-profile PERFIL` usa
+os callbacks e o muxer compilados para ARM64 no VVD. Cada perfil passou
+por dois ciclos, com 120 quadros e o atraso de 80 ms. O demuxer do host
+confirmou bytes, timestamps e duração de cada pacote. A decodificação
+gerou a contagem PCM esperada para AAC-LC (346 pacotes), AAC-ELD 480
+(735), AAC-ELD 512 (690) e ALAC (1003). Relatórios locais em
+`build/vega-mirror-audio-{lc,eld480,eld512,alac}`. Os testes portáteis
+com ASan/UBSan e os builds das três arquiteturas também passaram.
+
+A verificação do arquivo ainda deixa pendentes a imagem, o áudio audível,
+o sincronismo durante reprodução e a negociação com um emissor Apple real.
+
+
+Com `test_vega_airplay_url.py --media-file ARQUIVO --live`, o player do VVD
+carregou os dois fMP4 AAC-ELD e o AAC-LC desde zero. O relógio avançou e Voltar liberou
+o player. O ensaio completo de controles mostrou que a busca falha nos
+arquivos sem índice. Os contadores do SDK ficaram em zero mesmo com a
+superfície associada. O relatório de ALAC ficou em carregamento e não avançou.
+Resultados em `build/vega-mirror-start-final-*`, `build/vega-mirror-player-*`
+e `build/vega-mirror-start-alac`.
+
 ## Áudio AAC-LC na sessão de espelhamento — 19 de novembro de 2026
 
 A sessão AirPlay encaminha os callbacks AAC-LC (codec 4, 960 ou 1024

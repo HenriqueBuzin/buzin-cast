@@ -88,7 +88,7 @@ int main() {
       expectedAv.insert(expectedAv.end(),bytes,bytes+size);
     },1024);
     reference.append(idr,0,0,33333);
-    reference.appendAac(aac,80000);
+    reference.appendAudio(aac,80000);
     reference.finish();
     Target target(output.start(320,180,parameters,1024));
     std::vector<uint8_t> received;
@@ -96,7 +96,7 @@ int main() {
     await([&] {return output.state().connected;});
     output.append(idr,0,0,33333);
     assert(output.state().sentBytes == 0);
-    output.appendAac(aac,80000);
+    output.appendAudio(aac,80000);
     output.finish();
     output.waitFinished();
     consumer.join();

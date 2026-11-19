@@ -1,4 +1,5 @@
 #include "H264Fmp4Muxer.h"
+#include "AirPlayAudioFormat.h"
 #include "H264AnnexB.h"
 #include <cstring>
 #include <exception>
@@ -18,7 +19,7 @@ struct H264Fmp4Muxer::Impl {
   int64_t lastDts = -1;
   int64_t lastAudioDts = -1;
   int64_t expectedVideoDts = 0;
-  int aacSamplesPerFrame = 0;
+  int audioSamplesPerFrame = 0;
   bool firstFragmentWritten = false;
   bool started = false, ended = false, failed = false;
   std::vector<uint8_t> sps, pps;
@@ -39,8 +40,8 @@ struct H264Fmp4Muxer::Impl {
   }
   void writePacket(const std::vector<uint8_t>& bytes, int stream, int64_t pts,
                    int64_t dts, int64_t duration, bool keyframe) {
-    if (aacSamplesPerFrame && firstFragmentWritten) {
-      const auto expected = stream == 0 ? expectedVideoDts : lastAudioDts + aacSamplesPerFrame;
+    if (audioSamplesPerFrame && firstFragmentWritten) {
+      const auto expected = stream == 0 ? expectedVideoDts : lastAudioDts + audioSamplesPerFrame;
       if (dts < expected || dts - expected >= std::numeric_limits<int>::max()) {
         throw std::invalid_argument("MP4 track timestamps overlap or exceed the fragment gap limit");
       }
@@ -65,8 +66,8 @@ struct H264Fmp4Muxer::Impl {
     check(av_write_frame(context, packet.get()));
   }
   void flushFragment() {
-    if (aacSamplesPerFrame && (!started || lastAudioDts < 0)) return;
-    if (aacSamplesPerFrame && !firstFragmentWritten) {
+    if (audioSamplesPerFrame && (!started || lastAudioDts < 0)) return;
+    if (audioSamplesPerFrame && !firstFragmentWritten) {
       // delay_moov writes the initialization segment on the first flush.
       // It needs both initial timestamps to write the tracks' edit lists.
       check(av_write_frame(context, nullptr));
@@ -78,13 +79,14 @@ struct H264Fmp4Muxer::Impl {
   }
 };
 H264Fmp4Muxer::H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& parameterSets,
-                             Output output, int aacSamplesPerFrame)
+                             Output output, int audioSamplesPerFrame)
   : impl(std::make_unique<Impl>()) {
   if (width < 16 || width > 3840 || height < 16 || height > 2160 || !output || parameterSets.size() > 65536)
     throw std::invalid_argument("Invalid video mux configuration");
-  if (aacSamplesPerFrame != 0 && aacSamplesPerFrame != 960 && aacSamplesPerFrame != 1024)
-    throw std::invalid_argument("Expected 960 or 1024 samples for AAC-LC");
-  impl->aacSamplesPerFrame = aacSamplesPerFrame;
+  const int audioProfile = airPlayAudioCodec(audioSamplesPerFrame);
+  if (audioSamplesPerFrame && !audioProfile)
+    throw std::invalid_argument("Unsupported AirPlay audio track format");
+  impl->audioSamplesPerFrame = audioSamplesPerFrame;
   for (const auto& nal : split(parameterSets)) {
     auto* target = nal.type == 7 ? &impl->sps : nal.type == 8 ? &impl->pps : nullptr;
     if (!target || !target->empty()) throw std::invalid_argument("Expected one SPS and one PPS");
@@ -112,28 +114,31 @@ H264Fmp4Muxer::H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& 
   codec->extradata = static_cast<uint8_t*>(av_mallocz(config.size()+AV_INPUT_BUFFER_PADDING_SIZE));
   if (!codec->extradata) throw std::bad_alloc();
   std::memcpy(codec->extradata,config.data(),config.size()); codec->extradata_size = static_cast<int>(config.size());
-  if (aacSamplesPerFrame) {
+  if (audioSamplesPerFrame) {
     auto* audio = avformat_new_stream(impl->context, nullptr);
     if (!audio) throw std::bad_alloc();
     audio->time_base = AVRational{1, 44100};
     auto* audioCodec = audio->codecpar;
     audioCodec->codec_type = AVMEDIA_TYPE_AUDIO;
-    audioCodec->codec_id = AV_CODEC_ID_AAC;
+    audioCodec->codec_id = audioProfile == 2 ? AV_CODEC_ID_ALAC : AV_CODEC_ID_AAC;
     audioCodec->sample_rate = 44100;
-    audioCodec->frame_size = aacSamplesPerFrame;
+    audioCodec->frame_size = audioSamplesPerFrame;
     av_channel_layout_default(&audioCodec->ch_layout, 2);
-    audioCodec->extradata = static_cast<uint8_t*>(av_mallocz(2 + AV_INPUT_BUFFER_PADDING_SIZE));
+    const auto aacConfig = airPlayAacConfig(audioSamplesPerFrame);
+    const auto* configBytes = audioProfile == 2 ? AirPlayAlacCookie : aacConfig.data();
+    const auto configSize = audioProfile == 2 ? sizeof(AirPlayAlacCookie) : aacConfig.size();
+    if (audioProfile == 2) audioCodec->bits_per_raw_sample = 16;
+    audioCodec->extradata = static_cast<uint8_t*>(av_mallocz(configSize + AV_INPUT_BUFFER_PADDING_SIZE));
     if (!audioCodec->extradata) throw std::bad_alloc();
-    audioCodec->extradata_size = 2;
-    audioCodec->extradata[0] = 0x12;
-    audioCodec->extradata[1] = aacSamplesPerFrame == 960 ? 0x14 : 0x10;
+    audioCodec->extradata_size = static_cast<int>(configSize);
+    std::memcpy(audioCodec->extradata,configBytes,configSize);
     impl->context->avoid_negative_ts = AVFMT_AVOID_NEG_TS_DISABLED;
   }
   AVDictionary* options = nullptr;
-  av_dict_set(&options, "movflags", aacSamplesPerFrame
+  av_dict_set(&options, "movflags", audioSamplesPerFrame
     ? "frag_custom+delay_moov+default_base_moof+skip_trailer+skip_sidx"
     : "frag_custom+empty_moov+default_base_moof+skip_trailer+skip_sidx", 0);
-  if (aacSamplesPerFrame) {
+  if (audioSamplesPerFrame) {
     av_dict_set(&options, "use_editlist", "1", 0);
     av_dict_set(&options, "movie_timescale", "1000000", 0);
   }
@@ -144,8 +149,8 @@ H264Fmp4Muxer::H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& 
 H264Fmp4Muxer::~H264Fmp4Muxer() = default;
 void H264Fmp4Muxer::append(const std::vector<uint8_t>& bytes, int64_t pts, int64_t dts, int64_t duration) {
   if (impl->ended || impl->failed) throw std::runtime_error("Video mux is closed");
-  if (impl->aacSamplesPerFrame && impl->started && impl->lastAudioDts < 0) {
-    throw std::logic_error("Supply the first AAC frame before more video");
+  if (impl->audioSamplesPerFrame && impl->started && impl->lastAudioDts < 0) {
+    throw std::logic_error("Supply the first audio frame before more video");
   }
   if (pts < 0 || dts < 0 || pts < dts || dts <= impl->lastDts || duration <= 0 || duration > 1000000 ||
       pts > std::numeric_limits<int64_t>::max()-duration || dts > std::numeric_limits<int64_t>::max()-duration)
@@ -166,26 +171,26 @@ void H264Fmp4Muxer::append(const std::vector<uint8_t>& bytes, int64_t pts, int64
   impl->lastDts = dts; impl->started = true;
   impl->flushFragment();
 }
-void H264Fmp4Muxer::appendAac(const std::vector<uint8_t>& sample, int64_t ptsUs) {
-  if (impl->ended || impl->failed || !impl->aacSamplesPerFrame) {
-    throw std::logic_error("AAC track is unavailable");
+void H264Fmp4Muxer::appendAudio(const std::vector<uint8_t>& sample, int64_t ptsUs) {
+  if (impl->ended || impl->failed || !impl->audioSamplesPerFrame) {
+    throw std::logic_error("Audio track is unavailable");
   }
   if (!impl->started && impl->lastAudioDts >= 0) {
-    throw std::logic_error("Supply the first IDR before more AAC");
+    throw std::logic_error("Supply the first IDR before more audio");
   }
   if (sample.empty() || sample.size() > 65536 || ptsUs < 0) {
-    throw std::invalid_argument("Invalid AAC packet");
+    throw std::invalid_argument("Invalid audio packet");
   }
   const auto dts = av_rescale_q(ptsUs, AVRational{1, 1000000}, AVRational{1, 44100});
-  if (dts <= impl->lastAudioDts) throw std::invalid_argument("Invalid AAC timestamp");
-  impl->writePacket(sample, 1, dts, dts, impl->aacSamplesPerFrame, true);
+  if (dts <= impl->lastAudioDts) throw std::invalid_argument("Invalid audio timestamp");
+  impl->writePacket(sample, 1, dts, dts, impl->audioSamplesPerFrame, true);
   impl->lastAudioDts = dts;
   impl->flushFragment();
 }
 void H264Fmp4Muxer::finish() {
   if (impl->ended) return;
   if (impl->failed) throw std::runtime_error("Video mux failed before finalization");
-  if (impl->aacSamplesPerFrame && !impl->firstFragmentWritten) {
+  if (impl->audioSamplesPerFrame && !impl->firstFragmentWritten) {
     throw std::logic_error("Both media tracks must start before finalization");
   }
   const int result = av_write_trailer(impl->context);
