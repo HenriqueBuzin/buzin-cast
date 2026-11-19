@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.media.AudioManager
+import android.net.nsd.NsdServiceInfo
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
@@ -18,6 +20,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.service.AirPlayService
+import io.github.jqssun.airplay.audio.DacpController
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -25,6 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
+import java.net.InetAddress
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -252,6 +256,77 @@ class ServiceAudioStateContractTest {
             Prefs.APPROVE_CONNECTIONS.write(prefs, true)
             assertTrue(service.authorizeConnection("AirPlay", "127.0.0.1"))
             assertTrue(service.authorizeConnection("AirPlay", "::1"))
+        }
+    }
+
+    @Test fun senderVolumeStepsFollowFeedbackAndStopAtTargetOrOvershoot() {
+        val prefs = context.getSharedPreferences(Prefs.NAME, 0)
+        val key = Prefs.SYNC_CLIENT_VOLUME.key
+        val previousSync = prefs.all[key] as? Boolean
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val receiverVolume = audio.getStreamVolume(stream)
+        val receiverIndex = audio.getStreamMaxVolume(stream) / 2
+        val originalDacp = service.dacpController
+        val field = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        DacpHttpContractTest.Sender().use { sender ->
+            val dacp = DacpController { _, listener ->
+                listener.onServiceResolved(NsdServiceInfo().apply {
+                    host = InetAddress.getByName("127.0.0.1")
+                    port = sender.port
+                })
+            }
+            fun commands() = sender.requests.map { it.first().split(' ')[1] }
+            fun feedback(db: Float) {
+                main { service.onClientVolume(db) }
+                instrumentation.waitForIdleSync()
+            }
+            fun awaitCommand(index: Int, expected: String) {
+                await("Missing DACP command $expected at index $index") { sender.requests.size > index }
+                assertEquals("/ctrl-int/1/$expected", commands()[index])
+                assertTrue(sender.requests[index].any { it.equals("Active-Remote: volume-contract", ignoreCase = true) })
+            }
+            try {
+                main {
+                    assertTrue(prefs.edit().putBoolean(key, false).commit())
+                    audio.setStreamVolume(stream, receiverIndex, 0)
+                    field.set(service, dacp)
+                    service.onDacpId("volume-fixture", "volume-contract")
+                }
+                instrumentation.waitForIdleSync()
+                assertTrue(dacp.ready)
+                feedback(-22.5f)
+                assertEquals(0.25f, service.clientVolume(), 0.001f)
+                assertEquals(-22.5f, service.onClientVolumeQuery(), 0.001f)
+
+                main { service.setClientVolume(0.75f) }
+                awaitCommand(0, "volumeup")
+                feedback(-15f)
+                awaitCommand(1, "volumeup")
+                feedback(-6f) // 80%, beyond the requested 75%.
+                // A following request drains the same real HTTP executor.
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals(listOf("/ctrl-int/1/volumeup", "/ctrl-int/1/volumeup", "/ctrl-int/1/playresume"), commands())
+
+                main { service.setClientVolume(0.2f) }
+                awaitCommand(3, "volumedown")
+                feedback(-24f) // Exactly 20%.
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals("/ctrl-int/1/playresume", commands().last())
+                assertEquals("Convergence sent an extra volume step", 5, commands().size)
+                assertEquals(0.2f, service.clientVolume(), 0.001f)
+                assertEquals("Independent sender control changed receiver volume", receiverIndex, audio.getStreamVolume(stream))
+            } finally {
+                main {
+                    field.set(service, originalDacp)
+                    dacp.release()
+                    val editor = prefs.edit()
+                    if (previousSync != null) editor.putBoolean(key, previousSync) else editor.remove(key)
+                    assertTrue(editor.commit())
+                }
+                instrumentation.waitForIdleSync()
+                main { audio.setStreamVolume(stream, receiverVolume, 0) }
+            }
         }
     }
 }

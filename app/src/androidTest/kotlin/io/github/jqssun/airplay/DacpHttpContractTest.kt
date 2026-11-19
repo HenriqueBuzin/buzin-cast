@@ -48,9 +48,9 @@ class DacpHttpContractTest {
         if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
     }
 
-    private class Sender(private val status: Int = 200, private val drop: Boolean = false,
+    internal class Sender(private val status: Int = 200, private val drop: Boolean = false,
                          private val firstResponseGate: CountDownLatch? = null) : Closeable {
-        private val socket = ServerSocket(0)
+        private val socket = ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"))
         private val running = AtomicBoolean(true)
         val requests = CopyOnWriteArrayList<List<String>>()
         val received = CountDownLatch(1)

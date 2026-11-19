@@ -1045,3 +1045,15 @@ which was unexecuted in the frozen 192-case baseline. All 12 activity and main
 screen regression cases also passed together on API28 in 168.854 seconds.
 The source suite now has 207 Android cases. The in-flight 206-case matrix keeps its original source and
 profiles, and the new test must run in a fresh matrix for all four editions.
+
+A bound-service contract now resolves a loopback DACP endpoint and verifies
+the real HTTP volume commands, remote token and sender feedback. The service
+stops stepping when feedback crosses the target or reaches it, and independent
+sender control preserves the receiver's device volume. The contract restores the
+controller, preference and device volume after execution. The shared HTTP test
+fixture listens only on loopback.
+
+All 20 service, DACP request and DACP discovery tests passed on API28 in
+3.342 seconds. The matched report covers 17 of 22 branches in `_clientVolStep`,
+compared with zero in the frozen 192-case normal report, and all instructions
+in `onClientVolumeQuery`. The current source suite now has 208 Android cases.
