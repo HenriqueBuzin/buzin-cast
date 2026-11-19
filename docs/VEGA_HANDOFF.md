@@ -10,8 +10,13 @@ aberta. O espelhamento também exige PIN verificado para aceitar mídia.
 
 O patch UxPlay 0020 fornece o socket ao callback opcional do Vega.
 A preparação aplicou os 20 patches na cópia isolada. Lint, TypeScript
-e 70 testes Jest passaram. A negociação e a reprodução completas com
-emissor Apple em aparelho físico continuam pendentes.
+e 70 testes Jest passaram, assim como a validação de ABI nos três
+pacotes. No VVD, áudio e espelhamento passaram nos ciclos de recusa,
+aprovação, reabertura e Voltar durante a espera. O AirPlay por URL
+esperou a aprovação antes de carregar o MP4. Relatórios em
+`build/vega-airplay-{audio,video,url}-approval-final`.
+A negociação e a reprodução completas com emissor Apple em aparelho
+físico continuam pendentes.
 
 ## Aprovação de conexões FCast no Vega
 
