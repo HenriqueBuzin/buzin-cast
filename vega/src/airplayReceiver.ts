@@ -96,6 +96,8 @@ export function createAirPlayReceiver(
           onReady(token);
         } else if (event.kind === 'stop') {
           endMedia(); publish();
+        } else if (event.kind === 'volume') {
+          session?.setVolume(number(event, 'value', 0, 1));
         } else if (ownsMedia && player) {
           if (event.kind === 'seek') {player.currentTime = number(event, 'value', 0, 31536000);}
           else if (event.kind === 'rate') {

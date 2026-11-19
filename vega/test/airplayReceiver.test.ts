@@ -18,7 +18,7 @@ afterEach(() => {jest.useRealTimers(); jest.clearAllMocks(); globalThis.URL = or
 function setup(mode: 'url' | 'mirror' = 'url') {
   const packets: string[] = [];
   const player = {duration: 8, playbackRate: 1, currentTime: 0, pause: jest.fn(), play: jest.fn(() => Promise.resolve())};
-  const media = {load: jest.fn(() => Promise.resolve()), attachSurface: jest.fn(), detachSurface: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
+  const media = {load: jest.fn(() => Promise.resolve()), setVolume: jest.fn(), attachSurface: jest.fn(), detachSurface: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
   let ready!: Parameters<typeof createPlaybackSession>[0];
   let change!: Parameters<typeof createPlaybackSession>[1];
   jest.mocked(createPlaybackSession).mockImplementation((onReady, onChange) => {ready = onReady; change = onChange; return media;});
@@ -67,11 +67,15 @@ test('vídeo nativo troca URLs locais sem bloquear mudanças rápidas de formato
   expect(Network.startAirPlayVideo).toHaveBeenCalledTimes(1);
   expect(Network.startAirPlayUrl).not.toHaveBeenCalled();
   const url = `http://127.0.0.1:43210/${'a'.repeat(64)}.mp4`;
+  send('volume', 0.125);
+  expect(media.setVolume).toHaveBeenLastCalledWith(0.125);
   send('mirror', 0, url);
   receiver.attachSurface(1, 'first');
   send('mirror', 0, url.replace('a'.repeat(64), 'b'.repeat(64)));
   receiver.attachSurface(1, 'stale'); receiver.attachSurface(2, 'next');
   expect(media.load).toHaveBeenCalledTimes(2);
+  send('volume', 0);
+  expect(media.setVolume).toHaveBeenLastCalledWith(0);
   expect(media.attachSurface.mock.calls).toEqual([['first'], ['next']]);
   receiver.togglePause(); expect(media.togglePause).not.toHaveBeenCalled();
   expect(failed).not.toHaveBeenCalled();

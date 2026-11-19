@@ -8,7 +8,7 @@ class AirPlayAudioWorker;
 class AirPlayVideoWorker;
 
 struct AirPlayEvent {
-  enum class Kind {Audio, Video, PlayUrl, MirrorUrl, Seek, Rate, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
+  enum class Kind {Audio, Video, PlayUrl, MirrorUrl, Seek, Rate, Volume, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
   Kind kind = Kind::Stop;
   int codec = 0;
   uint64_t localTime = 0;
@@ -31,6 +31,7 @@ public:
                  AirPlayAudioWorker* audio = nullptr, AirPlayVideoWorker* video = nullptr);
   void stop() noexcept;
   bool poll(AirPlayEvent& event);
+  double volumeDb() const;
   bool healthy() const;
   void updatePlayback(double position, double duration, double rate, bool ready);
 private:

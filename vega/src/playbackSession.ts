@@ -45,6 +45,9 @@ export function createPlaybackSession(
   let snapshot: PlaybackSnapshot = {state: 'loading', seconds: 0};
   const listeners: Array<[string, () => void]> = [];
   let position = request?.position || 0;
+  let volume = 1;
+  let volumeOverride = false;
+  let volumeOnPlaying = false;
   let hasSource = request !== null;
   function observe() {
     if (!timer) {
@@ -66,6 +69,7 @@ export function createPlaybackSession(
     hasSource = true;
     position = source.position;
     sourceReady = false;
+    volumeOnPlaying = true;
     const generation = sourceGeneration;
     publish('loading');
     // Interrupt an in-flight manifest request before waiting on its load.
@@ -75,7 +79,8 @@ export function createPlaybackSession(
       await interrupted;
       adaptive = undefined;
       if (closed || generation !== sourceGeneration || !player) {return;}
-      player.volume = 1;
+      const volumeAtLoad = volume;
+      player.volume = volumeAtLoad;
       player.playbackRate = source.speed;
       if (source.mimeType) {
         adaptive = createAdaptivePlayback(player, () => {
@@ -89,6 +94,7 @@ export function createPlaybackSession(
         player.src = source.url;
       }
       if (closed || generation !== sourceGeneration) {return;}
+      if (volume !== volumeAtLoad) {player.volume = volume;}
       sourceReady = true;
       if (surface) {player.play().catch(fail);}
     });
@@ -163,6 +169,12 @@ export function createPlaybackSession(
           if (state === 'error') {
             fail();
           } else {
+            if (state === 'playing' && volumeOnPlaying && volumeOverride && !closed && player) {
+              // Vega may acknowledge volume before the native pipeline can
+              // apply it. Reapply the sender's level when playback starts.
+              player.volume = volume;
+              volumeOnPlaying = false;
+            }
             publish(state);
           }
         } catch {
@@ -206,6 +218,15 @@ export function createPlaybackSession(
   return {
     load(source: PlaybackRequest) {
       return configure(source);
+    },
+    setVolume(value: number) {
+      if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error('Invalid playback volume');
+      }
+      if (closed) {return;}
+      volume = value;
+      volumeOverride = true;
+      if (sourceReady && player) {player.volume = value;}
     },
     attachSurface(handle: string) {
       if (!closed && initialized && player) {

@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import time
 
-from test_vega_msse_video import make_fixture
+from test_vega_msse_video import append_audio_fixture, make_fixture
 
 COMPONENT = 'com.buzincast.tv.main'
 
@@ -27,7 +27,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--transport-only', action='store_true', help='Verify progressive transport/lifecycle; does not validate rendered frames')
-    parser.add_argument('--mirror', action='store_true', help='Pass a fixture with a public test key through the native loopback TCP/AES-CTR mirror parser, without FairPlay negotiation')
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--mirror', action='store_true', help='Pass a fixture with a public test key through the native loopback TCP/AES-CTR mirror parser, without FairPlay negotiation')
+    modes.add_argument('--alac-conversion', action='store_true', help='Feed ALAC and H.264 callbacks to the production AAC-LC conversion and HTTP output')
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--runner', type=Path, required=True)
     parser.add_argument('--profile', choices=['baseline', 'high'], default='baseline')
@@ -39,7 +41,7 @@ def main():
     sdk = shutil.which('vega')
     history, forwards, cycles = [], [], []
     result = {'passed': False, 'physicalValidation': False, 'transportOnly': args.transport_only, 'visualValidation': False,
-              'encryptedMirrorLoopback': args.mirror, 'fairPlayNegotiation': False}
+              'encryptedMirrorLoopback': args.mirror, 'fairPlayNegotiation': False, 'alacConversion': args.alac_conversion}
     producer = log = client = None
 
     def run(*command, payload=None, timeout=30):
@@ -80,6 +82,11 @@ def main():
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
             raise RuntimeError('VVD is not connected')
         _, fixture, frame_count = make_fixture(args.output, args.profile, True)
+        if args.alac_conversion:
+            fixture, _, audio_packets = append_audio_fixture(args.output, fixture, 'alac-aac')
+            mode = '--av-transcode-serve'
+        else:
+            mode = '--mirror-serve' if args.mirror else '--serve'
         if COMPONENT in shell('vlcm', 'list', '--app-id', COMPONENT):
             shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
@@ -95,7 +102,7 @@ def main():
             forwards.append(control)
             log = (args.output / f'producer-{cycle + 1}.log').open('w')
             producer = subprocess.Popen([sdk, 'exec', 'vda', '-s', args.serial, 'shell', '-T', '-c', COMPONENT,
-                                         'timeout', '35', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', '--mirror-serve' if args.mirror else '--serve'],
+                                         'timeout', '35', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', mode],
                                         stdout=log, stderr=subprocess.STDOUT)
             url = observe('/data/local-video-url.json', lambda value: isinstance(value.get('url'), str))['url']
             client = http.client.HTTPConnection('127.0.0.1', control, timeout=5)
@@ -111,12 +118,18 @@ def main():
                 raise RuntimeError('Expected the shared native callback worker with bounded queue and no fixture drops')
             if active.get('mirrorEncrypted') is not args.mirror:
                 raise RuntimeError('Native producer did not use the requested mirror transport')
+            if args.alac_conversion and (active.get('alacConversion') is not True or
+                                         active.get('audioAccepted', 0) <= 0 or active.get('audioDropped') != 0):
+                raise RuntimeError('ALAC callback flow did not run alongside video')
             entry = {'playing': playing, 'quality': quality, 'whileProducing': active, 'positiveFrameCounters': quality.get('available') is True and quality.get('total', 0) > quality.get('dropped', 0)}
             if cycle == 0:
                 entry['end'] = observe('/data/playback-state.json', lambda value: value.get('seconds', 0) > 7 and value.get('state') in ['playing', 'ended'])
                 entry['stream'] = observe('/data/local-video-state.json', lambda value: value.get('complete') and value.get('released'))
                 if entry['stream']['framesFed'] != frame_count or entry['stream']['error']:
                     raise RuntimeError('Native full stream did not complete cleanly')
+                if args.alac_conversion and (entry['stream'].get('audioAccepted') != len(audio_packets)
+                                             or entry['stream'].get('audioDropped') != 0):
+                    raise RuntimeError('ALAC conversion did not consume the full audio fixture')
             shell('inputd-cli', 'button_press', 'KEY_BACK')
             entry['releasedPlayer'] = observe('/data/playback-state.json', lambda value: value.get('state') == 'released')
             entry['releasedSurface'] = observe('/data/video-quality.json', lambda value: value.get('attached') is False)

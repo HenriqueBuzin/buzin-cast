@@ -61,6 +61,17 @@ def main():
             response += packet
         if not response.startswith(b'RTSP/1.0 200 '):
             raise RuntimeError(f'RTSP command failed: {response[:80]!r}')
+        header, data = response.split(b'\r\n\r\n', 1)
+        content_length = re.search(rb'(?:^|\r\n)Content-Length: (\d+)', header, re.I)
+        length = int(content_length[1]) if content_length else 0
+        if length > 16384:
+            raise RuntimeError('RTSP response body exceeds probe limit')
+        while len(data) < length:
+            packet = client.recv(length - len(data))
+            if not packet:
+                raise RuntimeError('Truncated RTSP response body')
+            data += packet
+        return data
 
     try:
         devices = run('exec', 'vda', 'devices')
@@ -88,18 +99,32 @@ def main():
             client = socket.create_connection(('127.0.0.1', port), timeout=3)
             request('OPTIONS', 1)
             waiting = observation(lambda value: value.get('phase') == 'waiting')
-            details = {}
-            if not args.video:
-                request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
-                details['gain'] = observation(lambda value: value.get('volumeDb') == -18)
-                request('SET_PARAMETER', 3, b'volume: -144.000000\r\n')
-                details['muted'] = observation(lambda value: value.get('volumeDb') == -144)
+            if args.video:
+                # An accepted socket that closes before any RTSP request can
+                # emit a generic flush, but it never owned the media session.
+                with socket.create_connection(('127.0.0.1', port), timeout=3):
+                    time.sleep(0.15)
+                # Round-trip through the listener after the auxiliary close.
+                request('OPTIONS', 6)
+            if waiting.get('volumeDb') != 0:
+                raise RuntimeError('New receiver session inherited stale volume')
+            request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
+            gain = observation(lambda value: value.get('volumeDb') == -18)
+            if args.video:
+                request('SET_PARAMETER', 3, b'volume: 5.0\r\n')
+                response = request('GET_PARAMETER', 4, b'volume\r\n')
+                if not re.search(rb'volume:\s*-18\.0+', response):
+                    raise RuntimeError('Mirror receiver did not preserve the last valid gain')
+            request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
+            muted = observation(lambda value: value.get('volumeDb') == -144)
+            if args.video and muted['generation'] != waiting['generation']:
+                raise RuntimeError('An auxiliary connection invalidated the mirror generation')
             shell('inputd-cli', 'button_press', 'KEY_BACK' if cycle == 0 else 'KEY_HOMEPAGE')
             stopped = observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
             if client.recv(1) != b'':
                 raise RuntimeError('Leaving the screen did not close the native control socket')
             client.close(); client = None
-            cycles.append({'waiting': waiting, **details, 'stopped': stopped, 'controlSocketClosed': True})
+            cycles.append({'waiting': waiting, 'gain': gain, 'muted': muted, 'stopped': stopped, 'controlSocketClosed': True})
         report.update(passed=True, cycles=cycles)
         print(json.dumps(report, indent=2))
     except Exception as error:

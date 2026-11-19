@@ -37,6 +37,7 @@ struct AirPlayMirrorProbe::Impl {
   std::vector<bool> configurationFrame;
   std::vector<uint8_t> avcc;
   const int width, height;
+  const bool disconnectOnEof;
   std::unique_ptr<logger_t,decltype(&logger_destroy)> logger{nullptr,logger_destroy};
   std::unique_ptr<raop_ntp_t,decltype(&raop_ntp_destroy)> ntp{nullptr,raop_ntp_destroy};
   std::unique_ptr<raop_rtp_mirror_t,decltype(&raop_rtp_mirror_destroy)> mirror{nullptr,raop_rtp_mirror_destroy};
@@ -49,8 +50,9 @@ struct AirPlayMirrorProbe::Impl {
   std::atomic<bool> closing{false}, mismatch{false}, running{false};
   std::atomic<uint64_t> received{0}, timed{0}, fragmentedWrites{0};
   std::thread timing;
-  Impl(AirPlayVideoWorker& output, int w, int h, const std::vector<AirPlayVideoFixtureFrame>& input)
-    : worker(output), frames(input), width(w), height(h) {}
+  Impl(AirPlayVideoWorker& output, int w, int h, const std::vector<AirPlayVideoFixtureFrame>& input,
+       bool disconnectOnEof)
+    : worker(output), frames(input), width(w), height(h), disconnectOnEof(disconnectOnEof) {}
   ~Impl() {
     closing = true;
     mirror.reset(); ntp.reset();
@@ -106,6 +108,7 @@ struct AirPlayMirrorProbe::Impl {
     if (!logger) throw std::runtime_error("Could not create mirror fixture logger");
     logger_set_callback(logger.get(),[](void*,int,const char*) {},nullptr); logger_set_level(logger.get(),0);
     raop_callbacks_t callbacks{}; callbacks.cls = this;
+    callbacks.mirror_end_on_eof = disconnectOnEof;
     callbacks.video_process = [](void* cls,raop_ntp_t*,video_decode_struct* frame) {
       auto& self = *static_cast<Impl*>(cls);
       const auto index = self.received.load();
@@ -123,7 +126,11 @@ struct AirPlayMirrorProbe::Impl {
     callbacks.video_pause = [](void*) {};
     callbacks.video_resume = [](void*) {};
     callbacks.video_reset = [](void* cls,reset_type_t) {static_cast<Impl*>(cls)->worker.flush();};
-    callbacks.mirror_video_running = [](void* cls,bool value) {static_cast<Impl*>(cls)->running = value;};
+    callbacks.mirror_video_running = [](void* cls,bool value) {
+      auto& self = *static_cast<Impl*>(cls);
+      if (!value && self.disconnectOnEof) self.worker.disconnect();
+      self.running = value;
+    };
     timing_protocol_t protocol = NTP;
     ntp.reset(raop_ntp_init(logger.get(),&callbacks,"127.0.0.1",4,ntohs(address.sin_port),&protocol));
     if (!ntp) throw std::runtime_error("Could not create mirror NTP session");
@@ -193,8 +200,9 @@ struct AirPlayMirrorProbe::Impl {
   }
 };
 AirPlayMirrorProbe::AirPlayMirrorProbe(AirPlayVideoWorker& worker, int width, int height,
-    const std::vector<uint8_t>& configuration, const std::vector<AirPlayVideoFixtureFrame>& frames)
-  : impl(std::make_unique<Impl>(worker,width,height,frames)) {impl->prepare(configuration); impl->initialize();}
+    const std::vector<uint8_t>& configuration, const std::vector<AirPlayVideoFixtureFrame>& frames,
+    bool disconnectOnEof)
+  : impl(std::make_unique<Impl>(worker,width,height,frames,disconnectOnEof)) {impl->prepare(configuration); impl->initialize();}
 AirPlayMirrorProbe::~AirPlayMirrorProbe() = default;
 void AirPlayMirrorProbe::send(size_t index) {
   if (index != impl->nextFrame || index >= impl->frames.size() || impl->released) throw std::invalid_argument("Expected sequential mirror fixture frame");
@@ -230,6 +238,11 @@ void AirPlayMirrorProbe::stop() {
   }
   impl->released = true;
   if (impl->mismatch) throw std::runtime_error("Decrypted mirror fixture or NTP mismatch");
+}
+void AirPlayMirrorProbe::closeSender() {
+  if (impl->sender < 0) return;
+  close(impl->sender);
+  impl->sender = -1;
 }
 bool AirPlayMirrorProbe::healthy() const {return !impl->mismatch && (impl->running || impl->released);}
 bool AirPlayMirrorProbe::socketsReleased() const {return impl->released;}

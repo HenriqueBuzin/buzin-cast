@@ -27,6 +27,8 @@ std::string BuzinNetwork::getAirPlayVideoState() {
   std::ostringstream output; output.imbue(std::locale::classic());
   output << "{\"phase\":\"" << state.phase << "\",\"generation\":" << state.generation
     << ",\"accepted\":" << state.accepted << ",\"dropped\":" << state.dropped << ",\"flushes\":" << state.flushes
+    << ",\"audioAccepted\":" << state.audioAccepted << ",\"audioDropped\":" << state.audioDropped
+    << ",\"volumeDb\":" << airplay.volumeDb()
     << ",\"queuedBytes\":" << state.queuedBytes << ",\"released\":" << (state.released ? "true" : "false")
     << ",\"error\":\"" << state.error << "\"}";
   const auto json = output.str();
@@ -99,6 +101,7 @@ std::string BuzinNetwork::pollAirPlayCommand() {
       case AirPlayEvent::Kind::MirrorUrl: kind = "mirror"; break;
       case AirPlayEvent::Kind::Seek: kind = "seek"; break;
       case AirPlayEvent::Kind::Rate: kind = "rate"; break;
+      case AirPlayEvent::Kind::Volume: kind = "volume"; break;
       case AirPlayEvent::Kind::Stop: case AirPlayEvent::Kind::Reset: kind = "stop"; break;
       case AirPlayEvent::Kind::Audio: case AirPlayEvent::Kind::Video:
         throw std::runtime_error("AirPlay mirroring output is not available");

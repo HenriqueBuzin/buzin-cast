@@ -1,4 +1,5 @@
 #include "AlacDecoder.h"
+#include "AirPlayAudioFormat.h"
 #include <cstring>
 #include <stdexcept>
 extern "C" {
@@ -18,7 +19,7 @@ AlacDecoder::AlacDecoder() : impl(std::make_unique<Impl>()) {
   impl->frame = av_frame_alloc(); impl->packet = av_packet_alloc();
   if (!impl->context || !impl->frame || !impl->packet) throw std::bad_alloc();
   // Same ALAC atom cookie as the shared Fire OS decoder.
-  const uint8_t config[] = {0,0,0,36,'a','l','a','c',0,0,0,0,0,0,1,96,0,16,40,10,14,2,0,255,0,0,0,0,0,0,0,0,0,0,172,68};
+  const auto& config = AirPlayAlacCookie;
   auto& context = *impl->context;
   context.extradata = static_cast<uint8_t*>(av_mallocz(sizeof(config)+AV_INPUT_BUFFER_PADDING_SIZE));
   if (!context.extradata) throw std::bad_alloc();

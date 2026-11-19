@@ -14,9 +14,11 @@ struct AirPlayVideoFixtureFrame {
 class AirPlayMirrorProbe {
 public:
   AirPlayMirrorProbe(AirPlayVideoWorker& worker, int width, int height,
-    const std::vector<uint8_t>& configuration, const std::vector<AirPlayVideoFixtureFrame>& frames);
+    const std::vector<uint8_t>& configuration, const std::vector<AirPlayVideoFixtureFrame>& frames,
+    bool disconnectOnEof = false);
   ~AirPlayMirrorProbe();
   void send(size_t index);
+  void closeSender();
   void stop();
   bool healthy() const;
   bool socketsReleased() const;

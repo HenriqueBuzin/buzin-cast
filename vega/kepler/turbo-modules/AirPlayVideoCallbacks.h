@@ -11,6 +11,11 @@ inline void forwardAirPlayVideo(AirPlayVideoWorker& worker, const video_decode_s
   worker.sample(frame->data,frame->data_len > 0 ? static_cast<size_t>(frame->data_len) : 0,
     frame->is_h265,frame->ntp_time_local);
 }
+inline void forwardAirPlayMirrorAudio(AirPlayVideoWorker& worker, const audio_decode_struct* frame) noexcept {
+  if (!frame) return;
+  worker.audioSample(frame->data,frame->data_len > 0 ? static_cast<size_t>(frame->data_len) : 0,
+    frame->ct,frame->ntp_time_local);
+}
 inline void forwardAirPlayVideoSize(AirPlayVideoWorker& worker, const float* width, const float* height) noexcept {
   // UxPlay's size callback reports integer dimensions encoded as floats.
   if (!width || !height || !std::isfinite(*width) || !std::isfinite(*height) ||

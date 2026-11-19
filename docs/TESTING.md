@@ -1867,3 +1867,167 @@ No macOS, passe `--openssl-prefix` com o prefixo da instalação de desenvolvime
 do OpenSSL. Para repetir o ensaio VVD acima, use `test_vega_local_video.py` com
 `--mirror --profile high --transport-only`. O modo estrito continua exigindo
 contadores de vídeo positivos.
+
+
+## Linha do tempo comum no MP4 de espelhamento — 19 de novembro de 2026
+
+O muxer nativo e a saída HTTP local aceitam uma trilha opcional AAC-LC estéreo
+a 44,1 kHz, com 960 ou 1024 amostras por pacote. A inicialização espera um
+pacote de cada trilha. Assim, o muxer preserva o início relativo no MP4.
+Também preserva lacunas entre fragmentos e rejeita intervalos sobrepostos.
+O modo só de vídeo mantém o cabeçalho imediato.
+
+Os testes com ASan/UBSan cobrem início em ambas as ordens, atraso inicial de
+80 ms, lacunas, sobreposição, encerramento e a saída HTTP com ambas as trilhas.
+Os três builds e a validação de ABI passaram. No VVD ARM64, o probe
+`--av-mux` produziu dois arquivos com 120 quadros H.264 e 346 pacotes AAC-LC
+por ciclo. O arquivo recuperado preservou os timestamps e o atraso de 80 ms.
+No host, os quadros decodificados e os bytes de áudio coincidiram com as fontes
+e o AAC foi decodificado sem erro. Relatório em `build/vega-av-mux-native`.
+
+O worker do app ainda precisa conectar os callbacks de áudio a essa saída
+usando a época NTP da mesma sessão. Continuam pendentes AAC-ELD no muxer,
+sincronismo durante reprodução no Vega e validação com um emissor real.
+
+Para repetir, use `tools/test_vega_msse_video.py --av-mux --profile high`
+com o VPKG e o probe ARM64 do mesmo build.
+
+
+## Áudio AAC-LC na sessão de espelhamento — 19 de novembro de 2026
+
+A sessão AirPlay encaminha os callbacks AAC-LC (codec 4, 960 ou 1024
+amostras por pacote) ao mesmo worker de H.264. As duas trilhas usam uma
+origem NTP comum. O worker aguarda áudio, IDR e o próximo quadro de vídeo
+para calcular a duração inicial antes de anunciar o fMP4 ao player. Calcula
+as durações seguintes pelo próximo timestamp, preserva lacunas e descarta
+sobreposição de áudio acima da margem de arredondamento de um tick. Filas
+de entrada, amostras retidas e amostra em processamento compartilham o limite
+existente de 8 MiB e 256 eventos. A espera inicial com amostras retidas tem
+prazo de três segundos. Flush invalida as duas trilhas e abre nova época.
+
+Os testes com sanitizadores cobrem início em ambas as ordens, atraso de 80 ms,
+cadência variável de vídeo, perda de pacote atrasado, flush e espera sem áudio.
+O probe `--av-mux` passou a usar os mesmos helpers de callback e o worker
+do app. Em dois ciclos no VVD, o arquivo gerado preservou 120 quadros, 346
+pacotes AAC e 80 ms de atraso. O probe escreve em arquivo para conferência
+independente no host. A tela manual também passou em dois ciclos de
+abertura, Voltar/background e fechamento do socket e worker.
+Relatórios em `build/vega-av-worker-final` e `build/vega-av-worker-ui`.
+
+O modo sem AAC-LC negociado continua com vídeo apenas. Faltam AAC-ELD/ALAC
+nesta saída, validação com emissor Apple e verificação de imagem, som e
+sincronização durante reprodução no aparelho. O ensaio de arquivo mede a
+linha do tempo do contêiner. O ensaio da tela mede o ciclo de vida do receptor.
+
+
+## AAC-ELD e ALAC no espelhamento Vega — 19 de novembro de 2026
+
+A sessão de espelhamento aceita AAC-LC (960/1024 amostras) e AAC-ELD
+(480/512), estéreo a 44,1 kHz. O muxer também gera ALAC de 352 amostras
+no probe e usa a mesma configuração do receptor de áudio isolado. O player
+do VVD ficou em carregamento com a trilha ALAC, inclusive começando de zero.
+Por isso a sessão manual mantém o vídeo ativo sem essa trilha. Troca de perfil
+inicia outra saída. O receptor de áudio isolado mantém seu caminho ALAC próprio.
+
+O ensaio `test_vega_msse_video.py --av-mux --audio-profile PERFIL` usa
+os callbacks e o muxer compilados para ARM64 no VVD. Cada perfil passou
+por dois ciclos, com 120 quadros e o atraso de 80 ms. O demuxer do host
+confirmou bytes, timestamps e duração de cada pacote. A decodificação
+gerou a contagem PCM esperada para AAC-LC (346 pacotes), AAC-ELD 480
+(735), AAC-ELD 512 (690) e ALAC (1003). Relatórios locais em
+`build/vega-mirror-audio-{lc,eld480,eld512,alac}`. Os testes portáteis
+com ASan/UBSan e os builds das três arquiteturas também passaram.
+
+A verificação do arquivo ainda deixa pendentes a imagem, o áudio audível,
+o sincronismo durante reprodução e a negociação com um emissor Apple real.
+
+Com `test_vega_airplay_url.py --media-file ARQUIVO --live`, o player do VVD
+carregou os dois fMP4 AAC-ELD e o AAC-LC desde zero. O relógio avançou e Voltar liberou
+o player. O ensaio completo de controles mostrou que a busca falha nos
+arquivos sem índice. Os contadores do SDK ficaram em zero mesmo com a
+superfície associada. O relatório de ALAC ficou em carregamento e não avançou.
+Resultados em `build/vega-mirror-start-final-*`, `build/vega-mirror-player-*`
+e `build/vega-mirror-start-alac`.
+
+
+## ALAC convertido para AAC-LC no espelhamento — 19 de novembro de 2026
+
+A sessão manual volta a aceitar ALAC. A saída de vídeo decodifica os
+pacotes de 352 amostras e codifica AAC-LC estéreo a 44,1 kHz antes de
+montar o mesmo MP4 que carrega H.264. O codificador retém uma fração de
+quadro PCM, descarta o pacote de priming e preserva o início no relógio
+NTP. Em uma lacuna, só completa o AAC em andamento com silêncio e
+mantém o restante da lacuna. Ao terminar, completa a última fração de
+quadro. O muxer limita a espera inicial de vídeo a 32 quadros e 8 MiB.
+
+Os testes portáteis com ASan/UBSan verificaram atraso, lacunas, ordem e
+encerramento. No VVD, `--av-mux --audio-profile alac-aac` converteu 1003
+pacotes ALAC em 345 pacotes AAC por ciclo. O MP4 preservou 120 quadros
+idênticos e a diferença de 80 ms entre as trilhas. O host decodificou
+353280 quadros PCM. Relatório em `build/vega-alac-aac-file`.
+
+O patch mantém o ensaio ALAC direto para diagnóstico. Esse caminho ficou
+preso em carregamento no player do VVD. A saída do app usa a conversão.
+Ainda faltam validação com emissor Apple, áudio audível, imagem exibida
+e medição do sincronismo no aparelho.
+
+No ensaio `test_vega_local_video.py --alac-conversion --transport-only`,
+o player consumiu a saída HTTP enquanto o worker ainda produzia os
+fragmentos. O ciclo completo recebeu 120 quadros e 1003 pacotes ALAC,
+com relógio final de 8,09 s. Voltar cancelou o segundo ciclo em 61/120
+quadros e 500/1003 pacotes. Player, produtor e superfície foram liberados.
+O contador de vídeo permaneceu zero. Relatório em
+`build/vega-alac-aac-stream`. Builds das três arquiteturas, lint, TypeScript
+e 62 testes Jest passaram.
+
+
+## Volume RTSP na sessão de espelhamento — 19 de novembro de 2026
+
+O controle de volume AirPlay aceita de -30 a 0 dB e -144 dB para mute.
+A sessão mantém só o último comando pendente e devolve o nível atual
+em GET_PARAMETER. O player converte o nível para ganho linear e conserva
+o valor na troca de fonte. Reaplica o ganho quando começa a reprodução,
+pois o pipeline Vega pode aceitar a chamada inicial antes de estar pronto.
+
+No VVD, `test_vega_airplay_audio.py --video` verifica ganho, mute, rejeição
+do nível inválido, leitura RTSP e reinício da sessão sem volume herdado.
+O teste de áudio isolado também passou. Os 63 testes Jest cobrem a entrega
+do comando e a troca assíncrona de fonte. Lint, TypeScript, build e ABI
+das três arquiteturas passaram. A validação em aparelho e emissor real
+continua pendente.
+
+Com `test_vega_airplay_url.py --live --volume --media-file ...`, o
+player em reprodução registrou ganho linear 0,125893 para -18 dB e
+zero para o mute. Voltar liberou o player. O ensaio usa o arquivo
+produzido pela conversão ALAC e a sessão por URL que compartilha o
+controle de volume com o espelhamento. Resultado em
+`build/vega-mirror-volume-player-final`. A observação vem da API do
+player. Ainda falta medir o áudio nos alto-falantes.
+
+
+## Reconexão do espelhamento — 19 de novembro de 2026
+
+O worker encerra a saída quando o transporte de vídeo termina e descarta
+dimensões, configuração, áudio negociado e timestamps do emissor anterior.
+Fechar um socket RTSP auxiliar já não invalida a saída. Quando o consumidor
+HTTP desconecta ou expira, a saída é liberada e a sessão aguarda o fim do
+transporte antes de aceitar outra mídia.
+
+O patch compartilhado 0018 fecha o socket de mídia corretamente e faz o
+dono do transporte aguardar a thread, mesmo quando ela terminou por conta
+própria. O Vega pede que o EOF de mídia encerre a thread. A preparação
+isolada do UxPlay passou com 18 patches.
+
+O teste com ASan/UBSan verificou recuperação após falha do consumidor e
+descarte dos parâmetros anteriores. No VVD, `--mirror-reconnect` validou
+dois emissores TCP/AES-CTR sintéticos seguidos, com novo URL, EOF e liberação
+de portas e worker. O teste RTSP confirmou que fechar uma conexão auxiliar
+preserva a geração, e que Voltar ou background fecham o receptor.
+Relatórios em `build/vega-mirror-reconnect` e `build/vega-mirror-auxiliary`.
+As três arquiteturas passaram na validação de ABI. Ainda falta testar a
+negociação com um emissor Apple e confirmar imagem e som no aparelho.
+
+A regressão do fluxo criptografado em `build/vega-mirror-reconnect-regression`
+entregou os 120 quadros no primeiro ciclo. Voltar encerrou o segundo em
+46/120 com `clientClosed` e liberou produtor, player e superfície. O
+relatório mantém `visualValidation=false`.
