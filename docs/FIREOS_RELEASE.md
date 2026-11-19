@@ -93,3 +93,15 @@ ficha. O JSON registra `signaturesVerified` e a impressão digital do
 certificado de cada APK. Os testes de execução, a licença Amazon, as
 restrições regionais e a revisão da seleção de aparelhos permanecem etapas
 separadas.
+
+## Execução do APK nativo no Android 5.1
+
+As duas edições nativas assinadas, 48 e 49, passaram no emulador API22.
+O teste verificou abertura, RTSP, navegação, tela Sobre, chave pública da
+ficha e assinatura v1. Assim, a mesma edição tem evidência de execução
+nas APIs 17 e 22. O AFTM físico e a licença da loja ainda exigem validação.
+
+Para repetir no emulador API22, adicione `--device-sdk 22` à chamada de
+`tools/test_legacy_store.py` para o APK nativo. Os relatórios locais do
+ensaio estão em `outputs/fireos/coordinated/legacy.general-api22-early`
+e `outputs/fireos/coordinated/legacy.nodownload-api22-early`.
