@@ -3,6 +3,7 @@ import TvButton from './TvButton';
 import React, {useEffect, useRef, useState} from 'react';
 import {AppState, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
+import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 
 export default function PlaybackScreen({onBack}: {onBack: () => void}) {
@@ -13,6 +14,8 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
     state: 'loading',
     seconds: 0,
   });
+  const activeMedia = ['playing', 'paused'].includes(snapshot.state);
+  const subtitles = usePlaybackSubtitles(activeMedia ? 1 : null);
   useEffect(() => {
     const active = createPlaybackSession(() => setReady(true), setSnapshot);
     session.current = active;
@@ -50,11 +53,14 @@ export default function PlaybackScreen({onBack}: {onBack: () => void}) {
             }
           />
         )}
+        {activeMedia && <SubtitleCaption text={subtitles.caption(snapshot.seconds)} />}
       </View>
       <Text style={styles.status}>
         {labels[snapshot.state]} • {snapshot.seconds.toFixed(1)} s
       </Text>
+      {activeMedia && <SubtitleNotice link={subtitles.link} message={subtitles.message} />}
       <View style={styles.actions}>
+        {activeMedia && <SubtitleButton label={subtitles.label} onPress={subtitles.select} />}
         {['pause', 'back'].map((id) => (
           <TvButton
             key={id}

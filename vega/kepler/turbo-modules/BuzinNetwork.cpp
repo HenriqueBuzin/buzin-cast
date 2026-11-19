@@ -127,6 +127,9 @@ std::string BuzinNetwork::pollAirPlayCommand() {
   }
   return "";
 }
+std::string BuzinNetwork::startSubtitleUpload() {return subtitles.start();}
+std::string BuzinNetwork::pollSubtitleUpload() {return subtitles.poll();}
+void BuzinNetwork::stopSubtitleUpload() {subtitles.stop();}
 double BuzinNetwork::startCastV2() {
   const auto port = castV2.start(getReceiverName(), "/data/cast-v2.pem", getConnectionApproval());
   std::ofstream report("/data/cast-v2-port.json.tmp", std::ios::trunc);

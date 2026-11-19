@@ -9,6 +9,7 @@ import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
 import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
 import type {ConnectionApprovalRequest} from './connectionApproval';
+import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import type {PlaybackSnapshot} from './playbackSession';
 
 const titles = {
@@ -31,6 +32,8 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [failed, setFailed] = useState(false);
   const [pin, setPin] = useState('');
   const [focus, setFocus] = useState('back');
+  const subtitleMedia = protocol !== 'mirror' && !photo && snapshot && ['playing', 'paused'].includes(snapshot.state) ? token : null;
+  const subtitles = usePlaybackSubtitles(subtitleMedia);
   useEffect(() => {
     try {
       const onFailure = () => setFailed(true);
@@ -111,6 +114,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
               receiver.current?.detachSurface(token, handle)
             }
           />
+          {subtitleMedia !== null && <SubtitleCaption text={subtitles.caption(snapshot?.seconds ?? 0)} />}
         </View>
       )}
       <Text style={styles.details}>
@@ -137,7 +141,9 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           onAnswer={(id, allow) => receiver.current?.answerApproval?.(id, allow)}
         />
       )}
+      {subtitleMedia !== null && <SubtitleNotice link={subtitles.link} message={subtitles.message} />}
       <View style={styles.actions}>
+        {subtitleMedia !== null && <SubtitleButton label={subtitles.label} onPress={subtitles.select} />}
         {(token === null || protocol === 'mirror' ? ['back'] : ['pause', 'back']).map((id) => (
           <TvButton
             key={id}

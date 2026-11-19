@@ -1,5 +1,11 @@
 # Retomada — 19 de novembro de 2026
 
+## Legendas externas no Vega
+
+O player agora importa arquivos SRT e WebVTT pela rede local e sincroniza
+o texto com o relógio do vídeo. No VVD ARM64, o controle abriu, cancelou,
+reabriu e encerrou a porta de importação. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Cast V2 experimental no Vega
 
 O menu Estado do port agora abre o receptor experimental de mídia

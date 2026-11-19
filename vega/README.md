@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. O menu também oferece Cast V2 experimental.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 70 testes Jest passaram.
+- Lint sem avisos, TypeScript e 77 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -89,6 +89,14 @@ A chave e o certificado autossinado são gerados no sandbox. Quando a
 aprovação na TV está ativada, ela antecede a negociação TLS. O modo atende
 clientes que aceitam o receptor experimental. Apps oficiais do Google Cast
 que exigem autenticação de dispositivo precisam de um receptor certificado.
+
+Durante a reprodução por URL ou da amostra local, **Importar legenda**
+exibe um endereço HTTP temporário.
+Abra o endereço no navegador de um aparelho na mesma rede e selecione um
+arquivo SRT ou WebVTT em UTF-8 de até 2 MiB. A legenda acompanha o relógio
+do vídeo e pode ser desligada pelo controle. Cada importação aceita um
+arquivo e fecha ao cancelar, sair do vídeo ou após dois minutos. O arquivo
+fica em memória durante a sessão.
 
 ## Ambiente e build
 

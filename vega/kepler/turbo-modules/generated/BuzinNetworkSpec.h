@@ -46,6 +46,9 @@ public:
   virtual std::string pollAirPlayApproval() = 0;
   virtual void answerAirPlayApproval(double requestId, bool allow) = 0;
   virtual void updateAirPlayState(double position, double duration, double rate, bool ready) = 0;
+  virtual std::string startSubtitleUpload() = 0;
+  virtual std::string pollSubtitleUpload() = 0;
+  virtual void stopSubtitleUpload() = 0;
   virtual double startCastV2() = 0;
   virtual void stopCastV2() = 0;
   virtual std::string pollCastV2() = 0;

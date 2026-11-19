@@ -1,5 +1,22 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Legendas externas no Vega
+
+**Importar legenda** durante um vídeo abre um endereço de uso único por
+até dois minutos. O usuário seleciona o arquivo SRT ou WebVTT no navegador
+de outro aparelho da mesma rede. A TV valida UTF-8 e marcações de tempo,
+mostra as legendas conforme a posição do player e libera o arquivo em
+memória ao trocar de vídeo, desligar a legenda ou sair. O fluxo também
+funciona na amostra local. O texto usa o estilo da TV.
+
+O teste nativo exercitou o envio dos dois formatos e rejeição de origem,
+caminho, tipo e tamanho inválidos. O teste de tela cobriu exibição, pausa,
+busca, desativação e encerramento. No VVD ARM64 passaram abertura,
+cancelamento, reabertura e fechamento da porta pelo controle. Lint,
+TypeScript, 77 testes Jest e os três VPKGs Release passaram. A entrega
+do arquivo pelo navegador e a sobreposição sobre vídeo em uma TV física
+aguardam validação visual.
+
 ## Cast V2 experimental no Vega
 
 **Estado do port → Testar Cast V2** abre o receptor por TLS local e
