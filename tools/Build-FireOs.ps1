@@ -13,9 +13,14 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($Instrumentation -and $Target -ne 'legacy') { throw '-Instrumentation currently applies only to the native API17 frontend.' }
-if ($Release -and ($Target -ne 'legacy' -or $Instrumentation)) { throw '-Release currently requires -Target legacy and cannot be combined with -Instrumentation.' }
-if ($Release -and ($VersionCode -lt 1 -or [string]::IsNullOrWhiteSpace($VersionName))) { throw 'Pass an explicit -VersionCode and -VersionName for a store candidate.' }
+if ($Release -and ($Target -eq 'probe' -or $Instrumentation)) { throw 'The probe and instrumentation are available only for debug builds.' }
+if ($Release -and $Target -eq 'legacy' -and ($VersionCode -lt 1 -or [string]::IsNullOrWhiteSpace($VersionName))) {
+    throw 'Pass an explicit -VersionCode and -VersionName for the legacy store candidate.'
+}
 if (-not $Release -and ($RegionalAppstoreAssets -or $VersionCode -or $VersionName)) { throw 'Store keys and version arguments require -Release.' }
+if ($Release -and $Target -ne 'legacy' -and ($PSBoundParameters.ContainsKey('VersionCode') -or $PSBoundParameters.ContainsKey('VersionName'))) {
+    throw 'For compat/modern releases, set the version in gradle/fireos-release.properties.'
+}
 if ($RegionalAppstoreAssets) {
     $RegionalAppstoreAssets = (Resolve-Path -LiteralPath $RegionalAppstoreAssets).Path
     if (-not (Test-Path -LiteralPath (Join-Path $RegionalAppstoreAssets 'AppstoreAuthenticationKey.pem') -PathType Leaf)) { throw 'Missing regional Appstore public key.' }
@@ -76,13 +81,47 @@ try {
     } else {
         if ($Target -eq 'compat') { $buildArguments += '-PbuzinLegacy=true' }
         if ($Abis) { $buildArguments += '-PbuzinAbis='+($Abis -join ',') }
-        $buildArguments += ':app:assembleDebug'
-        if ($Check) { $buildArguments += @(':app:lintDebug',':receiver-core:check') }
+        if ($RegionalAppstoreAssets) { $buildArguments += "-PbuzinRegionalAppstoreAssets=$RegionalAppstoreAssets" }
+        $buildType = if ($Release) {'Release'} else {'Debug'}
+        $buildArguments += ":app:assemble$buildType"
+        if ($Check) { $buildArguments += @(":app:lint$buildType",':receiver-core:check') }
     }
     Push-Location $repo
     try { & ./gradlew.bat @buildArguments; $buildResult = $LASTEXITCODE }
     finally { Pop-Location }
     if ($buildResult -ne 0) { throw "Gradle failed with exit code $buildResult." }
+    if ($Release -and $Target -in @('compat','modern')) {
+        $region = if ($NoDownload) {'nodownload'} else {'general'}
+        $buildDirectory = 'app/build' + $(if ($Target -eq 'compat') {'-legacy'} else {''}) + $(if ($NoDownload) {'-nodownload'} else {''})
+        $releaseDirectory = Join-Path $repo "$buildDirectory/outputs/apk/release"
+        $metadata = Get-Content -LiteralPath (Join-Path $releaseDirectory 'output-metadata.json') -Raw | ConvertFrom-Json
+        $plan = Get-Content -LiteralPath (Join-Path $repo 'gradle/fireos-release.properties') -Raw | ConvertFrom-StringData
+        $expectedId = if ($NoDownload) {'com.buzincast.tv.deat'} else {'com.buzincast.tv'}
+        $expectedCode = [int]$plan["$Target.$region.versionCode"]
+        $expectedName = $plan['versionName'] + $(if ($Target -eq 'compat') {'-compat'} else {''}) + $(if ($NoDownload) {'-nodownload'} else {''})
+        if ($metadata.applicationId -ne $expectedId -or $metadata.elements.Count -ne 1 -or $metadata.elements[0].outputFile -like '*unsigned*') {
+            throw 'Expected one signed store APK with the planned application ID.'
+        }
+        if ($expectedCode -lt 1 -or $metadata.elements[0].versionCode -ne $expectedCode -or $metadata.elements[0].versionName -ne $expectedName) {
+            throw 'The release build version differs from the coordinated plan.'
+        }
+        $sourceApk = Join-Path $releaseDirectory $metadata.elements[0].outputFile
+        Assert-PreviewApk $sourceApk
+        $export = Join-Path $repo 'outputs/fireos/coordinated'
+        New-Item -ItemType Directory -Force -Path $export | Out-Null
+        $finalApk = Join-Path $export "$Target.$region.apk"
+        $temporaryApk = "$finalApk.$([guid]::NewGuid()).tmp"
+        try {
+            Copy-Item -LiteralPath $sourceApk -Destination $temporaryApk
+            if ((Get-FileHash -LiteralPath $sourceApk).Hash -ne (Get-FileHash -LiteralPath $temporaryApk).Hash) {
+                throw 'Exported store candidate differs from build output.'
+            }
+            Move-Item -LiteralPath $temporaryApk -Destination $finalApk -Force
+        } finally {
+            if (Test-Path -LiteralPath $temporaryApk) { Remove-Item -LiteralPath $temporaryApk }
+        }
+        Write-Host "Signed store candidate exported to $finalApk"
+    }
     if ($Target -eq 'legacy') {
         if ($Release) {
             $storeBuild = Join-Path $repo ('fireos-legacy/build-store'+$(if ($NoDownload) {'-nodownload'} else {''}))
