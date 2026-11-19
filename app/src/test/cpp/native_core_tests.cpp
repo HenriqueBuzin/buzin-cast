@@ -17,6 +17,13 @@ static_assert(std::numeric_limits<decltype(SpscRingTestAccess::position(std::dec
               "Audio positions must remain 64-bit on ARM32 as well as ARM64");
 #define CHECK(condition) do { if (!(condition)) throw std::runtime_error(std::string(#condition)+" at line "+std::to_string(__LINE__)); } while(false)
 #include "log_sink_contracts.h"
+#ifdef BUZIN_DNSSD_ALLOC_CONTRACTS
+extern "C" int dnssdAllocationFailureStatus(void);
+static void dnssdAllocationFailuresReleasePartialState() {
+    const int status = dnssdAllocationFailureStatus();
+    if (status) throw std::runtime_error("DNS-SD allocation contract failed at line " + std::to_string(status));
+}
+#endif
 #ifdef BUZIN_CLOCK_CONTRACTS
 #include "timeline_clock_contracts.h"
 #endif
@@ -213,6 +220,9 @@ int main() {
         {"JNI callback binding failures",logSinkBindingFailures},
         {"JNI string allocation and callback failures",logSinkAllocationAndCallbackFailures},
         {"JNI log rebinding reference ownership",logSinkRebindingReleasesReferences}
+#ifdef BUZIN_DNSSD_ALLOC_CONTRACTS
+        ,{"DNS-SD allocation failures release partial state",dnssdAllocationFailuresReleasePartialState}
+#endif
 #ifdef BUZIN_CALLBACK_KEY_CONTRACTS
         ,{"TLS key creation failure blocks JVM attachment",callbackThreadKeyCreationFailureBlocksAttachment}
 #endif

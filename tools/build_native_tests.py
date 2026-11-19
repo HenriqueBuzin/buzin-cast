@@ -83,22 +83,26 @@ instrumentation=[] if args.legacy else ["-fprofile-instr-generate","-fcoverage-m
          "-fsanitize=undefined","-fsanitize-trap=undefined","-fno-omit-frame-pointer"]
 callback_inputs=[]
 if not args.legacy:
-    # Compile the unchanged production C callbacks, with their normal dialect
-    # and coverage identifiers. Only the unit executable wraps the TLS syscall.
+    # Compile the production C code with its normal dialect and coverage
+    # identifiers. Fault injection is linked only into the unit executable.
     c_compiler=toolchain/"bin"/("clang.exe" if platform.system()=="Windows" else "clang")
     includes=["-I"+str(root/"app/src/main/cpp"),
               "-I"+str(root/"app/src/main/cpp/third_party/UxPlay/lib")]
     callback_objects=[]
     for source in (root/"app/src/main/cpp/android_raop_callbacks.c",
-                   root/"app/src/test/cpp/callback_thread_key_contracts.c"):
+                   root/"app/src/main/cpp/android_dnssd_shim.c",
+                   root/"app/src/main/cpp/third_party/UxPlay/lib/utils.c",
+                   root/"app/src/test/cpp/callback_thread_key_contracts.c",
+                   root/"app/src/test/cpp/dnssd_allocation_contracts.c"):
         callback_object=args.output/(source.stem+".o")
         subprocess.run([str(c_compiler),"--target="+triple+str(args.api),
             "--sysroot="+str(toolchain/"sysroot"),"-std=c23","-O0","-g",*instrumentation,
             "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.",*includes,
             "-c",str(source),"-o",str(callback_object)],check=True)
         callback_objects.append(str(callback_object))
-    callback_inputs=["-DBUZIN_CALLBACK_KEY_CONTRACTS","-DBUZIN_CLOCK_CONTRACTS",*includes,*callback_objects,
-                     "-Wl,--wrap=pthread_key_create","-Wl,--wrap=clock_gettime"]
+    callback_inputs=["-DBUZIN_CALLBACK_KEY_CONTRACTS","-DBUZIN_CLOCK_CONTRACTS","-DBUZIN_DNSSD_ALLOC_CONTRACTS",
+                     *includes,*callback_objects,"-Wl,--wrap=pthread_key_create","-Wl,--wrap=clock_gettime",
+                     "-Wl,--wrap=calloc","-Wl,--wrap=strndup","-Wl,--wrap=malloc","-Wl,--wrap=free"]
 command=[str(compiler),"--target="+triple+str(args.api),"--sysroot="+str(toolchain/"sysroot"),
          "-std=c++17" if args.legacy else "-std=c++23","-O1","-g","-static-libstdc++","-pthread",*instrumentation,
          "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.","-I"+str(root/"app/src/main/cpp"),

@@ -1071,3 +1071,14 @@ preserve the saved level, which the service restores on sender disconnect. The
 21-test service and DACP selection passed on API28 in 8.389 seconds. The matching
 report covers all 4 branches in `setClientVolume` and all 12 in `_applyClientVol`.
 The current source suite now contains 209 Android cases.
+
+The Android native unit executable now injects allocation failures into the
+production DNS-SD initialization routine. The contract checks the error
+reported at each allocation site, release of any partial state, and clean
+initialization when allocations succeed again. The allocator wrappers are
+linked only into the native tests.
+
+All 20 native tests passed under UBSan on the API28 emulator. Exporting the unit
+profile against the matching application library confirmed all three MC/DC
+conditions of the allocation guard in dnssd_init. This result is from the
+native unit run. The complete four-edition cohort has separate runtime gates.
