@@ -10,6 +10,7 @@ kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/BuzinNetwork.cpp
   kepler/turbo-modules/ReceiverSettings.cpp
   kepler/turbo-modules/FCastTransport.cpp
+  kepler/turbo-modules/DlnaTransport.cpp
   kepler/turbo-modules/MdnsDiscovery.cpp
   kepler/turbo-modules/NetworkProbe.cpp
   kepler/AutoLinkInit.cpp)
@@ -24,6 +25,8 @@ install(TARGETS BuzinNetwork)
 add_executable(buzin-network-probe
   kepler/network_probe_main.cpp kepler/turbo-modules/NetworkProbe.cpp)
 install(TARGETS buzin-network-probe RUNTIME DESTINATION bin)
+add_executable(buzin-dlna-discovery-probe test/DlnaDiscoveryProbe.cpp)
+install(TARGETS buzin-dlna-discovery-probe RUNTIME DESTINATION bin)
 
 include(cmake/AirPlayCore.cmake)
 include(cmake/AlacDecoder.cmake)

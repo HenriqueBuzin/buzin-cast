@@ -16,7 +16,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const [selected, setSelected] = useState('status');
@@ -51,6 +51,9 @@ export default function App() {
 
   if (page === 'fcast') {
     return <FCastScreen onBack={goHome} />;
+  }
+  if (page === 'dlna') {
+    return <FCastScreen onBack={goHome} protocol="dlna" />;
   }
 
   if (page === 'playback') {
@@ -160,7 +163,7 @@ export default function App() {
           </Text>
           <Text style={styles.details}>
             {page === 'status'
-              ? 'FCast v2 e espelhamento AirPlay experimental têm descoberta na rede local. O teste AirPlay por URL usa conexão manual. DLNA e Cast V2 estão pendentes.'
+              ? 'FCast v2, DLNA e espelhamento AirPlay experimental têm descoberta na rede local. O teste AirPlay por URL usa conexão manual. Cast V2 está pendente.'
               : page === 'media'
               ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Use a amostra para testar a reprodução.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}
@@ -212,6 +215,7 @@ export default function App() {
           {page === 'status' && action('airplay', 'Testar AirPlay por URL', () => setPage('airplay'), false)}
           {page === 'status' && action('airplayAudio', 'Testar áudio AirPlay', () => setPage('airplayAudio'), false)}
           {page === 'status' && action('airplayVideo', 'Testar vídeo AirPlay', () => setPage('airplayVideo'), false)}
+          {page === 'status' && action('dlna', 'Ativar DLNA', () => setPage('dlna'), false)}
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}

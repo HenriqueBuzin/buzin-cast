@@ -1,5 +1,13 @@
 # Retomada — 19 de novembro de 2026
 
+## Receptor DLNA no Vega
+
+O modo DLNA anuncia um MediaRenderer por SSDP e toca mídia HTTP(S) no
+player compartilhado. Descoberta, comandos SOAP, reprodução MP4 e
+liberação do player passaram no VVD ARM64. Notificações GENA, fotos,
+regras de acesso e validação física continuam pendentes.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Pareamento AirPlay no Vega
 
 O espelhamento exibe um PIN gerado na abertura e exige verificação da

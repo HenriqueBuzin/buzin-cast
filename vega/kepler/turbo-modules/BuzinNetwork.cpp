@@ -10,6 +10,8 @@
 #include <locale>
 #include <limits>
 #include <fstream>
+#include <iomanip>
+#include <regex>
 #include <stdexcept>
 #include <random>
 
@@ -139,6 +141,57 @@ bool BuzinNetwork::isFCastClient(double client) {return fcast.isClient(client);}
 void BuzinNetwork::disconnectFCastClient(double client) {fcast.disconnect(client);}
 void BuzinNetwork::fcastError(double client, std::string message) {fcast.error(client, message);}
 void BuzinNetwork::updateFCastState(std::string playback, std::string volume) {fcast.update(playback, volume);}
+std::string BuzinNetwork::startDlna() {
+  const auto name = getReceiverName();
+  const std::string path = "/data/dlna-uuid";
+  std::ifstream input(path);
+  std::string uuid;
+  if (input) std::getline(input, uuid);
+  static const std::regex identity("uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+  if (!std::regex_match(uuid, identity)) {
+    std::random_device random;
+    unsigned char bytes[16];
+    for (auto& byte : bytes) byte = static_cast<unsigned char>(random());
+    bytes[6] = (bytes[6] & 15) | 0x40;
+    bytes[8] = (bytes[8] & 63) | 0x80;
+    std::ostringstream generated;
+    generated << "uuid:" << std::hex << std::setfill('0');
+    for (size_t i = 0; i < sizeof(bytes); ++i) {
+      if (i == 4 || i == 6 || i == 8 || i == 10) generated << '-';
+      generated << std::setw(2) << static_cast<unsigned>(bytes[i]);
+    }
+    uuid = generated.str();
+    const auto temporary = path + ".tmp";
+    std::ofstream output(temporary, std::ios::trunc);
+    output << uuid;
+    output.close();
+    if (!output || std::rename(temporary.c_str(), path.c_str()) != 0) {
+      std::remove(temporary.c_str());
+      throw std::runtime_error("Could not save DLNA identity");
+    }
+  }
+  const auto port = dlna.start(uuid);
+  try {
+    std::ofstream report("/data/dlna-port.json", std::ios::trunc);
+    report << "{\"port\":" << port << '}';
+    report.close();
+    if (!report) throw std::runtime_error("Could not record DLNA listener state");
+    std::ostringstream info;
+    info << "{\"port\":" << port << ",\"uuid\":" << std::quoted(uuid) << ",\"name\":" << std::quoted(name) << '}';
+    return info.str();
+  } catch (...) {
+    stopDlna();
+    throw;
+  }
+}
+void BuzinNetwork::stopDlna() {
+  dlna.stop();
+  std::remove("/data/dlna-port.json");
+}
+std::string BuzinNetwork::pollDlnaRequest() {return dlna.poll();}
+void BuzinNetwork::respondDlna(double requestId, double status, std::string body) {
+  dlna.respond(requestId, status, std::move(body));
+}
 std::string BuzinNetwork::getReport() {
   auto report = runNetworkProbe();
   report.pop_back();

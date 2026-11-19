@@ -1,5 +1,26 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Receptor DLNA no Vega — 19 de novembro de 2026
+
+**Estado do port → Ativar DLNA** abre um MediaRenderer com descoberta SSDP
+e os serviços UPnP AVTransport, RenderingControl e ConnectionManager.
+O nome acompanha Configurações e o UUID é salvo no sandbox. Uma URI de
+mídia HTTP(S) válida inicia o player compartilhado. O emissor pode
+consultar a posição e o transporte, pausar, retomar, buscar, parar,
+ajustar o volume e pôr em mudo. Voltar encerra o anúncio e o HTTP e
+libera o player.
+[Especificações MediaRenderer:1 e serviços UPnP da OCF](https://openconnectivity.org/developer/specifications/upnp-resources/upnp/mediaserver1-and-mediarenderer1/)
+
+No VVD ARM64, `tools/test_vega_dlna.py` fez uma busca SSDP por multicast
+e conferiu que a resposta apontava para o servidor HTTP ativo. O teste
+carregou as descrições dos três serviços, percorreu os controles SOAP em
+um MP4 e conferiu o reinício após Stop, o UUID ao reabrir e a liberação
+com Voltar e segundo plano. Relatório em `build/vega-dlna-vvd-final`.
+O teste de sockets com ASan/UBSan passou com requisição fragmentada,
+cancelamento, reabertura e descarte de uma resposta de sessão anterior.
+Ainda faltam notificações GENA, fotos, integração com as regras de acesso
+e validação com emissores DLNA em aparelho físico.
+
 ## PIN do espelhamento AirPlay — 19 de novembro de 2026
 
 Ao abrir **Testar vídeo AirPlay**, o receptor gera um PIN e o exibe com

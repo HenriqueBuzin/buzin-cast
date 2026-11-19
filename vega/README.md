@@ -5,8 +5,8 @@ Identidade `com.buzincast.tv`; logo e ícone aprovados preservados. As duas
 edições Fire OS mantêm sua interface nativa e o código já testado.
 O Vega recebe FCast v2 experimental por URLs. O menu **Estado do port**
 oferece testes de AirPlay por URL, áudio e espelhamento. O espelhamento
-anuncia o receptor por DNS-SD e pede o PIN exibido na TV. DLNA e Cast V2
-estão pendentes.
+anuncia o receptor por DNS-SD e pede o PIN exibido na TV. O receptor
+DLNA experimental anuncia por SSDP. Cast V2 está pendente.
 
 ## Estado verificado em 19 de novembro de 2026
 
@@ -24,7 +24,7 @@ estão pendentes.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 63 testes Jest passaram.
+- Lint sem avisos, TypeScript e 65 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -71,6 +71,11 @@ ALAC convertido para AAC. No VVD, os testes verificaram anúncio e
 encerramento, bloqueio de comandos sem PIN e transporte criptografado
 com amostras sintéticas. Ainda faltam testes de descoberta, pareamento e
 reprodução com um emissor Apple em aparelho físico.
+
+**Estado do port → Ativar DLNA** permite enviar mídia HTTP(S), consultar
+estado e posição, pausar, buscar, retomar, parar e ajustar volume ou mudo.
+A descoberta SSDP e os comandos passaram no VVD com um MP4. Notificações
+GENA, fotos e validação em aparelho físico estão pendentes.
 
 ## Ambiente e build
 
