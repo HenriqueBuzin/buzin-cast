@@ -763,3 +763,33 @@ or aggregate result; remaining lines are retained for choosing subsequent cases.
 The separate frozen DE/AT baseline also completed all 172 Android tests, 18 native
 cases and required runtime labels, passed snapshot validation and remained below
 the 100% target. It predates this settings fix and cannot absorb its profiles.
+
+Advanced settings contracts toggle 28 standard/developer switches through both
+persisted and rendered states, enforce the fixed cushion and hardware-buffer
+bounds, and adjust latency and adaptive buffering through real directional keys.
+The numeric fields also verify returning a previously changed value to zero.
+IME confirmation now receives the current editor callback through a lambda,
+avoiding reuse of the earlier local function reference after a value update.
+
+Window-event traces reproduced a second defect: key-down changed latency from
+250 to 300 ms, while key-up immediately restored 250 ms. The custom step handler
+consumed only key-down, leaving the Slider to finish its old value on key-up.
+`dpadAdjust` now consumes the releases of its handled directional keys as well.
+The successful trace contains nine directional releases that preserve their
+committed latency/adaptive values, including both adaptive slider boundaries.
+
+On API28, all six settings cases plus five existing main-screen cases passed
+(11 tests, 51.943 seconds, no skips). The PIN-dialog check additionally exposed
+an API28 accessibility issue: the model and screenshot showed the dialog closed,
+but the active-root query returned null. The test now retrieves and refreshes
+the focused application window, restores its accessibility service flags, and
+still requires a nonempty app tree, cleared PIN and selected overview. It does
+not accept an absent tree as successful dismissal. Failed attempts and their
+diagnostics remain separate from passing profiles.
+
+The matching selected Android report now covers 563 of 601 settings lines and
+277 of 440 settings branches. The complete older frozen matrix also finished:
+each of the four editions passed 172 Android tests, 18 native cases and all 15
+required result labels; every archived snapshot validated independently. All
+four remained below the metric target. Those older sources and mappings remain
+reference evidence; the changed app still needs fresh complete edition reports.

@@ -684,7 +684,7 @@ private fun SettingTextField(
             keyboardType = if (range == null) KeyboardType.Text else KeyboardType.Number,
             imeAction = ImeAction.Done
         ),
-        keyboardActions = doneAndHide(::save),
+        keyboardActions = doneAndHide { save() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)

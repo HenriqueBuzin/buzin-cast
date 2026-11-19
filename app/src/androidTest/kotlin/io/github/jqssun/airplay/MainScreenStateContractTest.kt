@@ -1,12 +1,14 @@
 package io.github.jqssun.airplay
 
 import android.app.Application
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
@@ -48,10 +50,15 @@ class MainScreenStateContractTest {
     private val bitmaps = mutableListOf<Bitmap>()
     private var lastNodes = emptyList<Node>()
     private var originalLocale: Locale = Locale.ROOT
+    private var originalAccessibilityFlags: Int? = null
     private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }
     private data class Node(val text: String, val description: String, val bounds: Rect, val selected: Boolean, val clickable: Boolean)
 
     @Before fun setup() {
+        val serviceInfo = requireNotNull(instrumentation.uiAutomation.serviceInfo)
+        originalAccessibilityFlags = serviceInfo.flags
+        serviceInfo.flags = serviceInfo.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        instrumentation.uiAutomation.serviceInfo = serviceInfo
         originalLocale = Locale.getDefault()
         Locale.setDefault(Locale.US)
         preferenceName = "main-screen-${System.nanoTime()}"
@@ -68,6 +75,11 @@ class MainScreenStateContractTest {
         }
     }
     @After fun cleanup() {
+        originalAccessibilityFlags?.let { flags ->
+            val serviceInfo = requireNotNull(instrumentation.uiAutomation.serviceInfo)
+            serviceInfo.flags = flags
+            instrumentation.uiAutomation.serviceInfo = serviceInfo
+        }
         Locale.setDefault(originalLocale)
         assertTrue(logs.flush())
         instrumentation.runOnMainSync { store.clear() }
@@ -90,12 +102,42 @@ class MainScreenStateContractTest {
             Thread.sleep(30)
         }
         snapshot()
+        instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
+            try {
+                File(context.filesDir, "main-contract-failure.png").outputStream().use {
+                    assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { bitmap.recycle() }
+        }
+        val current = instrumentation.uiAutomation.rootInActiveWindow
+        try {
+            Log.d("MainContractTrace", "failure pin=${model.pinCode.value} rootPackage=${current?.packageName} window=${current?.windowId} children=${current?.childCount}")
+        } finally { current?.recycle() }
         fail("$message; visible nodes=$lastNodes")
     }
     @Suppress("DEPRECATION")
-    private fun snapshot(): List<Node>? {
-        val tree = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+    private fun appRoot(): AccessibilityNodeInfo? {
+        // API28 can briefly keep no active window after a dialog is removed.
+        // Use an actual focused application window, never an empty/old tree.
+        val windows = instrumentation.uiAutomation.windows
         try {
+            for (window in windows.sortedByDescending { it.isFocused }) {
+                if (!window.isFocused && !window.isActive) continue
+                val root = window.root ?: continue
+                if (root.refresh() && root.packageName?.toString() == context.packageName && root.childCount > 0) return root
+                root.recycle()
+            }
+        } finally { windows.forEach { it.recycle() } }
+        val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+        if (root.refresh() && root.packageName?.toString() == context.packageName && root.childCount > 0) return root
+        root.recycle()
+        return null
+    }
+    @Suppress("DEPRECATION")
+    private fun snapshot(): List<Node>? {
+        val tree = appRoot() ?: return null
+        try {
+            if (!tree.refresh()) return null
             if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return null
             val result = mutableListOf<Node>()
             fun visit(node: AccessibilityNodeInfo) {
@@ -115,8 +157,9 @@ class MainScreenStateContractTest {
     private fun has(value: String) = snapshot()?.any { it.text == value || it.description == value } == true
     @Suppress("DEPRECATION")
     private fun control(label: String, selected: Boolean = false, click: Boolean = false): Boolean {
-        val tree = instrumentation.uiAutomation.rootInActiveWindow ?: return false
+        val tree = appRoot() ?: return false
         try {
+            if (!tree.refresh()) return false
             if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return false
             fun visit(node: AccessibilityNodeInfo): Boolean {
                 if (node.isVisibleToUser && (node.text?.toString() == label || node.contentDescription?.toString() == label)) {
@@ -127,8 +170,14 @@ class MainScreenStateContractTest {
                             check(depth++ < 64) { "Accessibility parent chain exceeded its bound for $label" }
                             // Selected tabs expose selection on a non-clickable ancestor.
                             if (selected && parent.isSelected) return true
-                            if (!selected && parent.isClickable) return if (click)
-                                parent.performAction(AccessibilityNodeInfo.ACTION_CLICK) else true
+                            if (!selected && parent.isClickable && parent.isEnabled &&
+                                parent.actionList.any { it.id == AccessibilityNodeInfo.ACTION_CLICK }) {
+                                if (!click) return true
+                                val before = model.pinCode.value
+                                val result = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                Log.d("MainContractTrace", "click=$label result=$result window=${tree.windowId} pinBefore=$before pinAfter=${model.pinCode.value}")
+                                return result
+                            }
                             val next = parent.parent; parent.recycle(); parent = next
                         }
                     } finally { parent?.recycle() }

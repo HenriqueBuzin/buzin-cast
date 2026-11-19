@@ -9,8 +9,11 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.view.KeyEvent
+import android.view.Window
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import androidx.activity.compose.setContent
@@ -123,18 +126,65 @@ class SettingsScreenStateContractTest {
 
     @Suppress("DEPRECATION")
     private fun reveal(value: String) {
-        for (attempt in 0 until 20) {
+        for (direction in listOf(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
+        for (attempt in 0 until 30) {
             val visible = tree { find(it) { node -> node.isVisibleToUser && matches(node, value) }?.let { node ->
                 node.recycle(); true
             } ?: false } == true
             if (visible) return
             val moved = tree { find(it) { node -> node.isScrollable }?.let { node ->
-                try { node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) } finally { node.recycle() }
+                try { node.performAction(direction) } finally { node.recycle() }
             } ?: false } == true
             if (!moved) break
             Thread.sleep(120)
         }
+        }
         fail("Setting not reachable: $value; nodes=${texts()}")
+    }
+
+    @Suppress("DEPRECATION")
+    private fun checked(value: String): Boolean? = tree { root ->
+        var node = find(root) { it.isVisibleToUser && matches(it, value) } ?: return@tree null
+        try {
+            repeat(8) {
+                if (node.isCheckable) return@tree node.isChecked
+                val parent = node.parent ?: return@tree null
+                node.recycle(); node = parent
+            }
+            null
+        } finally { node.recycle() }
+    }
+
+    private fun switch(id: Int, pref: BoolPref, wanted: Boolean) {
+        val value = label(id)
+        reveal(value)
+        await("Switch state was not rendered: $value") { checked(value) == pref.read(prefs) }
+        if (pref.read(prefs) != wanted) click(value)
+        await("Switch did not persist and render: $value=$wanted") { pref.read(prefs) == wanted && checked(value) == wanted }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun sliderValue(maximum: Float): Float? = tree { root ->
+        find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }?.let { node ->
+            try { node.rangeInfo.current } finally { node.recycle() }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun adjustSlider(maximum: Float, key: Int) {
+        await("Slider was not focusable: max=$maximum") {
+            tree { root -> find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }?.let { node ->
+                try { node.isFocused || node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } finally { node.recycle() }
+            } ?: false } == true
+        }
+        await("Slider did not receive keyboard focus: max=$maximum") {
+            tree { root -> find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }?.let { node ->
+                try { node.isFocused } finally { node.recycle() }
+            } ?: false } == true
+        }
+        Log.d("SettingsContractTrace", "before key=$key max=$maximum range=${sliderValue(maximum)} adaptive=${Prefs.AUDIO_ADAPTIVE_STEP.read(prefs)} delay=${Prefs.AUDIO_LATENCY_MS.read(prefs)}")
+        instrumentation.sendKeyDownUpSync(key)
+        Log.d("SettingsContractTrace", "after key=$key max=$maximum range=${sliderValue(maximum)} adaptive=${Prefs.AUDIO_ADAPTIVE_STEP.read(prefs)} delay=${Prefs.AUDIO_LATENCY_MS.read(prefs)}")
     }
 
     @Suppress("DEPRECATION")
@@ -203,12 +253,26 @@ class SettingsScreenStateContractTest {
             .putExtra("screen", "contract_host").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target ->
                 activity = target
+                val original = requireNotNull(target.window.callback)
+                target.window.callback = object : Window.Callback by original {
+                    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                        val before = Prefs.AUDIO_LATENCY_MS.read(prefs) to Prefs.AUDIO_ADAPTIVE_STEP.read(prefs)
+                        val consumed = original.dispatchKeyEvent(event)
+                        if (event.keyCode in listOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                            Log.d("SettingsWindowKey", "action=${event.action} key=${event.keyCode} before=$before after=${Prefs.AUDIO_LATENCY_MS.read(prefs) to Prefs.AUDIO_ADAPTIVE_STEP.read(prefs)} consumed=$consumed")
+                        }
+                        return consumed
+                    }
+                }
                 target.setContent { CompositionLocalProvider(LocalContext provides isolated) {
                     AirPlayTheme { SettingsScreen(model) }
                 } }
             }
             await("Settings screen not rendered") { texts()?.any { it.contains(label(R.string.setting_server_name)) } == true }
-            try { block() } finally { activity = null }
+            try { block() } finally {
+                scenario.onActivity { it.window.callback = it }
+                activity = null
+            }
         }
     }
 
@@ -247,6 +311,102 @@ class SettingsScreenStateContractTest {
             await("Custom size did not persist") { Prefs.RESOLUTION.read(prefs) == "1920x1200" }
             click("1920x1080")
             await("Preset did not replace custom size") { Prefs.RESOLUTION.read(prefs) == "1920x1080" }
+        }
+    }
+
+    @Test fun fixedAudioBufferAndOutputFrameFieldsEnforceTheirOwnBounds() {
+        assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
+        assertTrue(Prefs.AUDIO_AUTO_BUFFER.write(prefs, false))
+        screen {
+            val cushion = label(R.string.setting_audio_cushion_ms)
+            for (invalid in listOf("0", "1001")) {
+                edit(cushion, invalid); done()
+                assertEquals(40, Prefs.AUDIO_CUSHION_MS.read(prefs))
+                assertFalse(prefs.contains(Prefs.AUDIO_CUSHION_MS.key))
+            }
+            edit(cushion, "750"); done()
+            await("Fixed cushion not saved") { Prefs.AUDIO_CUSHION_MS.read(prefs) == 750 }
+            val frames = label(R.string.setting_oboe_buffer_frames)
+            edit(frames, "8193"); done()
+            assertEquals(0, Prefs.OBOE_BUFFER_FRAMES.read(prefs))
+            assertFalse(prefs.contains(Prefs.OBOE_BUFFER_FRAMES.key))
+            edit(frames, "8192"); done()
+            await("Maximum output buffer not saved") { Prefs.OBOE_BUFFER_FRAMES.read(prefs) == 8192 }
+            edit(frames, "0"); done()
+            await("Automatic output buffer not restored") { Prefs.OBOE_BUFFER_FRAMES.read(prefs) == 0 }
+        }
+    }
+
+    @Test fun standardAndAdvancedSwitchesPersistBothStatesAndRenderTheirSelection() {
+        assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
+        val controls = listOf(
+            R.string.setting_boot_auto_start to Prefs.BOOT_AUTO_START,
+            R.string.setting_run_in_background to Prefs.RUN_IN_BACKGROUND,
+            R.string.setting_castv2 to Prefs.CASTV2_ENABLED,
+            R.string.setting_fcast to Prefs.FCAST_ENABLED,
+            R.string.setting_dlna to Prefs.DLNA_ENABLED,
+            R.string.setting_approve_connections to Prefs.APPROVE_CONNECTIONS,
+            R.string.setting_network_recovery to Prefs.NETWORK_RECOVERY,
+            R.string.setting_require_pin to Prefs.REQUIRE_PIN,
+            R.string.setting_allow_new_conn to Prefs.ALLOW_NEW_CONN,
+            R.string.setting_auto_fullscreen to Prefs.AUTO_FULLSCREEN,
+            R.string.setting_sw_alac to Prefs.FORCE_SW_ALAC,
+            R.string.setting_sw_aac to Prefs.FORCE_SW_AAC,
+            R.string.setting_sync_client_volume to Prefs.SYNC_CLIENT_VOLUME,
+            R.string.setting_auto_start to Prefs.AUTO_START,
+            R.string.setting_keep_screen_on to Prefs.KEEP_SCREEN_ON,
+            R.string.setting_idle_preview to Prefs.IDLE_PREVIEW,
+            R.string.setting_advertise_video to Prefs.ADVERTISE_VIDEO,
+            R.string.setting_advertise_mirroring to Prefs.ADVERTISE_MIRRORING,
+            R.string.setting_advertise_audio to Prefs.ADVERTISE_AUDIO,
+            R.string.setting_alac to Prefs.ALAC_ENABLED,
+            R.string.setting_aac to Prefs.AAC_ENABLED,
+            R.string.setting_key_allow_frame_drop to Prefs.KEY_ALLOW_FRAME_DROP,
+            R.string.setting_enforce_sdr to Prefs.ENFORCE_SDR,
+            R.string.setting_realtime_decoder_priority to Prefs.KEY_PRIORITY,
+            R.string.setting_low_latency to Prefs.LOW_LATENCY,
+            R.string.setting_scheduled_output_buffer_release to Prefs.SCHEDULED_OUTPUT_BUFFER_RELEASE,
+            R.string.setting_debug_overlay to Prefs.DEBUG_ENABLED,
+            R.string.setting_benchmark_log to Prefs.BENCHMARK_LOG,
+        )
+        screen {
+            for ((id, pref) in controls) {
+                val original = pref.read(prefs)
+                switch(id, pref, !original)
+                switch(id, pref, original)
+            }
+        }
+    }
+
+    @Test fun audioModeChangesExposeTuningAndRemoteAdjustmentsRespectSliderBounds() {
+        assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
+        assertTrue(Prefs.AUDIO_AUTO_BUFFER.write(prefs, false))
+        assertTrue(Prefs.AUDIO_ADAPTIVE_STEP.write(prefs, 0))
+        screen {
+            click(label(R.string.setting_audio_delay))
+            reveal(isolated.getString(R.string.audio_delay_value, 250))
+            await("Enabled audio delay did not render") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderValue(1000f) == 250f }
+            adjustSlider(1000f, KeyEvent.KEYCODE_DPAD_RIGHT)
+            await("Remote delay increase failed") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 300 && sliderValue(1000f) == 300f }
+            adjustSlider(1000f, KeyEvent.KEYCODE_DPAD_LEFT)
+            await("Remote delay decrease failed") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderValue(1000f) == 250f }
+            switch(R.string.setting_audio_auto_buffer, Prefs.AUDIO_AUTO_BUFFER, true)
+            reveal(isolated.getString(R.string.audio_adaptive_value, Prefs.ADAPTIVE_PERCENTILES[0],
+                isolated.resources.getStringArray(R.array.audio_adaptive_step_names)[0]))
+            await("Adaptive slider did not render") { sliderValue(4f) == 0f }
+            adjustSlider(4f, KeyEvent.KEYCODE_DPAD_LEFT)
+            assertEquals(0, Prefs.AUDIO_ADAPTIVE_STEP.read(prefs))
+            for (step in 1..4) {
+                adjustSlider(4f, KeyEvent.KEYCODE_DPAD_RIGHT)
+                await("Adaptive step $step not applied") { Prefs.AUDIO_ADAPTIVE_STEP.read(prefs) == step && sliderValue(4f) == step.toFloat() }
+            }
+            adjustSlider(4f, KeyEvent.KEYCODE_DPAD_RIGHT)
+            assertEquals(4, Prefs.AUDIO_ADAPTIVE_STEP.read(prefs))
+            adjustSlider(4f, KeyEvent.KEYCODE_DPAD_LEFT)
+            await("Adaptive decrease failed") { Prefs.AUDIO_ADAPTIVE_STEP.read(prefs) == 3 && sliderValue(4f) == 3f }
+            switch(R.string.setting_audio_auto_buffer, Prefs.AUDIO_AUTO_BUFFER, false)
+            reveal(label(R.string.setting_audio_cushion_ms))
+            assertEquals(40, Prefs.AUDIO_CUSHION_MS.read(prefs))
         }
     }
 }
