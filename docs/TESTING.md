@@ -1,5 +1,31 @@
 # Testes automatizados
 
+## Encerramento e reconexão do transporte na API17
+
+`build_native_tests.py --legacy --mirror-transport` compila as funções reais
+de TCP, NTP, logging e criptografia do UxPlay, usando o OpenSSL e o libplist
+da ABI escolhida. Além de `--openssl-prefix`, exige `--plist-library`.
+`MirrorTransportTest.cpp` usa sockets loopback reais e apenas os callbacks
+públicos, sem escrever campos privados do receptor.
+
+São 12 cenários: reconexão na mesma sessão depois de cabeçalho incompleto,
+EOF no meio do payload com encerramento automático e codec não suportado.
+Cada cenário confirma parada idempotente pelo proprietário, reabertura do
+mesmo objeto, porta liberada e contagem de descritores igual à inicial.
+O Android mantém o modo de reconexão padrão: o inicializador C dos callbacks
+zera o novo `mirror_end_on_eof`. O teste cobre também a opção verdadeira
+usada pelo Vega, em que a thread termina sozinha e precisa ser coletada.
+
+A cópia isolada com `raop_rtp_mirror.c` anterior ao patch 0018 foi rejeitada
+na asserção da contagem de descritores. O código corrigido passou todos os
+cenários e encerrou com status zero, incluindo teardown. Isso verifica o
+transporte; não comprova decodificação de vídeo, FairPlay ou hardware físico.
+Compilar ARM sem executar mantém `passed=null` no relatório.
+
+```powershell
+python tools/build_native_tests.py --legacy --mirror-transport --abi x86 --openssl-prefix $api17OpenSslX86 --plist-library $api17PlistX86 --adb $adb --adb-server-port 5099 --serial 127.0.0.1:5561 --output outputs/legacy-mirror-transport
+```
+
 ## Criptografia do espelhamento na API17
 
 `tools/build_native_tests.py --legacy --mirror-crypto` compila o mesmo
