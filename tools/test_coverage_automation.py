@@ -285,6 +285,54 @@ class CoverageAutomationTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"skipped tests"):
                 validate_snapshots(snapshots)
 
+    def test_provenance_reads_long_live_classes_and_preserves_the_full_inventory(self):
+        with TemporaryDirectory(prefix="coverage-live-classes-") as directory:
+            root=Path(directory)
+            build=root/"app/build-coverage"
+            snapshot=root/"snapshot"
+            leaf="Dagger"+"GeneratedComponent"*9+"$SwitchingProvider.class"
+            app_classes=build/"intermediates/classes/debug/transformDebugClassesWithAsm/dirs"
+            long_class=app_classes/"io/github/jqssun/airplay"/leaf
+            self.assertGreater(len(str(long_class)),260)
+            self.assertLess(len(leaf),256)
+            classes=[app_classes/"App.class",long_class,
+                     build/"tmp/kotlin-classes/debug/Kotlin.class",
+                     root/"receiver-core/build/classes/kotlin/main/Core.class",
+                     root/"dlna-domain/build/classes/kotlin/main/Domain.class"]
+            apk=build/"app.apk";test_apk=build/"test.apk"
+            native=build/"intermediates/cxx/Debug/fixture/obj/x86_64/libairplay_native.so"
+            try:
+                for file in [apk,test_apk,native,*classes]:
+                    actual=filesystem_path(file)
+                    actual.parent.mkdir(parents=True,exist_ok=True)
+                    actual.write_bytes(b"original compiled content")
+                for module in ("app","receiver-core","dlna-domain"):
+                    source=root/module/"src/main/kotlin/Source.kt"
+                    source.parent.mkdir(parents=True,exist_ok=True)
+                    source.write_text("// production source",encoding="utf-8")
+                    if module!="app":
+                        execution=root/module/"build/jacoco/test.exec"
+                        execution.parent.mkdir(parents=True,exist_ok=True)
+                        execution.write_bytes(b"unit execution data")
+                native_source=root/"app/src/main/cpp/native_bridge.cpp"
+                native_source.parent.mkdir(parents=True)
+                native_source.write_text("// native production source",encoding="utf-8")
+                baseline=coverage_identity(root,build,apk,test_apk)
+                self.assertEqual({"app":2,"app-kotlin":1,"core":1,"domain":1},baseline["class_counts"])
+                filesystem_path(long_class).write_bytes(b"changed generated class")
+                self.assertNotEqual(baseline["class_files_sha256"],
+                                    coverage_identity(root,build,apk,test_apk)["class_files_sha256"])
+                filesystem_path(long_class).write_bytes(b"original compiled content")
+                snapshot.mkdir()
+                archive_compiled_inputs(root,build,apk,test_apk,snapshot,baseline,
+                                        expected_sources=source_identity(root))
+                self.assertEqual(baseline,coverage_identity(root,build,apk,test_apk,archive=snapshot))
+            finally:
+                # Both trees belong to this temporary fixture, including long children.
+                for owned in (build,snapshot):
+                    self.assertTrue(owned.resolve().is_relative_to(root.resolve()))
+                    if filesystem_path(owned).exists():shutil.rmtree(filesystem_path(owned))
+
     def test_provenance_detects_changed_compiled_inputs_and_missing_module_inventory(self):
         with TemporaryDirectory(prefix="coverage-provenance-") as directory:
             root=Path(directory)

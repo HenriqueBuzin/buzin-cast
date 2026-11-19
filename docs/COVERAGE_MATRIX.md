@@ -43,9 +43,22 @@ timeout, including the incomplete API36 matrix described below.
 The attempt under `build/android-coverage-main-states-api36` lost its controller,
 emulator and Java processes during lint and produced no complete runtime report.
 The recorded OS boot predates that attempt, so a restart is not established.
-Its partial files contribute no accepted coverage. A fresh four-edition run is
-in progress under `build/android-coverage-tools-states-api36`; current whole-app
-100% remains unproven until every required report and metric passes.
+Its partial files contribute no accepted coverage.
+
+The fresh attempt under `build/android-coverage-tools-states-api36` passed
+assembly, module checks and lint in 15m33s, but stopped before runtime while
+fingerprinting a generated class with a 267-character Windows path. The file
+was present and readable through an extended path; the ordinary path reported
+it missing. Live compiled-class roots now use the same extended-path handling
+already used for archived roots. No class is omitted from the inventory.
+
+The regression first reproduced that read failure, then all 26 coverage-tool
+tests passed in 2.589 seconds. It checks the complete live class counts,
+mutation detection for the long class, and identical archived fingerprints.
+The real APK inventory also reads successfully: 407 app, 31 core and 58 domain
+classes. A four-edition retry is in progress under
+`build/android-coverage-live-paths-api36`; whole-app 100% remains unproven until
+every required runtime report and metric passes.
 
 Five main-screen state contracts passed on API22 (14.67 seconds, no skips).
 They render the production MainScreen with an isolated, unbound ViewModel:
