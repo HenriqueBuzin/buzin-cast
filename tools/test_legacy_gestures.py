@@ -327,6 +327,9 @@ def main():
         if args.pin:
             report.pop('touch_and_dpad_across_receiver_restart',None)
             report['pin_srp_crypto_ui_lifecycle']='pass'
+            report['pin_malformed_setup_cases']=18
+            report['pin_malformed_verify_cases']=13
+            report['pin_valid_authentication_after_malformed_verify']='pass'
         if args.castv2:
             report.pop('touch_and_dpad_across_receiver_restart',None)
             report['castv2_tls_transport_playback_approval_identity']='pass'
