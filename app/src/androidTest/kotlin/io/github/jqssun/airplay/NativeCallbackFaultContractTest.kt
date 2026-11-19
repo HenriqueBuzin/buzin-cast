@@ -27,4 +27,6 @@ class NativeCallbackFaultContractTest {
     }
     @Test fun unavailableVmDoesNotUseItsOutputPointer() = checkFailures(0..7, 2..3)
     @Test fun throwingCallbacksReleaseReferencesAndRecover() = checkFailures(0..7, 4..4)
+    @Test fun unavailableVmSkipsScalarAndControlCallbacks() = checkFailures(8..21, 2..3)
+    @Test fun throwingScalarAndControlCallbacksRecoverForTheNextDelivery() = checkFailures(8..21, 4..4)
 }

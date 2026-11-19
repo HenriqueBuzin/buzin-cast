@@ -663,3 +663,21 @@ falls below the target: Android/JVM line coverage is 85.0059%, branch coverage
 67.0659%. That frozen cohort predates the service position fix and must not be
 merged with profiles from the changed app. Completion still requires fresh,
 matching evidence at 100% for every metric in all four editions.
+
+Callback fault contracts also exercise 14 scalar/control callbacks under failed
+VM lookup, failed thread attachment and a throwing Java consumer. They require
+zero calls through an unavailable environment, no allocation/copy activity for
+these callbacks, and successful delivery after the failure clears. Pairing
+contracts model a counted null key slot left by failed `strdup`, checking that
+lookups skip the hole, later duplicates remain recognized and a new key is
+still stored within the table limit. Every remaining allocation stays owned by
+the context and is released by its normal destructor.
+
+On API28 the six callback-fault tests, one real-JNI delivery test and five
+initializer tests passed (12 tests, 0.291 seconds, no skips); debug assembly
+passed in 13 seconds. An export from the exact archived library and fresh native
+profile verifies all independent conditions in the progress guard and both
+pairing-key guards. The selected callback file still has seven uncovered MC/DC
+conditions. These results do not establish 100% for the file, APK or four-edition
+matrix. The earlier attempt that lost its local ADB-server connection during
+test-APK installation never executed tests and supplies no coverage evidence.

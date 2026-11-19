@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
@@ -235,6 +236,18 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackContracts(JNIEnv *env,
     }
     cbs.register_client(ctx, "device", "overflow", "name");
     CALLBACK_CONTRACT(ctx->registered_count == 16 && !cbs.check_register(ctx, "overflow"));
+
+    // A failed strdup leaves a counted null slot. Model that dependency failure
+    // without exhausting device memory, retaining ownership of every live key.
+    std::free(ctx->registered_keys[0]); ctx->registered_keys[0] = nullptr;
+    std::free(ctx->registered_keys[15]); ctx->registered_keys[15] = nullptr;
+    ctx->registered_count = 15;
+    CALLBACK_CONTRACT(!cbs.check_register(ctx, "key-0") && cbs.check_register(ctx, "key-14"));
+    cbs.register_client(ctx, "device", "key-14", "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 15); // Null slot must not hide a later duplicate.
+    cbs.register_client(ctx, "device", "replacement", "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 16 && cbs.check_register(ctx, "replacement"));
+    CALLBACK_CONTRACT(ctx->registered_keys[0] == nullptr && ctx->registered_keys[15] != nullptr);
 
     playback_info_t info{};
     android_callbacks_update_playback_info(ctx, 12.5, 90, 1.5f, 1);
@@ -505,6 +518,10 @@ struct CallbackFaultFixture {
         if (object != s.ctx.callback_obj) ++s.illegal;
         if (s.callbackThrows) s.pending = true;
     }
+    static jfloat callFloat(JNIEnv *env, jobject object, jmethodID method, ...) {
+        callVoid(env, object, method);
+        return -6.25f;
+    }
     CallbackFaultFixture() {
         active = this; env.functions = &functions; vm.functions = &invocation;
         ctx.jvm = &vm; ctx.callback_obj = reinterpret_cast<jobject>(1);
@@ -525,6 +542,7 @@ struct CallbackFaultFixture {
             if (s.failCopy) s.pending = true;
         };
         functions.CallVoidMethod = callVoid;
+        functions.CallFloatMethod = callFloat;
         functions.DeleteLocalRef = [](JNIEnv *, jobject object) {
             if (object) --active->live; // Legal while an exception is pending.
         };
@@ -561,6 +579,38 @@ struct CallbackFaultFixture {
             case 4: callbacks.on_video_play(&ctx, "http://127.0.0.1/fixture", 2.0f); break;
             case 5: case 6: callbacks.audio_remote_control_id(&ctx, "fixture-dacp", "fixture-remote"); break;
             case 7: { int16_t pcm[] = {1, 2, 3, 4}; android_capture_pcm(&ctx, pcm, 4, 123, 44100, 2); break; }
+            case 8: {
+                uint32_t start = 1, current = 0x80000000U, end = 0xffffffffU;
+                callbacks.audio_set_progress(&ctx, &start, &current, &end); break;
+            }
+            case 9: callbacks.mirror_video_running(&ctx, true); break;
+            case 10: callbacks.audio_stop_coverart_rendering(&ctx); break;
+            case 11: callbacks.conn_init(&ctx); break;
+            case 12: callbacks.conn_destroy(&ctx); break;
+            case 13: callbacks.conn_reset(&ctx, 7); break;
+            case 14: callbacks.audio_set_volume(&ctx, -12.5f); break;
+            case 15: {
+                unsigned char ct = 4; unsigned short spf = 1024;
+                bool screen = true, media = false; uint64_t format = 0;
+                callbacks.audio_get_format(&ctx, &ct, &spf, &screen, &media, &format); break;
+            }
+            case 16: {
+                float sw = 640, sh = 480, w = 1920, h = 1080;
+                callbacks.video_report_size(&ctx, &sw, &sh, &w, &h); break;
+            }
+            case 17: callbacks.on_video_scrub(&ctx, 8.5f); break;
+            case 18: callbacks.on_video_rate(&ctx, 0.5f); break;
+            case 19: callbacks.on_video_stop(&ctx); break;
+            case 20: {
+                playback_info_t info{};
+                callbacks.on_video_acquire_playback_info(&ctx, &info); break;
+            }
+            case 21: {
+                const auto volume = callbacks.audio_set_client_volume(&ctx);
+                if (volume != (envStatus == JNI_OK ? -6.25 : 0.0)) ++illegal;
+                break;
+            }
+            default: ++illegal; break;
         }
     }
 };
@@ -568,7 +618,9 @@ struct CallbackFaultFixture {
 extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv *env, jobject, jint scenario, jint failure) {
 #define FAULT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
-    FAULT_CONTRACT(scenario >= 0 && scenario <= 7 && failure >= 0 && failure <= 4);
+    FAULT_CONTRACT(scenario >= 0 && scenario <= 21 && failure >= 0 && failure <= 4);
+    // Scalar/control callbacks allocate no JNI objects and copy no byte arrays.
+    FAULT_CONTRACT(scenario <= 7 || failure >= 2);
     CallbackFaultFixture fixture;
     if (failure == 0) fixture.failAllocation = scenario == 6 ? 2 : 1;
     if (failure == 1) fixture.failCopy = true;
@@ -581,6 +633,7 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
     FAULT_CONTRACT(fixture.calls == (failure == 4 ? 1 : 0));
     if (failure == 0) FAULT_CONTRACT(fixture.allocation == (scenario == 6 ? 2 : 1));
     if (failure == 1) FAULT_CONTRACT(fixture.writes == 1);
+    if (scenario >= 8) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
     fixture.failAllocation = 0; fixture.failCopy = false;
     fixture.callbackThrows = false; fixture.envStatus = JNI_OK;
     // PCM clears its own exception; the other callbacks recover at _get_env.
