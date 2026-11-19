@@ -15,6 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 from PIL import Image, ImageStat
+from check_fireos_release import extract_signer_fingerprint
 
 
 def main():
@@ -28,6 +29,7 @@ def main():
     parser.add_argument('--apksigner-jar',required=True,type=Path)
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--target', choices=('legacy', 'compat', 'modern'), default='legacy')
+    parser.add_argument('--device-sdk', type=int, help='Require this emulator API explicitly (e.g. 22 for the legacy APK on updated firmware)')
     args=parser.parse_args()
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
     if not local or not 5555<=int(local[1])<=5683 or int(local[1])%2!=1:
@@ -36,9 +38,10 @@ def main():
     def adb(*command,timeout=60):
         return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
     min_sdk = {'legacy': 17, 'compat': 22, 'modern': 25}[args.target]
+    expected_sdk = args.device_sdk if args.device_sdk is not None else (None if args.target == 'modern' else min_sdk)
     device_sdk = adb('shell','getprop','ro.build.version.sdk').strip()
     if (adb('shell','getprop','ro.kernel.qemu').strip()!='1' or not device_sdk.isdecimal()
-            or int(device_sdk) < min_sdk or (args.target != 'modern' and int(device_sdk) != min_sdk)):
+            or int(device_sdk) < min_sdk or (expected_sdk is not None and int(device_sdk) != expected_sdk)):
         parser.error('Use an emulator matching the selected release target API.')
     if (adb('shell','getprop','persist.sys.language').strip() not in ('','en')
             or adb('shell','getprop','persist.sys.locale').strip().split('-')[0] not in ('','en')):
@@ -65,12 +68,11 @@ def main():
         for abi in required_abis:
             if not any(name.startswith('lib/'+abi+'/') for name in apk.namelist()):raise AssertionError('Missing native ABI '+abi)
     args.output.mkdir(parents=True,exist_ok=True)
-    certificate=re.search(r'(?:V1 Signer:|Signer #1) certificate SHA-256 digest: ([0-9a-fA-F]{64})',signature)
-    if certificate is None:raise AssertionError('Missing release certificate fingerprint')
+    certificate=extract_signer_fingerprint(signature)
     report={'status':'running','scope':'Release signature/key, R8 startup/native RTSP/UI on an Android emulator; Appstore licensing and physical ARM validation pending',
             'target':args.target,'device_sdk':int(device_sdk),
             'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),'package':package,'signature':'pass','matching_public_key':'pass',
-            'certificate_sha256':certificate.group(1).lower()}
+            'certificate_sha256':certificate}
     if min_sdk < 24:report['v1_signature']='pass'
     installed=False;forward=None
     def tree():

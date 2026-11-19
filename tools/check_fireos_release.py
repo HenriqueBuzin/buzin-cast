@@ -68,12 +68,7 @@ def read_apk(path, aapt):
             'minSdk': int(sdk[1]), 'debuggable': 'application-debuggable' in output}
 
 
-def signer_fingerprint(path, apksigner_jar, min_sdk):
-    output = subprocess.check_output(
-        ['java', '-jar', str(apksigner_jar), 'verify', '--print-certs',
-         '--min-sdk-version', str(min_sdk), str(path)],
-        stderr=subprocess.STDOUT, timeout=60,
-    ).decode('utf-8', 'replace')
+def extract_signer_fingerprint(output):
     certificates = {value.lower() for value in re.findall(
         r'^(?:V\d+ Signer(?: #\d+)?:|Signer #\d+) certificate SHA-256 digest: ([0-9a-f]{64})\s*$',
         output, re.M | re.I,
@@ -81,6 +76,15 @@ def signer_fingerprint(path, apksigner_jar, min_sdk):
     if len(certificates) != 1 or 'CN=Android Debug' in output:
         raise ValueError('Expected a single non-debug signing certificate')
     return certificates.pop()
+
+
+def signer_fingerprint(path, apksigner_jar, min_sdk):
+    output = subprocess.check_output(
+        ['java', '-jar', str(apksigner_jar), 'verify', '--print-certs',
+         '--min-sdk-version', str(min_sdk), str(path)],
+        stderr=subprocess.STDOUT, timeout=60,
+    ).decode('utf-8', 'replace')
+    return extract_signer_fingerprint(output)
 
 
 def main():
