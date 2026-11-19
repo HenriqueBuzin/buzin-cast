@@ -740,3 +740,26 @@ LLVM warnings and verified all 46 callback-file MC/DC conditions. The inventory
 still contains all 42 functions and 252 branches; 41 functions and 244 branches
 are covered. This establishes 100% MC/DC for that file only. It does not establish
 100% for its other metrics, the full native code, Android/JVM or any APK edition.
+
+Touch-settings contracts render the actual settings screen with an isolated,
+unbound ViewModel and drive its accessibility editors and real input connection.
+They check blank, zero and oversized ports, digit normalization, unchanged-value
+writes, trimmed receiver names, invalid custom resolution, exact custom sizes
+and return to a preset. They restore their private preferences and close the log
+worker without changing device settings or starting a receiver.
+
+The first three-test run reproduced `NumberFormatException` when a port was
+cleared and IME Done arrived before the next composition. `save()` used a prior
+validation result with the current text. It now snapshots and validates the
+same text immediately before committing it. The original assertions then passed
+all three tests on API28 in 29.878 seconds; debug assembly passed in 50 seconds.
+The failed run (two passes, one failure) remains separate from successful profiles.
+
+The successful selection's APKs, native library, compiled classes and owned
+sources were archived and checked before generating an Android-only report from
+its matching execution profile. That report covers 415 of 601 settings lines
+and 184 of 440 settings branches. These selected numbers are not a full-edition
+or aggregate result; remaining lines are retained for choosing subsequent cases.
+The separate frozen DE/AT baseline also completed all 172 Android tests, 18 native
+cases and required runtime labels, passed snapshot validation and remained below
+the 100% target. It predates this settings fix and cannot absorb its profiles.
