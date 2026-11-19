@@ -46,6 +46,19 @@ OS 14 e 16 como famílias do sistema, mas nenhum Stick Fire OS nessas famílias.
 
 ## Conferência repetível
 
+No Windows, o script abaixo gera os releases compatível e moderno com a
+numeração do plano. Use `-Target compat` para API22 e `-Target modern`
+para API25. Acrescente `-RegionalAppstoreAssets` para a ficha DE/AT.
+
+```powershell
+./tools/Build-FireOs.ps1 -Target compat -Release -PosixBin /caminho/msys64/usr/bin
+./tools/Build-FireOs.ps1 -Target modern -Release -PosixBin /caminho/msys64/usr/bin -RegionalAppstoreAssets /caminho/local/chave-de-at
+```
+
+Os arquivos ficam em `outputs/fireos/coordinated`, com o nome da edição
+(`compat.general.apk`, por exemplo). Para a edição nativa, use
+`-Target legacy -Release` com o nome e código explícitos definidos no plano.
+
 O comando abaixo gera manifestos de release reais nas seis configurações,
 copia cada resultado imediatamente e confere o conjunto. Não compila APKs,
 não instala apps e não altera a loja. O diretório regional contém somente
