@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("build/vega-fcast-checks"))
     parser.add_argument("--media", choices=("mp4", "hls", "dash"), default="mp4")
     parser.add_argument("--fixtures", type=Path)
+    parser.add_argument("--approval", action="store_true", help="Exercise the TV approval flow")
     args = parser.parse_args()
     if not re.fullmatch(r"emulator-\d+", args.serial):
         parser.error("Only emulator-N is allowed; never a physical TV")
@@ -46,6 +47,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     history, requests, observations = [], [], []
     result = {"serial": args.serial, "physicalValidation": False, "media": args.media, "checks": {}}
+    saved_approval = None
 
     def run(arguments, timeout=30):
         completed = subprocess.run([sdk, *arguments], capture_output=True, text=True,
@@ -58,6 +60,38 @@ def main():
 
     def shell(*command):
         return run(["exec", "vda", "-s", args.serial, "shell", *command])
+
+    def open_receiver():
+        for _ in range(3):
+            shell("inputd-cli", "button_press", "KEY_RIGHT")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+
+    def connect_receiver(expect_approval=False):
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            try:
+                connected = socket.create_connection(("127.0.0.1", 46899), timeout=1)
+            except OSError:
+                time.sleep(0.2)
+                continue
+            connected.settimeout(0.8)
+            try:
+                # A forward can accept locally before the guest listener exists.
+                if len(connected.recv(4, socket.MSG_PEEK)) == 4:
+                    if expect_approval:
+                        connected.close()
+                        raise RuntimeError("FCast sent protocol data before approval")
+                    connected.settimeout(5)
+                    return connected
+            except socket.timeout:
+                if expect_approval:
+                    connected.settimeout(5)
+                    return connected
+            except ConnectionResetError:
+                pass
+            connected.close()
+            time.sleep(0.2)
+        raise RuntimeError("FCast did not prepare the player/listener")
 
     class Media(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -116,6 +150,12 @@ def main():
         if COMPONENT in running:
             shell("vlcm", "terminate-app", "--pkg-id", "com.buzincast.tv")
         run(["run-app", str(args.vpkg.resolve()), COMPONENT, "-d", args.serial], timeout=120)
+        if args.approval:
+            saved = shell("-c", COMPONENT, "if test -f /data/dlna-approval; then cat /data/dlna-approval; fi")
+            if saved not in ("", "0", "1"):
+                raise RuntimeError("Unexpected approval preference")
+            saved_approval = saved
+            shell("-c", COMPONENT, "printf 1 > /data/dlna-approval")
         log_output = (args.output / "receiver-stream.log").open("w")
         log_stream = subprocess.Popen(
             [sdk, "exec", "vda", "-s", args.serial, "shell", "loggingctl", "log", "-f", "-v", "com.buzincast.tv"],
@@ -124,26 +164,23 @@ def main():
             run(["device", "start-port-forwarding", "--device", args.serial,
                  "--port", str(port), "--forward", direction])
             forwards.append((port, direction))
-        for _ in range(3):
+        open_receiver()
+        if args.approval:
+            with connect_receiver(expect_approval=True) as denied:
+                shell("inputd-cli", "button_press", "KEY_ENTER")
+                try:
+                    assert denied.recv(1) == b""
+                except ConnectionResetError:
+                    pass
+            shell("inputd-cli", "button_press", "KEY_BACK")
+            # Back restores the FCast item selected in the first cycle.
+            shell("inputd-cli", "button_press", "KEY_ENTER")
+            client = connect_receiver(expect_approval=True)
             shell("inputd-cli", "button_press", "KEY_RIGHT")
-        shell("inputd-cli", "button_press", "KEY_ENTER")
-        connect_deadline = time.monotonic() + 25
-        while True:
-            try:
-                client = socket.create_connection(("127.0.0.1", 46899), timeout=1)
-                # A forward can accept locally before the guest listener exists.
-                client.settimeout(1)
-                first = client.recv(4, socket.MSG_PEEK)
-                if len(first) == 4:
-                    break
-                client.close()
-            except (OSError, TimeoutError):
-                if client:
-                    client.close()
-            if time.monotonic() > connect_deadline:
-                raise RuntimeError("FCast did not prepare the player/listener")
-            time.sleep(0.25)
-        client.settimeout(5)
+            shell("inputd-cli", "button_press", "KEY_ENTER")
+            result["checks"]["remoteDenialAndApproval"] = True
+        else:
+            client = connect_receiver()
 
         def read_exact(size):
             data = b""
@@ -264,6 +301,9 @@ def main():
             pass
         raise
     finally:
+        if saved_approval is not None:
+            restore = f"printf {saved_approval} > /data/dlna-approval" if saved_approval else "rm -f /data/dlna-approval"
+            shell("-c", COMPONENT, restore)
         if log_stream:
             log_stream.terminate()
             try:

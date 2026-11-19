@@ -5,7 +5,8 @@ import {AppState, Image, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
-import {createDlnaReceiver, DlnaApproval, DlnaPhotoView} from './dlnaReceiver';
+import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 import type {PlaybackSnapshot} from './playbackSession';
 
 const titles = {
@@ -22,7 +23,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
   const [photo, setPhoto] = useState<DlnaPhotoView | null>(null);
-  const [approval, setApproval] = useState<DlnaApproval | null>(null);
+  const [approval, setApproval] = useState<ConnectionApprovalRequest | null>(null);
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pin, setPin] = useState('');
@@ -32,7 +33,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       const onFailure = () => setFailed(true);
       const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
       receiver.current = protocol === 'fcast'
-        ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening)
+        ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening, setApproval)
         : protocol === 'dlna'
         ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto, setApproval)
         : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
@@ -123,7 +124,11 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       </Text>
       {approval && (
         <View style={styles.approval}>
-          <Text style={styles.details} aria-live="polite">Permitir que {approval.peer} controle o DLNA por cinco minutos?</Text>
+          <Text style={styles.details} aria-live="polite">
+            {protocol === 'fcast'
+              ? `Permitir a conexão FCast de ${approval.peer}?`
+              : `Permitir que ${approval.peer} controle o DLNA por cinco minutos?`}
+          </Text>
           <View style={styles.actions}>
             {[false, true].map(allow => {
               const id = allow ? 'allow' : 'deny';

@@ -5,7 +5,7 @@ import Network from '../src/turbo-modules/BuzinNetwork';
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
   __esModule: true,
   default: {getReceiverName: jest.fn(() => 'Living room'), setReceiverName: jest.fn(),
-    getDlnaApproval: jest.fn(() => false), setDlnaApproval: jest.fn()},
+    getConnectionApproval: jest.fn(() => false), setConnectionApproval: jest.fn()},
 }));
 afterEach(() => jest.clearAllMocks());
 test('edita e salva o nome, preservando a tela em falha de armazenamento', () => {
@@ -28,12 +28,12 @@ test('edita e salva o nome, preservando a tela em falha de armazenamento', () =>
 
 test('salva a aprovação DLNA e mantém o estado se a escrita falhar', () => {
   const screen = render(<SettingsScreen onBack={jest.fn()} />);
-  const approval = () => screen.getByRole('switch', {name: 'Aprovar conexões DLNA'});
+  const approval = () => screen.getByRole('switch', {name: 'Aprovar conexões DLNA e FCast'});
   expect(approval().props.accessibilityState.checked).toBe(false);
   fireEvent.press(approval());
-  expect(Network.setDlnaApproval).toHaveBeenCalledWith(true);
+  expect(Network.setConnectionApproval).toHaveBeenCalledWith(true);
   expect(approval().props.accessibilityState.checked).toBe(true);
-  jest.mocked(Network.setDlnaApproval).mockImplementationOnce(() => {throw new Error('disk full');});
+  jest.mocked(Network.setConnectionApproval).mockImplementationOnce(() => {throw new Error('disk full');});
   fireEvent.press(approval());
   expect(approval().props.accessibilityState.checked).toBe(true);
 });

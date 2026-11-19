@@ -77,8 +77,8 @@ estado e posição, pausar, buscar, retomar, parar e ajustar volume ou mudo.
 A descoberta SSDP e os comandos passaram no VVD com um MP4. O receptor
 também abre JPEG e PNG de até 16 MiB e cerca de 25 megapixels. Emissores
 inscritos recebem notificações GENA de transporte, volume e mudo.
-**Configurações → Aprovar conexões DLNA** ativa a confirmação na TV
-para novos emissores. A aprovação vale por cinco minutos ou até
+**Configurações → Aprovar conexões DLNA e FCast** ativa a confirmação
+na TV. Cada protocolo mantém sua aprovação por cinco minutos ou até
 fechar o receptor. A validação em aparelho físico está pendente.
 
 ## Ambiente e build

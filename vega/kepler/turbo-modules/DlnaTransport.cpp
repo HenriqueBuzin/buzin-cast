@@ -1,4 +1,5 @@
 #include "DlnaTransport.h"
+#include "ConnectionApproval.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -517,12 +518,7 @@ struct DlnaTransport::Impl {
   unsigned int sequence = 0;
   unsigned int pendingId = 0;
   std::string pending;
-  bool requireApproval = false;
-  unsigned int approvalId = 0;
-  std::optional<bool> approvalAnswer;
-  std::string approvalEvent;
-  struct Decision { uint32_t peer; Clock::time_point expires; bool allow; };
-  std::vector<Decision> decisions;
+  ConnectionApproval approval;
   Response reply{0, {}};
   Lan lan;
   std::string uuid;
@@ -559,42 +555,6 @@ struct DlnaTransport::Impl {
     return sequence;
   }
 
-  std::optional<Clock::time_point> authorize(int fd, uint32_t peer) {
-    if (!requireApproval) return Clock::time_point::max();
-    std::unique_lock lock(mutex);
-    if (!active) return {};
-    const auto now = Clock::now();
-    std::erase_if(decisions, [&](const auto& item) { return item.expires <= now; });
-    const auto known = std::find_if(decisions.begin(), decisions.end(), [peer](const auto& item) {
-      return item.peer == peer;
-    });
-    if (known != decisions.end()) return known->allow ? std::optional{known->expires} : std::nullopt;
-
-    char ip[INET_ADDRSTRLEN];
-    if (!inet_ntop(AF_INET, &peer, ip, sizeof(ip))) return {};
-    approvalId = nextId();
-    approvalEvent = "{\"approval\":{\"id\":" + std::to_string(approvalId) + ",\"peer\":" + json(ip) + "}}";
-    const auto deadline = now + 25s;
-    bool disconnected = false;
-    while (active && !approvalAnswer && Clock::now() < deadline) {
-      pollfd client{fd, 0, 0};
-      if (::poll(&client, 1, 0) > 0 && (client.revents & (POLLHUP | POLLERR | POLLNVAL))) {
-        disconnected = true;
-        break;
-      }
-      changed.wait_for(lock, 100ms);
-    }
-    const bool allow = active && approvalAnswer.value_or(false);
-    approvalId = 0;
-    approvalAnswer.reset();
-    approvalEvent = "{\"approval\":null}";
-    if (!active || disconnected) return {};
-    const auto expires = Clock::now() + (allow ? 5min : 30s);
-    if (decisions.size() >= 16) decisions.erase(decisions.begin());
-    decisions.push_back({peer, expires, allow});
-    return allow ? std::optional{expires} : std::nullopt;
-  }
-
   Response dispatch(const HttpRequest& request) {
     std::unique_lock lock(mutex);
     pendingId = nextId();
@@ -626,7 +586,7 @@ struct DlnaTransport::Impl {
         const auto method = request.parser.method;
         const bool event = method == HTTP_SUBSCRIBE || method == HTTP_UNSUBSCRIBE;
         const bool control = method == HTTP_POST && request.path.starts_with("/ctl/");
-        const auto grant = (event || control) ? authorize(fd, peer) :
+        const auto grant = (event || control) ? approval.authorize(fd, peer) :
             std::optional{Clock::time_point::max()};
         if (!grant) {
           response = {403, {}};
@@ -716,7 +676,6 @@ DlnaTransport::~DlnaTransport() { stop(); }
 uint16_t DlnaTransport::start(const std::string& uuid, bool loopbackOnly, bool requireApproval) {
   if (impl->worker.joinable()) throw std::runtime_error("DLNA receiver already started");
   impl->uuid = uuid;
-  impl->requireApproval = requireApproval;
   impl->lan = loopbackOnly ? Lan{} : lanIpv4();
   Socket listener{::socket(AF_INET, SOCK_STREAM, 0)};
   auto endpoint = address(htonl(loopbackOnly ? INADDR_LOOPBACK : INADDR_ANY), 0);
@@ -736,6 +695,7 @@ uint16_t DlnaTransport::start(const std::string& uuid, bool loopbackOnly, bool r
   impl->listener.fd = listener.release();
   try {
     impl->active = true;
+    impl->approval.start(requireApproval);
     impl->events.start();
     impl->worker = std::thread([this] { impl->run(); });
     if (impl->ssdp.fd >= 0) impl->discoveryWorker = std::thread([this] { impl->runDiscovery(); });
@@ -752,14 +712,10 @@ void DlnaTransport::stop() noexcept {
     impl->active = false;
   }
   impl->changed.notify_all();
+  impl->approval.stop();
   if (impl->worker.joinable()) impl->worker.join();
   if (impl->discoveryWorker.joinable()) impl->discoveryWorker.join();
   impl->events.stop();
-  {
-    std::lock_guard lock(impl->mutex);
-    impl->decisions.clear();
-    impl->approvalEvent.clear();
-  }
   impl->ssdp.reset();
   impl->listener.reset();
 }
@@ -767,7 +723,7 @@ void DlnaTransport::stop() noexcept {
 std::string DlnaTransport::poll() {
   std::lock_guard lock(impl->mutex);
   if (!impl->active) throw std::runtime_error("DLNA receiver stopped");
-  if (!impl->approvalEvent.empty()) return std::exchange(impl->approvalEvent, {});
+  if (auto event = impl->approval.poll(); !event.empty()) return event;
   return std::exchange(impl->pending, {});
 }
 
@@ -791,8 +747,5 @@ void DlnaTransport::publish(std::string transport, std::string rendering, std::s
 
 
 void DlnaTransport::answerApproval(double id, bool allow) {
-  std::lock_guard lock(impl->mutex);
-  if (!impl->active || !impl->approvalId || id != impl->approvalId || impl->approvalAnswer.has_value()) return;
-  impl->approvalAnswer = allow;
-  impl->changed.notify_one();
+  impl->approval.respond(id, allow);
 }

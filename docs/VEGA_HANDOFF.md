@@ -1,5 +1,20 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Aprovação de conexões FCast no Vega
+
+**Configurações → Aprovar conexões DLNA e FCast** aplica a preferência
+existente aos dois receptores. Cada protocolo mantém suas próprias
+decisões temporárias. O FCast aguarda a confirmação antes de enviar a
+versão do protocolo ou processar comandos. Uma conexão recusada é
+fechada e, depois de Permitir, reconexões do mesmo IPv4 reutilizam a
+aprovação por cinco minutos ou até fechar a tela.
+
+O VVD confirmou Recusar, Permitir, negociação FCast v2, reprodução
+MP4, pausa, busca, velocidade e volume. A regressão do DLNA confirmou
+aprovação, GENA e reprodução. Relatórios em `build/vega-fcast-approval-vvd`
+e `build/vega-shared-approval-dlna-vvd`. Lint, TypeScript, 69 testes Jest,
+testes nativos com ASan/UBSan e as três validações de ABI passaram.
+
 ## Aprovação de conexões DLNA no Vega
 
 **Configurações → Aprovar conexões DLNA** salva a preferência no sandbox.

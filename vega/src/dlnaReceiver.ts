@@ -6,10 +6,10 @@ import {dlnaConnectionInfo, DlnaFault, DlnaRequest, DlnaService, formatDlnaTime,
 import {dlnaConnectionEvent, dlnaRenderingEvent, dlnaTransportEvent} from './dlnaProtocol';
 import {loadDlnaPhoto, photoSource} from './dlnaPhoto';
 import {playRequest} from './fcastProtocol';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 
 type Media = {kind: 'photo'; url: string} | ({kind: 'player'} & PlaybackRequest);
 export type DlnaPhotoView = {token: number; source?: ReturnType<typeof photoSource>};
-export type DlnaApproval = {id: number; peer: string};
 
 export function createDlnaReceiver(
   onReady: (token: number | null) => void,
@@ -17,7 +17,7 @@ export function createDlnaReceiver(
   onFailure: () => void,
   onListening: (port: number) => void,
   onPhoto: (photo: DlnaPhotoView | null) => void,
-  onApproval: (request: DlnaApproval | null) => void,
+  onApproval: (request: ConnectionApprovalRequest | null) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -248,7 +248,7 @@ export function createDlnaReceiver(
     try {
       const packet = Network.pollDlnaRequest();
       if (!packet) {return;}
-      const request = JSON.parse(packet) as (DlnaRequest & {id: number}) | {approval: DlnaApproval | null};
+      const request = JSON.parse(packet) as (DlnaRequest & {id: number}) | {approval: ConnectionApprovalRequest | null};
       if ('approval' in request) {onApproval(request.approval); return;}
       const result = routeDlna(request, uuid, name, dispatch);
       Network.respondDlna(request.id, result.status, result.body);

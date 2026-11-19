@@ -47,13 +47,14 @@ public:
   virtual double startFCast() = 0;
   virtual void stopFCast() = 0;
   virtual std::string pollFCastCommand() = 0;
+  virtual void answerFCastApproval(double requestId, bool allow) = 0;
   virtual bool isFCastClient(double client) = 0;
   virtual void disconnectFCastClient(double client) = 0;
   virtual void fcastError(double client, std::string message) = 0;
   virtual void updateFCastState(std::string playback, std::string volume) = 0;
   virtual std::string startDlna() = 0;
-  virtual bool getDlnaApproval() = 0;
-  virtual void setDlnaApproval(bool enabled) = 0;
+  virtual bool getConnectionApproval() = 0;
+  virtual void setConnectionApproval(bool enabled) = 0;
   virtual void answerDlnaApproval(double requestId, bool allow) = 0;
   virtual void stopDlna() = 0;
   virtual std::string pollDlnaRequest() = 0;

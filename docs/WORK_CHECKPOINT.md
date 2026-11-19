@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Aprovação FCast no Vega
+
+A preferência salva para DLNA também ativa a confirmação no FCast.
+O VVD confirmou que Recusar fecha o socket, que Permitir libera a
+negociação e que vídeo, controles e encerramento continuam funcionando.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Aprovação DLNA no Vega
 
 A opção **Aprovar conexões DLNA** pede confirmação na TV e guarda

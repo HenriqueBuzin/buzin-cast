@@ -11,6 +11,7 @@ jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
     startFCast: jest.fn(() => 46899),
     stopFCast: jest.fn(),
     pollFCastCommand: jest.fn(),
+    answerFCastApproval: jest.fn(),
     isFCastClient: jest.fn((id) => id === 1),
     disconnectFCastClient: jest.fn(),
     updateFCastState: jest.fn(),
@@ -56,7 +57,15 @@ test('comandos válidos controlam o player; Play inválido e eventos antigos nã
     return media;
   });
   const ready = jest.fn();
-  const receiver = createFCastReceiver(ready, jest.fn(), jest.fn());
+  const approval = jest.fn();
+  const receiver = createFCastReceiver(ready, jest.fn(), jest.fn(), undefined, approval);
+  const pendingApproval = {id: 7, peer: '127.0.0.1'};
+  packets.push(JSON.stringify({approval: pendingApproval}));
+  jest.advanceTimersByTime(50);
+  expect(approval).toHaveBeenCalledWith(pendingApproval);
+  receiver.answerApproval(7, false);
+  expect(Network.answerFCastApproval).toHaveBeenCalledWith(7, false);
+  expect(media.load).not.toHaveBeenCalled();
   const send = (opcode: number, body = {}, client = 1) => {
     packets.push(JSON.stringify({client, opcode, body: JSON.stringify(body)}));
     jest.advanceTimersByTime(50);

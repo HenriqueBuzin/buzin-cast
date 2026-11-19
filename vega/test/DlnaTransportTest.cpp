@@ -97,19 +97,19 @@ int main() {
   {
     Client unapproved(protectedPort);
     unapproved.write(control);
-    check(next(transport) == "{\"approval\":{\"id\":4,\"peer\":\"127.0.0.1\"}}");
-    transport.answerApproval(3, false);
-    transport.answerApproval(4, true);
+    check(next(transport) == "{\"approval\":{\"id\":1,\"peer\":\"127.0.0.1\"}}");
+    transport.answerApproval(2, false);
+    transport.answerApproval(1, true);
     check(next(transport) == "{\"approval\":null}");
-    check(next(transport).find("\"id\":5") != std::string::npos);
-    transport.respond(5, 200, "<ok/>");
+    check(next(transport).find("\"id\":4") != std::string::npos);
+    transport.respond(4, 200, "<ok/>");
     check(unapproved.read().starts_with("HTTP/1.1 200 "));
   }
   {
     Client granted(protectedPort);
     granted.write(control);
-    check(next(transport).find("\"id\":6") != std::string::npos);
-    transport.respond(6, 200, "<ok/>");
+    check(next(transport).find("\"id\":5") != std::string::npos);
+    transport.respond(5, 200, "<ok/>");
     check(granted.read().starts_with("HTTP/1.1 200 "));
   }
   transport.stop();
@@ -117,8 +117,8 @@ int main() {
   {
     Client denied(reopened);
     denied.write(control);
-    check(next(transport).find("\"id\":7") != std::string::npos);
-    transport.answerApproval(7, false);
+    check(next(transport).find("\"id\":2") != std::string::npos);
+    transport.answerApproval(2, false);
     check(denied.read().starts_with("HTTP/1.1 403 "));
     check(next(transport) == "{\"approval\":null}");
     Client repeated(reopened);
@@ -130,7 +130,7 @@ int main() {
   {
     Client pending(transport.start(identity, true, true));
     pending.write(control);
-    check(next(transport).find("\"id\":8") != std::string::npos);
+    check(next(transport).find("\"id\":3") != std::string::npos);
     const auto before = std::chrono::steady_clock::now();
     transport.stop();
     check(std::chrono::steady_clock::now() - before < 500ms && pending.read().empty());

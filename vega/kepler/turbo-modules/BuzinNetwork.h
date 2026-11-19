@@ -35,13 +35,14 @@ public:
   double startFCast() override;
   void stopFCast() override;
   std::string pollFCastCommand() override;
+  void answerFCastApproval(double requestId, bool allow) override;
   bool isFCastClient(double client) override;
   void disconnectFCastClient(double client) override;
   void fcastError(double client, std::string message) override;
   void updateFCastState(std::string playback, std::string volume) override;
   std::string startDlna() override;
-  bool getDlnaApproval() override;
-  void setDlnaApproval(bool enabled) override;
+  bool getConnectionApproval() override;
+  void setConnectionApproval(bool enabled) override;
   void answerDlnaApproval(double requestId, bool allow) override;
   void stopDlna() override;
   std::string pollDlnaRequest() override;

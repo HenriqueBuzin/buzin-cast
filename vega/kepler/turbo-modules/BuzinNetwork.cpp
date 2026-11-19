@@ -126,7 +126,7 @@ std::string BuzinNetwork::pollAirPlayCommand() {
   return "";
 }
 double BuzinNetwork::startFCast() {
-  const auto listeningPort = fcast.start();
+  const auto listeningPort = fcast.start(46899, false, getConnectionApproval());
   try {
     discovery.startFCast(static_cast<uint16_t>(listeningPort), getReceiverName());
     return listeningPort;
@@ -137,16 +137,18 @@ double BuzinNetwork::startFCast() {
 }
 void BuzinNetwork::stopFCast() {discovery.stop(); fcast.stop();}
 std::string BuzinNetwork::pollFCastCommand() {return fcast.pollCommand();}
+void BuzinNetwork::answerFCastApproval(double requestId, bool allow) {fcast.answerApproval(requestId, allow);}
 bool BuzinNetwork::isFCastClient(double client) {return fcast.isClient(client);}
 void BuzinNetwork::disconnectFCastClient(double client) {fcast.disconnect(client);}
 void BuzinNetwork::fcastError(double client, std::string message) {fcast.error(client, message);}
 void BuzinNetwork::updateFCastState(std::string playback, std::string volume) {fcast.update(playback, volume);}
-bool BuzinNetwork::getDlnaApproval() {return readApprovalSetting("/data/dlna-approval");}
-void BuzinNetwork::setDlnaApproval(bool enabled) {writeApprovalSetting("/data/dlna-approval", enabled);}
+// Retain the original path so an existing DLNA preference also applies to FCast.
+bool BuzinNetwork::getConnectionApproval() {return readApprovalSetting("/data/dlna-approval");}
+void BuzinNetwork::setConnectionApproval(bool enabled) {writeApprovalSetting("/data/dlna-approval", enabled);}
 void BuzinNetwork::answerDlnaApproval(double requestId, bool allow) {dlna.answerApproval(requestId, allow);}
 std::string BuzinNetwork::startDlna() {
   const auto name = getReceiverName();
-  const auto requireApproval = getDlnaApproval();
+  const auto requireApproval = getConnectionApproval();
   const std::string path = "/data/dlna-uuid";
   std::ifstream input(path);
   std::string uuid;
