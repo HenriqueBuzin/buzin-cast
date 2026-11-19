@@ -94,6 +94,14 @@ certificado de cada APK. Os testes de execução, a licença Amazon, as
 restrições regionais e a revisão da seleção de aparelhos permanecem etapas
 separadas.
 
+Para conferir se os testes de abertura usaram os APKs entregues, acrescente
+`--smoke EDICAO=RELATORIO_JSON` para cada execução. O verificador compara a
+soma SHA-256, o pacote, o certificado, a API do emulador e o resultado do
+RTSP e da chave da ficha. Com `--require-smoke`, exige doze execuções nas
+duas fichas: API17 e 22 para os APKs nativos, API22 para os compatíveis e
+API25, 28 e 30 para os modernos. Essa matriz cobre a abertura local em
+emuladores Android. Testes físicos e da licença Amazon seguem separados.
+
 ## Execução do APK nativo no Android 5.1
 
 As duas edições nativas assinadas, 48 e 49, passaram no emulador API22.
