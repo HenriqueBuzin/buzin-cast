@@ -1,5 +1,23 @@
 # Testes automatizados
 
+## Aprovação de conexões na prévia API17
+
+`tools/test_legacy_gestures.py --approval` percorre os caminhos de admissão
+reais do receptor nativo (RTSP), FCast e DLNA (SOAP). Confere recusa/aceitação,
+foco inicial em Recusar, recusa ao voltar, reutilização de autorização e
+isolamento entre protocolos no mesmo endereço. Respostas tardias não podem
+substituir uma recusa. O caso de timeout aguarda os 25 segundos reais;
+parar o receptor cancela outra solicitação sem aguardar esse prazo.
+
+Também exige que a solicitação em segundo plano reabra a interface e que
+ativar a aprovação desconecte um cliente FCast previamente autorizado com
+a opção desligada. A aprovação vem desligada por padrão. O teste utiliza
+a mesma implementação `ConnectionApproval` do app moderno, copiada sem
+alteração pelo build, e salva `approval-ui.png` a partir das Views reais.
+Não testa autenticação de PIN nem interoperabilidade com emissores físicos.
+
+![Aprovação com Recusar focado; endereço virtual do emulador](images/fireos3-connection-approval.png)
+
 ## Download de URLs na prévia API17
 
 `tools/test_legacy_gestures.py --download` verifica AVC/AAC em MP4, HLS/TS,

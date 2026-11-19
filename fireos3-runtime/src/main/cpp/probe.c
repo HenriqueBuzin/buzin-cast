@@ -28,7 +28,7 @@ typedef struct {
     jmethodID on_audio_data, on_audio_format, on_audio_flush, on_audio_volume, get_audio_volume;
     jmethodID on_dacp_id, on_sender_stopped;
     jmethodID on_metadata,on_artwork,on_progress;
-    jmethodID on_connection;
+    jmethodID on_connection,on_admission;
     jmethodID on_url_play,on_url_wait,on_url_scrub,on_url_rate,on_url_stop,on_url_reset,get_url_info;
     bool url_enabled;
     atomic_bool wait_for_url;
@@ -91,8 +91,7 @@ static void audio_volume(void *context, float volume) {
     finish_callback(probe, env, attached);
 }
 
-static int allow_local_peer(void *context, const char *peer) {
-    receiver_probe_t *probe = context;
+static int local_peer(receiver_probe_t *probe, const char *peer) {
     struct in_addr remote;
     if (!strcmp(peer, "::1")) return 1;
     if (inet_pton(AF_INET, peer, &remote) != 1) {
@@ -103,6 +102,21 @@ static int allow_local_peer(void *context, const char *peer) {
     uint32_t address = ntohl(remote.s_addr);
     if ((address >> 24) == 127) return 1;
     return probe->netmask && (address & probe->netmask) == probe->network;
+}
+static int allow_local_peer(void *context, const char *peer) {
+    receiver_probe_t *probe=context;
+    if(!peer || !local_peer(probe,peer))return 0;
+    if(!probe->video_callback)return 1;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);
+    if(!env)return 0;
+    jstring address=(*env)->NewStringUTF(env,peer);
+    jboolean allowed=JNI_FALSE;
+    if(address && !(*env)->ExceptionCheck(env))
+        allowed=(*env)->CallBooleanMethod(env,probe->video_callback,probe->on_admission,address);
+    if((*env)->ExceptionCheck(env))allowed=JNI_FALSE;
+    if(address)(*env)->DeleteLocalRef(env,address);
+    finish_callback(probe,env,attached);
+    return allowed==JNI_TRUE;
 }
 
 static void noop(void *context) {}
@@ -316,6 +330,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         probe->on_artwork=(*env)->GetMethodID(env,callback_type,"onArtwork","([B)V");
         probe->on_progress=(*env)->GetMethodID(env,callback_type,"onProgress","(JJJ)V");
         probe->on_connection=(*env)->GetMethodID(env,callback_type,"onConnectionChanged","(Z)V");
+        probe->on_admission=(*env)->GetMethodID(env,callback_type,"onConnectionRequest","(Ljava/lang/String;)Z");
         probe->on_url_play=(*env)->GetMethodID(env,callback_type,"onVideoPlay","([BF)Z");
         probe->on_url_wait=(*env)->GetMethodID(env,callback_type,"onVideoWaitReady","()V");
         probe->on_url_scrub=(*env)->GetMethodID(env,callback_type,"onVideoScrub","(F)V");
@@ -330,7 +345,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         (*env)->DeleteLocalRef(env, callback_type);
         if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
             !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !probe->on_dacp_id || !probe->on_sender_stopped ||
-            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !enabled || !url_enabled ||
+            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !probe->on_admission || !enabled || !url_enabled ||
             !probe->on_url_play || !probe->on_url_wait || !probe->on_url_scrub || !probe->on_url_rate || !probe->on_url_stop || !probe->on_url_reset || !probe->get_url_info ||
             (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);

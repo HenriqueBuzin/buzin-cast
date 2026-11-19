@@ -99,6 +99,8 @@ public final class LegacyActivity extends Activity {
     private LegacyCalibrationView calibration;
     private final ArrayDeque<String> events=new ArrayDeque<>();
     private final ArrayDeque<Modal> modals=new ArrayDeque<>();
+    private Modal approvalModal;
+    private long approvalId;
     private Locale displayLocale;
     private String destination="overview", shownName, lastFocus="nav-overview";
     private boolean foreground,desired,running,busy,video,networkWaiting,audioSuppressed;
@@ -134,7 +136,7 @@ public final class LegacyActivity extends Activity {
         super.onResume();foreground=true;LegacyReceiverService.dispatch(this,LegacyReceiverService.OPEN);startIfNeeded();
     }
     @Override protected void onStop() {
-        foreground=false;root.removeCallbacks(mediaTick);if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
+        foreground=false;if(approvalModal!=null)approvalModal.dismiss();root.removeCallbacks(mediaTick);if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
     }
     @Override protected void onDestroy() {
         if(isFinishing() && service!=null)service.endSubtitlePicker();
@@ -202,6 +204,7 @@ public final class LegacyActivity extends Activity {
             if(!state.video)videoDismissed=false;
             video=state.video && !videoDismissed;videoWidth=state.width;videoHeight=state.height;
             shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();refreshDownloadUi();fitVideo();updateAwake();
+            refreshApproval(state.approval);
         });
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
         service.endSubtitlePicker();
@@ -210,6 +213,30 @@ public final class LegacyActivity extends Activity {
         if(busy && !desired)return;
         desired=!desired;busy=true;refreshReceiverUi();
         LegacyReceiverService.dispatch(this,desired?LegacyReceiverService.START:LegacyReceiverService.STOP);
+    }
+    private void refreshApproval(io.github.jqssun.airplay.media.ConnectionApproval.Request request) {
+        if(request!=null && approvalModal!=null && approvalId==request.getId())return;
+        if(approvalModal!=null) {
+            Modal previous=approvalModal;approvalModal=null;previous.onDismiss=null;previous.dismiss();
+        }
+        if(request==null || !foreground)return;
+        approvalId=request.getId();Modal modal=dialog();approvalModal=modal;
+        LinearLayout body=dialogBody(modal,-2);
+        addSpaced(body,text(this,getString(R.string.connection_approval_title),22,WHITE,true),-2);
+        addSpaced(body,text(this,request.getProtocol()+" · "+request.getPeer(),18,WHITE,false),-2);
+        addSpaced(body,text(this,getString(R.string.connection_approval_help),14,MUTED,false),-2);
+        Button allow=button(this,R.string.btn_allow,false,()->answerApproval(modal,request.getId(),true));allow.setTag("approval-allow");addSpaced(body,allow,-2);
+        Button decline=button(this,R.string.connection_decline,false,()->answerApproval(modal,request.getId(),false));decline.setTag("approval-decline");addSpaced(body,decline,-2);
+        modal.onDismiss=()-> {
+            if(approvalModal!=modal)return;approvalModal=null;
+            if(service!=null)service.answerApproval(request.getId(),false);
+        };
+        show(modal);decline.requestFocus();
+    }
+    private void answerApproval(Modal modal,long id,boolean allow) {
+        if(approvalModal!=modal)return;
+        approvalModal=null;modal.onDismiss=null;modal.dismiss();
+        if(service!=null)service.answerApproval(id,allow);
     }
     private void restart() {
         shownName=prefs.name();render();LegacyReceiverService.dispatch(this,LegacyReceiverService.RESTART);
@@ -469,6 +496,7 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_keep_screen_on,R.string.setting_keep_screen_on_desc,"keep_screen_on",prefs.keepScreenOn());
         toggle(body,R.string.setting_fcast,R.string.setting_fcast_desc,"fcast_enabled",prefs.fcast());
         toggle(body,R.string.setting_dlna,R.string.setting_dlna_desc,"dlna_enabled",prefs.dlna());
+        toggle(body,R.string.setting_approve_connections,R.string.setting_approve_connections_desc,"approve_connections",prefs.approveConnections());
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
     }
     private void toggle(LinearLayout body,int title,int detail,String key,boolean value) {
@@ -652,6 +680,7 @@ public final class LegacyActivity extends Activity {
     private void show(Modal dialog) {dialog.show();}
     private final class Modal {
         LinearLayout body;FrameLayout layer;View previous;int height;boolean keyboard,dismissed;
+        Runnable onDismiss;
         void show() {
             previous=getCurrentFocus();
             if(!modals.isEmpty())modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -680,6 +709,7 @@ public final class LegacyActivity extends Activity {
             else modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             if(modals.isEmpty() && urlControls!=null)urlControls.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             if(previous!=null && previous.isShown())previous.requestFocus();
+            if(onDismiss!=null)onDismiss.run();
         }
     }
     private void message(int title,String value) {

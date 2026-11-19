@@ -10,8 +10,15 @@ final class VideoFrameQueue {
     static final int MAX_FRAMES = 16;
     private final ArrayDeque<Frame> frames = new ArrayDeque<>();
     private int bytes;
-    private boolean closed;
+    private volatile boolean closed;
     private volatile int activeConnections;
+    interface Admission {boolean allow(String peer);}
+    private volatile Admission admission;
+    void admission(Admission value) {admission=value;}
+    @SuppressWarnings("unused") public boolean onConnectionRequest(String peer) {
+        Admission gate=admission;
+        return !closed && (gate==null || gate.allow(peer)) && !closed;
+    }
     final LegacyNativePlayback url=new LegacyNativePlayback();
     @SuppressWarnings("unused") public boolean videoUrlEnabled() {return url.enabled();}
     @SuppressWarnings("unused") public boolean onVideoPlay(byte[] bytes,float seconds) {

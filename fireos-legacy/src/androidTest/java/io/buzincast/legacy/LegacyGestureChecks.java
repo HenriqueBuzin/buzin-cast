@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -29,6 +29,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         nativeUrl=arguments!=null && "native_url".equals(arguments.getString("checks"));
         recording=arguments!=null && "recording".equals(arguments.getString("checks"));
         download=arguments!=null && "download".equals(arguments.getString("checks"));
+        approval=arguments!=null && "approval".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -49,7 +50,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(download) {
+            if(approval) {
+                LegacyApprovalScenario.check(this,activity);
+                result.putString("approval","native_fcast_dlna_allow_deny_timeout_stop_background_and_protocol_grants");
+            } else if(download) {
                 LegacyDownloadScenario.check(this,activity);
                 result.putString("download",BuildConfig.VIDEO_DOWNLOAD_ENABLED?"mp4_hls_dash_multiperiod_bframes_cancel_local_library":"restricted_disabled");
             } else if(recording) {

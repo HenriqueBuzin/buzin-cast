@@ -30,6 +30,8 @@ public final class LegacyReceiverSession {
         default void controlsChanged() {}
         default void mediaChanged() {}
         default void streamChanged() {}
+        /** Runs on the native admission worker, never on the UI or decoder thread. */
+        default boolean authorize(String peer) {return true;}
         default boolean acceptsUrl() {return false;}
         default void urlPlay(long token,LegacyUrlRequest request) {}
         default void urlSeek(long token,float seconds) {}
@@ -92,6 +94,7 @@ public final class LegacyReceiverSession {
             @Override public void stop(long token) {listener.urlStop(token);}
         });
         queue.connections(listener::streamChanged);
+        queue.admission(peer->!stopping.get() && listener.authorize(peer) && !stopping.get());
         queue.media(new VideoFrameQueue.Media() {
             @Override public void metadata(byte[] bytes) {media.metadata(bytes);}
             @Override public void artwork(byte[] bytes) {media.artwork(bytes);}

@@ -62,6 +62,7 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
             "io/leancast/app/ControlServer.kt", "io/leancast/app/SubscriptionRegistry.kt", "io/leancast/app/SsdpAgent.kt",
             "io/github/jqssun/airplay/media/PhotoActivity.kt")
         include("io/github/jqssun/airplay/media/ExternalSubtitles.kt")
+        include("io/github/jqssun/airplay/media/ConnectionApproval.kt")
         filesMatching("**/PhotoActivity.kt") {
             filter { line: String -> when {
                 line == "import androidx.lifecycle.lifecycleScope" || line == "import androidx.activity.ComponentActivity" -> ""

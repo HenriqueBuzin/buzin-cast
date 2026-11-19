@@ -1,5 +1,50 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — aprovação de conexões
+
+A prévia compartilha `ConnectionApproval` com o app moderno, sem adaptar
+sua regra de autorização: um pedido pendente, 25 segundos para responder,
+autorização por protocolo/IP durante cinco minutos e recusa temporária de
+30 segundos. O padrão continua desligado. Não substitui o PIN de pareamento.
+
+A admissão nativa preserva a verificação de rede e só depois chama a porta
+Java; uma exceção JNI recusa a conexão. O callback não detém o monitor da
+fila de vídeo e a parada invalida uma autorização ainda em espera. FCast
+e DLNA passam pelo mesmo coordenador e conferem a geração após a resposta.
+Mudança da opção reinicia os receptores para retirar clientes anteriores.
+
+A janela usa os textos compartilhados, começa com Recusar focado e recusa
+ao voltar/fechar ou sair da Activity. Uma solicitação em segundo plano
+reabre a Activity. Não registra endereços dos solicitantes no diagnóstico.
+
+As duas edições passaram em API17: RTSP/FCast/DLNA, aceitação/recusa,
+isolamento por protocolo, resposta tardia, timeout real, cancelamento ao
+parar e retorno do segundo plano, retirada do cliente anterior ao ativar
+a opção e captura da janela. As capturas foram conferidas visualmente.
+Os textos usados estão presentes nos 22 idiomas compartilhados.
+
+Os dois builds com `-Check` passaram, incluindo lint e o teste JVM que
+confirma que uma aprovação bloqueada não segura o monitor da fila de vídeo.
+Na edição geral passaram as regressões de FCast, DLNA, URL nativa/FCUP e
+download dos seis MP4s com FFmpeg/ffprobe e comparação de quadros B.
+Na edição DE/AT passaram os bloqueios de download e gravação.
+Os relatórios estão em `outputs/legacy-approval-final-*` e
+`outputs/legacy-approval-deat-*`; os APKs continuam sendo previews debug,
+sem integração/assinatura de produção para a loja.
+
+SHA-256 dos APKs conferidos:
+
+- Geral: `cf22eb40385e3d644e8075467691501251bde10f231944f49332c18eff08a6f9`.
+- DE/AT: `c118e5df9a6d98cefc1bd3ad9cc9606d5c6f17847497e3547e1ad4150f275c2e`.
+
+Os manifestos sintéticos DASH foram normalizados para LF antes do cálculo
+de hashes. ElementTree preservava CRLF de nós textuais do FFmpeg, enquanto
+o Git os normalizava no commit, divergindo do inventário de recursos.
+Os 19 hashes também foram conferidos contra os blobs preparados para commit.
+
+Permanecem pendentes PIN, Cast V2, retransmissão, transcodificação de mais
+formatos, licença/produção e validação em Sticks/emissores físicos antigos.
+
 ## API17 — download de URLs para MP4
 
 `LegacyUrlDownload` lê amostras codificadas de MediaPeriod/SampleStream

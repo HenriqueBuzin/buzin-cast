@@ -32,6 +32,7 @@ import io.buzincast.core.ReceiverPlaybackPort;
 import io.github.jqssun.airplay.discovery.FCastReceiver;
 import io.github.jqssun.airplay.discovery.DlnaReceiver;
 import io.github.jqssun.airplay.media.PhotoActivity;
+import io.github.jqssun.airplay.media.ConnectionApproval;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import kotlin.Unit;
@@ -52,7 +53,9 @@ public final class LegacyReceiverService extends Service {
         final LegacyMedia.State media;
         final LegacyUrlPlayer.State url;
         final boolean urlError;
+        final ConnectionApproval.Request approval;
         State(LegacyReceiverService service) {
+            approval=service.approval.getRequest().getValue();
             url=service.urlState();urlError=service.urlFailure!=null;
             desired=service.desired;running=service.running;busy=service.busy;
             video=url==null?service.video:url.width>0 && url.height>0;
@@ -70,8 +73,26 @@ public final class LegacyReceiverService extends Service {
     final class LocalBinder extends Binder { LegacyReceiverService service() {return LegacyReceiverService.this;} }
     private final LocalBinder binder=new LocalBinder();
     private final Handler main=new Handler(Looper.getMainLooper());
+    private final ConnectionApproval approval=new ConnectionApproval(()-> {
+        main.post(this::showApproval);
+        return Unit.INSTANCE;
+    });
+    private void showApproval() {
+        if(destroyed || approvalRequest()==null)return;
+        publish();
+        if(!visible)startActivity(new Intent(this,LegacyActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+    }
+    ConnectionApproval.Request approvalRequest() {return approval.getRequest().getValue();}
+    void answerApproval(long id,boolean allow) {approval.answer(id,allow);publish();}
+    private boolean authorizeConnection(String protocol,String peer) {
+        if(!prefs.approveConnections())return true;
+        try {return approval.ask(protocol,peer);}
+        finally {main.post(()-> {if(!destroyed)publish();});}
+    }
     private final ArrayDeque<String> events=new ArrayDeque<>();
     private LegacyPreferences prefs;
+    private boolean approvalConfigured;
     private volatile LegacyReceiverSession session;
     private Object client;
     private Observer observer;
@@ -84,8 +105,10 @@ public final class LegacyReceiverService extends Service {
     private String notificationText;
     private final Runnable retry=this::reconcile;
     private final Runnable stable=()-> {if(this.running && !this.stopping)reconnect.resetRetries();};
-    private boolean desired,running,busy,video,visible,opened,bootSession,stopping,destroyed,promoted;
-    private int generation,width,height;
+    private boolean desired,running,busy,video,visible,opened,bootSession,promoted;
+    private volatile boolean stopping,destroyed;
+    private volatile int generation;
+    private int width,height;
     private String name;
     private Exception failure;
     private Exception controlFailure;
@@ -127,11 +150,13 @@ public final class LegacyReceiverService extends Service {
     private boolean fcastClosing;
     private LegacyNetwork fcastNetwork;
     private String fcastName;
+    private boolean fcastApproval;
     private DlnaReceiver dlna;
     private volatile int dlnaEpoch;
     private boolean dlnaClosing;
     private LegacyNetwork dlnaNetwork;
     private String dlnaName;
+    private boolean dlnaApproval;
     private static final class NetworkState {
         final Protocol owner;
         final boolean active;
@@ -174,6 +199,7 @@ public final class LegacyReceiverService extends Service {
     }
     @Override public void onCreate() {
         super.onCreate();prefs=new LegacyPreferences(this);name=prefs.name();
+        approvalConfigured=prefs.approveConnections();
         capture=new LegacyMirrorCapture(this,()->main.post(()-> {if(!destroyed)publish();}),BuildConfig.RECORDING_ENABLED);
         downloads=new LegacyDownloads(this,()->main.post(()-> {
             if(destroyed)return;
@@ -209,9 +235,16 @@ public final class LegacyReceiverService extends Service {
         if(action==null) {if(!opened) {desired=prefs.serviceRequested();bootSession=prefs.bootAutoStart();opened=true;}}
         else if(OPEN.equals(action)) {if(!opened) {desired=prefs.autoStart();opened=true;}}
         else if(START.equals(action)) {desired=true;opened=true;failure=null;urlFailure=null;resetRetries();}
-        else if(STOP.equals(action)) {desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();stopUrl();}
+        else if(STOP.equals(action)) {approval.close();desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();stopUrl();}
         else if(BOOT.equals(action)) {desired=prefs.bootAutoStart();bootSession=desired;opened=true;}
         else if(RESTART.equals(action)) {name=prefs.name();resetRetries();if(session!=null)stopNative();}
+        else if(CONFIGURE.equals(action)) {
+            approval.close();
+            if(approvalConfigured!=prefs.approveConnections()) {
+                approvalConfigured=prefs.approveConnections();
+                if(session!=null)stopNative();
+            } else if(wanted())approval.open();
+        }
         else if(Intent.ACTION_MEDIA_BUTTON.equals(action)) {
             Object event=intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
             if(event instanceof KeyEvent)systemMedia.key((KeyEvent)event,intent.getIntExtra("media_epoch",-1));
@@ -399,7 +432,7 @@ public final class LegacyReceiverService extends Service {
     }
     private void reconcileFcast() {
         boolean enabled=wanted() && reconnect.online() && selectedNetwork!=null && prefs.fcast();
-        if(fcast!=null && (!enabled || !selectedNetwork.equals(fcastNetwork) || !prefs.name().equals(fcastName))) {
+        if(fcast!=null && (!enabled || !selectedNetwork.equals(fcastNetwork) || !prefs.name().equals(fcastName) || prefs.approveConnections()!=fcastApproval)) {
             FCastReceiver previous=fcast;fcast=null;fcastClosing=true;fcastEpoch++;
             if(urlOwner==Protocol.FCAST)stopUrl();
             protocolWorker.execute(()-> {
@@ -411,6 +444,7 @@ public final class LegacyReceiverService extends Service {
         if(enabled && fcast==null && !fcastClosing) {
             int owner=++fcastEpoch;
             fcastNetwork=selectedNetwork;fcastName=prefs.name();
+            fcastApproval=prefs.approveConnections();
             fcast=new FCastReceiver(this,new NetworkPlayback(Protocol.FCAST,owner),fcastName,message-> {
                 // Shared transport log text may contain a LAN address; keep it out
                 // of the diagnostics/screenshots exported from the app.
@@ -422,7 +456,7 @@ public final class LegacyReceiverService extends Service {
     }
     private void reconcileDlna() {
         boolean enabled=wanted() && reconnect.online() && selectedNetwork!=null && prefs.dlna();
-        if(dlna!=null && (!enabled || !selectedNetwork.equals(dlnaNetwork) || !prefs.name().equals(dlnaName))) {
+        if(dlna!=null && (!enabled || !selectedNetwork.equals(dlnaNetwork) || !prefs.name().equals(dlnaName) || prefs.approveConnections()!=dlnaApproval)) {
             DlnaReceiver previous=dlna;dlna=null;dlnaClosing=true;dlnaEpoch++;
             if(urlOwner==Protocol.DLNA)stopUrl();
             protocolWorker.execute(()-> {
@@ -433,6 +467,7 @@ public final class LegacyReceiverService extends Service {
         }
         if(enabled && dlna==null && !dlnaClosing) {
             int owner=++dlnaEpoch;dlnaNetwork=selectedNetwork;dlnaName=prefs.name();
+            dlnaApproval=prefs.approveConnections();
             dlna=new DlnaReceiver(this,new NetworkPlayback(Protocol.DLNA,owner),dlnaName,message-> {
                 main.post(()-> {if(!destroyed && owner==dlnaEpoch && message.contains("failed"))record("DLNA: "+getString(R.string.error_label));});
                 return Unit.INSTANCE;
@@ -462,7 +497,11 @@ public final class LegacyReceiverService extends Service {
         @Override public PlaybackInfo getPlaybackInfo() {return valid()?networkState.info:EMPTY_NETWORK.info;}
         @Override public boolean authorize(String protocol,String peer) {
             if(!valid() || !(kind==Protocol.FCAST?prefs.fcast():prefs.dlna()))return false;
-            try {java.net.InetAddress address=java.net.InetAddress.getByName(peer);return address.isSiteLocalAddress() || address.isLoopbackAddress();}
+            try {
+                java.net.InetAddress address=java.net.InetAddress.getByName(peer);
+                if(!address.isSiteLocalAddress() && !address.isLoopbackAddress())return false;
+                return authorizeConnection(kind==Protocol.FCAST?"FCast":"DLNA",peer) && valid() && !destroyed;
+            }
             catch(java.net.UnknownHostException invalid) {return false;}
         }
         @Override public void load(MediaRequest request) {
@@ -499,10 +538,15 @@ public final class LegacyReceiverService extends Service {
         }
     }
     private void startNative() {
+        approval.open();
         main.removeCallbacks(retry);main.removeCallbacks(stable);
         busy=true;stopping=false;failure=null;name=prefs.name();final int owner=++generation;
         acquireWakeLock();
         session=new LegacyReceiverSession(this,null,prefs.identity(),new LegacyReceiverSession.Listener() {
+            @Override public boolean authorize(String peer) {
+                return owner==generation && !stopping && !destroyed && authorizeConnection("AirPlay",peer)
+                    && owner==generation && !stopping && !destroyed;
+            }
             private void post(Runnable action) {main.post(()-> {if(!destroyed && owner==generation)action.run();});}
             @Override public void ready(String receiverName) {post(()-> {
                 if(stopping)return;running=true;busy=false;name=receiverName;record(getString(R.string.diag_receiver_running));
@@ -574,7 +618,7 @@ public final class LegacyReceiverService extends Service {
         },prefs.options(),selectedNetwork);
         session.capture(capture);session.audioFocusGain(0);bindSurface();session.start();
     }
-    private void stopNative() {main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
+    private void stopNative() {approval.close();main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
         LegacyUrlPlayer.State url=urlState();
@@ -637,6 +681,7 @@ public final class LegacyReceiverService extends Service {
     private void demote() {if(promoted) {stopForeground(true);promoted=false;}}
     @Override public void onDestroy() {
         destroyed=true;++outputEpoch;client=null;observer=null;target=null;closeWatcher();
+        approval.close();
         if(capture!=null)capture.close();
         if(downloads!=null)downloads.close();
         if(systemMedia!=null)systemMedia.close();

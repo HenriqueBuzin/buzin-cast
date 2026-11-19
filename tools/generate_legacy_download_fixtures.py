@@ -39,6 +39,12 @@ def main():
     names += [f'hls-{i:02d}.ts' for i in range(4)]
     names += [f'init-{track}.mp4' for track in range(2)]
     names += sorted(p.name for p in args.output.glob('chunk-*.m4s'))
+    # ElementTree preserves the CRLF found in FFmpeg's MPD text nodes. Git's
+    # LF policy normalizes those bytes on commit, so hash the canonical form.
+    for name in names:
+        if name.endswith(('.mpd','.m3u8')):
+            path=args.output/name
+            path.write_bytes(path.read_bytes().replace(b'\r\n',b'\n'))
     manifest={'scope':'Synthetic test pattern AVC plus silent AAC; eight seconds, duplicated DASH periods sixteen seconds',
         'sha256':{name:hashlib.sha256((args.output/name).read_bytes()).hexdigest() for name in names}}
     (args.output/'fixtures.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
