@@ -3,6 +3,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import Network from './turbo-modules/BuzinNetwork';
 import {getMediaReport} from './mediaCapabilities';
 import PlaybackScreen from './PlaybackScreen';
+import RecordingLibrary from './RecordingLibrary';
 import FCastScreen from './FCastScreen';
 import SettingsScreen from './SettingsScreen';
 import AirPlayAudioScreen from './AirPlayAudioScreen';
@@ -16,9 +17,12 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
+  const goLibrary = useCallback(() => setPage('recordings'), []);
+  const goMedia = useCallback(() => setPage('media'), []);
+  const [recording, setRecording] = useState<{title: string; url: string}>();
   const [selected, setSelected] = useState('status');
   const [focused, setFocused] = useState('status');
   const [report, setReport] = useState('');
@@ -31,7 +35,7 @@ export default function App() {
         if (page === 'home') {
           return false;
         }
-        setPage('home');
+        setPage(page === 'recording' ? 'recordings' : page === 'recordings' ? 'media' : 'home');
         return true;
       },
     );
@@ -52,10 +56,22 @@ export default function App() {
   if (page === 'fcast') {
     return <FCastScreen onBack={goHome} />;
   }
+  if (page === 'castv2') {
+    return <FCastScreen onBack={goHome} protocol="castv2" />;
+  }
   if (page === 'dlna') {
     return <FCastScreen onBack={goHome} protocol="dlna" />;
   }
 
+  if (page === 'recordings') {
+    return <RecordingLibrary onBack={goMedia} onPlay={(title, url) => {
+      setRecording({title, url});
+      setPage('recording');
+    }} />;
+  }
+  if (page === 'recording') {
+    return <PlaybackScreen onBack={goLibrary} recording={recording} />;
+  }
   if (page === 'playback') {
     return <PlaybackScreen onBack={goHome} />;
   }
@@ -163,7 +179,7 @@ export default function App() {
           </Text>
           <Text style={styles.details}>
             {page === 'status'
-              ? 'FCast v2, DLNA e espelhamento AirPlay experimental têm descoberta na rede local. O teste AirPlay por URL usa conexão manual. Cast V2 está pendente.'
+              ? 'FCast v2, DLNA e espelhamento AirPlay experimental têm descoberta na rede local. Cast V2 experimental também anuncia na rede. O teste AirPlay por URL usa conexão manual.'
               : page === 'media'
               ? 'Resultados da consulta ao Vega. Zero pode indicar ausência de suporte ou falha da consulta. Use a amostra para testar a reprodução.'
               : 'Buzin Cast 0.6.0 • Vega OS 2.0 • Henrique Buzin. Validação de recepção em aparelho físico pendente.'}
@@ -216,6 +232,7 @@ export default function App() {
           {page === 'status' && action('airplayAudio', 'Testar áudio AirPlay', () => setPage('airplayAudio'), false)}
           {page === 'status' && action('airplayVideo', 'Testar vídeo AirPlay', () => setPage('airplayVideo'), false)}
           {page === 'status' && action('dlna', 'Ativar DLNA', () => setPage('dlna'), false)}
+          {page === 'status' && action('castv2', 'Testar Cast V2', () => setPage('castv2'), false)}
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}
@@ -226,6 +243,7 @@ export default function App() {
               () => setPage('playback'),
               true,
             )}
+          {page === 'media' && action('recordings', 'Biblioteca de gravações', goLibrary, false)}
           {action('back', 'Voltar', goHome, page === 'about')}
         </View>
       )}

@@ -6,7 +6,7 @@ edições Fire OS mantêm sua interface nativa e o código já testado.
 O Vega recebe FCast v2 experimental por URLs. O menu **Estado do port**
 oferece testes de AirPlay por URL, áudio e espelhamento. O espelhamento
 anuncia o receptor por DNS-SD e pede o PIN exibido na TV. O receptor
-DLNA experimental anuncia por SSDP. Cast V2 está pendente.
+DLNA experimental anuncia por SSDP. O menu também oferece Cast V2 experimental.
 
 ## Estado verificado em 19 de novembro de 2026
 
@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. Cast V2 está pendente.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 69 testes Jest passaram.
+- Lint sem avisos, TypeScript e 78 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -45,7 +45,7 @@ sem descoberta ou PIN. Isso ainda não comprova recepção com iPhone/Mac, HLS p
 AirPlay ou espelhamento. Identidade/chave ficam apenas no sandbox.
 
 O nome do receptor pode ser editado em Configurações e é preservado no sandbox.
-Ele será usado no próximo anúncio FCast ou AirPlay.
+Ele será usado no próximo anúncio FCast, AirPlay, DLNA ou Cast V2.
 
 O menu permanece visível nas páginas de consulta/configurações e mantém a
 seleção destacada enquanto o foco está no conteúdo. Voltar restaura o último
@@ -77,16 +77,38 @@ estado e posição, pausar, buscar, retomar, parar e ajustar volume ou mudo.
 A descoberta SSDP e os comandos passaram no VVD com um MP4. O receptor
 também abre JPEG e PNG de até 16 MiB e cerca de 25 megapixels. Emissores
 inscritos recebem notificações GENA de transporte, volume e mudo.
-**Configurações → Aprovar conexões DLNA e FCast** ativa a confirmação
-na TV. Cada protocolo mantém sua aprovação por cinco minutos ou até
-fechar o receptor. A validação em aparelho físico está pendente.
+**Configurações → Aprovar conexões dos receptores** ativa a
+confirmação na TV. Cada protocolo mantém sua aprovação por cinco
+minutos ou até fechar o receptor. O espelhamento AirPlay também
+continua exigindo PIN. A validação em aparelho físico está pendente.
+
+**Estado do port → Testar Cast V2** anuncia `_googlecast._tcp.local` e
+aceita um controlador por TLS na rede local. O receptor experimental
+aceita mídia por URL HTTP(S), pausa, busca, retomada, Stop, volume e mudo.
+A chave e o certificado autossinado são gerados no sandbox. Quando a
+aprovação na TV está ativada, ela antecede a negociação TLS. O modo atende
+clientes que aceitam o receptor experimental. Apps oficiais do Google Cast
+que exigem autenticação de dispositivo precisam de um receptor certificado.
+
+Durante a reprodução por URL ou da amostra local, **Importar legenda**
+exibe um endereço HTTP temporário.
+Abra o endereço no navegador de um aparelho na mesma rede e selecione um
+arquivo SRT ou WebVTT em UTF-8 de até 2 MiB. A legenda acompanha o relógio
+do vídeo e pode ser desligada pelo controle. Cada importação aceita um
+arquivo e fecha ao cancelar, sair do vídeo ou após dois minutos. O arquivo
+fica em memória durante a sessão.
+
+Em **Estado do port → Testar vídeo AirPlay**, use **Gravar espelhamento**
+para começar no próximo quadro-chave. A gravação salva vídeo H.264 e áudio
+compatível em MP4 no sandbox. **Mídia → Biblioteca de gravações** lista os
+arquivos salvos, permite reproduzir e pede confirmação antes de excluir.
 
 ## Ambiente e build
 
-O bundle inclui Shaka/MSE para HLS/DASH experimentais no FCast. Os hooks de build preparam a versão fixada pelo script
+O bundle inclui Shaka/MSE para HLS/DASH experimentais no FCast e Cast V2. Os hooks de build preparam a versão fixada pelo script
 `tools/prepare_vega_shaka.py`; precisam de Git, curl, Python 3.12+ e Java 21+.
 A distribuição gerada fica em `vega/generated` e não é versionada.
-Os hooks também preparam o UxPlay fixado com os 19 patches Buzin numa cópia
+Os hooks também preparam o UxPlay fixado com os 20 patches Buzin numa cópia
 isolada nessa pasta; inicialize os submódulos antes do primeiro build.
 
 

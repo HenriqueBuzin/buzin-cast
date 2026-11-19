@@ -1,4 +1,4 @@
-"""Black-box smoke of an R8-minified, v1-signed store candidate on an isolated API17 emulator.
+"""Black-box smoke of a signed Fire OS candidate on an isolated Android emulator.
 
 This does not replace an Appstore/LAT license test on a physical Fire Stick.
 The SDK is real; no license response is forged or treated as an authorization.
@@ -15,6 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 from PIL import Image, ImageStat
+from check_fireos_release import extract_signer_fingerprint
 
 
 def main():
@@ -27,6 +28,8 @@ def main():
     parser.add_argument('--aapt',required=True)
     parser.add_argument('--apksigner-jar',required=True,type=Path)
     parser.add_argument('--output',required=True,type=Path)
+    parser.add_argument('--target', choices=('legacy', 'compat', 'modern'), default='legacy')
+    parser.add_argument('--device-sdk', type=int, help='Require this emulator API explicitly (e.g. 22 for the legacy APK on updated firmware)')
     args=parser.parse_args()
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
     if not local or not 5555<=int(local[1])<=5683 or int(local[1])%2!=1:
@@ -34,31 +37,46 @@ def main():
     if not 1<=args.adb_server_port<=65535:parser.error('Invalid ADB server port.')
     def adb(*command,timeout=60):
         return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
-    if adb('shell','getprop','ro.build.version.sdk').strip()!='17' or adb('shell','getprop','ro.kernel.qemu').strip()!='1':
-        parser.error('Only an Android API17 emulator is accepted.')
-    if adb('shell','getprop','persist.sys.language').strip() not in ('','en'):
+    min_sdk = {'legacy': 17, 'compat': 22, 'modern': 25}[args.target]
+    expected_sdk = args.device_sdk if args.device_sdk is not None else (None if args.target == 'modern' else min_sdk)
+    device_sdk = adb('shell','getprop','ro.build.version.sdk').strip()
+    if (adb('shell','getprop','ro.kernel.qemu').strip()!='1' or not device_sdk.isdecimal()
+            or int(device_sdk) < min_sdk or (expected_sdk is not None and int(device_sdk) != expected_sdk)):
+        parser.error('Use an emulator matching the selected release target API.')
+    if (adb('shell','getprop','persist.sys.language').strip() not in ('','en')
+            or adb('shell','getprop','persist.sys.locale').strip().split('-')[0] not in ('','en')):
         parser.error('Use an English emulator for the black-box text assertions.')
     badging=subprocess.check_output([args.aapt,'dump','badging',str(args.apk)],timeout=30).decode()
     package=re.search(r"package: name='([^']+)'",badging).group(1)
-    launcher=re.search(r"launchable-activity: name='([^']+)'",badging)
-    if package not in ('com.buzincast.tv','com.buzincast.tv.deat') or "sdkVersion:'17'" not in badging or 'application-debuggable' in badging:
-        parser.error('Expected a non-debuggable API17 store candidate.')
-    if launcher is None:parser.error('Missing store launcher activity.')
-    signature=subprocess.check_output(['java','-jar',str(args.apksigner_jar),'verify','--verbose','--print-certs','--min-sdk-version','17','--max-sdk-version','17',str(args.apk)],timeout=60).decode()
-    if 'Verified using v1 scheme (JAR signing): true' not in signature or 'CN=Android Debug' in signature:
-        raise AssertionError('Candidate must be v1-signed with the release identity.')
+    if package not in ('com.buzincast.tv','com.buzincast.tv.deat') or f"sdkVersion:'{min_sdk}'" not in badging or 'application-debuggable' in badging:
+        parser.error('Expected a non-debuggable store candidate for the selected target.')
+    if args.target == 'legacy':
+        # API17's am start does not support selecting an intent package with -p.
+        launcher = re.search(r"launchable-activity: name='([^']+)'", badging)
+        if launcher is None:parser.error('Missing legacy launcher activity.')
+        launch_args = ('-n', package + '/' + launcher[1])
+    else:
+        # TV launchers query the MAIN/LEANBACK filter, then start the selected
+        # component explicitly. An implicit am start matches DEFAULT filters.
+        launch_args = ('-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LEANBACK_LAUNCHER',
+                       '-n', package + '/io.github.jqssun.airplay.TvLauncher')
+    signature=subprocess.check_output(['java','-jar',str(args.apksigner_jar),'verify','--verbose','--print-certs','--min-sdk-version',str(min_sdk),'--max-sdk-version',device_sdk,str(args.apk)],timeout=60).decode()
+    if 'CN=Android Debug' in signature or (min_sdk < 24 and 'Verified using v1 scheme (JAR signing): true' not in signature):
+        raise AssertionError('Candidate must use the release identity and a compatible signature scheme.')
     with ZipFile(args.apk) as apk:
         if apk.testzip() is not None:raise AssertionError('Corrupt APK')
         if apk.read('assets/AppstoreAuthenticationKey.pem')!=args.public_key.read_bytes():
             raise AssertionError('The APK contains a different app public key.')
-        for abi in ('armeabi-v7a','x86'):
+        required_abis = ('armeabi-v7a', 'x86') if args.target == 'legacy' else ('armeabi-v7a', 'arm64-v8a', 'x86_64')
+        for abi in required_abis:
             if not any(name.startswith('lib/'+abi+'/') for name in apk.namelist()):raise AssertionError('Missing native ABI '+abi)
     args.output.mkdir(parents=True,exist_ok=True)
-    certificate=re.search(r'(?:V1 Signer:|Signer #1) certificate SHA-256 digest: ([0-9a-fA-F]{64})',signature)
-    if certificate is None:raise AssertionError('Missing release certificate fingerprint')
-    report={'status':'running','scope':'Release signature/key, R8 startup/native RTSP/UI on x86 API17; not an Amazon license grant or physical ARM test',
-            'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),'package':package,'v1_signature':'pass','matching_public_key':'pass',
-            'certificate_sha256':certificate.group(1).lower()}
+    certificate=extract_signer_fingerprint(signature)
+    report={'status':'running','scope':'Release signature/key, R8 startup/native RTSP/UI on an Android emulator; Appstore licensing and physical ARM validation pending',
+            'target':args.target,'device_sdk':int(device_sdk),
+            'apk_sha256':hashlib.sha256(args.apk.read_bytes()).hexdigest(),'package':package,'signature':'pass','matching_public_key':'pass',
+            'certificate_sha256':certificate}
+    if min_sdk < 24:report['v1_signature']='pass'
     installed=False;forward=None
     def tree():
         adb('shell','uiautomator','dump','/data/local/tmp/legacy-store-ui.xml',timeout=30)
@@ -114,7 +132,7 @@ def main():
         install=adb('install',args.apk,timeout=120)
         if 'Success' not in install:raise AssertionError('Release install failed: '+install)
         installed=True;adb('shell','input','keyevent','82');adb('logcat','-c')
-        launch=adb('shell','am','start','-W','-n',package+'/'+launcher.group(1))
+        launch=adb('shell','am','start','-W',*launch_args)
         if 'Error:' in launch or 'Status: ok' not in launch:raise AssertionError('Release launch failed: '+launch)
         forward=adb('forward','tcp:0','tcp:7000').strip();deadline=time.monotonic()+30
         while True:
@@ -131,7 +149,9 @@ def main():
         screenshot('home.png')
         for label,filename in (('Tools','tools.png'),('Settings','settings.png'),('Overview','overview.png')):
             click(label);time.sleep(.4);state=tree()
-            if not any(node.get('text')==label and node.get('selected')=='true' for node in state.iter('node')):
+            # Compose exposes selection on the tab and its label on a child.
+            if not any(node.get('selected') == 'true' and any(child.get('text') == label for child in node.iter('node'))
+                       for node in state.iter('node')):
                 raise AssertionError('Active menu selection missing in release: '+label)
             screenshot(filename)
         click('About BuzinCast');time.sleep(.4)

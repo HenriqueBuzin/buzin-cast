@@ -18,7 +18,7 @@ afterEach(() => {jest.useRealTimers(); jest.clearAllMocks(); globalThis.URL = or
 function setup(mode: 'url' | 'mirror' = 'url') {
   const packets: string[] = [];
   const player = {duration: 8, playbackRate: 1, currentTime: 0, pause: jest.fn(), play: jest.fn(() => Promise.resolve())};
-  const media = {load: jest.fn(() => Promise.resolve()), setVolume: jest.fn(), attachSurface: jest.fn(), detachSurface: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
+  const media = {load: jest.fn(() => Promise.resolve()), setVolume: jest.fn(), attachSurface: jest.fn(), detachSurface: jest.fn(), setPlaying: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
   let ready!: Parameters<typeof createPlaybackSession>[0];
   let change!: Parameters<typeof createPlaybackSession>[1];
   jest.mocked(createPlaybackSession).mockImplementation((onReady, onChange) => {ready = onReady; change = onChange; return media;});

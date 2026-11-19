@@ -1,5 +1,77 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Gravação e biblioteca no Vega
+
+A tela **Estado do port → Testar vídeo AirPlay** permite armar e parar
+uma gravação. O gravador começa no próximo quadro-chave H.264,
+mantém a linha do tempo do áudio e vídeo e finaliza em MP4 ao parar ou
+encerrar a sessão. Um worker separado escreve no sandbox, com fila
+limitada e verificação de espaço. **Mídia → Biblioteca de gravações**
+abre o player local e pede confirmação antes da exclusão.
+
+No VVD ARM64, `tools/test_vega_local_video.py --transport-only
+--alac-conversion --recording` alimentou callbacks sintéticos H.264/ALAC
+pelo worker nativo durante a reprodução. A gravação começou depois do
+primeiro IDR e salvou H.264/AAC tanto no encerramento normal quanto
+ao voltar durante a transmissão. FFmpeg decodificou ambos os arquivos
+e o player do Vega abriu uma gravação pela Biblioteca. Lint, TypeScript,
+78 testes Jest e ABI das três arquiteturas passaram. O teste ainda
+deixa pendentes a captura de um emissor Apple em aparelho físico e
+a exportação de gravações.
+
+## Legendas externas no Vega
+
+**Importar legenda** durante um vídeo abre um endereço de uso único por
+até dois minutos. O usuário seleciona o arquivo SRT ou WebVTT no navegador
+de outro aparelho da mesma rede. A TV valida UTF-8 e marcações de tempo,
+mostra as legendas conforme a posição do player e libera o arquivo em
+memória ao trocar de vídeo, desligar a legenda ou sair. O fluxo também
+funciona na amostra local. O texto usa o estilo da TV.
+
+O teste nativo exercitou o envio dos dois formatos e rejeição de origem,
+caminho, tipo e tamanho inválidos. O teste de tela cobriu exibição, pausa,
+busca, desativação e encerramento. No VVD ARM64 passaram abertura,
+cancelamento, reabertura e fechamento da porta pelo controle. Lint,
+TypeScript, 77 testes Jest e os três VPKGs Release passaram. A entrega
+do arquivo pelo navegador e a sobreposição sobre vídeo em uma TV física
+aguardam validação visual.
+
+## Cast V2 experimental no Vega
+
+**Estado do port → Testar Cast V2** abre o receptor por TLS local e
+registra a descoberta DNS-SD. A sessão suporta o fluxo experimental do
+Fire OS para mídia por URL, com aprovação configurável na TV. O
+certificado autossinado e a chave são gerados no sandbox. Dispositivos e
+apps oficiais do Google Cast que exigem autenticação precisam de um
+receptor certificado.
+
+O teste `tools/test_vega_cast_v2.py` passou no VVD ARM64 com e sem
+`--approval`. Foram verificados TLS, heartbeat, resposta de
+autenticação indisponível, lançamento, MP4 HTTP com autoplay
+desativado, pausa, busca, retomada, volume, rejeição de URL inválida,
+Stop e liberação ao Voltar. Lint, TypeScript, 70 testes Jest e os
+VPKGs Release ARM64, ARMv7 e x86_64 passaram. Descoberta por um
+emissor na rede física e reprodução HLS/DASH pelo Cast V2 aguardam
+validação.
+
+## Aprovação de conexões AirPlay no Vega
+
+**Configurações → Aprovar conexões dos receptores**
+protege os três modos AirPlay no Vega. O servidor aguarda a decisão
+antes de processar a primeira solicitação. Permitir vale por cinco
+minutos para novas conexões AirPlay do emissor enquanto a tela estiver
+aberta. O espelhamento também exige PIN verificado para aceitar mídia.
+
+O patch UxPlay 0020 fornece o socket ao callback opcional do Vega.
+A preparação aplicou os 20 patches na cópia isolada. Lint, TypeScript
+e 70 testes Jest passaram, assim como a validação de ABI nos três
+pacotes. No VVD, áudio e espelhamento passaram nos ciclos de recusa,
+aprovação, reabertura e Voltar durante a espera. O AirPlay por URL
+esperou a aprovação antes de carregar o MP4. Relatórios em
+`build/vega-airplay-{audio,video,url}-approval-final`.
+A negociação e a reprodução completas com emissor Apple em aparelho
+físico continuam pendentes.
+
 ## Aprovação de conexões FCast no Vega
 
 **Configurações → Aprovar conexões DLNA e FCast** aplica a preferência

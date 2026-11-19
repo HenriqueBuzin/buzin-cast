@@ -19,6 +19,7 @@ export type PlaybackRequest = {
   position: number;
   speed: number;
   mimeType?: string;
+  autoplay?: boolean;
 };
 
 // A quick Back/reopen must wait for the previous native decoder to be released.
@@ -49,6 +50,7 @@ export function createPlaybackSession(
   let volumeOverride = false;
   let volumeOnPlaying = false;
   let hasSource = request !== null;
+  let autoplay = request?.autoplay !== false;
   function observe() {
     if (!timer) {
       timer = setInterval(() => {
@@ -68,6 +70,7 @@ export function createPlaybackSession(
     failed = false;
     hasSource = true;
     position = source.position;
+    autoplay = source.autoplay !== false;
     sourceReady = false;
     volumeOnPlaying = true;
     const generation = sourceGeneration;
@@ -96,7 +99,8 @@ export function createPlaybackSession(
       if (closed || generation !== sourceGeneration) {return;}
       if (volume !== volumeAtLoad) {player.volume = volume;}
       sourceReady = true;
-      if (surface) {player.play().catch(fail);}
+      if (!autoplay) {publish('paused');}
+      else if (surface) {player.play().catch(fail);}
     });
     sourceBarrier.catch(() => {
       if (generation === sourceGeneration) {fail();}
@@ -233,7 +237,7 @@ export function createPlaybackSession(
         try {
           player.setSurfaceHandle(handle);
           surface = handle;
-          if (hasSource && sourceReady) {
+          if (hasSource && sourceReady && autoplay) {
             const generation = sourceGeneration;
             player.play().catch(() => {
               if (generation === sourceGeneration) {
@@ -250,6 +254,20 @@ export function createPlaybackSession(
       if (!closed && initialized && player && surface === handle) {
         player.clearSurfaceHandle(handle);
         surface = undefined;
+      }
+    },
+    setPlaying(value: boolean) {
+      autoplay = value;
+      if (!closed && sourceReady && surface && player) {
+        try {
+          if (value) {player.play().catch(fail);}
+          else {
+            player.pause();
+            publish('paused');
+          }
+        } catch {
+          fail();
+        }
       }
     },
     togglePause() {

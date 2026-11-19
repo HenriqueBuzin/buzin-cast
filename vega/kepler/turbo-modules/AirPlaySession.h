@@ -27,8 +27,11 @@ public:
   AirPlaySession& operator=(const AirPlaySession&) = delete;
   uint16_t start(const std::string& keyPath, const std::string& name,
                  const std::string& identity, bool loopbackOnly = true,
-                 AirPlayAudioWorker* audio = nullptr, AirPlayVideoWorker* video = nullptr);
+                 AirPlayAudioWorker* audio = nullptr, AirPlayVideoWorker* video = nullptr,
+                 bool requireApproval = false);
   void stop() noexcept;
+  std::string pollApproval();
+  void answerApproval(double requestId, bool allow);
   bool poll(AirPlayEvent& event);
   double volumeDb() const;
   bool healthy() const;

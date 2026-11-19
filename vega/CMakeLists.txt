@@ -10,6 +10,8 @@ kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/BuzinNetwork.cpp
   kepler/turbo-modules/ReceiverSettings.cpp
   kepler/turbo-modules/FCastTransport.cpp
+  kepler/turbo-modules/CastV2Transport.cpp
+  kepler/turbo-modules/SubtitleUpload.cpp
   kepler/turbo-modules/DlnaTransport.cpp
   kepler/turbo-modules/MdnsDiscovery.cpp
   kepler/turbo-modules/NetworkProbe.cpp
@@ -39,7 +41,7 @@ target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
 target_include_directories(BuzinNetwork PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp")
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c"
   PROPERTIES COMPILE_DEFINITIONS BUZIN_DNSSD_WIRE_TXT)
-target_link_libraries(BuzinNetwork PRIVATE BuzinAirPlayCore)
+target_link_libraries(BuzinNetwork PRIVATE BuzinAirPlayCore buzin_ssl)
 target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")
 
 # Development-only runner, excluded from the VPKG like the network probe.

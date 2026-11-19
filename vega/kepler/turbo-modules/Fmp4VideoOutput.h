@@ -2,11 +2,13 @@
 #include "VideoSampleSink.h"
 #include <memory>
 
+class MirrorRecording;
+
 // Owns both the muxer and its bounded loopback stream for one output session.
 // No media payload or muxer lifetime crosses into JavaScript.
 class Fmp4VideoOutput final : public VideoSampleSink {
 public:
-  Fmp4VideoOutput();
+  explicit Fmp4VideoOutput(MirrorRecording* recording = nullptr);
   ~Fmp4VideoOutput() override;
   Fmp4VideoOutput(const Fmp4VideoOutput&) = delete;
   Fmp4VideoOutput& operator=(const Fmp4VideoOutput&) = delete;

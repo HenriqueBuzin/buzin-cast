@@ -30,6 +30,7 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--mirror', action='store_true', help='Pass a fixture with a public test key through the native loopback TCP/AES-CTR mirror parser, without FairPlay negotiation')
     modes.add_argument('--alac-conversion', action='store_true', help='Feed ALAC and H.264 callbacks to the production AAC-LC conversion and HTTP output')
+    parser.add_argument('--recording', action='store_true', help='Save the live ALAC/H.264 output and verify the recording library')
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--runner', type=Path, required=True)
     parser.add_argument('--profile', choices=['baseline', 'high'], default='baseline')
@@ -37,9 +38,11 @@ def main():
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
         parser.error('Only VVD is allowed')
+    if args.recording and not args.alac_conversion:
+        parser.error('--recording requires --alac-conversion')
     args.output.mkdir(parents=True, exist_ok=True)
     sdk = shutil.which('vega')
-    history, forwards, cycles = [], [], []
+    history, forwards, cycles, recordings = [], [], [], []
     result = {'passed': False, 'physicalValidation': False, 'transportOnly': args.transport_only, 'visualValidation': False,
               'encryptedMirrorLoopback': args.mirror, 'fairPlayNegotiation': False, 'alacConversion': args.alac_conversion}
     producer = log = client = None
@@ -84,7 +87,7 @@ def main():
         _, fixture, frame_count = make_fixture(args.output, args.profile, True)
         if args.alac_conversion:
             fixture, _, audio_packets = append_audio_fixture(args.output, fixture, 'alac-aac')
-            mode = '--av-transcode-serve'
+            mode = '--av-transcode-record' if args.recording else '--av-transcode-serve'
         else:
             mode = '--mirror-serve' if args.mirror else '--serve'
         if COMPONENT in shell('vlcm', 'list', '--app-id', COMPONENT):
@@ -94,7 +97,7 @@ def main():
         shell('-c', COMPONENT, 'cat > /data/buzin-msse-video.bin', payload=fixture)
         shell('-c', COMPONENT, 'chmod', '700', '/data/buzin-msse-video-probe')
         for cycle in range(2):
-            shell('-c', COMPONENT, 'rm', '-f', '/data/airplay-port.json', '/data/local-video-url.json', '/data/local-video-state.json', '/data/video-quality.json')
+            shell('-c', COMPONENT, 'rm', '-f', '/data/airplay-port.json', '/data/local-video-url.json', '/data/local-video-state.json', '/data/video-quality.json', '/data/local-recording-name')
             for key in ['KEY_ENTER', 'KEY_DOWN', 'KEY_ENTER']:
                 shell('inputd-cli', 'button_press', key)
             control = observe('/data/airplay-port.json', lambda value: isinstance(value.get('port'), int))['port']
@@ -146,9 +149,37 @@ def main():
             if producer.wait(timeout=10) != 0:
                 raise RuntimeError('Native producer did not exit cleanly')
             producer = None
+            if args.recording:
+                name = shell('-c', COMPONENT, 'cat', '/data/local-recording-name').strip()
+                if not re.fullmatch(r'Buzin-\d{13,}-[A-Za-z0-9]{6}\.mp4', name):
+                    raise RuntimeError('Unexpected recording name')
+                recordings.append(name)
+                copied = args.output / f'recording-{cycle + 1}.mp4'
+                binary = subprocess.run([sdk, 'exec', 'vda', '-s', args.serial, 'shell', '-T',
+                                         '-c', COMPONENT, 'cat', '/data/recordings/' + name],
+                                        capture_output=True, check=True, timeout=20)
+                copied.write_bytes(binary.stdout)
+                tracks = json.loads(subprocess.check_output([
+                    'ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,codec_type:format=duration',
+                    '-of', 'json', str(copied)], timeout=20))
+                codecs = {track['codec_type']: track['codec_name'] for track in tracks['streams']}
+                if codecs != {'video': 'h264', 'audio': 'aac'} or float(tracks['format']['duration']) <= 0.25:
+                    raise RuntimeError('Saved recording lacks a usable A/V timeline')
+                subprocess.run(['ffmpeg', '-v', 'error', '-xerror', '-i', str(copied), '-f', 'null', '-'],
+                               check=True, timeout=20)
+                entry['recording'] = tracks
             log.close(); log = None
             client.close(); client = None
             cycles.append(entry)
+        if args.recording:
+            for key in ('RIGHT', 'ENTER', 'DOWN', 'ENTER'):
+                shell('inputd-cli', 'button_press', 'KEY_' + key)
+            shell('-c', COMPONENT, 'rm', '-f', '/data/playback-state.json')
+            shell('inputd-cli', 'button_press', 'KEY_ENTER')
+            observe('/data/playback-state.json', lambda value: value.get('state') == 'playing' and value.get('seconds', 0) > 0.25)
+            shell('inputd-cli', 'button_press', 'KEY_BACK')
+            observe('/data/playback-state.json', lambda value: value.get('state') == 'released')
+            result['recordingLibraryPlayback'] = True
         result.update(passed=True, nativeCallbackWorker=True, profile=args.profile, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:
@@ -175,7 +206,12 @@ def main():
                 run('device', 'stop-port-forwarding', '--device', args.serial, '--port', str(port), '--forward', 'true')
             except Exception:
                 pass
-        for name in ['buzin-msse-video-probe', 'buzin-msse-video.bin', 'local-video-url.json', 'local-video-state.json', 'local-video-state.json.tmp']:
+        for name in recordings:
+            try:
+                shell('-c', COMPONENT, 'rm', '-f', '/data/recordings/' + name)
+            except Exception:
+                pass
+        for name in ['local-recording-name', 'buzin-msse-video-probe', 'buzin-msse-video.bin', 'local-video-url.json', 'local-video-state.json', 'local-video-state.json.tmp']:
             try:
                 shell('-c', COMPONENT, 'rm', '-f', '/data/' + name)
             except Exception:

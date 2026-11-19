@@ -31,12 +31,17 @@ ExternalProject_Add(buzin_openssl
     --prefix=${_crypto_prefix} --libdir=lib
   BUILD_COMMAND ${CMAKE_COMMAND} -E env ${_crypto_environment} ${BUZIN_MAKE} -j2 build_libs
   INSTALL_COMMAND ${CMAKE_COMMAND} -E env ${_crypto_environment} ${BUZIN_MAKE} install_dev
-  BUILD_BYPRODUCTS "${_crypto_prefix}/lib/libcrypto.a")
+  BUILD_BYPRODUCTS "${_crypto_prefix}/lib/libcrypto.a" "${_crypto_prefix}/lib/libssl.a")
 add_library(buzin_crypto STATIC IMPORTED)
 set_target_properties(buzin_crypto PROPERTIES
   IMPORTED_LOCATION "${_crypto_prefix}/lib/libcrypto.a"
   INTERFACE_INCLUDE_DIRECTORIES "${_crypto_prefix}/include")
 add_dependencies(buzin_crypto buzin_openssl)
+add_library(buzin_ssl STATIC IMPORTED)
+set_target_properties(buzin_ssl PROPERTIES
+  IMPORTED_LOCATION "${_crypto_prefix}/lib/libssl.a"
+  INTERFACE_LINK_LIBRARIES buzin_crypto)
+add_dependencies(buzin_ssl buzin_openssl)
 
 set(_third_party "${CMAKE_CURRENT_LIST_DIR}/../../app/src/main/cpp/third_party")
 set(_plist "${_third_party}/libplist")

@@ -1,4 +1,4 @@
-"""Check coordinated Fire OS identities/API levels; does not verify console device assignment or signatures."""
+"""Check coordinated Fire OS identities and optionally verify the APK signing certificates."""
 import argparse
 import hashlib
 import json
@@ -68,21 +68,44 @@ def read_apk(path, aapt):
             'minSdk': int(sdk[1]), 'debuggable': 'application-debuggable' in output}
 
 
+def extract_signer_fingerprint(output):
+    certificates = {value.lower() for value in re.findall(
+        r'^(?:V\d+ Signer(?: #\d+)?:|Signer #\d+) certificate SHA-256 digest: ([0-9a-f]{64})\s*$',
+        output, re.M | re.I,
+    )}
+    if len(certificates) != 1 or 'CN=Android Debug' in output:
+        raise ValueError('Expected a single non-debug signing certificate')
+    return certificates.pop()
+
+
+def signer_fingerprint(path, apksigner_jar, min_sdk):
+    output = subprocess.check_output(
+        ['java', '-jar', str(apksigner_jar), 'verify', '--print-certs',
+         '--min-sdk-version', str(min_sdk), str(path)],
+        stderr=subprocess.STDOUT, timeout=60,
+    ).decode('utf-8', 'replace')
+    return extract_signer_fingerprint(output)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan', type=Path, default=ROOT / 'gradle/fireos-release.properties')
     parser.add_argument('--manifest', action='append', default=[], metavar='EDITION=PATH')
     parser.add_argument('--apk', action='append', default=[], metavar='EDITION=PATH')
     parser.add_argument('--aapt', help='Required with --apk')
+    parser.add_argument('--apksigner-jar', type=Path, help='Verify APK signatures and require the same signer within each listing')
     parser.add_argument('--require-all', action='store_true', help='Fail unless all six editions are provided')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     report = {'status': 'failed', 'verified': [], 'completeSet': False, 'deviceTargetingVerified': False,
-              'scope': 'Version/package/API identity only; not signatures, runtime, country availability or console device assignments'}
+              'signaturesVerified': False, 'scope': 'Version/package/API identity, with optional signing checks'}
     try:
+        if args.apksigner_jar and (not args.apk or args.manifest):
+            raise ValueError('Signature verification requires APK inputs only')
         plan = load_plan(args.plan)
         report['plan_sha256'] = hashlib.sha256(args.plan.read_bytes()).hexdigest()
         seen = set()
+        listing_signers = {}
         for kind, inputs in (('manifest', args.manifest), ('apk', args.apk)):
             for item in inputs:
                 edition, filename = item.split('=', 1)
@@ -95,12 +118,23 @@ def main():
                 wanted = expected(plan, edition)
                 if actual != wanted:
                     raise ValueError(f'{edition}: identity differs; expected {wanted}, found {actual}')
+                item_report = {'edition': edition, 'kind': kind, **actual,
+                               'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+                if args.apksigner_jar:
+                    try:
+                        fingerprint = signer_fingerprint(path, args.apksigner_jar, actual['minSdk'])
+                    except subprocess.CalledProcessError as error:
+                        raise ValueError(f'{edition}: apksigner rejected the APK (exit {error.returncode})') from error
+                    previous = listing_signers.setdefault(actual['package'], fingerprint)
+                    if fingerprint != previous:
+                        raise ValueError(f'{edition}: signing certificate differs within {actual["package"]}')
+                    item_report['certificate_sha256'] = fingerprint
                 seen.add(edition)
-                report['verified'].append({'edition': edition, 'kind': kind, **actual,
-                                           'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+                report['verified'].append(item_report)
         report['completeSet'] = seen == EDITIONS
         if args.require_all and not report['completeSet']:
             raise ValueError('Missing editions: ' + ', '.join(sorted(EDITIONS - seen)))
+        report['signaturesVerified'] = bool(args.apksigner_jar)
         report['status'] = 'pass'
     except (ValueError, KeyError, TypeError, OSError, ET.ParseError, subprocess.SubprocessError) as error:
         report['error'] = str(error)

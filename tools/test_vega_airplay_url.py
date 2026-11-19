@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real AirPlay URL -> native UxPlay -> Vega player test, on VVD only."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -25,6 +26,7 @@ def main():
     parser.add_argument('--media-file', type=Path, default=ROOT / 'vega/assets/raw/media/playback-sample.mp4')
     parser.add_argument('--live', action='store_true', help='Check startup and release without seeking in an unindexed MP4')
     parser.add_argument('--volume', action='store_true', help='Verify RTSP gain and mute reach the active Vega player')
+    parser.add_argument('--approval', action='store_true', help='Approve the actual HTTP play request with TV controls')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-airplay-url')
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -34,6 +36,7 @@ def main():
     history = []
     result = {'physicalValidation': False, 'liveStartupOnly': args.live, 'checks': {}}
     forwards = []
+    saved_approval = None
     client = None
     volume_client = None
     log_stream = None
@@ -147,6 +150,12 @@ def main():
         if COMPONENT in shell('vlcm', 'list', '--app-id', COMPONENT):
             shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
+        if args.approval:
+            saved = shell('-c', COMPONENT, 'if test -f /data/dlna-approval; then cat /data/dlna-approval; fi')
+            if saved not in ('', '0', '1'):
+                raise RuntimeError('Unexpected approval preference')
+            saved_approval = saved
+            shell('-c', COMPONENT, 'printf 1 > /data/dlna-approval')
         log_output = (args.output / 'receiver-stream.log').open('w')
         log_stream = subprocess.Popen([sdk, 'exec', 'vda', '-s', args.serial, 'shell', 'loggingctl', 'log', '-f', '-v', 'com.buzincast.tv'], stdout=log_output, stderr=subprocess.STDOUT)
         shell('-c', COMPONENT, 'rm', '-f', '/data/airplay-port.json')
@@ -177,7 +186,19 @@ def main():
         client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
         client.response_class = AirPlayResponse
         start = 0 if args.live else 1
-        request('POST', '/play', f'Content-Location: http://127.0.0.1:40881/playback-sample.mp4\r\nStart-Position: {start}\r\n'.encode())
+        play = f'Content-Location: http://127.0.0.1:40881/playback-sample.mp4\r\nStart-Position: {start}\r\n'.encode()
+        if args.approval:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                waiting = pool.submit(request, 'POST', '/play', play)
+                time.sleep(0.8)
+                if waiting.done() or media_requests:
+                    raise RuntimeError('HTTP play did not wait for TV approval')
+                shell('inputd-cli', 'button_press', 'KEY_RIGHT')
+                shell('inputd-cli', 'button_press', 'KEY_ENTER')
+                waiting.result(timeout=6)
+            result['checks']['approvedPlayOnTv'] = True
+        else:
+            request('POST', '/play', play)
         # A currentTime setter can expose its target before native seeking
         # finishes. Require an advancing clock before issuing pause.
         result['checks']['playing'] = wait(lambda value: value.get('rate', 0) > 0 and value.get('position', 0) > start + 0.3)
@@ -230,6 +251,9 @@ def main():
             pass
         raise
     finally:
+        if saved_approval is not None:
+            restore = f'printf {saved_approval} > /data/dlna-approval' if saved_approval else 'rm -f /data/dlna-approval'
+            shell('-c', COMPONENT, restore)
         if log_stream:
             log_stream.terminate()
             try:

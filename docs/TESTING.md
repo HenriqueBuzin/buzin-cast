@@ -1349,8 +1349,8 @@ Vega OS é desenvolvido em outro ambiente.
    Depois portar as telas, configurações e funções restantes e validar
    com emissores reais em um AFTM com Fire OS 3.
 2. **Fire OS 5 (API 22, AFTM atualizado e AFTT).** Validar os dois
-   APKs compat já assinados. Testar primeiro no AFTM de 2014, que é o
-   modelo mais antigo, e depois no Stick de 2ª geração e no Basic Edition.
+   APKs nativos no AFTM atualizado e os dois APKs compatíveis no Stick de
+   2ª geração e no Basic Edition, conforme a [seleção de modelos](FIREOS_RELEASE.md).
    Conferir instalação, abertura a frio, foco, espelhamento, áudio,
    reprodução e recuperação após interrupção da rede.
 3. **Fire OS 6, 7 e 8 (APIs 25, 28 e 30 nos Sticks).** Validar os dois

@@ -1,16 +1,21 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system video surface. */
 import TvButton from './TvButton';
+import RecordingButton from './RecordingButton';
+import ConnectionApprovalPrompt from './ConnectionApprovalPrompt';
 import React, {useEffect, useRef, useState} from 'react';
 import {AppState, Image, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
+import {createCastV2Receiver} from './castV2Receiver';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
 import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
 import type {ConnectionApprovalRequest} from './connectionApproval';
+import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import type {PlaybackSnapshot} from './playbackSession';
 
 const titles = {
   fcast: 'FCast v2 experimental',
+  castv2: 'Cast V2 experimental',
   airplay: 'AirPlay por URL experimental',
   mirror: 'Vídeo AirPlay experimental',
   dlna: 'DLNA experimental',
@@ -28,15 +33,19 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [failed, setFailed] = useState(false);
   const [pin, setPin] = useState('');
   const [focus, setFocus] = useState('back');
+  const subtitleMedia = protocol !== 'mirror' && !photo && snapshot && ['playing', 'paused'].includes(snapshot.state) ? token : null;
+  const subtitles = usePlaybackSubtitles(subtitleMedia);
   useEffect(() => {
     try {
       const onFailure = () => setFailed(true);
       const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
       receiver.current = protocol === 'fcast'
         ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening, setApproval)
+        : protocol === 'castv2'
+        ? createCastV2Receiver(setToken, setSnapshot, onFailure, onListening, setApproval)
         : protocol === 'dlna'
         ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto, setApproval)
-        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
+        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin, setApproval);
     } catch {
       setFailed(true);
     }
@@ -80,6 +89,8 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           <Text style={styles.details}>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
+              : protocol === 'castv2'
+              ? 'Áudio e vídeo por URL com emissores compatíveis com o receptor experimental. O Google Cast oficial exige autenticação de dispositivo.'
               : protocol === 'mirror'
               ? 'Selecione o receptor no emissor e digite o PIN quando solicitado.'
               : protocol === 'dlna'
@@ -104,6 +115,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
               receiver.current?.detachSurface(token, handle)
             }
           />
+          {subtitleMedia !== null && <SubtitleCaption text={subtitles.caption(snapshot?.seconds ?? 0)} />}
         </View>
       )}
       <Text style={styles.details}>
@@ -123,32 +135,17 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           : ''}
       </Text>
       {approval && (
-        <View style={styles.approval}>
-          <Text style={styles.details} aria-live="polite">
-            {protocol === 'fcast'
-              ? `Permitir a conexão FCast de ${approval.peer}?`
-              : `Permitir que ${approval.peer} controle o DLNA por cinco minutos?`}
-          </Text>
-          <View style={styles.actions}>
-            {[false, true].map(allow => {
-              const id = allow ? 'allow' : 'deny';
-              return (
-                <TvButton
-                  key={id}
-                  role="button"
-                  hasTVPreferredFocus={!allow}
-                  onFocus={() => setFocus(id)}
-                  onBlur={() => setFocus(current => current === id ? '' : current)}
-                  style={[styles.button, focus === id && styles.focused]}
-                  onPress={() => receiver.current?.answerApproval?.(approval.id, allow)}>
-                  <Text style={styles.label}>{allow ? 'Permitir' : 'Recusar'}</Text>
-                </TvButton>
-              );
-            })}
-          </View>
-        </View>
+        <ConnectionApprovalPrompt
+          key={approval.id}
+          request={approval}
+          protocol={protocol === 'fcast' ? 'FCast' : protocol === 'castv2' ? 'Cast V2' : protocol === 'dlna' ? 'DLNA' : 'AirPlay'}
+          onAnswer={(id, allow) => receiver.current?.answerApproval?.(id, allow)}
+        />
       )}
+      {subtitleMedia !== null && <SubtitleNotice link={subtitles.link} message={subtitles.message} />}
       <View style={styles.actions}>
+        {protocol === 'mirror' && listening && !failed && <RecordingButton disabled={!!approval} />}
+        {subtitleMedia !== null && <SubtitleButton label={subtitles.label} onPress={subtitles.select} />}
         {(token === null || protocol === 'mirror' ? ['back'] : ['pause', 'back']).map((id) => (
           <TvButton
             key={id}
@@ -197,7 +194,6 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   actions: {flexDirection: 'row', gap: 24},
-  approval: {alignItems: 'center', marginBottom: 16},
   button: {
     paddingVertical: 10,
     paddingHorizontal: 28,

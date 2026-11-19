@@ -1,9 +1,11 @@
 #include "probes/MsseVideoPlayer.h"
 #include "turbo-modules/H264Fmp4Muxer.h"
 #include "turbo-modules/Fmp4VideoOutput.h"
+#include "turbo-modules/MirrorRecording.h"
 #include "turbo-modules/AirPlayVideoCallbacks.h"
 #include "turbo-modules/AirPlayAudioFormat.h"
 #include "AirPlayMirrorProbe.h"
+#include <algorithm>
 #include <cstdio>
 #include <apmf/errors.h>
 #include <chrono>
@@ -88,7 +90,8 @@ int main(int argc, char** argv) {
       frames.push_back({pts,duration,key != 0,std::move(data)});
     }
     const std::string mode = argc == 3 ? argv[2] : "";
-    const bool avServe = mode == "--av-transcode-serve";
+    const bool recording = mode == "--av-transcode-record";
+    const bool avServe = recording || mode == "--av-transcode-serve";
     const bool convertAlac = avServe || mode == "--av-transcode";
     const bool avMux = convertAlac || mode == "--av-mux";
     std::vector<std::vector<uint8_t>> audio;
@@ -168,7 +171,9 @@ int main(int argc, char** argv) {
     };
     if (avServe || mode == "--serve" || mode == "--mirror-serve") {
       if (avServe && frames.size() < 2) throw std::runtime_error("A/V stream needs two initial video frames");
-      AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
+      MirrorRecording capture("/data/recordings");
+      const auto initialRecordings = recording ? capture.list() : std::vector<MirrorRecording::Entry>{};
+      AirPlayVideoWorker worker([&] {return std::make_unique<Fmp4VideoOutput>(recording ? &capture : nullptr);});
       worker.start();
       if (avServe) worker.audioFormat(audioCodec,audioSamplesPerFrame);
       const bool encryptedMirror = mode == "--mirror-serve";
@@ -234,6 +239,11 @@ int main(int argc, char** argv) {
           if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Video player did not connect");
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+        if (recording) {
+          // Recording starts after the live output has consumed its initial IDR.
+          capture.arm();
+          if (capture.state() != "waiting") throw std::runtime_error("Recording was not armed");
+        }
         const auto start = std::chrono::steady_clock::now();
         while (videoIndex < frames.size() || audioIndex < audio.size()) {
           const bool videoNext = videoIndex < frames.size() &&
@@ -269,6 +279,25 @@ int main(int argc, char** argv) {
       }
       if (mirror) {mirror->stop(); mirror->stop();}
       worker.stop(); worker.stop(); report();
+      if (recording) {
+        capture.stop();
+        const auto end = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+        while (capture.state() == "saving" && std::chrono::steady_clock::now() < end)
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (capture.state() != "saved") throw std::runtime_error("Recording not finalized: " + capture.state());
+        std::ofstream output("/data/local-recording-name");
+        int files = 0;
+        for (const auto& entry : capture.list()) {
+          if (std::none_of(initialRecordings.begin(), initialRecordings.end(), [&](const auto& previous) {
+            return previous.name == entry.name;
+          })) {
+            output << entry.name << '\n';
+            ++files;
+          }
+        }
+        output.close();
+        if (!output || files != 1) throw std::runtime_error("Expected one newly saved recording");
+      }
       return 0;
     }
     if (avMux) {

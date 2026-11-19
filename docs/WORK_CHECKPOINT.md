@@ -1,5 +1,33 @@
 # Retomada — 19 de novembro de 2026
 
+## Gravação e biblioteca no Vega
+
+O espelhamento AirPlay agora pode salvar MP4 no sandbox. A Biblioteca
+reproduz e exclui gravações com confirmação. No VVD ARM64, callbacks
+sintéticos geraram MP4 H.264/AAC no encerramento normal e ao sair durante
+a transmissão. A Biblioteca abriu o arquivo pelo player do Vega.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Legendas externas no Vega
+
+O player agora importa arquivos SRT e WebVTT pela rede local e sincroniza
+o texto com o relógio do vídeo. No VVD ARM64, o controle abriu, cancelou,
+reabriu e encerrou a porta de importação. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Cast V2 experimental no Vega
+
+O menu Estado do port agora abre o receptor experimental de mídia
+por URL com TLS e descoberta DNS-SD. No VVD ARM64, passaram MP4,
+controles, liberação ao Voltar e a espera de aprovação antes do TLS.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Aprovação AirPlay no Vega
+
+A preferência de aprovação agora inclui AirPlay por URL, áudio e
+espelhamento. O VVD confirmou a espera antes da execução do comando,
+recusa, reapertura com nova confirmação e bloqueio de SETUP de
+espelhamento sem PIN. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Numeração coordenada dos seis APKs Fire OS
 
 Os candidatos nativos usavam 48/49, acima dos códigos 44–47 que ainda

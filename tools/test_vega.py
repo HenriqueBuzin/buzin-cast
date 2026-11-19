@@ -146,6 +146,37 @@ def main():
         report["checks"]["localPlayback"] = {
             "playing": playing, "paused": held, "resumed": resumed, "released": released,
         }
+        def listening_ports():
+            output = shell("netstat", "-ltn")
+            return set(re.findall(r"^tcp\s+\d+\s+\d+\s+(?:0\.0\.0\.0|\*):(\d+)\s+\S+\s+LISTEN", output, re.M))
+
+        def wait_listener(predicate):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if predicate(listening_ports()):
+                    return
+                time.sleep(0.2)
+            raise RuntimeError("A porta temporária da legenda não mudou como esperado")
+
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        app_shell("rm", "-f", "/data/playback-state.json")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        wait_playback(lambda value: value["state"] == "playing" and value["seconds"] >= 0.5)
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        wait_playback(lambda value: value["state"] == "paused")
+        baseline = listening_ports()
+        shell("inputd-cli", "button_press", "KEY_LEFT")
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        wait_listener(lambda ports: len(ports - baseline) == 1)
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        wait_listener(lambda ports: not ports - baseline)
+        shell("inputd-cli", "button_press", "KEY_ENTER")
+        wait_listener(lambda ports: len(ports - baseline) == 1)
+        shell("inputd-cli", "button_press", "KEY_BACK")
+        wait_listener(lambda ports: not ports - baseline)
+        wait_playback(lambda value: value["state"] == "released")
+        report["checks"]["subtitleListenerLifecycle"] = True
+
         # Back restores the selected Media menu item, ready to reopen.
         # A second native player must initialize after the first was released.
         shell("inputd-cli", "button_press", "KEY_ENTER")

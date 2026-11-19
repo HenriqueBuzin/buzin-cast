@@ -8,11 +8,14 @@
 
 #include "generated/BuzinNetworkSpec.h"
 #include "FCastTransport.h"
+#include "CastV2Transport.h"
+#include "SubtitleUpload.h"
 #include "DlnaTransport.h"
 #include "MdnsDiscovery.h"
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
 #include "AirPlayVideoWorker.h"
+#include "MirrorRecording.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -26,12 +29,29 @@ public:
   double startAirPlayUrl() override;
   double startAirPlayAudio() override;
   double startAirPlayVideo() override;
+  std::string getMirrorRecordingState() override;
+  void startMirrorRecording() override;
+  void stopMirrorRecording() override;
+  std::string listMirrorRecordings() override;
+  std::string getMirrorRecordingUrl(std::string name) override;
+  void removeMirrorRecording(std::string name) override;
   std::string getAirPlayVideoState() override;
   void stopAirPlayAudio() override;
   std::string getAirPlayAudioState() override;
   void stopAirPlayUrl() override;
   std::string pollAirPlayCommand() override;
+  std::string pollAirPlayApproval() override;
+  void answerAirPlayApproval(double requestId, bool allow) override;
   void updateAirPlayState(double position, double duration, double rate, bool ready) override;
+  std::string startSubtitleUpload() override;
+  std::string pollSubtitleUpload() override;
+  void stopSubtitleUpload() override;
+  double startCastV2() override;
+  void stopCastV2() override;
+  std::string pollCastV2() override;
+  void sendCastV2(double client, std::string frame) override;
+  void disconnectCastV2(double client) override;
+  void answerCastV2Approval(double requestId, bool allow) override;
   double startFCast() override;
   void stopFCast() override;
   std::string pollFCastCommand() override;
@@ -55,10 +75,13 @@ public:
 private:
   double startAirPlayReceiver(bool audioMode, bool videoMode = false);
   AirPlayAudioWorker audio;
+  MirrorRecording recording;
   AirPlayVideoWorker video;
   AirPlaySession airplay;
   bool videoModeActive = false;
   FCastTransport fcast;
+  CastV2Transport castV2;
+  SubtitleUpload subtitles;
   MdnsDiscovery discovery;
   DlnaTransport dlna;
 };

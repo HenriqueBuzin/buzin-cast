@@ -17,13 +17,34 @@
 
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}),
-  video([] {return std::make_unique<Fmp4VideoOutput>();}) {}
+  recording("/data/recordings"),
+  video([this] {return std::make_unique<Fmp4VideoOutput>(&recording);}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
 double BuzinNetwork::startAirPlayUrl() {return startAirPlayReceiver(false);}
 double BuzinNetwork::startAirPlayAudio() {return startAirPlayReceiver(true);}
 double BuzinNetwork::startAirPlayVideo() {return startAirPlayReceiver(false,true);}
+std::string BuzinNetwork::getMirrorRecordingState() {return recording.state();}
+void BuzinNetwork::startMirrorRecording() {
+  if (!videoModeActive) throw std::runtime_error("Open AirPlay mirroring before recording");
+  recording.arm();
+}
+void BuzinNetwork::stopMirrorRecording() {recording.stop();}
+std::string BuzinNetwork::listMirrorRecordings() {
+  const auto entries = recording.list();
+  std::ostringstream output;
+  output << '[';
+  for (size_t i = 0; i < entries.size(); ++i) {
+    if (i) output << ',';
+    output << "{\"name\":\"" << entries[i].name << "\",\"bytes\":" << entries[i].bytes << '}';
+  }
+  output << ']';
+  return output.str();
+}
+std::string BuzinNetwork::getMirrorRecordingUrl(std::string name) {return recording.url(name);}
+void BuzinNetwork::removeMirrorRecording(std::string name) {recording.remove(name);}
+
 std::string BuzinNetwork::getAirPlayVideoState() {
   const auto state = video.state();
   std::ostringstream output; output.imbue(std::locale::classic());
@@ -76,7 +97,7 @@ double BuzinNetwork::startAirPlayReceiver(bool audioMode, bool videoMode) {
       throw std::runtime_error("Could not save local AirPlay identity");
   }
   const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false,
-    audioMode ? &audio : nullptr,videoMode ? &video : nullptr);
+    audioMode ? &audio : nullptr, videoMode ? &video : nullptr, getConnectionApproval());
   videoModeActive = videoMode;
   std::ofstream report(videoMode ? "/data/airplay-video-port.json" : audioMode ? "/data/airplay-audio-port.json" : "/data/airplay-port.json", std::ios::trunc);
   report << "{\"port\":" << port << "}"; report.close();
@@ -88,11 +109,17 @@ void BuzinNetwork::stopAirPlayUrl() {
   std::remove("/data/airplay-port.json");
   std::remove("/data/airplay-audio-port.json");
   std::remove("/data/airplay-video-port.json");
-  if (videoModeActive) {videoModeActive = false; getAirPlayVideoState();}
+  if (videoModeActive) {
+    videoModeActive = false;
+    recording.stop();
+    getAirPlayVideoState();
+  }
 }
 void BuzinNetwork::updateAirPlayState(double position, double duration, double rate, bool ready) {
   airplay.updatePlayback(position, duration, rate, ready);
 }
+std::string BuzinNetwork::pollAirPlayApproval() {return airplay.pollApproval();}
+void BuzinNetwork::answerAirPlayApproval(double requestId, bool allow) {airplay.answerApproval(requestId, allow);}
 std::string BuzinNetwork::pollAirPlayCommand() {
   if (videoModeActive) getAirPlayVideoState();
   if (!airplay.healthy()) throw std::runtime_error("AirPlay callback queue failed");
@@ -125,6 +152,29 @@ std::string BuzinNetwork::pollAirPlayCommand() {
   }
   return "";
 }
+std::string BuzinNetwork::startSubtitleUpload() {return subtitles.start();}
+std::string BuzinNetwork::pollSubtitleUpload() {return subtitles.poll();}
+void BuzinNetwork::stopSubtitleUpload() {subtitles.stop();}
+double BuzinNetwork::startCastV2() {
+  const auto port = castV2.start(getReceiverName(), "/data/cast-v2.pem", getConnectionApproval());
+  std::ofstream report("/data/cast-v2-port.json.tmp", std::ios::trunc);
+  report << "{\"port\":" << port << '}';
+  report.close();
+  if (!report || std::rename("/data/cast-v2-port.json.tmp", "/data/cast-v2-port.json")) {
+    std::remove("/data/cast-v2-port.json.tmp");
+    stopCastV2();
+    throw std::runtime_error("Could not record the Cast V2 listener");
+  }
+  return port;
+}
+void BuzinNetwork::stopCastV2() {
+  castV2.stop();
+  std::remove("/data/cast-v2-port.json");
+}
+std::string BuzinNetwork::pollCastV2() {return castV2.poll();}
+void BuzinNetwork::sendCastV2(double client, std::string frame) {castV2.send(client, frame);}
+void BuzinNetwork::disconnectCastV2(double client) {castV2.disconnect(client);}
+void BuzinNetwork::answerCastV2Approval(double requestId, bool allow) {castV2.answerApproval(requestId, allow);}
 double BuzinNetwork::startFCast() {
   const auto listeningPort = fcast.start(46899, false, getConnectionApproval());
   try {
@@ -142,7 +192,7 @@ bool BuzinNetwork::isFCastClient(double client) {return fcast.isClient(client);}
 void BuzinNetwork::disconnectFCastClient(double client) {fcast.disconnect(client);}
 void BuzinNetwork::fcastError(double client, std::string message) {fcast.error(client, message);}
 void BuzinNetwork::updateFCastState(std::string playback, std::string volume) {fcast.update(playback, volume);}
-// Retain the original path so an existing DLNA preference also applies to FCast.
+// Retain the original path so an existing DLNA preference also applies to the other receivers.
 bool BuzinNetwork::getConnectionApproval() {return readApprovalSetting("/data/dlna-approval");}
 void BuzinNetwork::setConnectionApproval(bool enabled) {writeApprovalSetting("/data/dlna-approval", enabled);}
 void BuzinNetwork::answerDlnaApproval(double requestId, bool allow) {dlna.answerApproval(requestId, allow);}

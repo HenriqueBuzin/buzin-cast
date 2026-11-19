@@ -31,7 +31,7 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
       <Text style={styles.text}>Use um nome curto, sem ponto ou barra invertida.</Text>
       <TvButton
         role="switch"
-        aria-label="Aprovar conexões DLNA e FCast"
+        aria-label="Aprovar conexões dos receptores"
         accessibilityState={{checked: approval === true, disabled: approval === null}}
         disabled={approval === null}
         onFocus={() => setFocus('approval')}
@@ -44,7 +44,7 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
             setMessage('Preferência de aprovação salva.');
           } catch {setMessage('Não foi possível salvar a preferência de aprovação.');}
         }}>
-        <Text style={styles.label}>Aprovar conexões DLNA e FCast {approval === null ? '· indisponível' : approval ? '· ativado' : '· desativado'}</Text>
+        <Text style={styles.label}>Aprovar conexões dos receptores {approval === null ? '· indisponível' : approval ? '· ativado' : '· desativado'}</Text>
       </TvButton>
       <Text style={styles.text} aria-live="polite">{message}</Text>
       <View style={styles.actions}>

@@ -28,7 +28,7 @@ test('edita e salva o nome, preservando a tela em falha de armazenamento', () =>
 
 test('salva a aprovação DLNA e mantém o estado se a escrita falhar', () => {
   const screen = render(<SettingsScreen onBack={jest.fn()} />);
-  const approval = () => screen.getByRole('switch', {name: 'Aprovar conexões DLNA e FCast'});
+  const approval = () => screen.getByRole('switch', {name: 'Aprovar conexões dos receptores'});
   expect(approval().props.accessibilityState.checked).toBe(false);
   fireEvent.press(approval());
   expect(Network.setConnectionApproval).toHaveBeenCalledWith(true);
