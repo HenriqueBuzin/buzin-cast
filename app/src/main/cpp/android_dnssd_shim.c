@@ -25,7 +25,28 @@ typedef struct {
 typedef struct {
     txt_entry_t entries[MAX_TXT_ENTRIES];
     int count;
+#ifdef BUZIN_DNSSD_WIRE_TXT
+    char wire[MAX_TXT_ENTRIES * (MAX_TXT_KEY + MAX_TXT_VAL)];
+    int wire_len;
+#endif
 } txt_record_t;
+
+#ifdef BUZIN_DNSSD_WIRE_TXT
+static void encode_txt(txt_record_t *rec) {
+    rec->wire_len = 0;
+    for (int i = 0; i < rec->count; i++) {
+        const txt_entry_t *entry = &rec->entries[i];
+        const size_t key_len = strlen(entry->key);
+        const size_t value_len = strlen(entry->val);
+        char *wire = rec->wire + rec->wire_len;
+        *wire++ = (char)(key_len + 1 + value_len);
+        memcpy(wire, entry->key, key_len);
+        wire[key_len] = '=';
+        memcpy(wire + key_len + 1, entry->val, value_len);
+        rec->wire_len += (int)(key_len + value_len + 2);
+    }
+}
+#endif
 
 struct dnssd_s {
     txt_record_t raop_record;
@@ -151,6 +172,9 @@ dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
     }
     strncat(dnssd->raop_servname, "@", sizeof(dnssd->raop_servname) - strlen(dnssd->raop_servname) - 1);
     strncat(dnssd->raop_servname, dnssd->name, sizeof(dnssd->raop_servname) - strlen(dnssd->raop_servname) - 1);
+#ifdef BUZIN_DNSSD_WIRE_TXT
+    encode_txt(rec);
+#endif
     return 0;
 }
 
@@ -191,6 +215,9 @@ dnssd_register_airplay(dnssd_t *dnssd, unsigned short port)
     _txt_set(rec, "pi", AIRPLAY_PI);
     _txt_set(rec, "srcvers", AIRPLAY_SRCVERS);
     _txt_set(rec, "vv", AIRPLAY_VV);
+#ifdef BUZIN_DNSSD_WIRE_TXT
+    encode_txt(rec);
+#endif
     return 0;
 }
 
@@ -199,13 +226,23 @@ void dnssd_unregister_raop(dnssd_t *dnssd) {}
 void dnssd_unregister_airplay(dnssd_t *dnssd) {}
 
 const char *dnssd_get_raop_txt(dnssd_t *dnssd, int *length) {
+#ifdef BUZIN_DNSSD_WIRE_TXT
+    if (length) *length = dnssd->raop_record.wire_len;
+    return dnssd->raop_record.wire;
+#else
     if (length) *length = 0;
     return NULL;
+#endif
 }
 
 const char *dnssd_get_airplay_txt(dnssd_t *dnssd, int *length) {
+#ifdef BUZIN_DNSSD_WIRE_TXT
+    if (length) *length = dnssd->airplay_record.wire_len;
+    return dnssd->airplay_record.wire;
+#else
     if (length) *length = 0;
     return NULL;
+#endif
 }
 
 const char *dnssd_get_name(dnssd_t *dnssd, int *length) {

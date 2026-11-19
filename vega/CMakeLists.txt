@@ -10,7 +10,8 @@ kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/BuzinNetwork.cpp
   kepler/turbo-modules/ReceiverSettings.cpp
   kepler/turbo-modules/FCastTransport.cpp
-  kepler/turbo-modules/FCastDiscovery.cpp
+  kepler/turbo-modules/DlnaTransport.cpp
+  kepler/turbo-modules/MdnsDiscovery.cpp
   kepler/turbo-modules/NetworkProbe.cpp
   kepler/AutoLinkInit.cpp)
 target_link_options(BuzinNetwork PRIVATE "LINKER:--no-undefined" "LINKER:-z,defs")
@@ -24,6 +25,8 @@ install(TARGETS BuzinNetwork)
 add_executable(buzin-network-probe
   kepler/network_probe_main.cpp kepler/turbo-modules/NetworkProbe.cpp)
 install(TARGETS buzin-network-probe RUNTIME DESTINATION bin)
+add_executable(buzin-dlna-discovery-probe test/DlnaDiscoveryProbe.cpp)
+install(TARGETS buzin-dlna-discovery-probe RUNTIME DESTINATION bin)
 
 include(cmake/AirPlayCore.cmake)
 include(cmake/AlacDecoder.cmake)
@@ -33,6 +36,9 @@ target_link_libraries(BuzinNetwork PRIVATE BuzinAudioIdl BuzinAlacDecoder BuzinV
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
   kepler/turbo-modules/AirPlaySession.cpp
   "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c")
+target_include_directories(BuzinNetwork PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp")
+set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c"
+  PROPERTIES COMPILE_DEFINITIONS BUZIN_DNSSD_WIRE_TXT)
 target_link_libraries(BuzinNetwork PRIVATE BuzinAirPlayCore)
 target_link_options(BuzinNetwork PRIVATE "LINKER:--exclude-libs,ALL")
 

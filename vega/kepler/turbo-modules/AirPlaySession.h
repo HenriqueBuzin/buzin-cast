@@ -8,7 +8,7 @@ class AirPlayAudioWorker;
 class AirPlayVideoWorker;
 
 struct AirPlayEvent {
-  enum class Kind {Audio, Video, PlayUrl, MirrorUrl, Seek, Rate, Volume, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
+  enum class Kind {Audio, Video, PlayUrl, MirrorUrl, Seek, Rate, Volume, Pin, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
   Kind kind = Kind::Stop;
   int codec = 0;
   uint64_t localTime = 0;
@@ -18,8 +18,7 @@ struct AirPlayEvent {
   std::vector<uint8_t> bytes;
 };
 
-// Owns UxPlay and copies callback payloads into a bounded consumer queue.
-// Does not advertise DNS-SD or claim that captured samples were rendered.
+// Owns UxPlay, bounded callback queues, and DNS-SD for LAN video sessions.
 class AirPlaySession {
 public:
   AirPlaySession();
@@ -33,6 +32,7 @@ public:
   bool poll(AirPlayEvent& event);
   double volumeDb() const;
   bool healthy() const;
+  bool advertising() const noexcept;
   void updatePlayback(double position, double duration, double rate, bool ready);
 private:
   struct Impl;

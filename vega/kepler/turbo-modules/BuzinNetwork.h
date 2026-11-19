@@ -8,7 +8,8 @@
 
 #include "generated/BuzinNetworkSpec.h"
 #include "FCastTransport.h"
-#include "FCastDiscovery.h"
+#include "DlnaTransport.h"
+#include "MdnsDiscovery.h"
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
 #include "AirPlayVideoWorker.h"
@@ -38,6 +39,10 @@ public:
   void disconnectFCastClient(double client) override;
   void fcastError(double client, std::string message) override;
   void updateFCastState(std::string playback, std::string volume) override;
+  std::string startDlna() override;
+  void stopDlna() override;
+  std::string pollDlnaRequest() override;
+  void respondDlna(double requestId, double status, std::string body) override;
   std::string getReport() override;
   void recordVideoPlaybackQuality(double total, double dropped, bool attached) override;
   void recordPlaybackState(std::string state, double seconds) override;
@@ -49,7 +54,8 @@ private:
   AirPlaySession airplay;
   bool videoModeActive = false;
   FCastTransport fcast;
-  FCastDiscovery discovery;
+  MdnsDiscovery discovery;
+  DlnaTransport dlna;
 };
 
 } // namespace BuzinNetworkTurboModule

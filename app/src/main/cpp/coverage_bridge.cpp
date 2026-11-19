@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <future>
 #include <string>
 #include <thread>
 #include <vector>
@@ -35,6 +36,14 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy(JNIEnv *, jobjec
 extern "C" JNIEXPORT void JNICALL
 Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(JNIEnv *, jobject, jlong, jbyteArray, jlong);
 extern "C" ssize_t __real_AMediaCodec_dequeueInputBuffer(AMediaCodec *, int64_t);
+extern "C" const char *__real_android_dnssd_get_raop_txt_key(dnssd_t *, int);
+extern "C" const char *__real_android_dnssd_get_raop_txt_val(dnssd_t *, int);
+extern "C" const char *__real_android_dnssd_get_airplay_txt_key(dnssd_t *, int);
+extern "C" const char *__real_android_dnssd_get_airplay_txt_val(dnssd_t *, int);
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords(JNIEnv *, jobject, jlong);
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords(JNIEnv *, jobject, jlong);
 
 namespace {
 struct PinResultContract {
@@ -56,6 +65,63 @@ struct ScopedInputBuffer {
     explicit ScopedInputBuffer(int failures) : value{failures} { activeInputBuffer = &value; }
     ~ScopedInputBuffer() { activeInputBuffer = previous; }
 };
+struct TxtRecordContract { dnssd_t *owner; bool raop; int part; int hits = 0; };
+thread_local TxtRecordContract *activeTxtRecord = nullptr;
+struct ScopedTxtRecord {
+    TxtRecordContract value;
+    TxtRecordContract *previous = activeTxtRecord;
+    ScopedTxtRecord(dnssd_t *owner, bool raop, int part) : value{owner, raop, part} { activeTxtRecord = &value; }
+    ~ScopedTxtRecord() { activeTxtRecord = previous; }
+};
+bool missingTxtPart(dnssd_t *owner, int index, bool raop, int part) {
+    if (activeTxtRecord && activeTxtRecord->owner == owner && index == 0 &&
+        activeTxtRecord->raop == raop && activeTxtRecord->part == part) {
+        ++activeTxtRecord->hits;
+        return true;
+    }
+    return false;
+}
+}
+
+extern "C" const char *__wrap_android_dnssd_get_raop_txt_key(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, true, 1) ? nullptr : __real_android_dnssd_get_raop_txt_key(owner, index);
+}
+extern "C" const char *__wrap_android_dnssd_get_raop_txt_val(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, true, 2) ? nullptr : __real_android_dnssd_get_raop_txt_val(owner, index);
+}
+extern "C" const char *__wrap_android_dnssd_get_airplay_txt_key(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, false, 1) ? nullptr : __real_android_dnssd_get_airplay_txt_key(owner, index);
+}
+extern "C" const char *__wrap_android_dnssd_get_airplay_txt_val(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, false, 2) ? nullptr : __real_android_dnssd_get_airplay_txt_val(owner, index);
+}
+
+// Registration in this shim only fills in-memory records. No NSD publication or
+// network listener is started. Build the map through the shipped JNI function.
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDiscoveryMapWithMissingPart(
+        JNIEnv *env, jobject, jobject bridge, jlong handle, jboolean raop, jint part) {
+    auto *ctx = reinterpret_cast<server_ctx_t *>(handle);
+    if (!ctx || !ctx->dnssd || part < 0 || part > 2) {
+        jclass error = env->FindClass("java/lang/IllegalArgumentException");
+        if (error) { env->ThrowNew(error, "Expected an owned discovery context and part0..2"); env->DeleteLocalRef(error); }
+        return nullptr;
+    }
+    if (dnssd_register_raop(ctx->dnssd, 7000) || dnssd_register_airplay(ctx->dnssd, 7000)) {
+        jclass error = env->FindClass("java/lang/AssertionError");
+        if (error) { env->ThrowNew(error, "Could not build in-memory discovery records"); env->DeleteLocalRef(error); }
+        return nullptr;
+    }
+    ScopedTxtRecord forced(ctx->dnssd, raop == JNI_TRUE, part);
+    jobject map = raop ? Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords(env, bridge, handle)
+                      : Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords(env, bridge, handle);
+    if (!env->ExceptionCheck() && forced.value.hits != (part ? 1 : 0)) {
+        if (map) env->DeleteLocalRef(map);
+        jclass error = env->FindClass("java/lang/AssertionError");
+        if (error) { env->ThrowNew(error, "Discovery contract did not reach the requested getter exactly once"); env->DeleteLocalRef(error); }
+        return nullptr;
+    }
+    return map;
 }
 
 extern "C" ssize_t __wrap_AMediaCodec_dequeueInputBuffer(AMediaCodec *codec, int64_t timeoutUs) {
@@ -131,6 +197,25 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCreatePartialServer(
 
 // Access owns references under the production lock; no stream state is faked.
 struct AudioOutputContractAccess {
+    static bool debugWhileLocked(const std::shared_ptr<AudioOutput> &output,
+                                 AudioOutput::Debug &result) {
+        std::promise<void> acquired, release;
+        auto ready = acquired.get_future();
+        auto released = release.get_future();
+        std::thread holder([&] {
+            std::lock_guard<std::mutex> lock(output->mLock);
+            acquired.set_value();
+            // A regression in debugInfo must fail in bounded time, not deadlock.
+            released.wait_for(std::chrono::seconds(2));
+        });
+        const bool locked = ready.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+        const auto begin = std::chrono::steady_clock::now();
+        if (locked) result = output->debugInfo();
+        const auto elapsed = std::chrono::steady_clock::now() - begin;
+        release.set_value();
+        holder.join();
+        return locked && elapsed < std::chrono::milliseconds(500);
+    }
     static std::shared_ptr<OboeCallbacks> callbacks(const std::shared_ptr<AudioOutput> &output) {
         std::lock_guard<std::mutex> lock(output->mLock);
         return output->mCallbacks;
@@ -192,6 +277,18 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
         callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
         OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
         output->stop();
+    } else if (scenario == 3) {
+        OUTPUT_CONTRACT(output->start());
+        auto stream = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(stream);
+        const auto cached = output->debugInfo();
+        AudioOutput::Debug concurrent{};
+        OUTPUT_CONTRACT(AudioOutputContractAccess::debugWhileLocked(output, concurrent));
+        OUTPUT_CONTRACT(concurrent.xrun == cached.xrun);
+        OUTPUT_CONTRACT(AudioOutputContractAccess::stream(output) == stream);
+        output->stop();
+        OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
+        OUTPUT_CONTRACT(output->debugInfo().xrun == cached.xrun);
     } else {
         OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
     }
@@ -202,7 +299,7 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
 // ALAC decoding uses the production engine and its normal PCM capture tap.
 // Returned records are native-endian {int64 pts, int32 rate, int32 channels, PCM16}.
 extern "C" JNIEXPORT jobjectArray JNICALL
-Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame) {
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame, jboolean attachSinkAfterFirstDecode) {
 #define ALAC_CONTRACT(condition) do { if (!(condition)) { \
     auto error = env->FindClass("java/lang/AssertionError"); \
     if (error) { env->ThrowNew(error, #condition); env->DeleteLocalRef(error); } \
@@ -265,6 +362,18 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobjec
             input.data_len = -1;
             callbacks.audio_process(&callbackContext, nullptr, &input);
             ALAC_CONTRACT(capture.records.empty());
+            if (attachSinkAfterFirstDecode) {
+                // Capture may be enabled before a consumer is attached. Decode
+                // actual audio in that state, then attach the normal PCM tap.
+                audio_engine_set_pcm_callback(engine.get(), nullptr, nullptr);
+                input.data = bytes.data(); input.data_len = length;
+                ALAC_CONTRACT(pts[i] > 1'000'000'000);
+                input.ntp_time_local = static_cast<uint64_t>(pts[i] - 1'000'000'000);
+                callbacks.audio_process(&callbackContext, nullptr, &input);
+                ALAC_CONTRACT(capture.records.empty());
+                audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
+                input.ntp_time_local = static_cast<uint64_t>(pts[i]);
+            }
         }
         input.data = bytes.data(); input.data_len = length;
         callbacks.audio_process(&callbackContext, nullptr, &input);

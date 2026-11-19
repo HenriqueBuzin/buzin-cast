@@ -153,6 +153,27 @@ class NativeServerContractTest {
         assertTrue(requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(ordinary)).isEmpty())
     }
 
+    @Test fun discoveryMapsSkipOnlyTheIncompleteEntryAndRestoreTheirRealGetters() {
+        org.junit.Assume.assumeTrue("Requires coverage-only discovery fault fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        val handle = create()
+        for (raop in listOf(false, true)) {
+            val complete = requireNotNull(DebugCoverage.nativeDiscoveryMapWithMissingPart(NativeBridge, handle, raop, 0))
+            assertTrue("Discovery fixture did not contain multiple records", complete.size > 1)
+            var missingKey: Map<String, String>? = null
+            for (part in listOf(1, 2)) {
+                val incomplete = requireNotNull(DebugCoverage.nativeDiscoveryMapWithMissingPart(NativeBridge, handle, raop, part))
+                assertEquals("More than one discovery entry disappeared", complete.size - 1, incomplete.size)
+                assertEquals(complete.filterKeys { it in incomplete }, incomplete)
+                assertEquals(1, (complete.keys - incomplete.keys).size)
+                if (part == 1) missingKey = incomplete else assertEquals(missingKey, incomplete)
+                val restored = if (raop) NativeBridge.nativeGetRaopTxtRecords(handle)
+                               else NativeBridge.nativeGetAirplayTxtRecords(handle)
+                assertEquals("Scoped getter failure leaked into a later request", complete, restored)
+            }
+        }
+    }
+
     @Test fun capabilitiesAndCodecsArePublishedForBothEnabledAndDisabledValues() {
         val handle = create()
         assertEquals("JNI Contract", NativeBridge.nativeGetServerName(handle))

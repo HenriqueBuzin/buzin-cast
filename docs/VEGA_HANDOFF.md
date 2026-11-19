@@ -1,5 +1,61 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Receptor DLNA no Vega — 19 de novembro de 2026
+
+**Estado do port → Ativar DLNA** abre um MediaRenderer com descoberta SSDP
+e os serviços UPnP AVTransport, RenderingControl e ConnectionManager.
+O nome acompanha Configurações e o UUID é salvo no sandbox. Uma URI de
+mídia HTTP(S) válida inicia o player compartilhado. O emissor pode
+consultar a posição e o transporte, pausar, retomar, buscar, parar,
+ajustar o volume e pôr em mudo. Voltar encerra o anúncio e o HTTP e
+libera o player.
+[Especificações MediaRenderer:1 e serviços UPnP da OCF](https://openconnectivity.org/developer/specifications/upnp-resources/upnp/mediaserver1-and-mediarenderer1/)
+
+No VVD ARM64, `tools/test_vega_dlna.py` fez uma busca SSDP por multicast
+e conferiu que a resposta apontava para o servidor HTTP ativo. O teste
+carregou as descrições dos três serviços, percorreu os controles SOAP em
+um MP4 e conferiu o reinício após Stop, o UUID ao reabrir e a liberação
+com Voltar e segundo plano. Relatório em `build/vega-dlna-vvd-final`.
+O teste de sockets com ASan/UBSan passou com requisição fragmentada,
+cancelamento, reabertura e descarte de uma resposta de sessão anterior.
+Ainda faltam notificações GENA, fotos, integração com as regras de acesso
+e validação com emissores DLNA em aparelho físico.
+
+## PIN do espelhamento AirPlay — 19 de novembro de 2026
+
+Ao abrir **Testar vídeo AirPlay**, o receptor gera um PIN e o exibe com
+quatro dígitos. Os dois anúncios DNS-SD indicam que o pareamento exige
+PIN. O patch compartilhado 0019 permite que o receptor Vega exija SRP e
+verifique a chave assinante antes dos comandos de mídia. O controle fica
+vinculado ao socket verificado. O receptor limita novos desafios SRP
+por sessão e gera outro código ao reabrir a tela.
+
+O app no VVD recusou SETUP e volume antes do pareamento e encerrou o
+anúncio e o socket em dois ciclos. O núcleo ARM64, testado no mesmo VVD
+com um cliente sintético, recusou PIN incorreto, aceitou PIN correto,
+verificou a assinatura e liberou o volume só no socket pareado.
+Relatórios em `build/vega-airplay-pin-vvd` e
+`build/vega-airplay-pin-probe`. O ensaio de áudio isolado, lint,
+TypeScript, 63 testes Jest e as três validações de ABI também passaram.
+Ainda falta verificar o fluxo completo com um emissor Apple real.
+
+## Descoberta do espelhamento AirPlay — 19 de novembro de 2026
+
+A opção **Testar vídeo AirPlay** anuncia `_airplay._tcp.local` e
+`_raop._tcp.local` enquanto o receptor está ativo. Os dois serviços
+publicam a porta RTSP da sessão e a mesma identidade persistida no
+sandbox. A resposta `/info` usa os mesmos registros TXT. Voltar ou
+colocar o app em segundo plano encerra o anúncio e o transporte.
+A porta TCP continua disponível para conexão manual se o multicast falhar.
+
+No VVD, dois ciclos passaram com anúncio ativo, leitura dos dois TXT por
+RTSP, identidade estável, ganho, mute, fechamento do socket e anúncio
+inativo ao sair. Resultado em `build/vega-airplay-discovery-vvd-final`.
+Os testes de pacotes com ASan/UBSan verificaram seleção por serviço e TTL
+zero no encerramento. Lint, TypeScript, 63 testes Jest e build/ABI em
+ARM64, ARMv7 e x86_64 passaram. Ainda falta confirmar que o receptor aparece
+e reproduz imagem e áudio com um emissor Apple em aparelho físico.
+
 ## Reconexão do espelhamento — 19 de novembro de 2026
 
 O worker encerra a saída quando o transporte de vídeo termina e descarta

@@ -5,15 +5,24 @@ import {AppState, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
+import {createDlnaReceiver} from './dlnaReceiver';
 import type {PlaybackSnapshot} from './playbackSession';
 
-export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: 'fcast' | 'airplay' | 'mirror'}) {
-  const receiver = useRef<ReturnType<typeof createFCastReceiver> | null>(null);
+const titles = {
+  fcast: 'FCast v2 experimental',
+  airplay: 'AirPlay por URL experimental',
+  mirror: 'Vídeo AirPlay experimental',
+  dlna: 'DLNA experimental',
+};
+
+export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: keyof typeof titles}) {
+  const receiver = useRef<Pick<ReturnType<typeof createFCastReceiver>, 'attachSurface' | 'detachSurface' | 'togglePause' | 'stop'> | null>(null);
   const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [pin, setPin] = useState('');
   const [focus, setFocus] = useState('back');
   useEffect(() => {
     try {
@@ -21,7 +30,9 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
       receiver.current = protocol === 'fcast'
         ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening)
-        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url');
+        : protocol === 'dlna'
+        ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening)
+        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
     } catch {
       setFailed(true);
     }
@@ -38,7 +49,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   }, [onBack, protocol]);
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>{protocol === 'fcast' ? 'FCast v2 experimental' : protocol === 'mirror' ? 'Vídeo AirPlay experimental' : 'AirPlay por URL experimental'}</Text>
+      <Text style={styles.title}>{titles[protocol]}</Text>
       {token === null ? (
         <View style={styles.waiting}>
           <Text style={styles.details}>
@@ -52,9 +63,14 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
               : protocol === 'mirror'
-              ? 'Teste manual de vídeo H.264 com áudio AAC ou ALAC convertido. Sem descoberta ou PIN. Reprodução e compatibilidade com emissores Apple ainda em validação.'
+              ? 'Selecione o receptor no emissor e digite o PIN quando solicitado.'
+              : protocol === 'dlna'
+              ? 'Selecione o receptor DLNA no emissor conectado à mesma rede.'
               : 'Somente URLs por conexão manual na rede local. Sem descoberta, PIN ou espelhamento de tela/áudio nesta etapa.'}
           </Text>
+          {protocol === 'mirror' && listening && !failed && pin !== '' && (
+            <Text style={styles.pin}>PIN {pin}</Text>
+          )}
           <Text style={styles.details}>Voltar desativa este receptor.</Text>
         </View>
       ) : (
@@ -123,6 +139,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {color: 'white', fontSize: 26, marginBottom: 12},
+  pin: {color: 'white', fontSize: 36, fontWeight: 'bold'},
   waiting: {flex: 1, maxWidth: 820, justifyContent: 'center', gap: 20},
   video: {width: '80%', flex: 1, backgroundColor: 'black'},
   details: {

@@ -192,7 +192,9 @@ if(BUZIN_COVERAGE)
         COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping;-fcoverage-mcdc;-fprofile-update=atomic")
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
-        "-Wl,--wrap=AMediaCodec_dequeueInputBuffer")
+        "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
+        "-Wl,--wrap=android_dnssd_get_raop_txt_key" "-Wl,--wrap=android_dnssd_get_raop_txt_val"
+        "-Wl,--wrap=android_dnssd_get_airplay_txt_key" "-Wl,--wrap=android_dnssd_get_airplay_txt_val")
 endif()
 
 # Keep upstream C libraries in their declared dialect; app-owned C uses C23.

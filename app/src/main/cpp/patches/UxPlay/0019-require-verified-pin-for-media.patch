@@ -1,0 +1,119 @@
+--- a/lib/raop.h
++++ b/lib/raop.h
+@@ -113,6 +113,7 @@
+     void  (*on_video_stop) (void *cls);
+     void  (*on_video_acquire_playback_info) (void *cls, playback_info_t *playback_video);
+     float  (*on_video_playlist_remove) (void *cls);
++    bool require_verified_pin; /* gate media on PIN setup and key verification */
+     bool mirror_end_on_eof; /* require a fresh session after the media socket closes */
+ };
+ 
+--- a/lib/raop.c
++++ b/lib/raop.c
+@@ -77,6 +77,7 @@
+      /* for temporary storage of pin during pair-pin start */
+     unsigned short pin;
+     bool use_pin;
++    unsigned int pin_attempts;
+   
+      /* public key as string */
+     char pk_str[2*ED25519_KEY_SIZE + 1];
+@@ -279,6 +280,29 @@
+     const char *client_session_id = http_request_get_header(request, "X-Apple-Session-ID");
+     const char *host = http_request_get_header(request, "Host");
+     hls_request =  (host && !cseq && !client_session_id);
++
++    if (raop->callbacks.require_verified_pin) {
++        bool discovery = !strcmp(protocol, "RTSP/1.0") &&
++            (!strcmp(method, "OPTIONS") || (!strcmp(method, "GET") && strstr(url, "/info")));
++        bool pairing = !strcmp(protocol, "RTSP/1.0") && !strcmp(method, "POST") &&
++            (!strcmp(url, "/pair-pin-start") || !strcmp(url, "/pair-setup-pin") ||
++             !strcmp(url, "/pair-verify"));
++        if (!discovery && !pairing && !pairing_session_pin_verified(conn->session)) {
++            *response = http_response_create();
++            http_response_init(*response, protocol, 470, "Client Authentication Failure");
++            goto finish;
++        }
++        if (discovery && conn->connection_type == CONNECTION_TYPE_UNKNOWN) {
++            *response = http_response_create();
++            http_response_init(*response, protocol, 200, "OK");
++            if (!strcmp(method, "OPTIONS")) {
++                raop_handler_options(conn, request, *response, &response_data, &response_datalen);
++            } else {
++                raop_handler_info(conn, request, *response, &response_data, &response_datalen);
++            }
++            goto finish;
++        }
++    }
+ 
+     if (conn->connection_type == CONNECTION_TYPE_UNKNOWN) {
+         if (cseq || ble) {
+--- a/lib/pairing.h
++++ b/lib/pairing.h
+@@ -44,6 +44,8 @@
+ int pairing_session_check_handshake_status(pairing_session_t *session);
+ int pairing_session_handshake(pairing_session_t *session, const unsigned char ecdh_key[X25519_KEY_SIZE],
+                               const unsigned char ed_key[ED25519_KEY_SIZE]);
++bool pairing_session_matches_pin_key(const pairing_session_t *session, const unsigned char *key);
++bool pairing_session_pin_verified(const pairing_session_t *session);
+ int pairing_session_get_public_key(pairing_session_t *session, unsigned char ecdh_key[X25519_KEY_SIZE]);
+ int random_pin();
+ int pairing_session_get_signature(pairing_session_t *session, unsigned char signature[PAIRING_SIG_SIZE]);
+--- a/lib/pairing.c
++++ b/lib/pairing.c
+@@ -456,6 +456,18 @@
+     return 0;
+ }
+ 
++bool
++pairing_session_matches_pin_key(const pairing_session_t *session, const unsigned char *key)
++{
++    return session->pair_setup && !memcmp(session->client_pk, key, ED25519_KEY_SIZE);
++}
++
++bool
++pairing_session_pin_verified(const pairing_session_t *session)
++{
++    return session->pair_setup && session->status == STATUS_FINISHED;
++}
++
+ void
+ pairing_session_destroy(pairing_session_t *session)
+ {
+--- a/lib/raop_handlers.h
++++ b/lib/raop_handlers.h
+@@ -329,6 +329,14 @@
+         }
+         plist_mem_free(method);
+         method = NULL;
++        if (raop->callbacks.require_verified_pin) {
++            /* Bound guesses against the screen's short-lived four-digit code. */
++            if (!raop->use_pin || raop->pin_attempts >= 12) {
++                plist_free(req_root_node);
++                goto authentication_failed;
++            }
++            raop->pin_attempts++;
++        }
+         plist_get_string_val(req_user_node, &user);
+         logger_log(raop->logger, LOGGER_INFO, "pair-setup-pin:  device_id = %s", user);
+         snprintf(pin, 6, "%04u", raop->pin % 10000);
+@@ -433,6 +441,7 @@
+         } else {
+             logger_log(raop->logger, LOGGER_DEBUG, "pair-pin-setup success\n");
+         }
++        if (raop->callbacks.require_verified_pin) raop->pin_attempts = 0;
+         pairing_session_set_setup_status(conn->session);
+         plist_t res_root_node = plist_new_dict();
+         plist_t res_epk_node = plist_new_data((const char *) epk, 32);
+@@ -502,6 +511,11 @@
+     case 1:
+         if (datalen != 4 + X25519_KEY_SIZE + ED25519_KEY_SIZE) {
+             logger_log(raop->logger, LOGGER_ERR, "Invalid pair-verify data");
++            return;
++        }
++        if (raop->callbacks.require_verified_pin &&
++            !pairing_session_matches_pin_key(conn->session, data + 4 + X25519_KEY_SIZE)) {
++            http_response_init(response, "RTSP/1.0", 470, "Client Authentication Failure");
+             return;
+         }
+         /* We can fall through these errors, the result will just be garbage... */

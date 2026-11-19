@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Integração posterior aos testes
+
+O merge incorporou também o patch compartilhado UxPlay 0019 de pareamento.
+Os APKs e resultados abaixo foram produzidos antes dessa integração; não
+validam o patch 0019. Reconstruir e testar o conjunto antes de qualquer LAT
+ou submissão. Os registros e alterações das duas frentes foram preservados.
+
 ## API17 — transporte 0018 incorporado nos candidatos assinados
 
 Os APKs foram reconstruídos com o patch UxPlay 0018, após revisar o novo
@@ -39,6 +46,30 @@ e com `submissionReady=false`: ainda faltam coordenação dos códigos e
 dispositivos com as edições moderno/compatível, licença pela Appstore/LAT,
 validação ARM/Stick físico e demais itens de paridade. Estes testes de
 transporte não constituem validação de reprodução ou negociação FairPlay.
+
+## Receptor DLNA no Vega
+
+O modo DLNA anuncia um MediaRenderer por SSDP e toca mídia HTTP(S) no
+player compartilhado. Descoberta, comandos SOAP, reprodução MP4 e
+liberação do player passaram no VVD ARM64. Notificações GENA, fotos,
+regras de acesso e validação física continuam pendentes.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Pareamento AirPlay no Vega
+
+O espelhamento exibe um PIN gerado na abertura e exige verificação da
+chave antes de aceitar mídia. No VVD, o pacote recusou comandos sem
+pareamento e o núcleo ARM64 passou com um cliente PIN/SRP sintético.
+Ainda falta validar com um emissor Apple real. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Descoberta AirPlay no Vega
+
+O espelhamento experimental publica AirPlay e RAOP via DNS-SD ao abrir a
+tela de teste. Usa a identidade local e a porta RTSP real. O receptor manual
+continua disponível quando o anúncio não sobe. O VVD confirmou dois ciclos
+de ativação e encerramento e a identidade dos TXT devolvidos por `/info`.
+Os três VPKGs passaram na validação de ABI. Falta a descoberta e reprodução
+com emissor Apple em aparelho físico. Veja [Retomada Vega](VEGA_HANDOFF.md).
 
 ## API17 — CTR validado e guarda de pilha compatível com x86 antigo
 

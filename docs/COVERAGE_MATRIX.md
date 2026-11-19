@@ -927,3 +927,81 @@ original PIN generator/JNI initialization are present while fault wrappers and
 LLVM profile symbols are absent. No release APK was signed or published.
 The current complete cohort now requires 192 Android and 19 native tests across
 all four editions, with every metric and mandatory runtime gate still required.
+
+Discovery-map contracts now exercise a missing TXT key and a missing TXT value
+for each advertised protocol through the shipped JNI map getters. Scoped,
+thread-local coverage fixtures affect only the requested owned context and
+first record. Each case verifies that exactly one entry disappears, all other
+entries remain unchanged and a subsequent ordinary request restores the full
+map. Registration populates in-memory records without starting a listener.
+
+All 20 selected JNI/server/init cases passed on API28 in 16.276 seconds without
+skips. The matching library-only export has no LLVM warnings and covers all
+47 bridge MC/DC conditions. It retains all 24 shipped JNI entries and exactly
+the preceding recovery inventory: 920 branches, 202 functions, 204
+instantiations, 1732 lines, 169 MC/DC conditions and 1514 regions. A separate
+noncoverage native Debug build passed in 13 seconds; its library is byte-identical
+to the preceding noncoverage build and contains none of the new fault wrappers
+or coverage helper exports. No release APK was signed or published.
+
+This adds one Android contract, bringing the current source suite to 193 Android
+and 19 native cases. The already-running complete four-edition cohort remains
+frozen at its preceding 192-test source identity. Its profiles must not be mixed
+with this changed fixture mapping. These selected results establish neither
+100% project coverage nor completion of the four-edition acceptance gates.
+
+A real-stream output contract now holds the production output mutex on another
+thread while querying diagnostics. The query must return the previously cached
+underrun count within 500ms, preserve the stream and retain that count after
+normal stop. The holder has a two-second release deadline so a blocking-query
+regression produces a bounded failure rather than deadlocking the runner.
+
+The 24-case output/JNI/server/init selection passed on API28 in 16.627 seconds
+without skips. The matching library-only export independently covers both
+conditions of the output diagnostic lock/stream guard, retains bridge MC/DC
+47/47 and exactly preserves the preceding native inventory and 24 shipped JNI
+entries, with no LLVM warnings. Only coverage fixture code and one Android test
+changed; production output locking is unchanged. The current source suite now
+has 194 Android cases; the ongoing frozen 192-case cohort remains separate.
+A separate noncoverage native Debug build passed in 12 seconds; symbol checks
+confirm the original entry points remain and the fault helpers are absent.
+
+The ALAC contract also covers capture enabled before a PCM consumer is attached.
+It decodes a real fixture packet through the normal RAOP callback with no sink,
+attaches the consumer and then verifies every stereo sample, channel, timestamp
+and short final packet using the existing fixture hashes. This adds one Android
+case, bringing the current source suite to 195 cases.
+
+All 27 selected output/JNI/server/init/ALAC cases passed on API28 in 17.888 seconds
+without skips, after a successful 1m28s assembly. The matching library-only export
+covers both conditions of the capture-enabled/consumer guard as well as the
+output diagnostic guard and all 47 bridge MC/DC conditions. The mapped production
+inventory and 24 shipped JNI entries remain unchanged; LLVM emitted no warnings.
+A separate noncoverage native Debug build passed in nine seconds. These remain
+selected contracts, separate from the ongoing complete frozen 192-case cohort.
+The selected run's archived owned-source identity starts `2f864a89107d`; later
+upstream source changes require fresh compiled mappings and execution evidence.
+
+Five recording ViewModel contracts now bind a real stopped service and exercise
+regular-file filtering and date ordering, canonical-directory traversal guards,
+valid deletion, readable FileProvider sharing URIs and grant flags, unavailable
+sharing targets, deferred refresh/deletion during armed capture, local playback
+routing and disconnected actions. External chooser launches are captured at the
+application context boundary; the provider and recording files remain real.
+Each case cleans up its own files, closes the capture/service/log workers and
+restores the launch-on-connect preference. DE/AT executes the same cases and
+asserts the disabled recording actions cannot delete, share, capture or play.
+
+The 21-case recording/playback/audio-state selection passed without skips on
+API28 in both normal (7.231s) and DE/AT (6.676s) editions. Assemblies passed in
+11 seconds and 1m40s respectively; matched archived-class JaCoCo reports passed
+in seven and nine seconds. In the normal selection, recording-file validation
+covers 14/14 branches; deletion, sharing and recording toggling each cover 4/4.
+Refresh and playback retain uncovered paths, and the DE/AT private validation
+helper remains uncovered because its public recording actions are disabled.
+These counters remain visible in the reports; no coverage inventory is removed.
+
+The current source suite now has 200 Android cases. The ongoing full four-edition
+run remains frozen at 192 cases and must finish against its original mappings;
+these selected profiles cannot replace its acceptance gates or establish 100%
+coverage for the current source.

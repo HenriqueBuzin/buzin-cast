@@ -1,5 +1,5 @@
 // Exercise the production packet codec without advertising on the host LAN.
-#include "../kepler/turbo-modules/FCastDiscovery.cpp"
+#include "../kepler/turbo-modules/MdnsDiscovery.cpp"
 #include <iostream>
 
 void check(bool result) {
@@ -7,6 +7,7 @@ void check(bool result) {
 }
 int main() {
   const std::string instance = "Buzin Cast-test._fcast._tcp.local";
+  const MdnsDiscovery::Service fcast{"Buzin Cast-test", "_fcast._tcp.local", 46899, {3, 'v', '=', '2'}};
   const std::string host = "buzincast-test.local";
   auto query = [](const std::string& owner, uint16_t type) {
     std::vector<uint8_t> packet(12, 0);
@@ -15,7 +16,7 @@ int main() {
     return packet;
   };
   auto asks = [&](const std::vector<uint8_t>& packet) {
-    return asksForFCast(packet.data(), packet.size(), instance, host);
+    return asksForService(packet.data(), packet.size(), fcast, host);
   };
   auto packet = query("_FCAST._TCP.LOCAL", 12);
   check(asks(packet));
@@ -36,7 +37,7 @@ int main() {
   check(asks(packet));
   packet[packet.size() - 5] = static_cast<uint8_t>(packet.size() - 6);
   check(!asks(packet)); // self-referencing compression pointer
-  const auto response = announcement(instance, host, 46899, htonl(0xc0000201), 120);
+  const auto response = announcement(fcast, host, htonl(0xc0000201), 120);
   check(!asks(response));
   check(response[7] == 4);
   size_t offset = 12;
@@ -54,5 +55,15 @@ int main() {
     offset += size;
   }
   check(offset == response.size());
+  const MdnsDiscovery::Service airplay{"Buzin Cast", "_airplay._tcp.local", 42300, {3, 'x', '=', '1'}};
+  packet = query("_airplay._tcp.local", 12);
+  check(!asks(packet));
+  check(asksForService(packet.data(), packet.size(), airplay, host));
+  const auto goodbye = announcement(airplay, host, htonl(0xc0000201), 0);
+  offset = 12;
+  std::string owner;
+  check(dnsName(goodbye.data(), goodbye.size(), offset, owner) && owner == airplay.type);
+  check(goodbye[offset + 4] == 0 && goodbye[offset + 5] == 0 &&
+        goodbye[offset + 6] == 0 && goodbye[offset + 7] == 0);
   std::cout << "DNS-SD queries, compression, truncation and PTR/SRV/TXT/A records passed\n";
 }

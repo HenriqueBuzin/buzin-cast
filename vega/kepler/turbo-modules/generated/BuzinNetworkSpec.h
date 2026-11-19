@@ -51,6 +51,10 @@ public:
   virtual void disconnectFCastClient(double client) = 0;
   virtual void fcastError(double client, std::string message) = 0;
   virtual void updateFCastState(std::string playback, std::string volume) = 0;
+  virtual std::string startDlna() = 0;
+  virtual void stopDlna() = 0;
+  virtual std::string pollDlnaRequest() = 0;
+  virtual void respondDlna(double requestId, double status, std::string body) = 0;
   virtual void recordVideoPlaybackQuality(double total, double dropped, bool attached) = 0;
   virtual void recordPlaybackState(std::string state, double seconds) = 0;
   virtual std::string recordMediaCapabilities(double h264, double hevc, double aac) = 0;

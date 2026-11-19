@@ -44,6 +44,15 @@ jobs:
           mkdir -p ../build/vega-native-tests
           clang++ -std=c++23 -Wall -Wextra -Werror -pthread test/FCastDiscoveryTest.cpp kepler/turbo-modules/ReceiverSettings.cpp -o ../build/vega-native-tests/fcast-discovery
           ../build/vega-native-tests/fcast-discovery
+      - name: Testar ciclo de vida do controle HTTP DLNA
+        run: |
+          llhttp=generated/UxPlay/lib/llhttp
+          for source in api http llhttp; do
+            clang -I"$llhttp" -c "$llhttp/$source.c" -o "../build/vega-native-tests/$source.o"
+          done
+          clang++ -std=c++23 -Wall -Wextra -Werror -pthread -I"$llhttp" -Ikepler/turbo-modules test/DlnaTransportTest.cpp kepler/turbo-modules/DlnaTransport.cpp ../build/vega-native-tests/{api,http,llhttp}.o -o ../build/vega-native-tests/dlna-transport
+          ../build/vega-native-tests/dlna-transport
+          python3 -m py_compile ../tools/test_vega_dlna.py
       - name: Testar fila e relógio de áudio AirPlay
         run: |
           mkdir -p ../build/vega-native-tests

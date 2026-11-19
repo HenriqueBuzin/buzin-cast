@@ -10,7 +10,8 @@ object DebugCoverage {
     external fun nativeAudioContracts(): String
     external fun nativeDnsContracts(): String
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
-    external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int): Array<ByteArray>
+    external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int,
+        attachSinkAfterFirstDecode: Boolean = false): Array<ByteArray>
     external fun nativeOutputContracts(scenario: Int): String
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     external fun nativeCallbackInitContracts(mode: Int): String
@@ -20,6 +21,8 @@ object DebugCoverage {
         name: String, keyFile: String, result: Int): Long
     external fun nativeFeedWithInputNotReady(bridge: DebugNativeBridge, handle: Long,
         data: ByteArray, ptsNs: Long, failures: Int): Int
+    external fun nativeDiscoveryMapWithMissingPart(bridge: io.github.jqssun.airplay.bridge.NativeBridge,
+        handle: Long, raop: Boolean, part: Int): Map<String, String>?
     fun dump(context: Context) {
         val dir = File(context.filesDir, "coverage").apply { mkdirs() }
         val runtime = Class.forName("org.jacoco.agent.rt.RT").getMethod("getAgent").invoke(null)

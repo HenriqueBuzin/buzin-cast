@@ -10,6 +10,7 @@ export function createAirPlayReceiver(
   onFailure: () => void,
   onListening?: (port: number) => void,
   mode: 'url' | 'mirror' = 'url',
+  onPin?: (pin: string) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -98,6 +99,10 @@ export function createAirPlayReceiver(
           endMedia(); publish();
         } else if (event.kind === 'volume') {
           session?.setVolume(number(event, 'value', 0, 1));
+        } else if (event.kind === 'pin' && mode === 'mirror') {
+          const pin = number(event, 'value', 0, 9999);
+          if (!Number.isInteger(pin)) {throw new Error('Invalid native PIN');}
+          onPin?.(String(pin).padStart(4, '0'));
         } else if (ownsMedia && player) {
           if (event.kind === 'seek') {player.currentTime = number(event, 'value', 0, 31536000);}
           else if (event.kind === 'rate') {

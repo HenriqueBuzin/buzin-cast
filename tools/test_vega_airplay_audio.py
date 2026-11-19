@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""VVD-only UI/RTSP lifecycle for manual AirPlay audio or video experiments."""
+"""VVD-only UI/RTSP lifecycle for experimental AirPlay audio or video."""
 import argparse
 import json
 from pathlib import Path
+import plistlib
 import re
 import shutil
 import socket
@@ -10,6 +11,22 @@ import subprocess
 import time
 
 COMPONENT = 'com.buzincast.tv.main'
+
+
+def txt_fields(record):
+    result = {}
+    offset = 0
+    while offset < len(record):
+        length = record[offset]
+        offset += 1
+        if offset + length > len(record):
+            raise RuntimeError('Truncated AirPlay TXT entry')
+        key, value = record[offset:offset + length].decode().split('=', 1)
+        if key in result:
+            raise RuntimeError('Duplicate AirPlay TXT entry')
+        result[key] = value
+        offset += length
+    return result
 
 
 def main():
@@ -51,15 +68,17 @@ def main():
             time.sleep(0.15)
         raise RuntimeError(f'Native {mode} observation did not match: {last}')
 
-    def request(method, sequence, body=b''):
-        client.sendall(f'{method} rtsp://127.0.0.1/audio RTSP/1.0\r\nCSeq: {sequence}\r\nContent-Type: text/parameters\r\nContent-Length: {len(body)}\r\n\r\n'.encode() + body)
+    def request(method, sequence, body=b'', path='/audio', content_type='text/parameters', status=200):
+        client.sendall(
+            f'{method} rtsp://127.0.0.1{path} RTSP/1.0\r\nCSeq: {sequence}\r\n'
+            f'Content-Type: {content_type}\r\nContent-Length: {len(body)}\r\n\r\n'.encode() + body)
         response = b''
         while b'\r\n\r\n' not in response:
             packet = client.recv(4096)
             if not packet or len(response) + len(packet) > 16384:
                 raise RuntimeError('Invalid RTSP response')
             response += packet
-        if not response.startswith(b'RTSP/1.0 200 '):
+        if not response.startswith(f'RTSP/1.0 {status} '.encode()):
             raise RuntimeError(f'RTSP command failed: {response[:80]!r}')
         header, data = response.split(b'\r\n\r\n', 1)
         content_length = re.search(rb'(?:^|\r\n)Content-Length: (\d+)', header, re.I)
@@ -80,6 +99,7 @@ def main():
         if COMPONENT in shell('vlcm', 'list', '--app-id', COMPONENT):
             shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
+        first_identity = None
         for cycle in range(2):
             shell('-c', COMPONENT, 'rm', '-f', f'/data/airplay-{mode}-port.json', f'/data/airplay-{mode}-state.json')
             for key in ['KEY_ENTER', *(['KEY_DOWN'] * (3 if args.video else 2)), 'KEY_ENTER']:
@@ -100,6 +120,21 @@ def main():
             request('OPTIONS', 1)
             waiting = observation(lambda value: value.get('phase') == 'waiting')
             if args.video:
+                txt = {}
+                for index, key in enumerate(('txtAirPlay', 'txtRAOP'), start=7):
+                    qualifier = plistlib.dumps({'qualifier': [key]}, fmt=plistlib.FMT_BINARY)
+                    info = plistlib.loads(request('GET', index, qualifier, '/info', 'application/x-apple-binary-plist'))
+                    txt[key] = txt_fields(info[key])
+                airplay, raop = txt['txtAirPlay'], txt['txtRAOP']
+                feature_bits = int(airplay['features'].split(',')[0], 16)
+                identity = (airplay['deviceid'], airplay['pk'])
+                if (not feature_bits & (1 << 7) or raop['ft'] != airplay['features'] or
+                        raop['pk'] != identity[1] or raop['cn'] != '1,2,3' or
+                        airplay['pw'] != 'true' or raop['pw'] != 'true'):
+                    raise RuntimeError('AirPlay and RAOP identity records disagree')
+                if first_identity is not None and first_identity != identity:
+                    raise RuntimeError('AirPlay identity changed when reopening the receiver')
+                first_identity = identity
                 # An accepted socket that closes before any RTSP request can
                 # emit a generic flush, but it never owned the media session.
                 with socket.create_connection(('127.0.0.1', port), timeout=3):
@@ -108,23 +143,28 @@ def main():
                 request('OPTIONS', 6)
             if waiting.get('volumeDb') != 0:
                 raise RuntimeError('New receiver session inherited stale volume')
-            request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
-            gain = observation(lambda value: value.get('volumeDb') == -18)
             if args.video:
-                request('SET_PARAMETER', 3, b'volume: 5.0\r\n')
-                response = request('GET_PARAMETER', 4, b'volume\r\n')
-                if not re.search(rb'volume:\s*-18\.0+', response):
-                    raise RuntimeError('Mirror receiver did not preserve the last valid gain')
-            request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
-            muted = observation(lambda value: value.get('volumeDb') == -144)
-            if args.video and muted['generation'] != waiting['generation']:
-                raise RuntimeError('An auxiliary connection invalidated the mirror generation')
+                request('SET_PARAMETER', 2, b'volume: -18.000000\r\n', status=470)
+                request('SETUP', 3, status=470)
+                protected = observation(lambda value: value.get('phase') == 'waiting')
+                if protected['generation'] != waiting['generation'] or protected['volumeDb'] != 0:
+                    raise RuntimeError('An unpaired request modified the mirror session')
+                cycle_result = {'authenticationRequired': True}
+            else:
+                request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
+                gain = observation(lambda value: value.get('volumeDb') == -18)
+                request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
+                muted = observation(lambda value: value.get('volumeDb') == -144)
+                cycle_result = {'gain': gain, 'muted': muted}
             shell('inputd-cli', 'button_press', 'KEY_BACK' if cycle == 0 else 'KEY_HOMEPAGE')
             stopped = observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
+            if args.video and stopped.get('advertising') is not False:
+                raise RuntimeError('The receiver kept advertising after shutdown')
             if client.recv(1) != b'':
                 raise RuntimeError('Leaving the screen did not close the native control socket')
             client.close(); client = None
-            cycles.append({'waiting': waiting, 'gain': gain, 'muted': muted, 'stopped': stopped, 'controlSocketClosed': True})
+            cycles.append({**cycle_result, 'waiting': waiting, 'stopped': stopped,
+                           'controlSocketClosed': True, 'rtspIdentityVerified': args.video})
         report.update(passed=True, cycles=cycles)
         print(json.dumps(report, indent=2))
     except Exception as error:
