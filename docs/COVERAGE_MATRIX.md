@@ -681,3 +681,19 @@ pairing-key guards. The selected callback file still has seven uncovered MC/DC
 conditions. These results do not establish 100% for the file, APK or four-edition
 matrix. The earlier attempt that lost its local ADB-server connection during
 test-APK installation never executed tests and supplies no coverage evidence.
+
+The ALAC fixture now delivers encoded packets through the actual RAOP
+`audio_process` callback before the production decoder and PCM capture tap. It
+first checks that a missing engine, missing data and zero/negative packet sizes
+produce no PCM. Valid packets must then preserve every stereo sample, timestamp,
+sample rate and channel count, including the 4,096-frame packet, short 128-frame
+tail and default 352-frame RAOP packet. Input and expected PCM hashes remain
+checked against the original synthetic fixtures.
+
+On API28 the related callback, initializer, ALAC and audio-lifecycle selection
+passed all 15 tests in 0.343 seconds without skips; debug assembly passed in
+13 seconds. LLVM export from that selection's exact archived native library
+and fresh profile confirms independent coverage of all three audio-input guard
+conditions. The callback file now has 42 of 46 MC/DC conditions covered in this
+selection. Four remain uncovered, and this selected evidence is still separate
+from complete reports for each APK edition.

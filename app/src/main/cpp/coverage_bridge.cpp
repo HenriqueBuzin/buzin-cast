@@ -126,6 +126,12 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobjec
     audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
     audio_engine_set_capture_enabled(engine.get(), true);
     audio_engine_on_format(engine.get(), 2, samplesPerFrame);
+    // Deliver through the real RAOP table, as the receiver does. This context
+    // borrows the engine and uses only audio_process (no JNI or other callbacks).
+    android_callback_ctx_t callbackContext{};
+    raop_callbacks_t callbacks{};
+    android_callbacks_fill(&callbacks, &callbackContext);
+    ALAC_CONTRACT(callbacks.cls == &callbackContext && callbacks.audio_process);
     for (jsize i = 0; i < count; ++i) {
         auto packet = static_cast<jbyteArray>(env->GetObjectArrayElement(packets, i));
         if (env->ExceptionCheck()) return nullptr;
@@ -139,7 +145,23 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobjec
         env->GetByteArrayRegion(packet, 0, length, reinterpret_cast<jbyte *>(bytes.data()));
         env->DeleteLocalRef(packet);
         if (env->ExceptionCheck()) return nullptr;
-        audio_engine_decode(engine.get(), bytes.data(), length, 2, pts[i]);
+        audio_decode_struct input{};
+        input.ct = 2;
+        input.ntp_time_local = static_cast<uint64_t>(pts[i]);
+        if (i == 0) {
+            input.data = bytes.data(); input.data_len = length;
+            callbacks.audio_process(&callbackContext, nullptr, &input); // No engine yet.
+            callbackContext.audio_engine = engine.get();
+            input.data = nullptr;
+            callbacks.audio_process(&callbackContext, nullptr, &input);
+            input.data = bytes.data(); input.data_len = 0;
+            callbacks.audio_process(&callbackContext, nullptr, &input);
+            input.data_len = -1;
+            callbacks.audio_process(&callbackContext, nullptr, &input);
+            ALAC_CONTRACT(capture.records.empty());
+        }
+        input.data = bytes.data(); input.data_len = length;
+        callbacks.audio_process(&callbackContext, nullptr, &input);
         ALAC_CONTRACT(capture.records.size() == static_cast<size_t>(i + 1));
     }
     auto bytesClass = env->FindClass("[B");

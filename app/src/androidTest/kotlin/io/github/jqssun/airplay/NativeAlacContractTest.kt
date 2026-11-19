@@ -13,7 +13,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 
-/** Original non-silent stereo input tests the real ALAC engine and PCM interleave. */
+/** Non-silent stereo traverses the real RAOP callback, ALAC engine and PCM tap. */
 @RunWith(AndroidJUnit4::class)
 class NativeAlacContractTest {
     private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
