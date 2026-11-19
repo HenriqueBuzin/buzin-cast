@@ -1064,3 +1064,10 @@ feedback does not continue an expired request and repeated identical feedback
 stops at the 32-command limit. The 20-test selection passed again on API28 in
 5.057 seconds. The matched report covers 4/4 branches in `_driveClientVol`
 and 18/22 in `_clientVolStep`. The Android case count stays at 208.
+
+A separate synchronized-volume contract checks that the receiver follows the
+sender's mute request on the actual Android media stream. Duplicate mute reports
+preserve the saved level, which the service restores on sender disconnect. The
+21-test service and DACP selection passed on API28 in 8.389 seconds. The matching
+report covers all 4 branches in `setClientVolume` and all 12 in `_applyClientVol`.
+The current source suite now contains 209 Android cases.

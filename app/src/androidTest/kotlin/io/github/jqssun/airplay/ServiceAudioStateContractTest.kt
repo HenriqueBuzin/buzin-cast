@@ -356,4 +356,52 @@ class ServiceAudioStateContractTest {
             }
         }
     }
+
+    @Test fun synchronizedMuteRestoresReceiverVolumeWhenTheSenderDisconnects() {
+        val prefs = context.getSharedPreferences(Prefs.NAME, 0)
+        val syncKey = Prefs.SYNC_CLIENT_VOLUME.key
+        val launchKey = Prefs.LAUNCH_ON_CONNECT.key
+        val previousSync = prefs.all[syncKey] as? Boolean
+        val previousLaunch = prefs.all[launchKey] as? Boolean
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val originalVolume = audio.getStreamVolume(stream)
+        val maxVolume = audio.getStreamMaxVolume(stream)
+        assertTrue("Expected an adjustable emulator media stream", maxVolume > 2 && !audio.isVolumeFixed)
+        val receiverIndex = kotlin.math.round(maxVolume / 2f).toInt()
+        try {
+            main {
+                assertTrue(prefs.edit().putBoolean(syncKey, true).putBoolean(launchKey, false).commit())
+            }
+            instrumentation.waitForIdleSync()
+            val requested = receiverIndex.toFloat() / maxVolume
+            main { service.setClientVolume(requested) }
+            await("Setting synchronized volume did not change the media stream") { audio.getStreamVolume(stream) == receiverIndex }
+            assertEquals(-30f + 30f * requested, service.onClientVolumeQuery(), 0.001f)
+            instrumentation.waitForIdleSync()
+            main { service.onConnectionInit() }
+
+            main { service.onClientVolume(-144f) }
+            await("Sender mute did not mute the media stream") { audio.getStreamVolume(stream) == 0 }
+            assertEquals(-144f, service.onClientVolumeQuery(), 0f)
+            main { service.onClientVolume(-144f) }
+            instrumentation.waitForIdleSync()
+            assertEquals(0, audio.getStreamVolume(stream))
+
+            main { service.onConnectionDestroy() }
+            await("Disconnect did not restore the volume before mute") { audio.getStreamVolume(stream) == receiverIndex }
+            assertEquals(0, service.connectionCount.value)
+            assertEquals(requested, service.clientVolume(), 0.001f)
+        } finally {
+            main {
+                if (service.connectionCount.value > 0) service.onConnectionDestroy()
+                val editor = prefs.edit()
+                if (previousSync == null) editor.remove(syncKey) else editor.putBoolean(syncKey, previousSync)
+                if (previousLaunch == null) editor.remove(launchKey) else editor.putBoolean(launchKey, previousLaunch)
+                assertTrue(editor.commit())
+            }
+            instrumentation.waitForIdleSync()
+            main { audio.setStreamVolume(stream, originalVolume, 0) }
+        }
+    }
 }
