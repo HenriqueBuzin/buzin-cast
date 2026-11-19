@@ -11,6 +11,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Owns native receiver, publisher, audio worker, video decoder and Surface. */
 public final class LegacyReceiverSession {
+    /** Callbacks borrow decoder buffers; a sink must copy before returning and never block. */
+    public interface Capture {
+        boolean active();
+        void video(byte[] annexB,long ptsNs,int width,int height);
+        void audio(short[] pcm,int offset,int count,long ptsNs);
+        void ended();
+    }
+    private volatile Capture capture;
+    public void capture(Capture sink) {capture=sink;}
     public interface Listener {
         void ready(String name);
         void failed(Exception error);
@@ -21,6 +30,14 @@ public final class LegacyReceiverSession {
         default void controlsChanged() {}
         default void mediaChanged() {}
         default void streamChanged() {}
+        /** Runs on the native admission worker, never on the UI or decoder thread. */
+        default boolean authorize(String peer) {return true;}
+        default void pin(String code) {}
+        default boolean acceptsUrl() {return false;}
+        default void urlPlay(long token,LegacyUrlRequest request) {}
+        default void urlSeek(long token,float seconds) {}
+        default void urlRate(long token,float rate) {}
+        default void urlStop(long token) {}
     }
     private final Context context;
     private final String identity;
@@ -34,6 +51,7 @@ public final class LegacyReceiverSession {
     private final LegacyMedia media;
     private final AtomicBoolean videoActive = new AtomicBoolean();
     private final AtomicBoolean mirrorActive = new AtomicBoolean();
+    private final java.util.concurrent.atomic.AtomicLong streamEpoch=new java.util.concurrent.atomic.AtomicLong();
     final LegacyAudioPlayer audioPlayer;
     final AudioPlaybackClock playbackClock = new AudioPlaybackClock();
     final LegacyAvcPlayer videoPlayer;
@@ -66,9 +84,19 @@ public final class LegacyReceiverSession {
         this.identity = identity; this.listener = listener; this.options=options;
         media=new LegacyMedia(listener::mediaChanged);
         queue = new VideoFrameQueue(audioQueue, () -> { videoActive.set(false); listener.videoStopped(); },active-> {
-            mirrorActive.set(active);media.mirroring(active);listener.streamChanged();
+            mirrorActive.set(active);if(active)streamEpoch.incrementAndGet();
+            else {Capture sink=capture;if(sink!=null && sink.active())sink.ended();}
+            media.mirroring(active);listener.streamChanged();
+        });
+        if(listener.acceptsUrl())queue.url.listener(new LegacyNativePlayback.Listener() {
+            @Override public void play(long token,LegacyUrlRequest request) {listener.urlPlay(token,request);}
+            @Override public void seek(long token,float seconds) {listener.urlSeek(token,seconds);}
+            @Override public void rate(long token,float rate) {listener.urlRate(token,rate);}
+            @Override public void stop(long token) {listener.urlStop(token);}
         });
         queue.connections(listener::streamChanged);
+        queue.admission(peer->!stopping.get() && listener.authorize(peer) && !stopping.get());
+        if(options!=null && options.requirePin)queue.pin(listener::pin);
         queue.media(new VideoFrameQueue.Media() {
             @Override public void metadata(byte[] bytes) {media.metadata(bytes);}
             @Override public void artwork(byte[] bytes) {media.artwork(bytes);}
@@ -77,13 +105,22 @@ public final class LegacyReceiverSession {
                 media.progress(start,current,end);
             }
         });
-        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options,listener::streamChanged);
+        audioPlayer = new LegacyAudioPlayer(audioQueue, muted, playbackClock,options,this::audioOutputChanged);
+        audioPlayer.tap=(pcm,offset,count,pts)-> {Capture sink=capture;if(sink!=null && sink.active())sink.audio(pcm,offset,count,pts);};
         videoPlayer = new LegacyAvcPlayer(surface, queue, new LegacyAvcPlayer.Listener() {
             @Override public void decodedFrame() {
                 decoded.countDown();
                 if (videoActive.compareAndSet(false,true)) listener.videoStarted();
             }
             @Override public void resized(int width,int height) { listener.videoSize(width,height); }
+            @Override public void encodedFrame(byte[] data,long pts,AvcConfig config) {
+                Capture sink=capture;if(sink==null || !sink.active())return;
+                byte[] sps=config.spsWithStartCode(),pps=config.ppsWithStartCode();
+                byte[] packet=new byte[sps.length+pps.length+data.length];
+                System.arraycopy(sps,0,packet,0,sps.length);System.arraycopy(pps,0,packet,sps.length,pps.length);
+                System.arraycopy(data,0,packet,sps.length+pps.length,data.length);
+                sink.video(packet,pts,config.width,config.height);
+            }
         }, playbackClock,options!=null && options.lowLatency);
         worker = new Thread(this::run, "fireos3-live-receiver");
     }
@@ -93,6 +130,10 @@ public final class LegacyReceiverSession {
      * never before the decoder has retired its old Surface. Null detaches video only. */
     public void setVideoSurface(Surface surface,Runnable whenReleased) {
         videoPlayer.setSurface(surface,whenReleased);
+    }
+    public void detachVideoOutput(Runnable detached) {
+        if(detached==null)throw new IllegalArgumentException("Missing output handoff callback");
+        videoPlayer.detachSurface(detached);
     }
     public void stop() {
         if (!stopping.compareAndSet(false, true)) return;
@@ -128,7 +169,7 @@ public final class LegacyReceiverSession {
                 handle = NativeReceiver.startNetworkReceiver(new File(context.getFilesDir(), "receiver.key").getAbsolutePath(),
                         queue, identity, network.address.getHostAddress(), network.prefix,
                         options == null ? null : options.name, options == null ? 0 : options.port,
-                        options == null ? 1280 : options.width,options == null ? 720 : options.height,options == null ? 30 : options.fps);
+                        options == null ? 1280 : options.width,options == null ? 720 : options.height,options == null ? 30 : options.fps,options!=null && options.requirePin);
                 if (handle == 0) throw new IOException("Native video receiver could not start");
                 port = NativeReceiver.receiverPort(handle);
                 video = NativeReceiver.receiverTxt(handle, true);
@@ -154,6 +195,10 @@ public final class LegacyReceiverSession {
             listener.failed(failure);
         } finally {
             stopping.set(true);
+            // Wake URL-ready and media queue waiters before JNI joins the HTTP
+            // workers. This ordering also applies to an unexpected decoder failure.
+            queue.close();audioQueue.close();
+            Capture sink=capture;capture=null;if(sink!=null)sink.ended();
             // An interrupted start must still unregister records and join native workers.
             Thread.interrupted();
             discoveryReady.countDown();
@@ -218,6 +263,12 @@ public final class LegacyReceiverSession {
     public LegacyMedia.State media() {return media.state();}
     public boolean mirroring() {return mirrorActive.get();}
     public boolean audioActive() {return audioPlayer.outputActive;}
+    private void audioOutputChanged() {if(audioPlayer.outputActive)streamEpoch.incrementAndGet();listener.streamChanged();}
+    public long streamEpoch() {return streamEpoch.get();}
+    public void urlPlayback(long token,long positionMs,long durationMs,float rate,boolean ready,boolean buffering) {
+        queue.url.update(token,positionMs/1000.0,durationMs/1000.0,rate,ready,buffering);
+    }
+    public void finishUrl(long token) {queue.url.finish(token);}
     public void audioFocusGain(float gain) {audioPlayer.focusGain=Math.max(0,Math.min(1,gain));}
     public void control(LegacyDacp.Command command,LegacyDacp.Completion completion) {
         LegacyDacp current=controls;

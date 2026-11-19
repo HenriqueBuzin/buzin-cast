@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Stažená videa</string>
+    <string name="tools_downloads_empty">Vaše stažená videa se zobrazí zde.</string>
+    <string name="tools_delete_download_confirm">Smazat stažené video?</string>
+    <string name="download_cancelled">Stahování zrušeno</string>
+</resources>

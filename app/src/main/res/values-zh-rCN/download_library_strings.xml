@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">已下载的视频</string>
+    <string name="tools_downloads_empty">下载的视频会显示在这里。</string>
+    <string name="tools_delete_download_confirm">要删除已下载的视频吗？</string>
+    <string name="download_cancelled">下载已取消</string>
+</resources>

@@ -4,6 +4,11 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ReceiverOptionsTest {
+    @Test public void pinIsExplicitAndDisabledInExistingConstructors() {
+        assertFalse(new ReceiverOptions("TV",7000).requirePin);
+        assertFalse(new ReceiverOptions("TV",7000,1280,720,30,false,20,95).requirePin);
+        assertTrue(new ReceiverOptions("TV",7000,1280,720,30,false,20,95,true).requirePin);
+    }
     @Test public void validatesMediaBoundsBeforeCrossingJni() {
         ReceiverOptions config=new ReceiverOptions("TV",7000,1920,1080,30,false,0,99);
         assertEquals(1920,config.width);assertEquals(0,config.cushionMs);assertEquals(99,config.percentile);

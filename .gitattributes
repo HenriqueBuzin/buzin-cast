@@ -2,4 +2,6 @@
 gradlew text eol=lf
 *.sh text eol=lf
 *.patch text eol=lf
+# Unified diffs retain upstream whitespace in context, including blank lines.
+*.patch whitespace=-blank-at-eol,-blank-at-eof
 *.bat -text

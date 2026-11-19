@@ -48,6 +48,12 @@ class DebugTvPreviewActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window,window.decorView).hide(WindowInsetsCompat.Type.systemBars())
+        // Component contracts install their own real screen after launch.
+        // Keep unrelated preview animations out of ActivityScenario's idle wait.
+        if (intent.getStringExtra("screen") == "contract_host") {
+            setContent { AirPlayTheme { Surface(Modifier.fillMaxSize()) {} } }
+            return
+        }
         setContent {
             var destination by remember { mutableStateOf(when(intent.getStringExtra("screen")) {
                 "settings" -> AppDestination.SETTINGS; "tools" -> AppDestination.TOOLS; else -> AppDestination.OVERVIEW

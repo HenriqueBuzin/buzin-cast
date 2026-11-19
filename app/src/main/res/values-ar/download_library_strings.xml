@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">الفيديوهات التي تم تنزيلها</string>
+    <string name="tools_downloads_empty">ستظهر هنا الفيديوهات التي قمت بتنزيلها.</string>
+    <string name="tools_delete_download_confirm">حذف الفيديو الذي تم تنزيله؟</string>
+    <string name="download_cancelled">تم إلغاء التنزيل</string>
+</resources>

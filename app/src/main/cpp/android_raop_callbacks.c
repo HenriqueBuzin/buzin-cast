@@ -47,9 +47,10 @@ static JNIEnv *_get_env(android_callback_ctx_t *ctx) {
     return env;
 }
 
-void android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject callback_obj) {
-    (*env)->GetJavaVM(env, &ctx->jvm);
-    ctx->callback_obj = (*env)->NewGlobalRef(env, callback_obj);
+int android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject callback_obj) {
+    /* A fresh context owns its synchronization primitives before JNI can fail. */
+    memset(ctx, 0, sizeof(*ctx));
+    jclass cls = NULL;
     ctx->h265_enabled = 1;
     ctx->require_pin = 0;
     ctx->registered_count = 0;
@@ -65,30 +66,65 @@ void android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject ca
     ctx->playback_rate = 0.0f;
     ctx->playback_ready = 0;
 
-    jclass cls = (*env)->GetObjectClass(env, callback_obj);
+    if ((*env)->GetJavaVM(env, &ctx->jvm) != JNI_OK || !ctx->jvm) goto fail;
+    ctx->callback_obj = (*env)->NewGlobalRef(env, callback_obj);
+    if (!ctx->callback_obj) goto fail;
+    cls = (*env)->GetObjectClass(env, callback_obj);
+    if (!cls) goto fail;
     ctx->on_connection_request = (*env)->GetMethodID(env, cls, "onConnectionRequest", "(Ljava/lang/String;)Z");
+    if (!ctx->on_connection_request) goto fail;
     ctx->on_video_data = (*env)->GetMethodID(env, cls, "onVideoData", "([BJZ)V");
+    if (!ctx->on_video_data) goto fail;
     ctx->on_audio_pcm = (*env)->GetMethodID(env, cls, "onAudioPcm", "([BJII)V");
+    if (!ctx->on_audio_pcm) goto fail;
     ctx->on_audio_format = (*env)->GetMethodID(env, cls, "onAudioFormat", "(IIZ)V");
+    if (!ctx->on_audio_format) goto fail;
     ctx->on_video_size = (*env)->GetMethodID(env, cls, "onVideoSize", "(FFFF)V");
+    if (!ctx->on_video_size) goto fail;
     ctx->on_client_volume = (*env)->GetMethodID(env, cls, "onClientVolume", "(F)V");
+    if (!ctx->on_client_volume) goto fail;
     ctx->on_client_volume_query = (*env)->GetMethodID(env, cls, "onClientVolumeQuery", "()F");
+    if (!ctx->on_client_volume_query) goto fail;
     ctx->on_audio_teardown = (*env)->GetMethodID(env, cls, "onAudioTeardown", "()V");
+    if (!ctx->on_audio_teardown) goto fail;
     ctx->on_conn_init = (*env)->GetMethodID(env, cls, "onConnectionInit", "()V");
+    if (!ctx->on_conn_init) goto fail;
     ctx->on_conn_destroy = (*env)->GetMethodID(env, cls, "onConnectionDestroy", "()V");
+    if (!ctx->on_conn_destroy) goto fail;
     ctx->on_conn_reset = (*env)->GetMethodID(env, cls, "onConnectionReset", "(I)V");
+    if (!ctx->on_conn_reset) goto fail;
     ctx->on_display_pin = (*env)->GetMethodID(env, cls, "onDisplayPin", "(Ljava/lang/String;)V");
+    if (!ctx->on_display_pin) goto fail;
     ctx->on_metadata = (*env)->GetMethodID(env, cls, "onMetadata", "([B)V");
+    if (!ctx->on_metadata) goto fail;
     ctx->on_coverart = (*env)->GetMethodID(env, cls, "onCoverArt", "([B)V");
+    if (!ctx->on_coverart) goto fail;
     ctx->on_progress = (*env)->GetMethodID(env, cls, "onProgress", "(JJJ)V");
+    if (!ctx->on_progress) goto fail;
     ctx->on_dacp_id = (*env)->GetMethodID(env, cls, "onDacpId", "(Ljava/lang/String;Ljava/lang/String;)V");
+    if (!ctx->on_dacp_id) goto fail;
     ctx->on_mirror_running = (*env)->GetMethodID(env, cls, "onMirrorRunning", "(Z)V");
+    if (!ctx->on_mirror_running) goto fail;
     ctx->on_video_play = (*env)->GetMethodID(env, cls, "onVideoPlay", "(Ljava/lang/String;F)V");
+    if (!ctx->on_video_play) goto fail;
     ctx->on_video_scrub = (*env)->GetMethodID(env, cls, "onVideoScrub", "(F)V");
+    if (!ctx->on_video_scrub) goto fail;
     ctx->on_video_rate = (*env)->GetMethodID(env, cls, "onVideoRate", "(F)V");
+    if (!ctx->on_video_rate) goto fail;
     ctx->on_video_stop = (*env)->GetMethodID(env, cls, "onVideoStop", "()V");
+    if (!ctx->on_video_stop) goto fail;
     ctx->on_video_session_poll = (*env)->GetMethodID(env, cls, "onVideoSessionPoll", "()V");
+    if (!ctx->on_video_session_poll) goto fail;
     (*env)->DeleteLocalRef(env, cls);
+    return 1;
+
+fail:
+    /* Reference deletion is legal with a pending Java exception. Leave that
+       exception for the Java caller rather than issuing another JNI lookup. */
+    if (cls) (*env)->DeleteLocalRef(env, cls);
+    android_callbacks_destroy(ctx, env);
+    ctx->jvm = NULL;
+    return 0;
 }
 
 void android_callbacks_destroy(android_callback_ctx_t *ctx, JNIEnv *env) {
@@ -126,14 +162,19 @@ void android_capture_pcm(void *user, const int16_t *pcm, size_t samples, int64_t
     android_callback_ctx_t *ctx = (android_callback_ctx_t *)user;
     if (!ctx || !ctx->callback_obj || samples == 0 || samples > 65536) return;
     JNIEnv *env = NULL;
-    int attached = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED;
+    int status = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6);
+    int attached = status == JNI_EDETACHED;
+    if (status != JNI_OK && !attached) return;
     if (attached && (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL) != JNI_OK) return;
     if (!env) return;
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionDescribe(env); (*env)->ExceptionClear(env); }
     jbyteArray array = (*env)->NewByteArray(env, (jsize)(samples * sizeof(int16_t)));
     if (array) {
         (*env)->SetByteArrayRegion(env, array, 0, (jsize)(samples * sizeof(int16_t)), (const jbyte *)pcm);
-        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_pcm, array, (jlong)pts_ns,
-                              (jint)sample_rate, (jint)channels);
+        if (!(*env)->ExceptionCheck(env)) {
+            (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_audio_pcm, array, (jlong)pts_ns,
+                                  (jint)sample_rate, (jint)channels);
+        }
         (*env)->DeleteLocalRef(env, array);
     }
     if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionDescribe(env); (*env)->ExceptionClear(env); }
@@ -158,9 +199,12 @@ static void _video_process(void *cls, raop_ntp_t *ntp, video_decode_struct *data
     }
 
     jbyteArray arr = (*env)->NewByteArray(env, data->data_len);
+    if (!arr) return;
     (*env)->SetByteArrayRegion(env, arr, 0, data->data_len, (jbyte *)data->data);
-    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_data,
-                           arr, (jlong)data->ntp_time_local, (jboolean)data->is_h265);
+    if (!(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_data,
+                              arr, (jlong)data->ntp_time_local, (jboolean)data->is_h265);
+    }
     (*env)->DeleteLocalRef(env, arr);
 }
 
@@ -239,6 +283,7 @@ static void _display_pin(void *cls, char *pin) {
     JNIEnv *env = _get_env(ctx);
     if (!env) return;
     jstring jpin = (*env)->NewStringUTF(env, pin);
+    if (!jpin) return;
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_display_pin, jpin);
     (*env)->DeleteLocalRef(env, jpin);
 }
@@ -289,8 +334,11 @@ static void _audio_set_metadata(void *cls, const void *buf, int len) {
     JNIEnv *env = _get_env(ctx);
     if (!env || !buf || len <= 0) return;
     jbyteArray arr = (*env)->NewByteArray(env, len);
+    if (!arr) return;
     (*env)->SetByteArrayRegion(env, arr, 0, len, (jbyte *)buf);
-    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_metadata, arr);
+    if (!(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_metadata, arr);
+    }
     (*env)->DeleteLocalRef(env, arr);
 }
 
@@ -299,8 +347,11 @@ static void _audio_set_coverart(void *cls, const void *buf, int len) {
     JNIEnv *env = _get_env(ctx);
     if (!env || !buf || len <= 0) return;
     jbyteArray arr = (*env)->NewByteArray(env, len);
+    if (!arr) return;
     (*env)->SetByteArrayRegion(env, arr, 0, len, (jbyte *)buf);
-    (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_coverart, arr);
+    if (!(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_coverart, arr);
+    }
     (*env)->DeleteLocalRef(env, arr);
 }
 
@@ -309,7 +360,12 @@ static void _audio_remote_control_id(void *cls, const char *dacp_id, const char 
     JNIEnv *env = _get_env(ctx);
     if (!env) return;
     jstring jdacp = (*env)->NewStringUTF(env, dacp_id ? dacp_id : "");
+    if (!jdacp) return;
     jstring jremote = (*env)->NewStringUTF(env, active_remote ? active_remote : "");
+    if (!jremote) {
+        (*env)->DeleteLocalRef(env, jdacp);
+        return;
+    }
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_dacp_id, jdacp, jremote);
     (*env)->DeleteLocalRef(env, jdacp);
     (*env)->DeleteLocalRef(env, jremote);
@@ -361,6 +417,7 @@ static void _video_play(void *cls, const char *location, const float start_posit
     JNIEnv *env = _get_env(ctx);
     if (!env || !location) return;
     jstring jloc = (*env)->NewStringUTF(env, location);
+    if (!jloc) return;
     (*env)->CallVoidMethod(env, ctx->callback_obj, ctx->on_video_play, jloc, (jfloat)start_position);
     (*env)->DeleteLocalRef(env, jloc);
 }

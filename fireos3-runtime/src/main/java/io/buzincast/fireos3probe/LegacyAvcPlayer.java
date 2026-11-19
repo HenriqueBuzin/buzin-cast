@@ -11,9 +11,15 @@ import java.util.LinkedHashMap;
 /** API 17 streaming decoder. All MediaCodec operations belong to one worker. */
 final class LegacyAvcPlayer {
     interface StopSignal { boolean stopped(); }
-    interface Listener { void decodedFrame(); default void resized(int width,int height) {} }
+    interface Listener {
+        void decodedFrame();
+        default void resized(int width,int height) {}
+        default void encodedFrame(byte[] data,long ptsNs,AvcConfig config) {}
+    }
     private final OwnedTargetSlot<Surface> targets=new OwnedTargetSlot<>();
     private OwnedTargetSlot.Target<Surface> target;
+    private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> detachReplies=new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private volatile boolean displayClosed;
     private final VideoFrameQueue queue;
     private final Listener listener;
     private final AudioPlaybackClock clock;
@@ -52,10 +58,18 @@ final class LegacyAvcPlayer {
             try {surface.release();} finally {if(whenReleased!=null)whenReleased.run();}
         });
     }
-    void closeSurface() { targets.close(); }
+    /** Acknowledge only after the decoder has stopped using its old Surface. */
+    void detachSurface(Runnable detached) {
+        targets.request(null,null);
+        if(displayClosed) {detached.run();return;}
+        detachReplies.add(detached);
+        if(displayClosed && detachReplies.remove(detached))detached.run();
+    }
+    private void acknowledgeDetach() {Runnable reply;while((reply=detachReplies.poll())!=null)reply.run();}
+    void closeSurface() { try {targets.close();}finally {displayClosed=true;acknowledgeDetach();} }
     private void applyTarget() {
-        if(!targets.changed())return;
-        releaseCodec();target=targets.activate();
+        if(targets.changed()) {releaseCodec();target=targets.activate();}
+        if(target==null && !targets.changed())acknowledgeDetach();
     }
 
     void run(StopSignal stop) throws IOException, InterruptedException {
@@ -74,6 +88,7 @@ final class LegacyAvcPlayer {
                     if (received != null && (config == null || !config.matches(received))) {
                         releaseCodec();config=received;
                     }
+                    if(config!=null)listener.encodedFrame(frame.data,frame.timeNs,config);
                     if(target==null) {skippedWithoutTarget++;continue;}
                     // A fresh API17 codec cannot resume from dependent P/B frames.
                     // Keep the parameter sets across display changes, not stream resets.

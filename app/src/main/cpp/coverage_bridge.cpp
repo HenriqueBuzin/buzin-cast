@@ -3,18 +3,369 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
+#include <thread>
+#include <vector>
+#include <chrono>
 #include <oboe/Oboe.h>
 #include "audio_engine.h"
+#include "audio_output.h"
 #include "log_sink.h"
+#include "native_server_context.h"
 extern "C" {
+#include <libavcodec/defs.h>
 #include "dnssd.h"
 #include "android_dnssd_shim.h"
+#include "android_raop_callbacks.h"
 }
 extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
+
+// Own a real callback binding and synchronization primitives, but intentionally
+// stop before creating child subsystems. No listener, decoder or output opens.
+// Kotlin must release the returned context through the shipped nativeDestroy.
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCreatePartialServer(
+        JNIEnv *env, jobject, jobject callback) {
+    auto ctx = std::make_unique<server_ctx_t>();
+    if (!android_callbacks_init(&ctx->cb_ctx, env, callback)) return 0;
+    android_callbacks_fill(&ctx->callbacks, &ctx->cb_ctx);
+    return reinterpret_cast<jlong>(ctx.release());
+}
+
+// Access owns references under the production lock; no stream state is faked.
+struct AudioOutputContractAccess {
+    static std::shared_ptr<OboeCallbacks> callbacks(const std::shared_ptr<AudioOutput> &output) {
+        std::lock_guard<std::mutex> lock(output->mLock);
+        return output->mCallbacks;
+    }
+    static std::shared_ptr<oboe::AudioStream> stream(const std::shared_ptr<AudioOutput> &output) {
+        std::lock_guard<std::mutex> lock(output->mLock);
+        return output->mStream;
+    }
+};
+
+// Deliberately invokes the real post-close callback; no physical disconnection
+// is simulated at the OS level, and all opened emulator streams are closed.
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, jobject, jint scenario) {
+#define OUTPUT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    auto timeline = std::make_shared<TimelineBuffer>(44100, 2, 50, 95);
+    auto log = std::make_shared<LogSink>();
+    auto output = AudioOutput::create(scenario == 2 ? -1 : 44100, 2, 192, false, timeline, log);
+    auto callbacks = AudioOutputContractAccess::callbacks(output);
+    OUTPUT_CONTRACT(callbacks);
+    if (scenario == 0) {
+        output->stop();
+        callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        std::weak_ptr<AudioOutput> owner = output;
+        output.reset();
+        OUTPUT_CONTRACT(owner.expired());
+        callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
+        std::array<int16_t, 16> pcm;
+        pcm.fill(1234);
+        OUTPUT_CONTRACT(callbacks->onAudioReady(nullptr, pcm.data(), 8) == oboe::DataCallbackResult::Continue);
+        OUTPUT_CONTRACT(std::all_of(pcm.begin(), pcm.end(), [](int16_t sample) { return sample == 0; }));
+        OUTPUT_CONTRACT(owner.expired());
+    } else if (scenario == 1) {
+        auto started = [](const std::shared_ptr<oboe::AudioStream> &stream) {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (std::chrono::steady_clock::now() < deadline) {
+                auto before = stream->getState();
+                if (before == oboe::StreamState::Started) return true;
+                oboe::StreamState after;
+                stream->waitForStateChange(before, &after, 50'000'000);
+            }
+            return false;
+        };
+        OUTPUT_CONTRACT(output->start());
+        auto previous = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(previous && started(previous));
+        previous->stop(); previous->close();
+        OUTPUT_CONTRACT(previous->getState() == oboe::StreamState::Closed);
+        callbacks->onErrorAfterClose(previous.get(), oboe::Result::ErrorDisconnected);
+        auto recovered = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(recovered && recovered.get() != previous.get() && started(recovered));
+        output->stop();
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        OUTPUT_CONTRACT(recovered->getState() == oboe::StreamState::Closed);
+        callbacks->onErrorAfterClose(recovered.get(), oboe::Result::ErrorDisconnected);
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+    } else if (scenario == 2) {
+        callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        output->stop();
+    } else {
+        OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
+    }
+#undef OUTPUT_CONTRACT
+    return env->NewStringUTF("output contracts passed");
+}
+
+// ALAC decoding uses the production engine and its normal PCM capture tap.
+// Returned records are native-endian {int64 pts, int32 rate, int32 channels, PCM16}.
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame) {
+#define ALAC_CONTRACT(condition) do { if (!(condition)) { \
+    auto error = env->FindClass("java/lang/AssertionError"); \
+    if (error) { env->ThrowNew(error, #condition); env->DeleteLocalRef(error); } \
+    return nullptr; } } while (false)
+    ALAC_CONTRACT(packets && timestamps);
+    ALAC_CONTRACT(samplesPerFrame >= 0 && samplesPerFrame <= 4096);
+    const auto count = env->GetArrayLength(packets);
+    ALAC_CONTRACT(count > 0 && count <= 32 && env->GetArrayLength(timestamps) == count);
+    std::vector<jlong> pts(count);
+    env->GetLongArrayRegion(timestamps, 0, count, pts.data());
+    if (env->ExceptionCheck()) return nullptr;
+    struct Capture {
+        std::vector<std::vector<uint8_t>> records;
+        static void receive(void *user, const int16_t *pcm, size_t samples, int64_t time, int rate, int channels) {
+            auto &records = static_cast<Capture *>(user)->records;
+            std::vector<uint8_t> record(16 + samples * sizeof(int16_t));
+            const int32_t sampleRate = rate, channelCount = channels;
+            memcpy(record.data(), &time, 8); memcpy(record.data() + 8, &sampleRate, 4);
+            memcpy(record.data() + 12, &channelCount, 4); memcpy(record.data() + 16, pcm, samples * sizeof(int16_t));
+            records.push_back(std::move(record));
+        }
+    } capture;
+    using Engine = std::unique_ptr<AudioEngine, decltype(&audio_engine_destroy)>;
+    Engine engine(audio_engine_create(std::make_shared<LogSink>(), 44100, 2), audio_engine_destroy);
+    ALAC_CONTRACT(engine);
+    ALAC_CONTRACT(audio_engine_configure(engine.get(), 50, 95, 0, true, true, false, false, false));
+    audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
+    audio_engine_set_capture_enabled(engine.get(), true);
+    audio_engine_on_format(engine.get(), 2, samplesPerFrame);
+    // Deliver through the real RAOP table, as the receiver does. This context
+    // borrows the engine and uses only audio_process (no JNI or other callbacks).
+    android_callback_ctx_t callbackContext{};
+    raop_callbacks_t callbacks{};
+    android_callbacks_fill(&callbacks, &callbackContext);
+    ALAC_CONTRACT(callbacks.cls == &callbackContext && callbacks.audio_process);
+    for (jsize i = 0; i < count; ++i) {
+        auto packet = static_cast<jbyteArray>(env->GetObjectArrayElement(packets, i));
+        if (env->ExceptionCheck()) return nullptr;
+        ALAC_CONTRACT(packet);
+        const auto length = env->GetArrayLength(packet);
+        if (length <= 0 || length > 8192) {
+            env->DeleteLocalRef(packet);
+            ALAC_CONTRACT(false && "Invalid ALAC fixture packet length");
+        }
+        std::vector<uint8_t> bytes(length + AV_INPUT_BUFFER_PADDING_SIZE, 0);
+        env->GetByteArrayRegion(packet, 0, length, reinterpret_cast<jbyte *>(bytes.data()));
+        env->DeleteLocalRef(packet);
+        if (env->ExceptionCheck()) return nullptr;
+        audio_decode_struct input{};
+        input.ct = 2;
+        input.ntp_time_local = static_cast<uint64_t>(pts[i]);
+        if (i == 0) {
+            input.data = bytes.data(); input.data_len = length;
+            callbacks.audio_process(&callbackContext, nullptr, &input); // No engine yet.
+            callbackContext.audio_engine = engine.get();
+            input.data = nullptr;
+            callbacks.audio_process(&callbackContext, nullptr, &input);
+            input.data = bytes.data(); input.data_len = 0;
+            callbacks.audio_process(&callbackContext, nullptr, &input);
+            input.data_len = -1;
+            callbacks.audio_process(&callbackContext, nullptr, &input);
+            ALAC_CONTRACT(capture.records.empty());
+        }
+        input.data = bytes.data(); input.data_len = length;
+        callbacks.audio_process(&callbackContext, nullptr, &input);
+        ALAC_CONTRACT(capture.records.size() == static_cast<size_t>(i + 1));
+    }
+    auto bytesClass = env->FindClass("[B");
+    if (!bytesClass) return nullptr;
+    auto result = env->NewObjectArray(count, bytesClass, nullptr);
+    env->DeleteLocalRef(bytesClass);
+    if (!result) return nullptr;
+    for (jsize i = 0; i < count; ++i) {
+        const auto &record = capture.records[i];
+        auto bytes = env->NewByteArray(static_cast<jsize>(record.size()));
+        if (!bytes) return nullptr;
+        env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(record.size()), reinterpret_cast<const jbyte *>(record.data()));
+        if (!env->ExceptionCheck()) env->SetObjectArrayElement(result, i, bytes);
+        env->DeleteLocalRef(bytes);
+        if (env->ExceptionCheck()) return nullptr;
+    }
+#undef ALAC_CONTRACT
+    return result;
+}
+
+// Calls the production callback table with real JNI and an isolated Java sink.
+// No receiver, player, discovery service or network listener is created.
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackContracts(JNIEnv *env, jobject, jobject sink) {
+    struct Context {
+        android_callback_ctx_t value{};
+        JNIEnv *env;
+        bool ready;
+        Context(JNIEnv *e, jobject sink) : env(e), ready(android_callbacks_init(&value, e, sink) != 0) {}
+        ~Context() { if (ready) android_callbacks_destroy(&value, env); }
+    } owner(env, sink);
+    auto *ctx = &owner.value;
+    if (env->ExceptionCheck()) return nullptr;
+    if (!owner.ready) return env->NewStringUTF("callback binding failed");
+#define CALLBACK_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    raop_callbacks_t cbs{};
+    android_callbacks_fill(&cbs, ctx);
+    CALLBACK_CONTRACT(cbs.cls == ctx && !cbs.register_client && !cbs.check_register);
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_H265) == 0);
+    ctx->h265_enabled = 0;
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_H265) == -1);
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_H264) == 0);
+    CALLBACK_CONTRACT(cbs.video_set_codec(ctx, VIDEO_CODEC_UNKNOWN) == 0);
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "allow") == 1);
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "deny") == 0);
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "throw") == 0 && !env->ExceptionCheck());
+    // The next callback after an exception must remain usable.
+    CALLBACK_CONTRACT(cbs.conn_admit(ctx, "allow") == 1);
+
+    unsigned char bytes[] = {0, 0, 1, 7};
+    video_decode_struct video{};
+    cbs.video_process(ctx, nullptr, &video);
+    video.data = bytes; video.data_len = 0; cbs.video_process(ctx, nullptr, &video);
+    video.data_len = -1; cbs.video_process(ctx, nullptr, &video);
+    video.data_len = sizeof(bytes); bytes[0] = 1; cbs.video_process(ctx, nullptr, &video);
+    bytes[0] = 0; video.ntp_time_local = 1234567; video.is_h265 = false;
+    cbs.video_process(ctx, nullptr, &video);
+    video.is_h265 = true; cbs.video_process(ctx, nullptr, &video);
+    audio_decode_struct audio{}; // No engine: input must not be decoded.
+    cbs.audio_process(ctx, nullptr, &audio);
+    for (const auto callback : {cbs.audio_set_metadata, cbs.audio_set_coverart}) {
+        callback(ctx, nullptr, sizeof(bytes)); callback(ctx, bytes, 0); callback(ctx, bytes, -1);
+        callback(ctx, bytes, sizeof(bytes));
+    }
+    uint32_t start = 1, current = 0x80000000U, end = 0xffffffffU;
+    cbs.audio_set_progress(ctx, nullptr, &current, &end);
+    cbs.audio_set_progress(ctx, &start, nullptr, &end);
+    cbs.audio_set_progress(ctx, &start, &current, nullptr);
+    cbs.audio_set_progress(ctx, &start, &current, &end);
+    cbs.audio_remote_control_id(ctx, nullptr, nullptr);
+    cbs.audio_remote_control_id(ctx, "device", "remote");
+    cbs.audio_set_volume(ctx, -12.5f);
+    CALLBACK_CONTRACT(cbs.audio_set_client_volume(ctx) == -6.25);
+    unsigned char ct = 4; unsigned short spf = 1024; bool screen = true, media = false; uint64_t format = 0;
+    cbs.audio_get_format(ctx, &ct, &spf, &screen, &media, &format);
+    float sw = 640, sh = 480, w = 1920, h = 1080;
+    cbs.video_report_size(ctx, &sw, &sh, &w, &h);
+    cbs.mirror_video_running(ctx, false); cbs.mirror_video_running(ctx, true);
+    char pin[] = "1234";
+    cbs.display_pin(ctx, pin); // No PIN requested: sink must not be called.
+    ctx->require_pin = 1; android_callbacks_fill(&cbs, ctx); cbs.display_pin(ctx, pin);
+    CALLBACK_CONTRACT(cbs.register_client && cbs.check_register);
+    char key[] = "key-0";
+    CALLBACK_CONTRACT(!cbs.check_register(ctx, key));
+    cbs.register_client(ctx, "device", key, "name");
+    cbs.register_client(ctx, "device", key, "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 1 && cbs.check_register(ctx, key));
+    key[4] = 'x';
+    CALLBACK_CONTRACT(!cbs.check_register(ctx, key) && cbs.check_register(ctx, "key-0"));
+    for (int i = 1; i < 16; ++i) {
+        const auto next = std::string("key-") + std::to_string(i);
+        cbs.register_client(ctx, "device", next.c_str(), "name");
+        CALLBACK_CONTRACT(cbs.check_register(ctx, next.c_str()));
+    }
+    cbs.register_client(ctx, "device", "overflow", "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 16 && !cbs.check_register(ctx, "overflow"));
+
+    // A failed strdup leaves a counted null slot. Model that dependency failure
+    // without exhausting device memory, retaining ownership of every live key.
+    std::free(ctx->registered_keys[0]); ctx->registered_keys[0] = nullptr;
+    std::free(ctx->registered_keys[15]); ctx->registered_keys[15] = nullptr;
+    ctx->registered_count = 15;
+    CALLBACK_CONTRACT(!cbs.check_register(ctx, "key-0") && cbs.check_register(ctx, "key-14"));
+    cbs.register_client(ctx, "device", "key-14", "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 15); // Null slot must not hide a later duplicate.
+    cbs.register_client(ctx, "device", "replacement", "name");
+    CALLBACK_CONTRACT(ctx->registered_count == 16 && cbs.check_register(ctx, "replacement"));
+    CALLBACK_CONTRACT(ctx->registered_keys[0] == nullptr && ctx->registered_keys[15] != nullptr);
+
+    playback_info_t info{};
+    android_callbacks_update_playback_info(ctx, 12.5, 90, 1.5f, 1);
+    cbs.on_video_wait_ready(ctx); // Already ready; no timeout or player needed.
+    cbs.on_video_acquire_playback_info(ctx, &info);
+    CALLBACK_CONTRACT(info.position == 12.5 && info.duration == 90 && info.rate == 1.5f && info.ready_to_play);
+    CALLBACK_CONTRACT(info.seek_start == 0 && info.seek_duration == 90 && !info.playback_buffer_empty && info.playback_buffer_full && info.playback_likely_to_keep_up);
+    CALLBACK_CONTRACT(cbs.on_video_playlist_remove(ctx) == 12.5f);
+    cbs.conn_init(ctx); // Must preserve an active timeline.
+    CALLBACK_CONTRACT(ctx->playback_duration == 90 && ctx->playback_ready == 1);
+    cbs.on_video_play(ctx, nullptr, 2.5f);
+    CALLBACK_CONTRACT(ctx->playback_position == 2.5 && ctx->playback_duration == 0 && !ctx->playback_ready && !ctx->play_ready);
+    cbs.on_video_play(ctx, "https://example.invalid/movie", 3.5f);
+    cbs.on_video_scrub(ctx, 8.5f); cbs.on_video_rate(ctx, 0.5f);
+    cbs.on_video_stop(ctx);
+    CALLBACK_CONTRACT(ctx->playback_duration == -1 && !ctx->playback_ready);
+    cbs.conn_init(ctx); // A finished timeline must be cleared.
+    CALLBACK_CONTRACT(ctx->playback_position == 0 && ctx->playback_duration == 0 && ctx->playback_rate == 0);
+    cbs.on_video_acquire_playback_info(ctx, &info);
+    CALLBACK_CONTRACT(info.seek_duration == 0 && !info.ready_to_play);
+    cbs.video_reset(ctx, RESET_TYPE_HLS_CONN_CLOSED); // Buffering is not paused playback.
+    CALLBACK_CONTRACT(ctx->playback_duration == 0);
+    android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+    cbs.video_reset(ctx, RESET_TYPE_HLS_CONN_CLOSED);
+    CALLBACK_CONTRACT(ctx->playback_duration == 90);
+    android_callbacks_update_playback_info(ctx, 4, 90, 0, 1);
+    cbs.video_reset(ctx, RESET_TYPE_HLS_CONN_CLOSED);
+    CALLBACK_CONTRACT(ctx->playback_duration == -1);
+    for (auto reset : {RESET_TYPE_NOHOLD, RESET_TYPE_RTP_SHUTDOWN, RESET_TYPE_ON_VIDEO_PLAY, RESET_TYPE_RTP_TO_HLS_TEARDOWN}) {
+        android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+        cbs.video_reset(ctx, reset); CALLBACK_CONTRACT(ctx->playback_duration == 90);
+    }
+    for (auto reset : {RESET_TYPE_HLS_SHUTDOWN, RESET_TYPE_HLS_EOS}) {
+        android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+        cbs.video_reset(ctx, reset); CALLBACK_CONTRACT(ctx->playback_duration == -1);
+    }
+    {
+        // Initialize the real HTTP connection owner, without raop_start/listeners.
+        // Empty keyfile uses an in-memory fixture identity and writes no key file.
+        using Receiver = std::unique_ptr<raop_t, decltype(&raop_destroy)>;
+        Receiver receiver(raop_init(&cbs), raop_destroy);
+        CALLBACK_CONTRACT(receiver);
+        CALLBACK_CONTRACT(raop_init2(receiver.get(), 0, "02:00:00:00:00:01", "") == 0);
+        CALLBACK_CONTRACT(!raop_is_running(receiver.get()));
+        ctx->raop = receiver.get();
+        for (auto reset : {RESET_TYPE_HLS_SHUTDOWN, RESET_TYPE_HLS_EOS}) {
+            android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+            cbs.video_reset(ctx, reset);
+            CALLBACK_CONTRACT(ctx->playback_position == 0 && ctx->playback_duration == -1);
+            CALLBACK_CONTRACT(!ctx->playback_ready && !raop_is_running(receiver.get()));
+        }
+        ctx->raop = nullptr;
+    }
+    cbs.video_pause(ctx); cbs.video_resume(ctx); cbs.conn_feedback(ctx);
+    cbs.audio_flush(ctx); cbs.video_flush(ctx); cbs.audio_stop_coverart_rendering(ctx);
+    cbs.conn_reset(ctx, 7); cbs.conn_destroy(ctx);
+    cbs.conn_reset(ctx, -1); // Sink deliberately throws: next callback must recover.
+    CALLBACK_CONTRACT(env->ExceptionCheck());
+    cbs.conn_init(ctx);
+    CALLBACK_CONTRACT(!env->ExceptionCheck());
+
+    int16_t pcm[] = {1, -2, 32767, -32768};
+    android_capture_pcm(nullptr, pcm, 4, 42, 44100, 2);
+    android_callback_ctx_t empty{};
+    android_capture_pcm(&empty, pcm, 4, 42, 44100, 2);
+    android_capture_pcm(ctx, pcm, 0, 42, 44100, 2);
+    android_capture_pcm(ctx, pcm, 65537, 42, 44100, 2);
+    android_capture_pcm(ctx, pcm, 4, 42, 44100, 2);
+    std::thread attached([&] {
+        cbs.conn_init(ctx); // _get_env attaches once; TLS destructor detaches.
+        cbs.conn_destroy(ctx);
+    });
+    attached.join();
+    std::thread captured([&] { android_capture_pcm(ctx, pcm, 4, 43, 48000, 1); });
+    captured.join(); // Capture has its own balanced attach/detach path.
+    android_capture_pcm(ctx, pcm, 4, 44, 22050, 2); // Sink throws; capture clears it.
+    CALLBACK_CONTRACT(!env->ExceptionCheck());
+    android_capture_pcm(ctx, pcm, 4, 45, 16000, 1);
+    CALLBACK_CONTRACT(!env->ExceptionCheck());
+#undef CALLBACK_CONTRACT
+    return env->NewStringUTF("callback contracts passed");
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeDump(JNIEnv *env, jobject, jstring path) {
     const char *name = env->GetStringUTFChars(path, nullptr);
@@ -190,4 +541,286 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDnsContracts(JNIEnv *env, jobj
     DNS_CONTRACT(dnssd_register_airplay(oversized.get(), 7000) == -1);
 #undef DNS_CONTRACT
     return env->NewStringUTF("DNS contracts passed");
+}
+
+
+// Controlled JNI dependency failures. The real callback table is exercised;
+// no allocation failure is induced in ART itself.
+namespace {
+struct CallbackFaultFixture {
+    JNINativeInterface functions{};
+    JNIInvokeInterface invocation{};
+    JNIEnv env{};
+    JavaVM vm{};
+    android_callback_ctx_t ctx{};
+    raop_callbacks_t callbacks{};
+    inline static thread_local CallbackFaultFixture *active = nullptr;
+    int allocation = 0, failAllocation = 0, live = 0, calls = 0, writes = 0;
+    int illegal = 0, clears = 0, envStatus = JNI_OK;
+    bool pending = false, failCopy = false, callbackThrows = false, missingEnv = false;
+    void access() { if (pending || missingEnv || envStatus != JNI_OK) ++illegal; }
+    jobject allocate() {
+        access();
+        if (++allocation == failAllocation) { pending = true; return nullptr; }
+        ++live;
+        return reinterpret_cast<jobject>(static_cast<uintptr_t>(allocation + 100));
+    }
+    static void callVoid(JNIEnv *, jobject object, jmethodID, ...) {
+        auto &s = *active; s.access(); ++s.calls;
+        if (object != s.ctx.callback_obj) ++s.illegal;
+        if (s.callbackThrows) s.pending = true;
+    }
+    static jfloat callFloat(JNIEnv *env, jobject object, jmethodID method, ...) {
+        callVoid(env, object, method);
+        return -6.25f;
+    }
+    CallbackFaultFixture() {
+        active = this; env.functions = &functions; vm.functions = &invocation;
+        ctx.jvm = &vm; ctx.callback_obj = reinterpret_cast<jobject>(1);
+        ctx.require_pin = 1;
+        pthread_mutex_init(&ctx.playback_info_lock, nullptr);
+        pthread_cond_init(&ctx.play_ready_cond, nullptr);
+        functions.NewByteArray = [](JNIEnv *, jsize size) -> jbyteArray {
+            if (size <= 0) ++active->illegal;
+            return reinterpret_cast<jbyteArray>(active->allocate());
+        };
+        functions.NewStringUTF = [](JNIEnv *, const char *text) -> jstring {
+            if (!text) ++active->illegal;
+            return reinterpret_cast<jstring>(active->allocate());
+        };
+        functions.SetByteArrayRegion = [](JNIEnv *, jbyteArray array, jsize, jsize size, const jbyte *data) {
+            auto &s = *active; s.access(); ++s.writes;
+            if (!array || !data || size <= 0) ++s.illegal;
+            if (s.failCopy) s.pending = true;
+        };
+        functions.CallVoidMethod = callVoid;
+        functions.CallFloatMethod = callFloat;
+        functions.DeleteLocalRef = [](JNIEnv *, jobject object) {
+            if (object) --active->live; // Legal while an exception is pending.
+        };
+        functions.ExceptionCheck = [](JNIEnv *) -> jboolean { return active->pending ? JNI_TRUE : JNI_FALSE; };
+        functions.ExceptionDescribe = [](JNIEnv *) {};
+        functions.ExceptionClear = [](JNIEnv *) { active->pending = false; ++active->clears; };
+        invocation.GetEnv = [](JavaVM *, void **out, jint version) -> jint {
+            if (version != JNI_VERSION_1_6) ++active->illegal;
+            // Failure queries have a non-null output; a separate malformed-VM
+            // case reports success without the environment required by JNI.
+            *out = active->missingEnv ? nullptr : &active->env;
+            return active->envStatus;
+        };
+        invocation.AttachCurrentThread = [](JavaVM *, JNIEnv **out, void *) -> jint {
+            *out = &active->env; return JNI_ERR;
+        };
+        invocation.DetachCurrentThread = [](JavaVM *) -> jint { return JNI_OK; };
+        android_callbacks_fill(&callbacks, &ctx);
+    }
+    ~CallbackFaultFixture() {
+        pthread_cond_destroy(&ctx.play_ready_cond);
+        pthread_mutex_destroy(&ctx.playback_info_lock);
+        active = nullptr;
+    }
+    void deliver(int scenario) {
+        unsigned char packet[] = {0, 0, 0, 1, 7, 8};
+        switch (scenario) {
+            case 0: {
+                video_decode_struct data{}; data.data = packet; data.data_len = sizeof(packet);
+                callbacks.video_process(&ctx, nullptr, &data); break;
+            }
+            case 1: callbacks.audio_set_metadata(&ctx, packet, sizeof(packet)); break;
+            case 2: callbacks.audio_set_coverart(&ctx, packet, sizeof(packet)); break;
+            case 3: { char pin[] = "1234"; callbacks.display_pin(&ctx, pin); break; }
+            case 4: callbacks.on_video_play(&ctx, "http://127.0.0.1/fixture", 2.0f); break;
+            case 5: case 6: callbacks.audio_remote_control_id(&ctx, "fixture-dacp", "fixture-remote"); break;
+            case 7: { int16_t pcm[] = {1, 2, 3, 4}; android_capture_pcm(&ctx, pcm, 4, 123, 44100, 2); break; }
+            case 8: {
+                uint32_t start = 1, current = 0x80000000U, end = 0xffffffffU;
+                callbacks.audio_set_progress(&ctx, &start, &current, &end); break;
+            }
+            case 9: callbacks.mirror_video_running(&ctx, true); break;
+            case 10: callbacks.audio_stop_coverart_rendering(&ctx); break;
+            case 11: callbacks.conn_init(&ctx); break;
+            case 12: callbacks.conn_destroy(&ctx); break;
+            case 13: callbacks.conn_reset(&ctx, 7); break;
+            case 14: callbacks.audio_set_volume(&ctx, -12.5f); break;
+            case 15: {
+                unsigned char ct = 4; unsigned short spf = 1024;
+                bool screen = true, media = false; uint64_t format = 0;
+                callbacks.audio_get_format(&ctx, &ct, &spf, &screen, &media, &format); break;
+            }
+            case 16: {
+                float sw = 640, sh = 480, w = 1920, h = 1080;
+                callbacks.video_report_size(&ctx, &sw, &sh, &w, &h); break;
+            }
+            case 17: callbacks.on_video_scrub(&ctx, 8.5f); break;
+            case 18: callbacks.on_video_rate(&ctx, 0.5f); break;
+            case 19: callbacks.on_video_stop(&ctx); break;
+            case 20: {
+                playback_info_t info{};
+                callbacks.on_video_acquire_playback_info(&ctx, &info); break;
+            }
+            case 21: {
+                const auto volume = callbacks.audio_set_client_volume(&ctx);
+                if (volume != (envStatus == JNI_OK && !missingEnv ? -6.25 : 0.0)) ++illegal;
+                break;
+            }
+            default: ++illegal; break;
+        }
+    }
+};
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv *env, jobject, jint scenario, jint failure) {
+#define FAULT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    FAULT_CONTRACT(scenario >= 0 && scenario <= 21 && failure >= 0 && failure <= 5);
+    // Scalar/control callbacks allocate no JNI objects and copy no byte arrays.
+    FAULT_CONTRACT(scenario <= 7 || failure >= 2);
+    CallbackFaultFixture fixture;
+    if (failure == 0) fixture.failAllocation = scenario == 6 ? 2 : 1;
+    if (failure == 1) fixture.failCopy = true;
+    if (failure == 2) fixture.envStatus = JNI_ERR;
+    if (failure == 3) fixture.envStatus = JNI_EDETACHED;
+    if (failure == 4) fixture.callbackThrows = true;
+    if (failure == 5) fixture.missingEnv = true;
+    fixture.deliver(scenario);
+    FAULT_CONTRACT(fixture.illegal == 0);
+    FAULT_CONTRACT(fixture.live == 0);
+    FAULT_CONTRACT(fixture.calls == (failure == 4 ? 1 : 0));
+    if (failure == 0) FAULT_CONTRACT(fixture.allocation == (scenario == 6 ? 2 : 1));
+    if (failure == 1) FAULT_CONTRACT(fixture.writes == 1);
+    if (failure == 5) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
+    if (scenario >= 8) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
+    fixture.failAllocation = 0; fixture.failCopy = false;
+    fixture.callbackThrows = false; fixture.missingEnv = false; fixture.envStatus = JNI_OK;
+    // PCM clears its own exception; the other callbacks recover at _get_env.
+    fixture.deliver(scenario);
+    FAULT_CONTRACT(fixture.illegal == 0);
+    FAULT_CONTRACT(fixture.live == 0);
+    FAULT_CONTRACT(fixture.calls == (failure == 4 ? 2 : 1));
+    FAULT_CONTRACT(!fixture.pending);
+    return env->NewStringUTF("callback fault contracts passed");
+#undef FAULT_CONTRACT
+}
+
+// Controlled dependency faults for the real callback initializer.
+namespace {
+struct CallbackInitFixture {
+    JNINativeInterface functions{};
+    JNIEnv env{};
+    JavaVM vm{};
+    android_callback_ctx_t ctx{};
+    inline static thread_local CallbackInitFixture *active = nullptr;
+    int mode, illegal = 0, globalCalls = 0, classCalls = 0, methodCalls = 0;
+    int globalLive = 0, classLive = 0;
+    bool pending = false, initialized = false;
+    int result = -1;
+    explicit CallbackInitFixture(int failure) : mode(failure) {
+        active = this; env.functions = &functions;
+        functions.GetJavaVM = [](JNIEnv *, JavaVM **out) -> jint {
+            auto &s = *active; s.access();
+            *out = s.mode == 27 ? nullptr : &s.vm;
+            return s.mode == 1 ? JNI_ERR : JNI_OK;
+        };
+        functions.NewGlobalRef = [](JNIEnv *, jobject object) -> jobject {
+            auto &s = *active; s.access(); ++s.globalCalls;
+            if (object != receiver()) ++s.illegal;
+            if (s.mode == 2 || s.mode == 26) { s.pending = s.mode == 2; return nullptr; }
+            ++s.globalLive; return object;
+        };
+        functions.GetObjectClass = [](JNIEnv *, jobject object) -> jclass {
+            auto &s = *active; s.access(); ++s.classCalls;
+            if (object != receiver()) ++s.illegal;
+            if (s.mode == 3) { s.pending = true; return nullptr; }
+            ++s.classLive; return klass();
+        };
+        functions.GetMethodID = [](JNIEnv *, jclass type, const char *name, const char *signature) -> jmethodID {
+            auto &s = *active; s.access();
+            const int index = s.methodCalls++;
+            if (type != klass() || index >= 22 || std::strcmp(name, methods[index].first) ||
+                std::strcmp(signature, methods[index].second)) ++s.illegal;
+            if (s.mode == 4 + index) { s.pending = true; return nullptr; }
+            return method(index);
+        };
+        functions.DeleteGlobalRef = [](JNIEnv *, jobject object) {
+            auto &s = *active;
+            if (object != receiver() || s.globalLive != 1) ++s.illegal;
+            --s.globalLive;
+        };
+        functions.DeleteLocalRef = [](JNIEnv *, jobject object) {
+            auto &s = *active;
+            if (object != klass() || s.classLive != 1) ++s.illegal;
+            --s.classLive;
+        };
+        functions.ExceptionCheck = [](JNIEnv *) -> jboolean { return active->pending ? JNI_TRUE : JNI_FALSE; };
+        functions.ExceptionClear = [](JNIEnv *) { active->pending = false; };
+        functions.ExceptionDescribe = [](JNIEnv *) {};
+    }
+    void access() { if (pending) ++illegal; }
+    static jobject receiver() { return reinterpret_cast<jobject>(1); }
+    static jclass klass() { return reinterpret_cast<jclass>(2); }
+    static jmethodID method(int index) { return reinterpret_cast<jmethodID>(static_cast<uintptr_t>(index + 10)); }
+    inline static const std::array<std::pair<const char *, const char *>, 22> methods{{
+        {"onConnectionRequest", "(Ljava/lang/String;)Z"}, {"onVideoData", "([BJZ)V"},
+        {"onAudioPcm", "([BJII)V"}, {"onAudioFormat", "(IIZ)V"}, {"onVideoSize", "(FFFF)V"},
+        {"onClientVolume", "(F)V"}, {"onClientVolumeQuery", "()F"}, {"onAudioTeardown", "()V"},
+        {"onConnectionInit", "()V"}, {"onConnectionDestroy", "()V"}, {"onConnectionReset", "(I)V"},
+        {"onDisplayPin", "(Ljava/lang/String;)V"}, {"onMetadata", "([B)V"}, {"onCoverArt", "([B)V"},
+        {"onProgress", "(JJJ)V"}, {"onDacpId", "(Ljava/lang/String;Ljava/lang/String;)V"},
+        {"onMirrorRunning", "(Z)V"}, {"onVideoPlay", "(Ljava/lang/String;F)V"},
+        {"onVideoScrub", "(F)V"}, {"onVideoRate", "(F)V"}, {"onVideoStop", "()V"},
+        {"onVideoSessionPoll", "()V"}
+    }};
+    void initialize() {
+        result = android_callbacks_init(&ctx, &env, receiver());
+        initialized = result == 1;
+    }
+    void destroy() {
+        if (initialized) { android_callbacks_destroy(&ctx, &env); initialized = false; }
+    }
+    ~CallbackInitFixture() { destroy(); active = nullptr; }
+};
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackInitContracts(JNIEnv *env, jobject, jint mode) {
+#define INIT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    INIT_CONTRACT(mode >= 0 && mode <= 27);
+    CallbackInitFixture fixture(mode);
+    fixture.initialize();
+    INIT_CONTRACT(fixture.illegal == 0);
+    INIT_CONTRACT(fixture.classLive == 0);
+    if (mode == 0) {
+        INIT_CONTRACT(fixture.result == 1);
+        INIT_CONTRACT(fixture.globalLive == 1 && fixture.methodCalls == 22);
+        INIT_CONTRACT(!fixture.pending && fixture.ctx.h265_enabled == 1 && fixture.ctx.require_pin == 0);
+        INIT_CONTRACT(fixture.ctx.registered_count == 0 && !fixture.ctx.audio_engine);
+        INIT_CONTRACT(fixture.ctx.playback_duration == 0 && fixture.ctx.play_ready == 0);
+        std::array<jmethodID, 22> ids{fixture.ctx.on_connection_request, fixture.ctx.on_video_data,
+            fixture.ctx.on_audio_pcm, fixture.ctx.on_audio_format, fixture.ctx.on_video_size,
+            fixture.ctx.on_client_volume, fixture.ctx.on_client_volume_query, fixture.ctx.on_audio_teardown,
+            fixture.ctx.on_conn_init, fixture.ctx.on_conn_destroy, fixture.ctx.on_conn_reset,
+            fixture.ctx.on_display_pin, fixture.ctx.on_metadata, fixture.ctx.on_coverart,
+            fixture.ctx.on_progress, fixture.ctx.on_dacp_id, fixture.ctx.on_mirror_running,
+            fixture.ctx.on_video_play, fixture.ctx.on_video_scrub, fixture.ctx.on_video_rate,
+            fixture.ctx.on_video_stop, fixture.ctx.on_video_session_poll};
+        for (int index = 0; index < 22; ++index) INIT_CONTRACT(ids[index] == CallbackInitFixture::method(index));
+        INIT_CONTRACT(pthread_mutex_trylock(&fixture.ctx.playback_info_lock) == 0);
+        INIT_CONTRACT(pthread_mutex_unlock(&fixture.ctx.playback_info_lock) == 0);
+        INIT_CONTRACT(pthread_cond_signal(&fixture.ctx.play_ready_cond) == 0);
+        fixture.destroy();
+        INIT_CONTRACT(fixture.globalLive == 0 && !fixture.ctx.callback_obj);
+    } else {
+        INIT_CONTRACT(fixture.result == 0);
+        INIT_CONTRACT(fixture.globalLive == 0 && !fixture.ctx.callback_obj && !fixture.ctx.jvm);
+        INIT_CONTRACT(fixture.pending == (mode != 1 && mode != 26 && mode != 27));
+        if (mode == 1 || mode == 27) {
+            INIT_CONTRACT(fixture.globalCalls == 0 && fixture.classCalls == 0 && fixture.methodCalls == 0);
+        } else if (mode == 2 || mode == 26) {
+            INIT_CONTRACT(fixture.globalCalls == 1 && fixture.classCalls == 0 && fixture.methodCalls == 0);
+        } else if (mode == 3) {
+            INIT_CONTRACT(fixture.classCalls == 1 && fixture.methodCalls == 0);
+        } else {
+            INIT_CONTRACT(fixture.methodCalls == mode - 3);
+        }
+    }
+    return env->NewStringUTF("callback init contracts passed");
+#undef INIT_CONTRACT
 }

@@ -57,6 +57,11 @@ O acesso à rede, à resolução física, aos fones e ao AndroidKeyStore tem cam
 ## Player por URL API17 — 18 de novembro de 2026
 
 O runtime API17 fixa os módulos Media3 ExoPlayer, HLS e DASH em 1.2.1.
+O módulo Muxer também fica em 1.2.1 para exportação sem transcodificação.
+O [Transformer dessa versão exige API21](https://github.com/androidx/media/blob/1.2.1/libraries/transformer/build.gradle);
+ele não foi forçado sobre API17. A exportação usa MediaPeriod/SampleStream
+e o [muxer em Java](https://github.com/androidx/media/blob/1.2.1/libraries/muxer/build.gradle),
+com adaptação de Annex-B TS e tabelas de composição para quadros B.
 Essa versão declara minSdk 16 no [arquivo oficial da tag](https://github.com/androidx/media/blob/1.2.1/constants.gradle).
 A linha [1.3.x declara API19](https://github.com/androidx/media/blob/1.3.1/constants.gradle).
 Não se aplica a versão 1.11.1 do app moderno a esse alvo nem se usa

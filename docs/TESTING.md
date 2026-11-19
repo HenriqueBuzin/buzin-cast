@@ -1,5 +1,423 @@
 # Testes automatizados
 
+## Retransmissão integrada na prévia API17
+
+`tools/test_legacy_gestures.py --relay-app` exercita os controles reais de
+Ferramentas, serviço, transporte e saída AVC/PCM. A recepção usa o decodificador
+`LegacyAvcPlayer` e `AudioPlaybackClock`, com AudioTrack compatível com API17.
+O teste exige quadro decodificado no TextureView, avanço do playback head
+PCM, atraso de renderização dentro do orçamento do relógio de áudio, perda
+e recuperação de foco mesmo sem novos pacotes, segundo plano e retorno pelo
+atalho. A abertura pode criar outra Activity: o teste acompanha a instância
+real e exige que retome o mesmo serviço/sessão com a nova Surface.
+
+A superfície nativa é estacionada antes de entregar a saída à retransmissão.
+Só volta ao receptor depois de ambos os workers terminarem e a Surface
+anterior ser liberada. O teste verifica leases durante recepção, End remoto,
+parada local, tomada por espelhamento nativo e parada completa do receptor
+enquanto a Activity permanece vinculada; nesse último caso exige também
+liberação da trava de energia. O envio passa pelo tap nativo real, com AVC
+e PCM decodificado de ALAC; não injeta somente pacotes na fila do transporte.
+Um formato autenticado incompatível deve encerrar a recepção sem derrubar a UI.
+Há ainda tomada por vídeo URL, recepção com o servidor nativo desligado,
+destruição de todas as Activities durante essa sessão e reabertura do app,
+além de conexão de envio antes de iniciar o receptor nativo. Um evento de
+rede com recuperação desativada e servidor nativo desligado não pode gerar
+erro falso desse servidor. O modo independente deve liberar sua trava de
+energia depois de terminar, sem depender da destruição do serviço.
+Durante a conexão independente, a troca de idioma antes da resposta do par
+não pode encerrar o serviço: a propriedade da sessão usa um estado booleano
+do transporte, separado da mensagem traduzida. A cópia gerada para API17
+expõe esse estado sem alterar a implementação moderna compartilhada.
+
+O PCM fica limitado a 256 KiB/64 pacotes, e o AVC usa o orçamento existente
+de 4 MiB/16 quadros. Antes da primeira Surface há no máximo um quadro de
+preparação, para preservar o IDR durante a troca de saída. A perda de foco
+acorda o worker de áudio para aplicar volume sem depender de novos dados.
+O teste exporta renderizações nativas da tela Ferramentas e do formulário
+de conexão, com borda de foco; devem ser conferidas visualmente.
+
+O teste separado `--relay` continua sendo a testemunha criptográfica
+independente. `--relay-app` usa pares sintéticos locais para avaliar a
+integração e a decodificação, não uma sessão física entre duas TVs. HEVC,
+AVC acima do orçamento do primeiro Stick e PCM diferente de 44,1 kHz/stereo
+não passam pela saída antiga. As mensagens da UI usam os recursos traduzidos,
+sem expor exceções internas do backend como texto de instrução.
+A amostra decodificada é AVC Baseline de 160×90; não valida High Profile,
+1080p em hardware antigo, sessões longas ou sincronismo físico entre TVs.
+
+## Transporte de retransmissão na prévia API17
+
+`tools/test_legacy_gestures.py --relay` usa o próprio `MirrorRelay.kt`
+copiado da edição moderna, com adaptações de recursos, fila e fábrica do
+canal. `SecureMirrorChannel` continua compartilhado: BZCAST02, salt de
+16 bytes, PBKDF2-HMAC-SHA1/100.000/256, nonce de 12 bytes, tag GCM de
+16 bytes, sequência de 64 bits no AAD, limites e codec dos pacotes.
+O construtor aceita uma implementação de cifra; a implementação JVM atual
+fica em classe separada e permanece como padrão das edições existentes.
+API17 fornece explicitamente o binding OpenSSL, sem carregar o tipo
+`GCMParameterSpec` ausente na plataforma. Os testes JVM e o gate de
+cobertura do `dlna-domain:check` continuam obrigatórios.
+
+O JNI aceita somente chave de 32 bytes, nonce de 12 e AAD de 8; verifica
+tamanhos antes de copiar/alocar, limita o payload ao máximo do canal e
+verifica a tag antes de devolver texto claro. Libera contexto e limpa as
+cópias nativas de chave, entrada e saída em todos os caminhos. A fila do
+adaptador API17 mantém 120 pacotes e acrescenta um teto de 8 MiB; exceder
+um limite encerra o envio pela mesma política de rede lenta compartilhada.
+
+`tools/legacy_relay_client.py` usa `cryptography` como testemunha independente
+no host. O roteiro verifica código errado seguido de autenticação válida,
+keepalive, bytes exatos de vídeo/PCM e End nos dois sentidos, tag alterada,
+sequência inválida, tamanho excessivo, truncamento e pacote autenticado
+inválido. Também exige recusa quando ocupado e fechamento de conexão parada
+antes do handshake. Os testes locais cobrem os limites da cifra e a liberação
+do orçamento da fila. O relatório só passa com os 12 estágios independentes
+completos, resultado da instrumentação e ausência das threads de transporte.
+Os forwards ADB são removidos e os APKs são desinstalados na limpeza.
+Não registra códigos de pareamento no relatório do host.
+
+Esse comando valida o transporte de pacotes; a decodificação, o serviço e
+os controles da tela Ferramentas são avaliados separadamente por `--relay-app`.
+Sessões físicas entre TVs continuam pendentes.
+
+## HTTPS na prévia API17
+
+`tools/test_legacy_gestures.py --https` exige Internet e um emulador API17
+isolado. Compara HEAD padrão e TLS 1.2 em três sites públicos; o resultado
+HTTP de Amazon/Google é diagnóstico, sem exigir que aceitem HEAD. O vídeo
+Sintel da W3C deve responder 200 com TLS 1.2. Depois verifica o player Media3
+real, avanço do relógio com tamanho de vídeo, pausa/retomada, foto HTTPS
+com redirecionamento e, na edição geral, exportação MP4 com faixas AVC/AAC.
+O arquivo de cache é removido do app. A edição geral exige `--ffprobe` e
+`--ffmpeg`: uma cópia em `outputs` (ignorada pelo Git) deve conter as duas
+faixas com pacotes e decodificar inteiramente sem erro no host. A versão
+Base64 temporária no app desaparece junto com a desinstalação de limpeza.
+O playback usa `movie_300.mp4` (AVC Baseline, 320×240). O emulador API17
+recusou o AVC High Profile do Sintel no decodificador `OMX.google.h264.decoder`;
+isso é registrado separadamente da falha TLS original. O exportador continua
+usando Sintel, sem precisar decodificá-lo. High Profile no Stick físico
+continua sem validação; este teste não comprova essa capacidade.
+O extrator da API17 também não enumerou faixas no MP4 High Profile
+exportado, enquanto o ffprobe encontrou AVC/AAC e o FFmpeg decodificou ambos.
+Por isso o extrator antigo é evidência diagnóstica; a validação independente
+é obrigatória, em vez de aprovar o arquivo apenas porque foi salvo.
+
+O fixture local usa a identidade própria do Cast para exigir recusa de
+certificado não confiável. Um KeyStore exclusivo do teste confia nessa
+identidade: primeiro um handshake bruto deve funcionar; depois HTTPS deve
+recusá-la por não corresponder ao domínio. Não altera as raízes ou o
+verificador de domínio de produção. O relatório registra os resultados em
+`https_probes`; se faltar o artefato, a execução não pode passar.
+
+No Android antigo, TLS 1.2 é suportado desde API16, mas não vem ativado por
+padrão antes da API20 ([documentação oficial](https://developer.android.com/reference/javax/net/ssl/SSLSocket)).
+`LegacyHttps` ativa TLS 1.2 e cifras AES nas conexões próprias antes da API20,
+mantendo as raízes e a verificação de domínio do sistema. Não modifica
+fábricas globais nem instala certificados. As versões mais novas mantêm
+a configuração da plataforma. O player e o exportador usam o hook
+`openConnection` da [Media3 1.2.1](https://github.com/androidx/media/blob/1.2.1/libraries/datasource/src/main/java/androidx/media3/datasource/DefaultHttpDataSource.java),
+herdando o tratamento de HTTP, Range, redirecionamentos e erros. O adaptador
+fica no mesmo pacote porque o hook é interno; `@Override` exige revisão se
+uma atualização o remover. A versão da dependência continua fixada.
+
+Esse ensaio não comprova todos os servidores HTTPS: certificados/raízes
+ausentes no firmware, servidores sem TLS 1.2 ou sem cifras comuns ainda
+podem falhar. Não cobre emissor físico, DRM ou mídia live.
+
+## Cast V2 experimental na prévia API17
+
+`tools/test_legacy_gestures.py --castv2` verifica o mesmo transporte Kotlin
+da produção, alterando somente a fábrica TLS na cópia gerada para API17.
+O build confere âncoras e hash do trecho de identidade substituído, para
+exigir revisão se a política TLS do app moderno mudar.
+
+O teste usa TLS 1.2 real, com identidade RSA de 2048 bits criada pelo
+OpenSSL incluído. Verifica DNS-SD, heartbeat, recusa de DeviceAuth,
+lançamento, URL inválida, LOAD, autoplay desligado, PLAY/PAUSE/SEEK,
+volume/mudo e STOP/IDLE. Confere autorização/recusa no controle, quadro
+maior que 64 KiB, persistência de certificado entre reinícios e regeneração
+após arquivo privado inválido. Encerrar uma conexão sem handshake deve
+interromper a operação e liberar todos os objetos/socket nativos.
+
+`tools/legacy_cast_client.py` conecta um cliente OpenSSL moderno do host,
+sem reduzir a política de cifras padrão. Um proxy do teste Android só
+encaminha os bytes até a interface LAN do emulador. O cliente confere o
+certificado público exato, sua assinatura e atributos de não-CA, e troca
+mensagens protobuf implementadas independentemente. O relatório separado
+`host-tls.json` registra protocolo/cifra; a chave privada nunca é exportada.
+Esse cenário requer o pacote Python `cryptography` no host.
+
+A implementação JSSE antiga chegou a passar no teste Android/Android, mas
+falhou com o cliente moderno. Sua lista não oferecia cifras atuais em comum;
+por isso o servidor usa o OpenSSL incluído, em vez de habilitar cifras
+antigas no cliente de teste. A verificação final negociou
+`ECDHE-RSA-AES256-GCM-SHA384` em TLS 1.2. O Android 4.2 também interpreta
+incorretamente a sequência vazia de BasicConstraints; a identidade exige
+a forma DER explícita de não-CA gerada pelo próprio app, verificada de
+forma independente pelo cliente do host.
+
+O adaptador de sockets é interno e apenas servidor. IDs nativos não são
+endereços de memória; o fechamento remove o ID, interrompe I/O e aguarda a
+última referência antes de liberar SSL/contexto/descritor. `liveSockets()`
+permite ao teste exigir zero objetos após desligar. Os símbolos OpenSSL
+ficam privados no ELF, sem dependência do `libssl.so`/`libcrypto.so` do sistema.
+Não testa um emissor físico, certificação Google, serviços protegidos ou
+espelhamento Chrome. O HTTPS de saída do player é uma camada separada.
+
+## PIN experimental na prévia API17
+
+`tools/test_legacy_gestures.py --pin` usa `cryptography` no Python do host
+e um cliente de teste independente em `tools/legacy_pin_client.py`.
+Os pedidos reais usam RTSP, não HTTP: o núcleo tem despacho distinto para
+os dois protocolos. O cliente calcula SRP-6a/SHA1, verifica a prova do
+servidor e a confirmação AES-GCM da chave Ed25519, verifica a assinatura
+do servidor na troca X25519 e envia a resposta de pair-verify.
+
+Um PIN incorreto precisa receber 470. Uma tag GCM adulterada também é
+recusada; a tentativa seguinte refaz SRP, pois o núcleo consome o estado
+após cada confirmação. Uma confirmação repetida é recusada. Há 18 casos
+adicionais de tipos/estado/tamanhos inválidos e chaves SRP inseguras.
+
+A parte Android exige a opção desligada por padrão, repasse ao JNI,
+`pw` correto nos registros DNS-SD nativos, quatro dígitos na janela real,
+foco em OK, notificação atualizada, abertura em segundo plano e limpeza
+ao fechar/desligar/parar. Salva `pin-ui.png` a partir das Views reais.
+Os testes JVM verificam preservação de zeros à esquerda, descarte de
+códigos inválidos, registro limitado a 16 chaves e invalidação ao fechar
+a sessão. Nenhum PIN ou chave privada entra no relatório JSON.
+
+Esse teste comprova o fluxo sintético de pareamento, não interoperabilidade
+com um dispositivo Apple físico, retomada de um emissor real já registrado
+nem bloqueio universal de todos os caminhos legados do protocolo. O PIN
+mantém a indicação experimental do app atual; a aprovação opcional por
+controle é um recurso separado.
+
+![Janela nativa de PIN com OK focado; código de teste já encerrado](images/fireos3-native-pin.png)
+
+## Aprovação de conexões na prévia API17
+
+`tools/test_legacy_gestures.py --approval` percorre os caminhos de admissão
+reais do receptor nativo (RTSP), FCast e DLNA (SOAP). Confere recusa/aceitação,
+foco inicial em Recusar, recusa ao voltar, reutilização de autorização e
+isolamento entre protocolos no mesmo endereço. Respostas tardias não podem
+substituir uma recusa. O caso de timeout aguarda os 25 segundos reais;
+parar o receptor cancela outra solicitação sem aguardar esse prazo.
+
+Também exige que a solicitação em segundo plano reabra a interface e que
+ativar a aprovação desconecte um cliente FCast previamente autorizado com
+a opção desligada. A aprovação vem desligada por padrão. O teste utiliza
+a mesma implementação `ConnectionApproval` do app moderno, copiada sem
+alteração pelo build, e salva `approval-ui.png` a partir das Views reais.
+Não testa autenticação de PIN nem interoperabilidade com emissores físicos.
+
+![Aprovação com Recusar focado; endereço virtual do emulador](images/fireos3-connection-approval.png)
+
+## Download de URLs na prévia API17
+
+`tools/test_legacy_gestures.py --download` verifica AVC/AAC em MP4, HLS/TS,
+DASH/fMP4 e dois períodos DASH; cabeçalhos HTTP são exigidos em manifestos
+e segmentos. Exige arquivo completo, faixas/duração, reprodução local no
+Media3, URI FileProvider, biblioteca/exclusão, cancelamento, falha com URI
+filha local, limpeza de `.part` e preservação de arquivos preexistentes.
+Com `--package com.buzincast.tv.deat.legacy.preview`, exige ausência do
+botão e bloqueio de início/listagem/worker na edição restrita.
+
+`--ffprobe <executável>` verifica as faixas e contagens dos quinze MP4s
+sintéticos. `--ffmpeg <executável>` exige decodificação sem mensagens de
+erro, inclusive erros de timestamp que retornam status zero. Os dois
+arquivos com quadros B sem conversão (exportação e reexportação pelo leitor Media3)
+precisam produzir os mesmos 120 hashes de quadros da origem.
+
+Os três casos adicionais são VP8/Vorbis em WebM, AVC/Vorbis e VP8/AAC em
+Matroska. Exercitam conversão simultânea, só áudio e só vídeo; o resultado
+precisa reproduzir localmente como AVC/AAC. A comparação RGB independente
+exige os mesmos 120 quadros de 160×90 e erro absoluto médio até 10/255.
+O áudio convertido precisa manter duração, amplitude e o tom de 880 Hz
+(tolerância de 20 Hz). Um caso separado cancela depois de escrever amostras
+com os quatro codecs ativos, exige que todos tenham sido liberados e que
+nenhum arquivo final/parcial reste; depois reinicia a conversão no mesmo
+exportador. O marcador `download_conversion` impede usar um APK de teste antigo.
+
+Os dois casos seguintes usam Vorbis estéreo a 96 kHz (tons úteis e outro
+de 30 kHz) e Vorbis 5.1 com seis falantes isolados por segundo, seguidos de
+uma cauda alta correlacionada. O MP4 deve ter AAC estéreo a 48 kHz, manter
+os tons de 880/1760 Hz, rejeitar o alias de 18 kHz do tom acima de Nyquist,
+rotear cada falante e normalizar o ganho sem saturação. A origem também é
+decodificada para confirmar que realmente contém o tom de 30 kHz.
+
+`LegacyPcmScenario` exercita o JNI real no emulador: identidade PCM,
+relação fracionária 48→44,1 kHz sem dependência da divisão em pacotes,
+filtragem float 96→48 kHz e drenagem com contagem exata de quadros,
+8/24/32 bits, oito posições de falantes, permutação de canais e ganho.
+Exige rejeição de taxas/máscaras/permutação inconsistentes, buffer heap,
+offset/contagem fora dos limites e float não finito. O marcador
+`download_pcm` comprova a execução desses casos. O proprietário Java
+serializa conversão/fechamento, e o JNI valida limites antes de acessar memória.
+
+`LegacyDownloadTranscoder` usa os buffers síncronos do MediaCodec API16,
+sem Surface ou AudioTrack. PCM é normalizado pelo libswresample estático
+habilitado somente no build legado, com filtro de 64 taps. Aceita PCM
+intercalado U8/S16/S24/S32/float, 1–8 canais e 1–384 kHz; o AAC-LC recebe
+mono/estéreo na taxa suportada mais próxima entre 8 e 48 kHz. Máscaras
+de posições de falantes determinam o downmix, incluindo centro/LFE e ganho
+normalizado. A ordem Vorbis é adaptada somente para `OMX.google.vorbis.decoder`
+até API25 sem máscara de saída, conforme o SoftVorbis/Tremolo dessas versões.
+Vídeo YUV420 planar/NV12 é copiado para o encoder
+AVC Baseline com um nível anunciado que comporte resolução/fps/bitrate.
+A entrada do AVC é alinhada e tem o mínimo QCIF exigido pelo encoder do
+Android 4.2. A área visível original é preservada por recorte padrão no SPS,
+sem redimensionar pixels. A instrumentação e a comparação externa cobrem
+esse recorte; testes JVM verificam SPS, PPS/slices preservados, normalização
+de NALs crus, idempotência e rejeição de metadados truncados/incompatíveis.
+Configuração do codec pode vir no evento de formato ou em buffers separados.
+Formatos MP4 já aceitos pelo muxer seguem por cópia direta.
+
+Esses resultados não provam codecs/cores proprietários de Sticks físicos.
+Ainda falta converter layouts YUV proprietários e validar os componentes físicos;
+um formato sem os codecs/limites necessários falha sem publicar
+o arquivo parcial. Conteúdo protegido continua sendo recusado.
+
+Os quatro casos finais acrescentam AAC convertido em dois períodos DASH,
+uma lacuna de timestamps de meio segundo, vídeo com quadros B e início de
+áudio deslocado em relação ao vídeo. `AacEncoderPriming` mede o componente
+real por correlação entre um sinal sintético e sua saída codificada/decodificada;
+não assume um atraso fixo para todos os aparelhos. A instrumentação inclui
+AAC mono a 8 kHz, além das conversões estéreo a 44,1/48 kHz. A cauda real
+recebe drenagem antes do EOS e `Mp4AudioPriming` recompõe STTS e edit lists,
+mantendo o preroll no arquivo e apresentando somente o conteúdo.
+
+`tools/legacy_download_timing.py` compara PCM decodificado independentemente:
+início relativo ao vídeo dentro de 5 ms, duração dentro de 8 ms por período
+e energia dos últimos 20 ms preservada. O intervalo entre períodos é comparado
+com os segmentos DASH efetivamente usados, cuja origem já tem cerca de
+22,5 ms de lacuna; a exportação permite no máximo 10 ms adicionais.
+A lacuna interna de meio segundo precisa permanecer silenciosa entre os tons.
+O caso com quadros B também precisa manter os 120 hashes de vídeo.
+O extrator do Android 4.2 ignora empty edits: o teste verifica separadamente
+a duração de apresentação do Media3 e a decodificação do host, sem exigir
+que a duração bruta desse extrator inclua o deslocamento inicial.
+
+Seis testes JVM cobrem payload preservado, preroll/cauda, múltiplos períodos,
+lacunas, escala fracionária, taxa baixa, flush insuficiente e correlação.
+Dois testes de cor exigem omitir declarações nclx incompletas, que o muxer
+antigo escreveria como RGB/reservado, e manter declarações SDR/HDR válidas.
+As comparações RGB externas continuam ativas, sem forçar cores no FFmpeg.
+
+O OMX do emulador API17 não decodifica AVC Main e seu extrator do sistema
+omite faixas com CTTS assinado. Esses dois casos não são usados como
+prova de reprodução Main no dispositivo: o leitor Media3 é exercitado
+sem decoder, e a validação independente ocorre no host. MP4/HLS/DASH
+Baseline também passam por reprodução local real no emulador.
+
+`tools/generate_legacy_download_fixtures.py` gera os padrões AVC/AAC sem
+ler mídia pessoal e registra hashes dos recursos. O MPD inclui idioma
+`en-US` para verificar a adaptação de idioma ISO3 em API17. Os testes JVM
+cobrem prefixos Annex-B mistos/limites, reparo de composição sem alterar
+payload/offsets, metadados inválidos/overflow e códigos de idioma.
+
+Captura da tela nativa de Ferramentas em API17, com gravações e downloads:
+
+![Ferramentas com biblioteca de vídeos baixados](images/fireos3-native-download-tools.png)
+
+Os helpers de build/exportação verificam a estrutura dos APKs e os hashes
+de cópia. O runner verifica ZIP/CRC antes de ADB e exige `Success` na
+instalação: versões antigas do ADB podem retornar código zero com
+`INSTALL_FAILED_*`. APK corrompido não conta como falha de execução do app.
+
+## Gravação de espelhamento na prévia API17
+
+`tools/test_legacy_gestures.py --recording` usa H.264 e ALAC sintéticos no
+receptor nativo, grava com o mesmo `MatroskaRecorder` da edição principal
+e verifica a biblioteca, reprodução local via Media3 com faixa PCM estéreo,
+URI de exportação, confirmação de exclusão, captura vazia, limite de memória
+e encerramento do receptor com captura armada. `--ffprobe <executável>`
+acrescenta uma inspeção independente das faixas e contagens de pacotes;
+o MKV sintético fica no diretório de saída antes da desinstalação.
+
+No Android 4.2, o `MediaExtractor` do sistema reconhece o H.264 desse MKV,
+mas omite sua faixa PCM. O teste não usa essa omissão para concluir que o
+áudio está ausente: confere o formato selecionado no worker do Media3,
+e o verificador externo confirma os pacotes de áudio. O mesmo comando
+com `--package com.buzincast.tv.deat.legacy.preview` exige que a edição
+restrita não exponha os controles nem consiga armar ou listar gravações.
+
+O teste recusa aparelhos físicos e limpa a instalação ao terminar. Não
+comprova sincronismo perceptual, uma sessão Apple real ou armazenamento
+lento/cheio de um Stick físico.
+
+`tools/test_legacy_app.py --tools-only` captura a tela de Ferramentas,
+verifica preparar/parar sem deixar arquivo vazio e exige que esses controles
+não existam em DE/AT. `--locales en pt-BR ar` limita os idiomas; sem a opção,
+percorre todos. Aceita serial de emulador ou a conexão TCP local de um
+emulador, inclusive com servidor ADB isolado. O console autenticado fornece
+as imagens. [Referência em pt-BR](images/fireos3-native-recording-tools.png).
+
+## URL pelo servidor nativo API17
+
+`tools/test_legacy_gestures.py --native-url` instala a prévia e testa UxPlay
+HTTP -> JNI -> serviço -> Media3, em emulador isolado API17. Usa MP4/HLS/AAC
+sintéticos de oito segundos, uma fonte que segura o corpo HTTP e comandos
+binários plist, com sessão estável por conexão e UUID distinto por item.
+Verifica recursos de `/server-info`, posição/duração/rate/ready, controles
+remotos e tecla local, RTP -> URL, EOF/Stop, fechamento de canal pausado ou
+tocando, reinício explícito durante reprodução e liberação de `/play` ao
+parar o serviço durante carregamento.
+O cenário também abre `/reverse`, exige Upgrade PTTH e atende `/event`
+com respostas `/action` binárias para playlists master/media. O player
+reproduz a playlist reescrita pelo servidor HLS nativo e segmentos HTTP
+sintéticos. Verifica prontidão, duração, pausa e busca nesse caminho.
+O mesmo cenário aceita `--package com.buzincast.tv.deat.legacy.preview`
+com os APKs correspondentes. Não representa sessão com aparelho Apple
+físico, HTTPS real, live ou DRM.
+
+## Passagem de saída sem encerrar o receptor API17
+
+`test_legacy_gestures.py --url-service` mantém um socket nativo anterior à
+URL através dos controles, Back, erro HTTP e retomada por ALAC. Exige a
+mesma sessão nativa e Media3 fechado antes de devolver o ganho ao áudio
+nativo. O teste FCast também exige que o receptor permaneça e que seu
+codec/Surface estejam retirados enquanto Media3 usa a saída.
+
+O modo nativo de `test_fireos3_probe.py` confirma o detach somente após a
+Surface anterior se tornar inválida, incluindo ciclos com codec real e
+continuidade da linha de áudio e do socket RTSP. Também verifica reply a
+um pedido de detach depois de o worker fechar. Nenhum desses testes é uma
+sessão com emissor Apple físico nem certificação dos codecs de cada Stick.
+
+## Legendas externas no API17
+
+O cenário `tools/test_legacy_gestures.py --url-service` também exercita CC:
+resultado de ACTION_GET_CONTENT, ContentProvider de dados sintéticos do APK
+de testes, importador compartilhado de SRT/VTT, preservação de pausa,
+posição e velocidade, cues reais e texto na View, desativação e rejeição de
+UTF-8 inválido, formato incorreto, mais de 2 MiB e URL remota.
+O teste verifica a preservação de pausa antes de dar Play para observar
+os cues: o renderer de texto Media3 1.2.1 processa esses cues ao iniciar.
+O provider fica explicitamente no primeiro DEX para poder iniciar sozinho
+na API17. Não existe no APK do aplicativo.
+
+O cenário `--dlna` acrescenta uma troca de legenda com atraso HTTP maior
+que o intervalo do tick de transporte. Buffering não pode se transformar
+em Pause, e a reprodução deve retomar com a legenda.
+
+## DLNA no frontend API17
+
+Compile com `tools/Build-FireOs.ps1 -Target legacy -Instrumentation -Check`.
+O runner `tools/test_legacy_gestures.py` aceita `--dlna` como cenário separado
+de `--fcast` e `--url-service`, com os mesmos argumentos de ADB, APK e test-APK.
+O dispositivo precisa ser um emulador API17 isolado; o roteiro instala os
+APKs de prévia, usa mídia sintética local e desinstala ao terminar. Para a
+edição regional, compile com `-NoDownload` e passe o package
+`com.buzincast.tv.deat.legacy.preview` e os APKs exportados dessa edição.
+
+O cenário verifica SSDP, descrição UPnP, comandos SOAP de vídeo/posição,
+erro de validação assíncrona sem queda de processo, foto HTTP, giro/escala,
+limpeza de cache em erro e ciclo de desativar/reativar DLNA. As versões
+compartilhadas dos transportes são compiladas no próprio frontend API17;
+não é uma simulação do contrato do protocolo. Esses testes não certificam
+emissores externos, rede física, GENA/volume ou todos os controles de fotos.
+
 ## Verificação da atualização 0.6.6 — 15/nov/2026
 
 - Principal e compatível de produção compiladas para ARM32/ARM64 com lint

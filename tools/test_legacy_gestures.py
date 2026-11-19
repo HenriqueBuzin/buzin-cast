@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
+from zipfile import ZipFile
 
 
 def main():
@@ -22,11 +23,29 @@ def main():
     parser.add_argument('--system-media',action='store_true',help='Also verify platform metadata, audio focus, background media keys and three native mirror teardown/recovery cycles; implies --metadata.')
     parser.add_argument('--url-service',action='store_true',help='Verify native-to-URL handoff, platform playback, UI/media controls, HTTP failure and receiver recovery.')
     parser.add_argument('--fcast',action='store_true',help='Verify shared production FCast transport: TCP v2, DNS-SD/TXT, HTTP playback, controls and lifecycle.')
+    parser.add_argument('--dlna',action='store_true',help='Verify shared DLNA SOAP playback, photos and lifecycle on API17.')
+    parser.add_argument('--native-url',action='store_true',help='Verify native UxPlay HTTP URL commands, JNI snapshots, playback and shutdown.')
+    parser.add_argument('--recording',action='store_true',help='Verify native H.264/PCM recording, real MKV/local playback/export/delete, or DE/AT recording disabled.')
+    parser.add_argument('--download',action='store_true',help='Verify API17 MP4/HLS/DASH export, local playback, library, cancellation and restricted gate.')
+    parser.add_argument('--approval',action='store_true',help='Verify real native/FCast/DLNA admission, modal focus, denial, protocol grants, timeout, stop and background prompt.')
+    parser.add_argument('--pin',action='store_true',help='Verify real native SRP PIN proofs with an independent host client, focused UI, DNS-SD flags, background and lifecycle; requires cryptography.')
+    parser.add_argument('--castv2',action='store_true',help='Verify shared Cast V2 over actual API17 TLS1.2, discovery, protobuf, playback, approval and private identity persistence/recovery.')
+    parser.add_argument('--https',action='store_true',help='Verify authenticated public HTTPS media/photo/export and negative certificate/hostname fixtures on API17; requires Internet access.')
+    parser.add_argument('--relay',action='store_true',help='Verify shared Buzin relay transport with native GCM and independent host peers in both directions; not rendering or service integration.')
+    parser.add_argument('--relay-app',action='store_true',help='Verify relay Tools UI, real service, AVC/PCM output, Surface leases, background/return and native capture/takeover.')
+    parser.add_argument('--ffprobe',type=Path,help='Optional ffprobe executable for independent packet/track validation of the synthetic recording.')
+    parser.add_argument('--ffmpeg',type=Path,help='Optional FFmpeg executable for independent decoding of exported download fixtures.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
     args=parser.parse_args()
-    if (args.url_service or args.fcast) and (args.controls or args.metadata or args.system_media) or args.url_service and args.fcast:parser.error('--url-service and --fcast are separate scenarios.')
+    if args.https and not args.package.endswith('deat.legacy.preview') and (not args.ffprobe or not args.ffmpeg):
+        parser.error('--https on the general edition requires --ffprobe and --ffmpeg to validate the public export independently.')
+    for path in (args.apk,args.test_apk):
+        with ZipFile(path) as archive:
+            if not {'AndroidManifest.xml','classes.dex'}.issubset(archive.namelist()) or archive.testzip() is not None:
+                parser.error('APK is incomplete or corrupt: '+str(path))
+    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,args.pin,args.castv2,args.https,args.relay,args.relay_app,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -49,14 +68,24 @@ def main():
         'test_apk_sha256':hashlib.sha256(args.test_apk.read_bytes()).hexdigest()}
     if args.url_service:report['scope']='Real API17 receiver service to HTTP platform player handoff, UI/media keys, HTTP failure and native restart; synthetic MP4, not physical sender interoperability'
     if args.fcast:report['scope']='Shared production FCast v2 TCP transport, DNS-SD/TXT, synthetic HTTP MP4 playback, controls and lifecycle; not physical sender interoperability'
+    if args.dlna:report['scope']='Shared DLNA SOAP transport, synthetic HTTP playback, photo controls and lifecycle on API17; not physical sender interoperability'
+    if args.native_url:report['scope']='Native UxPlay HTTP URL callbacks through JNI/service/Media3 on API17; synthetic direct MP4/HLS/AAC and FCUP reverse-channel HLS, not a physical Apple sender test'
+    if args.recording:report['scope']='Synthetic native H.264/ALAC through bounded capture/shared Matroska writer, actual local playback/export/delete; DE/AT negative gate; not physical mirroring'
+    if args.download:report['scope']='Synthetic MP4/HLS/DASH remux, repeated periods/B frames, VP8/Vorbis and mixed-track codec conversion -> MP4 export/local playback/library/cancellation; DE/AT disabled; not physical or real HTTPS validation'
+    if args.approval:report['scope']='Actual API17 native RTSP, FCast and DLNA admission and remote-focus UI; grants, refusal, timeout, lifecycle and background prompt; not PIN pairing or a physical sender test'
+    if args.pin:report['scope']='Actual API17 native PIN/SRP, independent SHA1/SRP/AES-GCM/Ed25519/X25519 client, malformed input rejection, native UI, DNS-SD flags, background and stop; not a physical Apple sender or universal access-control certification'
+    if args.castv2:report['scope']='Actual API17 TLS1.2 with the owned experimental identity, shared Cast V2 discovery/protobuf/media/approval and key persistence/recovery; synthetic sender, no Google certification or protected services'
+    if args.https:report['scope']='Public HTTPS media playback, photo redirect and permitted MP4 export with default Android roots; owned untrusted/wrong-hostname rejection; not universal server or physical-device validation'
+    if args.relay:report['scope']='Shared BZCAST02 relay transport on API17 with native AES-GCM and independent PBKDF2/AES-GCM host peers; both roles, malformed frames, admission, queue bounds and teardown; not service/UI/decoded media or physical interoperability'
+    if args.relay_app:report['scope']='Actual API17 relay Tools UI/service, decoded AVC Surface, timestamped PCM AudioTrack, native capture, native takeover, background/return and cleanup; synthetic local sender/receiver, not a physical multi-TV test'
     if display:report['display_init']=display
-    def capture_native_view():
-        payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-metadata.b64',timeout=30))
+    def capture_native_view(source='legacy-metadata.b64',target='metadata-ui.png'):
+        payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/'+source,timeout=30))
         if not payload.startswith(b'\x89PNG\r\n\x1a\n'):raise AssertionError('Native View render was not a valid PNG')
-        (args.output/'metadata-ui.png').write_bytes(payload)
+        (args.output/target).write_bytes(payload)
         from PIL import Image
-        with Image.open(args.output/'metadata-ui.png') as frame:frame.verify()
-        report['ui_render']='metadata-ui.png; actual native View hierarchy drawn on the emulator, without Surface/video capture'
+        with Image.open(args.output/target) as frame:frame.verify()
+        report['ui_render']=target+'; actual native View hierarchy drawn on the emulator, without Surface/video capture'
     def system_instrument(options):
         command=[args.adb,'-P',str(args.adb_server_port),'-s',args.serial,'shell','am','instrument','-w',*options,
             args.package+'.test/io.buzincast.legacy.LegacyGestureChecks']
@@ -122,17 +151,157 @@ def main():
     try:
         adb('shell','input','keyevent',82)
         for package,path in [(args.package,args.apk),(args.package+'.test',args.test_apk)]:
-            adb('install','-r',path.resolve());installed.append(package)
+            result=adb('install','-r',path.resolve())
+            if not re.search(r'(?m)^Success\s*$',result):raise AssertionError('APK installation failed: '+result.strip())
+            installed.append(package)
         adb('shell','pm','clear',args.package)
         adb('logcat','-c')
-        options=['-e','checks','fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast else []
-        result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
+        options=['-e','checks','download' if args.download else 'recording' if args.recording else 'native_url' if args.native_url else 'dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna or args.native_url or args.recording or args.download else []
+        if args.approval:options=['-e','checks','approval']
+        if args.castv2:options=['-e','checks','castv2']
+        if args.https:options=['-e','checks','https']
+        if args.relay_app:options=['-e','checks','relay_app']
+        if args.relay:
+            from legacy_relay_client import run_instrument
+            result=run_instrument(args,adb)
+        elif args.pin:
+            from legacy_pin_client import run_instrument
+            result=run_instrument(args,adb)
+        elif args.castv2:
+            from legacy_cast_client import run_instrument
+            result=run_instrument(args,adb)
+        else:result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=300 if args.https else 180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
-        expected='fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
+        expected=('download=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'download=mp4_hls_dash_multiperiod_bframes_cancel_local_library') if args.download else ('recording=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'recording=native_h264_pcm_mkv_local_play_export_delete') if args.recording else 'native_url=native_http_play_info_rate_seek_stop_and_lifecycle' if args.native_url else 'dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
+        if args.approval:expected='approval=native_fcast_dlna_allow_deny_timeout_stop_background_and_protocol_grants'
+        if args.pin:expected='pin=native_srp_proofs_ui_txt_background_disabled_and_stop'
+        if args.castv2:expected='castv2=shared_tls12_dns_proto_media_approval_and_identity_lifecycle'
+        if args.https:expected='https=public_media_export_photos_and_certificate_rejection'
+        if args.relay:expected='relay=shared_channel_native_gcm_independent_peer_both_directions_and_bounds'
+        if args.relay_app:expected='relay_app=tools_service_avc_pcm_surface_focus_native_capture_and_takeover'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
+        if args.approval:capture_native_view('legacy-approval.b64','approval-ui.png')
+        if args.pin:capture_native_view('legacy-pin.b64','pin-ui.png')
+        if args.download and not args.package.endswith('deat.legacy.preview'):
+            if 'INSTRUMENTATION_RESULT: download_conversion=codec_buffers_cropped_avc_aac_cancel_restart' not in result:raise AssertionError('Test APK did not exercise conversion cancellation/restart')
+            if 'INSTRUMENTATION_RESULT: download_pcm=native_filter_channel_masks_chunking_and_bounds' not in result:raise AssertionError('Test APK did not exercise native PCM normalization')
+            if 'INSTRUMENTATION_RESULT: download_priming=measured_delay_edits_tail_offsets_gaps_and_periods' not in result:raise AssertionError('Test APK did not exercise AAC presentation cases')
+            report['download_conversion_cancel_restart']='pass'
+            report['download_native_pcm_filter_and_bounds']='pass'
+            report['download_aac_priming_presentation']='pass'
+            artifacts=[]
+            for index in range(15):
+                payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
+                if payload[4:8]!=b'ftyp':raise AssertionError('Download artifact was not MP4')
+                path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload)
+                record={'file':path.name}
+                if args.ffmpeg:
+                    decoded=subprocess.run([str(args.ffmpeg),'-hide_banner','-loglevel','error','-xerror','-i',str(path),'-map','0:v:0','-map','0:a:0','-f','null','-'],check=True,timeout=30,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+                    if decoded.stderr.strip():raise AssertionError('Independent decode/timestamp errors in '+path.name+': '+decoded.stderr.decode('utf-8','replace')[:1200])
+                    record['independent_decode']='pass'
+                    if index in (4,5,13):
+                        original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats/bframes.mp4'
+                        def frames(media):
+                            result=subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-f','framemd5','-'],timeout=30)
+                            return [line.rsplit(b',',1)[-1].strip() for line in result.splitlines() if not line.startswith(b'#')]
+                        expected_frames=frames(original);actual_frames=frames(path)
+                        if actual_frames!=expected_frames or len(actual_frames)!=120:raise AssertionError('B-frame export changed decoded video frames')
+                        record['decoded_frame_hashes']='120 identical to the source'
+                    if index>=6:
+                        name={6:'vp8-vorbis.webm',7:'avc-vorbis.mkv',8:'vp8-aac.mkv',9:'avc-vorbis-96k.mkv',10:'avc-vorbis-51.mkv',11:'movie.mp4',12:'avc-vorbis-gap.mkv',13:'bframes-vorbis.mkv',14:'avc-vorbis-offset.mkv'}[index]
+                        original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats'/name
+                        def rgb(media):
+                            return subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-pix_fmt','rgb24','-f','rawvideo','-'],timeout=30)
+                        source_frames=rgb(original)*(2 if index==11 else 1);exported_frames=rgb(path)
+                        if len(source_frames)!=160*90*120*3*(2 if index==11 else 1) or len(exported_frames)!=len(source_frames):raise AssertionError('Converted download changed its frame count/dimensions')
+                        error=sum(abs(a-b) for a,b in zip(source_frames,exported_frames))/len(source_frames)
+                        if error>10:raise AssertionError('Converted download has excessive pixel error: '+str(error))
+                        record['converted_video_mean_absolute_error']=round(error,4)
+                        if index in (6,7):
+                            import array
+                            pcm=array.array('h',subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(path),'-map','0:a:0','-ar','44100','-ac','2','-f','s16le','-'],timeout=30))
+                            if not 7.8*44100*2<=len(pcm)<=8.3*44100*2 or max(map(abs,pcm),default=0)<1500:raise AssertionError('Converted Vorbis lost its tone/duration')
+                            channel=pcm[4410:-4410:2];frequency=sum(a<=0<b for a,b in zip(channel,channel[1:]))*44100/len(channel)
+                            if not 860<=frequency<=900:raise AssertionError('Converted audio changed its pitch: '+str(frequency))
+                            record['converted_audio_tone_hz']=round(frequency,2)
+                        if index in (9,10):
+                            import array,math
+                            def pcm(media,rate):
+                                return array.array('h',subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:a:0','-ar',str(rate),'-ac','2','-f','s16le','-'],timeout=30))
+                            sound=pcm(path,48000)
+                            if not 7.8*48000*2<=len(sound)<=8.3*48000*2:raise AssertionError('Normalized audio duration changed')
+                            def amplitude(samples,rate,channel,frequency,start,end):
+                                window=samples[int(start*rate)*2+channel:int(end*rate)*2:2]
+                                real=sum(value*math.cos(2*math.pi*frequency*i/rate) for i,value in enumerate(window))
+                                imag=sum(value*math.sin(2*math.pi*frequency*i/rate) for i,value in enumerate(window))
+                                return 2*math.hypot(real,imag)/(len(window)*32768)
+                            if index==9:
+                                source=pcm(original,96000)
+                                high=amplitude(source,96000,0,30000,1,2)
+                                left=amplitude(sound,48000,0,880,1,2);right=amplitude(sound,48000,1,1760,1,2)
+                                alias=max(amplitude(sound,48000,ch,18000,1,2) for ch in (0,1))
+                                if high<0.04 or min(left,right)<0.05 or alias>0.005:raise AssertionError('Resampling lost its wanted tone or aliased above-Nyquist audio')
+                                if amplitude(sound,48000,1,880,1,2)>left/10 or amplitude(sound,48000,0,1760,1,2)>right/10:raise AssertionError('Resampling changed stereo routing')
+                                record['resample_96k_to_48k']={'source_30k_amplitude':round(high,5),'alias_18k_amplitude':round(alias,5),'left_880':round(left,5),'right_1760':round(right,5)}
+                            else:
+                                levels=[]
+                                for speaker,tone in enumerate((440,550,660,110,770,880)):
+                                    left=amplitude(sound,48000,0,tone,speaker+.2,speaker+.8);right=amplitude(sound,48000,1,tone,speaker+.2,speaker+.8)
+                                    if max(left,right)<0.025:raise AssertionError('Downmix dropped a speaker: '+str(speaker))
+                                    if speaker in (0,4) and left<right*10 or speaker in (1,5) and right<left*10 or speaker in (2,3) and not 0.8<left/right<1.25:raise AssertionError('Downmix routed a speaker incorrectly: '+str(speaker))
+                                    levels.append([round(left,5),round(right,5)])
+                                loud=sound[7*48000*2:]
+                                if not 10000<max(map(abs,loud),default=0)<32000:raise AssertionError('Correlated downmix clipped or lost gain')
+                                record['downmix_51_speakers_and_normalized_gain']=levels
+                if args.ffprobe:
+                    probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-show_format','-of','json',str(path)],timeout=30))
+                    video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
+                    audio=next((s for s in probe['streams'] if s.get('codec_type')=='audio'),{})
+                    if video.get('codec_name')!='h264' or int(video.get('nb_read_packets',0))<100 or audio.get('codec_name')!='aac' or int(audio.get('nb_read_packets',0))<300:
+                        raise AssertionError('Independent download codec/packet checks failed')
+                    if index in (9,10) and (int(audio.get('sample_rate',0))!=48000 or audio.get('channels')!=2):raise AssertionError('Normalized AAC has the wrong sample rate/channel count')
+                    record.update(video_packets=int(video['nb_read_packets']),aac_packets=int(audio['nb_read_packets']))
+                    (args.output/f'ffprobe-{index}.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
+                    if args.ffmpeg and index>=6 and index!=8:
+                        from legacy_download_timing import check_audio_presentation
+                        audio_source=original
+                        if index==11:
+                            fixture_root=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats'
+                            # Decode the actual DASH audio initialization and
+                            # clusters independently. Its declared 8 s period
+                            # contains a short source gap; the original WebM
+                            # before DASH packaging is a different reference.
+                            audio_source=args.output/'source-dash-period.webm'
+                            audio_source.write_bytes((fixture_root/'prime-init-1.m4s').read_bytes()+b''.join((fixture_root/f'prime-chunk-1-{part}.m4s').read_bytes() for part in range(1,5)))
+                        record['aac_presentation']=check_audio_presentation(path,audio_source,args.ffmpeg,args.ffprobe,repetitions=2 if index==11 else 1,gap=index==12)
+                artifacts.append(record)
+            report['download_artifacts']=artifacts
+        if args.recording and not args.package.endswith('deat.legacy.preview'):
+            payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-recording.b64',timeout=30))
+            if not payload.startswith(bytes.fromhex('1a45dfa3')):raise AssertionError('Recording artifact was not Matroska')
+            (args.output/'synthetic-recording.mkv').write_bytes(payload)
+            report['recording_artifact']='synthetic-recording.mkv; native H.264/decoded PCM, API17 extractor and local player verified before deletion'
+            if args.ffprobe:
+                probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-show_format','-of','json',str(args.output/'synthetic-recording.mkv')],timeout=30))
+                video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
+                audio=next((s for s in probe['streams'] if s.get('codec_type')=='audio'),{})
+                if video.get('codec_name')!='h264' or int(video.get('nb_read_packets',0))<50 or audio.get('codec_name')!='pcm_s16le' or int(audio.get('nb_read_packets',0))<1:
+                    raise AssertionError('Independent recording packet/codec checks failed')
+                (args.output/'ffprobe.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
+                report['independent_recording_check']={'video_packets':int(video['nb_read_packets']),'pcm_packets':int(audio['nb_read_packets'])}
+        if args.native_url:
+            if 'INSTRUMENTATION_RESULT: native_fcup=reverse_upgrade_playlists_local_hls_playback_and_controls' not in result:
+                raise AssertionError('Test APK did not verify FCUP reverse-channel playback')
+            report['native_fcup']='PTTH upgrade, real reverse /event requests, binary /action master/media playlists, local native HLS proxy, remote segments and playback controls'
         if args.url_service:
+            if 'INSTRUMENTATION_RESULT: native_output=same_receiver_rtsp_surface_gate_and_native_audio_takeover' not in result:
+                raise AssertionError('Test APK did not verify persistent native transport and output arbitration')
+            report['native_output']='Same native receiver and RTSP listener during URL, retired native decoder/Surface before URL output, native ALAC takeover after URL close'
+            if 'INSTRUMENTATION_RESULT: subtitles=content_import_srt_vtt_pause_caption_disable_and_bounds' not in result:
+                raise AssertionError('Test APK did not run external subtitle checks')
+            report['external_subtitles']='ContentResolver SRT/BOM VTT import, actual text cues and native caption UI, paused position, disable, invalid UTF8/format/size/remote rejection, picker lifetime without background playback'
             if 'INSTRUMENTATION_RESULT: post_url_audio=native_decode_focus_after_url_shutdown_in_same_process' not in result:
                 raise AssertionError('Test APK did not verify native audio after URL cleanup')
             report['post_url_audio']='native ALAC decode, muted AudioTrack and focus recovery after URL playback in the same service/process'
@@ -151,7 +320,42 @@ def main():
                 raise AssertionError('Test APK did not run mirror transition checks')
             report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, duck/transient/permanent audio focus without music commands, explicit Play focus recovery, fresh audio metadata, same native receiver; not decoded video or a real sender'
             report['system_media']='platform client metadata/artwork ownership, audio focus duck/loss/gain, real background media keys, launcher return, unregister and no RTSP resurrection after stop'
-        report['status']='pass';report['fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
+        report['status']='pass';report['download_lifecycle_or_restricted_gate' if args.download else 'recording_lifecycle_or_restricted_gate' if args.recording else 'native_http_url_callbacks_playback_lifecycle' if args.native_url else 'dlna_soap_photos_lifecycle' if args.dlna else 'fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
+        if args.approval:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['connection_approval_transports_ui_lifecycle']='pass'
+        if args.pin:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['pin_srp_crypto_ui_lifecycle']='pass'
+        if args.castv2:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['castv2_tls_transport_playback_approval_identity']='pass'
+            report['independent_tls']=json.loads((args.output/'host-tls.json').read_text(encoding='utf-8'))
+        if args.relay_app:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['relay_ui_service_av_output_capture_and_arbitration']='pass'
+            capture_native_view('legacy-relay-tools.b64','relay-tools.png')
+            capture_native_view('legacy-relay-connect.b64','relay-connect.png')
+            report['relay_ui_renders']=['relay-tools.png','relay-connect.png']
+        if args.relay:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['relay_shared_transport_and_native_cipher']='pass'
+            report['independent_relay']=json.loads((args.output/'host-relay.json').read_text(encoding='utf-8'))
+        if args.https:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            if not args.package.endswith('deat.legacy.preview'):
+                payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-https-export.b64',timeout=30).strip(),validate=True)
+                if len(payload)>16*1024*1024 or payload[4:8]!=b'ftyp':raise AssertionError('Invalid HTTPS MP4 export')
+                exported=args.output/'public-https-export.mp4';exported.write_bytes(payload)
+                probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-of','json',str(exported)],timeout=30))
+                video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
+                audio=next((s for s in probe['streams'] if s.get('codec_type')=='audio'),{})
+                if video.get('codec_name')!='h264' or int(video.get('nb_read_packets',0))<100 or audio.get('codec_name')!='aac' or int(audio.get('nb_read_packets',0))<300:
+                    raise AssertionError('Independent HTTPS export track/packet validation failed')
+                subprocess.run([str(args.ffmpeg),'-hide_banner','-loglevel','error','-xerror','-i',str(exported),'-map','0:v:0','-map','0:a:0','-f','null','-'],check=True,timeout=60,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+                (args.output/'https-export-ffprobe.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
+                report['https_export_independent_avc_aac_decode']='pass'
+            report['public_https_media_and_certificate_policy']='pass'
     except Exception as error:
         report['status']='failed';report['error']=str(error)
         try:
@@ -161,6 +365,33 @@ def main():
         raise
     finally:
         try:
+            if args.relay_app and args.package in installed:
+                try:report['relay_app_diagnostic']=json.loads(adb('shell','run-as',args.package,'cat','files/legacy-relay-app.json',timeout=30))
+                except Exception as diagnostic:report['relay_app_diagnostic_error']=type(diagnostic).__name__
+            if args.https and args.package in installed:
+                try:
+                    report['https_probes']=json.loads(adb('shell','run-as',args.package,'cat','files/legacy-https.json',timeout=30))
+                except Exception as diagnostic:
+                    report['https_probe_error']=type(diagnostic).__name__
+                    if report['status']=='pass':raise AssertionError('HTTPS evidence was not available') from diagnostic
+            if args.download and not args.package.endswith('deat.legacy.preview') and args.package in installed and report.get('status')!='pass':
+                try:
+                    available=adb('shell','run-as',args.package,'ls','files',timeout=30).split()
+                    artifacts=[]
+                    for index in range(15):
+                        if f'legacy-download-{index}.b64' not in available:continue
+                        payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
+                        if payload[4:8]==b'ftyp':
+                            path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload);artifacts.append(path.name)
+                    report['diagnostic_downloads']=artifacts
+                except Exception as diagnostic:report['diagnostic_download_error']=type(diagnostic).__name__
+            if args.recording and not args.package.endswith('deat.legacy.preview') and args.package in installed and not (args.output/'synthetic-recording.mkv').exists():
+                try:
+                    payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-recording.b64',timeout=30))
+                    if payload.startswith(bytes.fromhex('1a45dfa3')):
+                        (args.output/'synthetic-recording.mkv').write_bytes(payload)
+                        report['diagnostic_recording']='synthetic-recording.mkv'
+                except Exception as diagnostic:report['diagnostic_recording_error']=type(diagnostic).__name__
             if args.metadata and args.package in installed and 'ui_render' not in report:
                 try:capture_native_view()
                 except Exception as error:report['ui_render_error']=type(error).__name__

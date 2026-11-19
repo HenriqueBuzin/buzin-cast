@@ -6,6 +6,19 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class LegacyUrlRequestTest {
+    @Test public void onlyTrustedRecordingFactoryAllowsLocalMediaAndPreservesSeeks() throws Exception {
+        java.io.File file=java.io.File.createTempFile("recording-",".mkv");
+        try {
+            LegacyUrlRequest recording=LegacyUrlRequest.recording(file);
+            assertTrue(recording.localRecording);assertEquals("video/x-matroska",recording.mime);
+            assertEquals(recording.location,recording.withPosition(1234).location);
+            assertTrue(recording.withPosition(1234).localRecording);assertEquals(1234,recording.withPosition(1234).startMs);
+            assertThrows(IllegalArgumentException.class,()->new LegacyUrlRequest(recording.location,0,null));
+            assertThrows(IllegalArgumentException.class,()->recording.withPosition(-1));
+            assertFalse(new LegacyUrlRequest("http://example.test/video",0,null).withPosition(1).localRecording);
+        }finally {file.delete();}
+        assertThrows(java.io.IOException.class,()->LegacyUrlRequest.recording(file));
+    }
     @Test public void copiesHeadersAndPreservesMediaPosition() {
         Map<String,String> headers=new HashMap<>();headers.put("Authorization","Bearer fixture");
         LegacyUrlRequest request=new LegacyUrlRequest("https://example.test/video.mp4?q=1",1234,headers);

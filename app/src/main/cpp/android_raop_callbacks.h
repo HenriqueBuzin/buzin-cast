@@ -53,7 +53,9 @@ typedef struct {
     AudioEngine *audio_engine;
 } android_callback_ctx_t;
 
-void android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject callback_obj);
+/* Initialize a fresh context. Success returns 1 and requires one destroy call.
+   Failure returns 0 after cleanup and preserves any pending Java exception. */
+int android_callbacks_init(android_callback_ctx_t *ctx, JNIEnv *env, jobject callback_obj);
 void android_callbacks_destroy(android_callback_ctx_t *ctx, JNIEnv *env);
 void android_callbacks_fill(raop_callbacks_t *cbs, android_callback_ctx_t *ctx);
 void android_callbacks_update_playback_info(android_callback_ctx_t *ctx, double position,

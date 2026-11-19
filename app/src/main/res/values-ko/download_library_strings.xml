@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">다운로드한 동영상</string>
+    <string name="tools_downloads_empty">다운로드한 동영상이 여기에 표시됩니다.</string>
+    <string name="tools_delete_download_confirm">다운로드한 동영상을 삭제할까요?</string>
+    <string name="download_cancelled">다운로드가 취소되었습니다</string>
+</resources>

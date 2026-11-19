@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">ダウンロードした動画</string>
+    <string name="tools_downloads_empty">ダウンロードした動画がここに表示されます。</string>
+    <string name="tools_delete_download_confirm">ダウンロードした動画を削除しますか？</string>
+    <string name="download_cancelled">ダウンロードをキャンセルしました</string>
+</resources>

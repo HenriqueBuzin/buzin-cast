@@ -54,7 +54,21 @@ public final class LegacyActivity extends Activity {
     private LegacyUrlPlayer.State urlState;
     private LinearLayout urlControls;
     private TextView urlTime;
+    private TextView urlCaption;
+    private long subtitleRequest;
+    private static final int SUBTITLE_FILE=6509;
     private Button urlToggle,urlRewind,urlForward,urlSpeed;
+    private Button captureToggle;
+    private TextView captureStatus;
+    private LinearLayout captureLibrary;
+    private String captureFilesKey;
+    private LegacyMirrorCapture.State captureSnapshot;
+    private TextView relayStatus,relayDetails,relayAddress;
+    private Button relayListen,relayConnect,relayStop;
+    private Button urlDownload,downloadCancel;
+    private TextView downloadStatus;
+    private LinearLayout downloadLibrary;
+    private String downloadFilesKey;
     private LegacyMedia.State mediaState=LegacyMedia.inactive();
     private LinearLayout mediaPanel,connectionSteps;
     private TextView trackTitle,trackArtist,trackAlbum,trackTime;
@@ -87,6 +101,10 @@ public final class LegacyActivity extends Activity {
     private LegacyCalibrationView calibration;
     private final ArrayDeque<String> events=new ArrayDeque<>();
     private final ArrayDeque<Modal> modals=new ArrayDeque<>();
+    private Modal approvalModal;
+    private long approvalId;
+    private Modal pinModal;
+    private String displayedPin;
     private Locale displayLocale;
     private String destination="overview", shownName, lastFocus="nav-overview";
     private boolean foreground,desired,running,busy,video,networkWaiting,audioSuppressed;
@@ -100,6 +118,7 @@ public final class LegacyActivity extends Activity {
         displayLocale=getResources().getConfiguration().locale;
         prefs=new LegacyPreferences(this); shownName=prefs.name();
         desired=state==null?prefs.autoStart():state.getBoolean("desired");
+        subtitleRequest=state==null?0:state.getLong("subtitle_request");
         root=new FrameLayout(this);root.setBackgroundColor(BG);
         texture=new TextureView(this);root.addView(texture,new FrameLayout.LayoutParams(-1,-1));
         texture.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
@@ -121,15 +140,17 @@ public final class LegacyActivity extends Activity {
         super.onResume();foreground=true;LegacyReceiverService.dispatch(this,LegacyReceiverService.OPEN);startIfNeeded();
     }
     @Override protected void onStop() {
-        foreground=false;root.removeCallbacks(mediaTick);if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
+        foreground=false;if(approvalModal!=null)approvalModal.dismiss();if(pinModal!=null)pinModal.dismiss();root.removeCallbacks(mediaTick);if(service!=null)service.detach(serviceOwner);video=false;updateAwake();super.onStop();
     }
     @Override protected void onDestroy() {
+        if(isFinishing() && service!=null)service.endSubtitlePicker();
         if(service!=null)service.detach(serviceOwner);
         if(bound) {unbindService(connection);bound=false;}
         service=null;super.onDestroy();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putBoolean("desired",desired);
+        state.putLong("subtitle_request",subtitleRequest);
         if(calibration!=null)state.putInt("calibration_margin",calibration.margin());
         super.onSaveInstanceState(state);
     }
@@ -186,14 +207,52 @@ public final class LegacyActivity extends Activity {
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
             video=state.video && !videoDismissed;videoWidth=state.width;videoHeight=state.height;
-            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();fitVideo();updateAwake();
+            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();refreshDownloadUi();refreshRelayUi();fitVideo();updateAwake();
+            refreshApproval(state.approval);
+            if(state.approval==null || state.pin==null)refreshPin(state.pin);
         });
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
+        service.endSubtitlePicker();
     }
     private void toggleReceiver() {
         if(busy && !desired)return;
         desired=!desired;busy=true;refreshReceiverUi();
         LegacyReceiverService.dispatch(this,desired?LegacyReceiverService.START:LegacyReceiverService.STOP);
+    }
+    private void refreshApproval(io.github.jqssun.airplay.media.ConnectionApproval.Request request) {
+        if(request!=null && approvalModal!=null && approvalId==request.getId())return;
+        if(approvalModal!=null) {
+            Modal previous=approvalModal;approvalModal=null;previous.onDismiss=null;previous.dismiss();
+        }
+        if(request==null || !foreground)return;
+        approvalId=request.getId();Modal modal=dialog();approvalModal=modal;
+        LinearLayout body=dialogBody(modal,-2);
+        addSpaced(body,text(this,getString(R.string.connection_approval_title),22,WHITE,true),-2);
+        addSpaced(body,text(this,request.getProtocol()+" · "+request.getPeer(),18,WHITE,false),-2);
+        addSpaced(body,text(this,getString(R.string.connection_approval_help),14,MUTED,false),-2);
+        Button allow=button(this,R.string.btn_allow,false,()->answerApproval(modal,request.getId(),true));allow.setTag("approval-allow");addSpaced(body,allow,-2);
+        Button decline=button(this,R.string.connection_decline,false,()->answerApproval(modal,request.getId(),false));decline.setTag("approval-decline");addSpaced(body,decline,-2);
+        modal.onDismiss=()-> {
+            if(approvalModal!=modal)return;approvalModal=null;
+            if(service!=null)service.answerApproval(request.getId(),false);
+        };
+        show(modal);decline.requestFocus();
+    }
+    private void refreshPin(String code) {
+        if(code!=null && pinModal!=null && code.equals(displayedPin))return;
+        if(pinModal!=null) {Modal previous=pinModal;pinModal=null;previous.onDismiss=null;previous.dismiss();}
+        if(code==null || !foreground)return;
+        displayedPin=code;Modal modal=dialog();pinModal=modal;LinearLayout body=dialogBody(modal,-2);
+        addSpaced(body,text(this,getString(R.string.dialog_pin_title),22,WHITE,true),-2);
+        TextView digits=text(this,code,48,WHITE,true);digits.setTag("pin-code");digits.setGravity(Gravity.CENTER);addSpaced(body,digits,-2);
+        Button close=button(this,R.string.btn_ok,true,modal::dismiss);close.setTag("pin-close");addSpaced(body,close,-2);
+        modal.onDismiss=()-> {if(pinModal==modal) {pinModal=null;if(service!=null)service.dismissPin();}};
+        show(modal);close.requestFocus();
+    }
+    private void answerApproval(Modal modal,long id,boolean allow) {
+        if(approvalModal!=modal)return;
+        approvalModal=null;modal.onDismiss=null;modal.dismiss();
+        if(service!=null)service.answerApproval(id,allow);
     }
     private void restart() {
         shownName=prefs.name();render();LegacyReceiverService.dispatch(this,LegacyReceiverService.RESTART);
@@ -213,27 +272,68 @@ public final class LegacyActivity extends Activity {
             urlToggle=button(this,R.string.cd_play_pause,false,()->senderCommand(senderPlaying()?LegacyDacp.Command.PAUSE:LegacyDacp.Command.PLAY));urlToggle.setTag("url-toggle");
             urlForward=button(this,R.string.cd_fast_forward,false,()->senderCommand(LegacyDacp.Command.FAST_FORWARD));urlForward.setTag("url-forward");
             urlSpeed=button(this,R.string.select_playback_speed,false,this::urlSpeedDialog);urlSpeed.setTag("url-speed");
+            Button subtitles=button(this,R.string.subtitle_external,false,this::subtitleDialog);subtitles.setText("CC");subtitles.setTag("url-subtitles");subtitles.setContentDescription(getString(R.string.subtitle_external));
             Button stop=button(this,R.string.btn_stop,false,()-> {if(service!=null)service.stopUrl();});stop.setTag("url-stop");
-            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,urlSpeed,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            for(Button button:new Button[]{urlRewind,urlToggle,urlForward,urlSpeed,subtitles,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            if(BuildConfig.VIDEO_DOWNLOAD_ENABLED) {
+                urlDownload=button(this,R.string.cd_download,false,()-> {
+                    if(service==null)return;
+                    if(service.downloads().busy())service.downloads().cancel();else service.download();refreshUrlUi();
+                });urlDownload.setTag("url-download");buttons.addView(urlDownload,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            }
             FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);params.setMargins(dp(this,24),0,dp(this,24),dp(this,16));root.addView(urlControls,params);
             urlControls.setVisibility(View.GONE);
+            urlCaption=text(this,"",22,WHITE,true);urlCaption.setTag("url-caption");urlCaption.setGravity(Gravity.CENTER);
+            urlCaption.setPadding(dp(this,12),dp(this,8),dp(this,12),dp(this,8));urlCaption.setBackground(shape(this,0xbf000000,0,0,8));
+            FrameLayout.LayoutParams captionParams=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);captionParams.setMargins(dp(this,48),0,dp(this,48),dp(this,124));root.addView(urlCaption,captionParams);
+            urlCaption.setVisibility(View.GONE);
         }
         boolean wasVisible=urlControls.getVisibility()==View.VISIBLE;
         if(urlState==null) {
+            urlCaption.setText("");urlCaption.setVisibility(View.GONE);
             if(urlControls.hasFocus()) {View nav=shell.findViewWithTag("nav-overview");if(nav!=null)nav.requestFocus();}
             urlControls.setVisibility(View.GONE);return;
         }
         urlControls.setVisibility(View.VISIBLE);
+        urlCaption.setText(urlState.caption);urlCaption.setVisibility(urlState.caption.isEmpty()?View.GONE:View.VISIBLE);
+        urlControls.findViewWithTag("url-subtitles").setSelected(urlState.externalSubtitle);
         urlRewind.setText(R.string.cd_rewind);urlForward.setText(R.string.cd_fast_forward);
         ((Button)urlControls.findViewWithTag("url-stop")).setText(R.string.btn_stop);
         urlTime.setText("\u202a"+clock(urlState.positionMs)+" / "+clock(urlState.durationMs)+"\u202c");
         urlToggle.setText(senderPlaying()?"Ⅱ":"▶");urlToggle.setContentDescription(getString(R.string.cd_play_pause));
         urlSpeed.setText(String.format(Locale.getDefault(),"%.2f×",urlState.speed));urlSpeed.setContentDescription(getString(R.string.select_playback_speed));
         boolean ready=urlState.phase==LegacyUrlPlayer.Phase.READY;
+        if(urlDownload!=null && service!=null) {
+            boolean downloading=service.downloads().busy();io.buzincast.fireos3probe.LegacyUrlDownload.State progress=service.downloads().state();
+            urlDownload.setEnabled(downloading || ready && service.canDownload());
+            urlDownload.setText(downloading?progress!=null && progress.progress>=0?progress.progress+"%":"■":"↓");
+            urlDownload.setContentDescription(getString(downloading?R.string.cd_cancel_download:R.string.cd_download));
+        }
         urlToggle.setEnabled(ready);urlRewind.setEnabled(ready && urlState.durationMs>0);urlForward.setEnabled(ready && urlState.durationMs>0);
         if(!wasVisible) {
             if(ready)urlToggle.requestFocus();else urlControls.findViewWithTag("url-stop").requestFocus();
         }
+    }
+    private void subtitleDialog() {
+        if(service==null || urlState==null)return;
+        Modal modal=dialog();LinearLayout outer=dialogBody(modal,Math.min(dp(this,400),Math.round(getResources().getDisplayMetrics().heightPixels*.85f)));
+        addSpaced(outer,text(this,getString(R.string.subtitle_external),20,WHITE,true),-2);
+        addSpaced(outer,text(this,getString(R.string.subtitle_picker_help),14,MUTED,false),-2);
+        Button choose=button(this,R.string.subtitle_choose_file,false,()-> {
+            if(service==null)return;subtitleRequest=service.subtitleSession();
+            service.beginSubtitlePicker(subtitleRequest);
+            // ACTION_OPEN_DOCUMENT starts at API19. GET_CONTENT keeps the same
+            // local-provider workflow available on the original API17 Stick.
+            try {startActivityForResult(new Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),SUBTITLE_FILE);modal.dismiss();}
+            catch(ActivityNotFoundException unavailable) {subtitleRequest=0;service.endSubtitlePicker();Toast.makeText(this,R.string.subtitle_picker_unavailable,Toast.LENGTH_LONG).show();}
+        });choose.setTag("subtitle-choose");addSpaced(outer,choose,48);
+        Button disable=button(this,R.string.subtitle_disable,false,()-> {if(service!=null)service.subtitle(null,service.subtitleSession());modal.dismiss();});disable.setTag("subtitle-disable");addSpaced(outer,disable,48);
+        outer.addView(button(this,R.string.buzin_close,true,modal::dismiss));show(modal);choose.requestFocus();
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request==SUBTITLE_FILE && result==RESULT_OK && data!=null && data.getData()!=null && service!=null)service.subtitle(data.getData(),subtitleRequest);
+        if(request==SUBTITLE_FILE)subtitleRequest=0;
     }
     private void urlSpeedDialog() {
         if(service==null || urlState==null)return;
@@ -306,6 +406,9 @@ public final class LegacyActivity extends Activity {
     }
     private void render() {
         if(pane==null)return;
+        captureToggle=null;captureStatus=null;captureLibrary=null;captureFilesKey=null;captureSnapshot=null;
+        relayStatus=relayDetails=relayAddress=null;relayListen=relayConnect=relayStop=null;
+        downloadStatus=null;downloadLibrary=null;downloadCancel=null;downloadFilesKey=null;
         receiverStatus=receiverLabel=diagnosticView=null;receiverToggle=null;
         senderControls=null;
         root.removeCallbacks(mediaTick);mediaPanel=connectionSteps=null;shownArtwork=null;
@@ -409,6 +512,10 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_network_recovery,R.string.setting_network_recovery_desc,"network_recovery",prefs.networkRecovery());
         toggle(body,R.string.setting_keep_screen_on,R.string.setting_keep_screen_on_desc,"keep_screen_on",prefs.keepScreenOn());
         toggle(body,R.string.setting_fcast,R.string.setting_fcast_desc,"fcast_enabled",prefs.fcast());
+        toggle(body,R.string.setting_dlna,R.string.setting_dlna_desc,"dlna_enabled",prefs.dlna());
+        toggle(body,R.string.setting_castv2,R.string.setting_castv2_desc,"castv2_enabled",prefs.castV2());
+        toggle(body,R.string.setting_approve_connections,R.string.setting_approve_connections_desc,"approve_connections",prefs.approveConnections());
+        toggle(body,R.string.setting_require_pin,R.string.setting_require_pin_desc,"require_pin",prefs.requirePin());
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
     }
     private void toggle(LinearLayout body,int title,int detail,String key,boolean value) {
@@ -419,6 +526,36 @@ public final class LegacyActivity extends Activity {
     }
     private void tools() {
         LinearLayout body=page(R.string.tab_tools);
+        addSpaced(body,text(this,getString(R.string.tools_other_tv),20,WHITE,true),-2);
+        addSpaced(body,text(this,getString(R.string.tools_relay_help),13,MUTED,false),-2);
+        relayAddress=text(this,"",13,MUTED,false);addSpaced(body,relayAddress,-2);
+        relayDetails=text(this,"",17,WHITE,true);relayDetails.setTag("relay-details");addSpaced(body,relayDetails,-2);
+        relayStatus=text(this,"",13,MUTED,false);relayStatus.setTag("relay-status");addSpaced(body,relayStatus,-2);
+        relayListen=button(this,R.string.tools_relay_receive,false,()-> {if(service!=null)service.listenRelay();});relayListen.setTag("relay-listen");addSpaced(body,relayListen,-2);
+        relayConnect=button(this,R.string.tools_relay_connect,false,this::relayConnectDialog);relayConnect.setTag("relay-connect");addSpaced(body,relayConnect,-2);
+        relayStop=button(this,R.string.tools_relay_stop,false,()-> {if(service!=null)service.stopRelay();});relayStop.setTag("relay-stop");addSpaced(body,relayStop,-2);
+        refreshRelayUi();
+        if(BuildConfig.RECORDING_ENABLED) {
+            addSpaced(body,text(this,getString(R.string.tools_record_title),20,WHITE,true),-2);
+            addSpaced(body,text(this,getString(R.string.tools_record_help),13,MUTED,false),-2);
+            captureToggle=button(this,R.string.tools_record_prepare,false,()-> {
+                if(service==null)return;
+                if(service.capture().active())service.capture().stop();else service.capture().start();
+                refreshCaptureUi();
+            });captureToggle.setTag("capture-toggle");addSpaced(body,captureToggle,-2);
+            captureStatus=text(this,"",13,MUTED,false);captureStatus.setTag("capture-status");addSpaced(body,captureStatus,-2);
+            addSpaced(body,text(this,getString(R.string.tools_recordings),18,WHITE,true),-2);
+            Button refresh=button(this,R.string.tools_refresh,false,()-> {captureFilesKey=null;refreshCaptureUi();});refresh.setTag("capture-refresh");addSpaced(body,refresh,-2);
+            captureLibrary=column(this);addSpaced(body,captureLibrary,-2);refreshCaptureUi();
+        }
+        if(BuildConfig.VIDEO_DOWNLOAD_ENABLED) {
+            addSpaced(body,text(this,getString(R.string.tools_downloads),18,WHITE,true),-2);
+            downloadStatus=text(this,"",13,MUTED,false);downloadStatus.setTag("download-status");addSpaced(body,downloadStatus,-2);
+            downloadCancel=button(this,R.string.cd_cancel_download,false,()-> {if(service!=null)service.downloads().cancel();});
+            downloadCancel.setTag("download-cancel");addSpaced(body,downloadCancel,-2);
+            Button refresh=button(this,R.string.tools_refresh,false,()-> {downloadFilesKey=null;refreshDownloadUi();});refresh.setTag("download-refresh");addSpaced(body,refresh,-2);
+            downloadLibrary=column(this);addSpaced(body,downloadLibrary,-2);refreshDownloadUi();
+        }
         LinearLayout calibrate=row(this,getString(R.string.tools_calibrate),getString(R.string.setting_tv_margin_desc),()->calibrate(prefs.margin()));
         calibrate.setTag("calibration");addSpaced(body,calibrate,-2);
         addSpaced(body,row(this,getString(R.string.tools_connection_diagnostics),null,()->diagnostics(true)),-2);
@@ -426,6 +563,120 @@ public final class LegacyActivity extends Activity {
             try {startActivity(new Intent().setComponent(new ComponentName("com.amazon.cast.sink","com.amazon.cast.sink.DisplayMirroringSinkActivity")));}
             catch(ActivityNotFoundException unavailable){Toast.makeText(this,R.string.tools_native_unavailable,Toast.LENGTH_LONG).show();}
         }),-2);
+    }
+    private void refreshRelayUi() {
+        if(relayStatus==null || service==null)return;
+        io.github.jqssun.airplay.media.MirrorRelay.State state=service.relay().state();
+        relayAddress.setText(receiverState==null || receiverState.address==null?"":getString(R.string.tools_this_tv_ip,receiverState.address));
+        relayDetails.setText(state.getListening()?getString(R.string.tools_relay_details,state.getPort(),state.getCode()):"");
+        relayStatus.setText(service.relay().message());relayListen.setEnabled(service.canListenRelay());relayConnect.setEnabled(service.canSendRelay());
+        relayStop.setEnabled(service.relay().engaged());
+    }
+    private void relayConnectDialog() {
+        Modal modal=dialog();LinearLayout outer=dialogBody(modal,Math.min(dp(this,500),Math.round(getResources().getDisplayMetrics().heightPixels*.9f)));
+        addSpaced(outer,text(this,getString(R.string.tools_relay_connect),20,WHITE,true),-2);
+        ScrollView scroll=new ScrollView(this);LinearLayout fields=column(this);scroll.addView(fields);outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        addSpaced(fields,text(this,getString(R.string.tools_relay_input_help),13,MUTED,false),-2);
+        EditText host=relayInput(fields,R.string.tools_other_tv_ip,InputType.TYPE_CLASS_PHONE,"relay-host");
+        EditText port=relayInput(fields,R.string.tools_port,InputType.TYPE_CLASS_NUMBER,"relay-port");
+        EditText code=relayInput(fields,R.string.tools_pairing_code,InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS,"relay-code");
+        Button connect=button(this,R.string.tools_connect,true,()-> {
+            if(service==null)return;
+            String address=host.getText().toString().trim(),pairing=io.buzincast.media.SecureMirrorChannel.Companion.normalizeCode(code.getText().toString());
+            if(address.isEmpty() || address.length()>253) {host.setError(getString(R.string.error_label));return;}
+            int number;try {number=Integer.parseInt(port.getText().toString());if(number<1 || number>65535)throw new NumberFormatException();}
+            catch(NumberFormatException invalid) {port.setError(getString(R.string.error_label));return;}
+            if(!pairing.matches("[A-HJ-NP-Z2-9]{12}")) {code.setError(getString(R.string.error_label));return;}
+            try {service.connectRelay(address,number,pairing);modal.dismiss();}
+            catch(IllegalArgumentException | IllegalStateException unavailable) {host.setError(getString(R.string.error_label));}
+        });connect.setTag("relay-submit");addSpaced(outer,connect,48);
+        Button cancel=button(this,R.string.tv_edit_cancel,false,modal::dismiss);cancel.setTag("relay-cancel");addSpaced(outer,cancel,48);
+        show(modal);
+        modal.layer.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)-> {
+            int height=Math.min(dp(this,500),Math.round((b-t)*.9f));
+            FrameLayout.LayoutParams size=(FrameLayout.LayoutParams)modal.body.getLayoutParams();
+            if(height>0 && size.height!=height) {size.height=height;modal.body.setLayoutParams(size);}
+        });
+        host.requestFocus();modal.keyboard=true;getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+    }
+    private EditText relayInput(LinearLayout parent,int label,int type,String tag) {
+        addSpaced(parent,text(this,getString(label),13,MUTED,false),-2);EditText input=new EditText(this);
+        input.setSingleLine();input.setTextColor(WHITE);input.setTextSize(18);input.setInputType(type);input.setTag(tag);
+        LegacyUi.focus(input,false);input.setPadding(dp(this,12),dp(this,6),dp(this,12),dp(this,6));input.setContentDescription(getString(label));
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(label==R.string.tools_port?5:label==R.string.tools_pairing_code?32:253)});
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);addSpaced(parent,input,48);return input;
+    }
+    private void refreshCaptureUi() {
+        if(captureToggle==null || service==null)return;
+        LegacyMirrorCapture capture=service.capture();LegacyMirrorCapture.State state=capture.state();
+        if(state==captureSnapshot && captureFilesKey!=null)return;captureSnapshot=state;
+        captureToggle.setEnabled(!state.finishing);
+        captureToggle.setText(state.armed?R.string.tools_record_stop:R.string.tools_record_prepare);
+        captureStatus.setText(state.message);
+        java.io.File[] files=capture.files();StringBuilder key=new StringBuilder().append(capture.busy());
+        for(java.io.File file:files)key.append('|').append(file.getName()).append(':').append(file.length());
+        if(key.toString().equals(captureFilesKey))return;captureFilesKey=key.toString();captureLibrary.removeAllViews();
+        if(files.length==0)captureLibrary.addView(text(this,getString(R.string.tools_recordings_empty),13,MUTED,false));
+        for(java.io.File file:files) {
+            String name=file.getName();captureLibrary.addView(text(this,name+" · "+file.length()/1024+" KB",13,WHITE,false));
+            LinearLayout actions=new LinearLayout(this);captureLibrary.addView(actions);
+            Button play=button(this,R.string.tools_play,false,()->recordingAction(()->service.playRecording(name)));
+            Button share=button(this,R.string.btn_export,false,()->recordingAction(()-> {
+                Uri uri=androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".recordings",service.capture().file(name));
+                shareLocal(uri,name,"video/x-matroska");
+            }));
+            Button delete=button(this,R.string.tools_delete,false,()->deleteRecording(name));
+            play.setTag("capture-play:"+name);share.setTag("capture-share:"+name);delete.setTag("capture-delete:"+name);
+            for(Button action:new Button[]{play,share,delete}) {action.setEnabled(!capture.busy());actions.addView(action,new LinearLayout.LayoutParams(0,dp(this,48),1));}
+        }
+    }
+    private interface RecordingAction {void run() throws Exception;}
+    private void shareLocal(Uri uri,String name,String mime) {
+        Intent send=new Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM,uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        send.setClipData(android.content.ClipData.newRawUri(name,uri));startActivity(Intent.createChooser(send,getString(R.string.btn_export)));
+    }
+    private void refreshDownloadUi() {
+        if(downloadStatus==null || service==null)return;
+        LegacyDownloads downloads=service.downloads();downloadStatus.setText(downloads.message());
+        downloadCancel.setVisibility(downloads.busy()?View.VISIBLE:View.GONE);
+        io.buzincast.fireos3probe.LegacyUrlDownload.State state=downloads.state();
+        String key=downloads.busy()+"|"+(state==null?"":state.phase)+"|"+(state==null || state.file==null?"":state.file.getName());
+        if(key.equals(downloadFilesKey))return;downloadFilesKey=key;downloadLibrary.removeAllViews();
+        java.io.File[] files=downloads.files();
+        if(files.length==0)downloadLibrary.addView(text(this,getString(R.string.tools_downloads_empty),13,MUTED,false));
+        for(java.io.File file:files) {
+            String name=file.getName();downloadLibrary.addView(text(this,name+" · "+file.length()/1024+" KB",13,WHITE,false));
+            LinearLayout actions=new LinearLayout(this);downloadLibrary.addView(actions);
+            Button play=button(this,R.string.tools_play,false,()->recordingAction(()->service.playDownload(name)));
+            Button share=button(this,R.string.btn_export,false,()->recordingAction(()->shareLocal(
+                androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".recordings",downloads.file(name)),name,"video/mp4")));
+            Button delete=button(this,R.string.tools_delete,false,()->deleteDownload(name));
+            play.setTag("download-play:"+name);share.setTag("download-share:"+name);delete.setTag("download-delete:"+name);
+            for(Button action:new Button[]{play,share,delete}) {action.setEnabled(!downloads.busy());actions.addView(action,new LinearLayout.LayoutParams(0,dp(this,48),1));}
+        }
+    }
+    private void deleteDownload(String name) {
+        Modal modal=dialog();LinearLayout body=dialogBody(modal,dp(this,260));
+        addSpaced(body,text(this,getString(R.string.tools_delete_download_confirm),20,WHITE,true),-2);
+        addSpaced(body,text(this,name,13,MUTED,false),-2);
+        Button confirm=button(this,R.string.tools_delete,false,()-> {
+            recordingAction(()->service.downloads().delete(name));modal.dismiss();downloadFilesKey=null;refreshDownloadUi();
+        });confirm.setTag("download-delete-confirm");addSpaced(body,confirm,-2);
+        Button cancel=button(this,android.R.string.cancel,false,modal::dismiss);addSpaced(body,cancel,-2);show(modal);cancel.requestFocus();
+    }
+    private void recordingAction(RecordingAction action) {
+        try {if(service!=null)action.run();}
+        catch(Exception error) {Toast.makeText(this,R.string.error_label,Toast.LENGTH_SHORT).show();}
+    }
+    private void deleteRecording(String name) {
+        Modal modal=dialog();LinearLayout body=dialogBody(modal,dp(this,260));
+        addSpaced(body,text(this,getString(R.string.tools_delete_confirm),20,WHITE,true),-2);
+        addSpaced(body,text(this,name,13,MUTED,false),-2);
+        Button confirm=button(this,R.string.tools_delete,false,()-> {
+            recordingAction(()->service.capture().delete(name));modal.dismiss();refreshCaptureUi();
+        });confirm.setTag("capture-delete-confirm");addSpaced(body,confirm,-2);
+        Button cancel=button(this,android.R.string.cancel,false,modal::dismiss);addSpaced(body,cancel,-2);show(modal);cancel.requestFocus();
     }
     private void calibrate(int margin) {
         if(calibration!=null)return;
@@ -500,6 +751,7 @@ public final class LegacyActivity extends Activity {
     private void show(Modal dialog) {dialog.show();}
     private final class Modal {
         LinearLayout body;FrameLayout layer;View previous;int height;boolean keyboard,dismissed;
+        Runnable onDismiss;
         void show() {
             previous=getCurrentFocus();
             if(!modals.isEmpty())modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -528,6 +780,7 @@ public final class LegacyActivity extends Activity {
             else modals.peekLast().layer.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             if(modals.isEmpty() && urlControls!=null)urlControls.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
             if(previous!=null && previous.isShown())previous.requestFocus();
+            if(onDismiss!=null)onDismiss.run();
         }
     }
     private void message(int title,String value) {

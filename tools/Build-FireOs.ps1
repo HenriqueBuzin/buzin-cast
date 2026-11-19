@@ -20,6 +20,14 @@ if ($PosixBin) {
 $previousPath = $env:PATH
 $previousNdk = $env:ANDROID_NDK_ROOT
 $repo = Split-Path $PSScriptRoot -Parent
+function Assert-PreviewApk([string]$Path) {
+    $previewArchive = [IO.Compression.ZipFile]::OpenRead($Path)
+    try {
+        if (-not $previewArchive.GetEntry('AndroidManifest.xml') -or -not $previewArchive.GetEntry('classes.dex')) {
+            throw "APK is incomplete: $Path"
+        }
+    } finally { $previewArchive.Dispose() }
+}
 try {
     if ($PosixBin) { $env:PATH = $PosixBin + [IO.Path]::PathSeparator + $env:PATH }
     foreach ($utility in @('bash','make','perl','java')) {
@@ -67,13 +75,19 @@ try {
         if ($legacyMetadata.applicationId -ne $expectedId) { throw 'Unexpected legacy APK application ID.' }
         New-Item -ItemType Directory -Path $legacyExport -Force | Out-Null
         $legacyApk = Join-Path $legacyExport 'fireos-legacy-debug.apk'
-        Copy-Item -LiteralPath (Join-Path $legacyBuild 'outputs/apk/debug/fireos-legacy-debug.apk') -Destination $legacyApk
+        $legacyApkSource = Join-Path $legacyBuild 'outputs/apk/debug/fireos-legacy-debug.apk'
+        Assert-PreviewApk $legacyApkSource
+        Copy-Item -LiteralPath $legacyApkSource -Destination $legacyApk
+        if ((Get-FileHash -LiteralPath $legacyApkSource).Hash -ne (Get-FileHash -LiteralPath $legacyApk).Hash) { throw 'Exported APK differs from the build output.' }
         $artifact = [ordered]@{preview=$true;applicationId=$expectedId;versionName=$legacyMetadata.elements[0].versionName;
             versionCode=$legacyMetadata.elements[0].versionCode;builtAtUtc=[DateTime]::UtcNow.ToString('o');
             apk='fireos-legacy-debug.apk';sha256=(Get-FileHash -LiteralPath $legacyApk -Algorithm SHA256).Hash.ToLowerInvariant()}
         $legacyTestApk = Join-Path $legacyExport 'fireos-legacy-debug-androidTest.apk'
         if ($Instrumentation) {
-            Copy-Item -LiteralPath (Join-Path $legacyBuild 'outputs/apk/androidTest/debug/fireos-legacy-debug-androidTest.apk') -Destination $legacyTestApk
+            $legacyTestSource = Join-Path $legacyBuild 'outputs/apk/androidTest/debug/fireos-legacy-debug-androidTest.apk'
+            Assert-PreviewApk $legacyTestSource
+            Copy-Item -LiteralPath $legacyTestSource -Destination $legacyTestApk
+            if ((Get-FileHash -LiteralPath $legacyTestSource).Hash -ne (Get-FileHash -LiteralPath $legacyTestApk).Hash) { throw 'Exported test APK differs from the build output.' }
             $artifact['testApk']='fireos-legacy-debug-androidTest.apk'
             $artifact['testSha256']=(Get-FileHash -LiteralPath $legacyTestApk -Algorithm SHA256).Hash.ToLowerInvariant()
         } elseif (Test-Path -LiteralPath $legacyTestApk -PathType Leaf) {

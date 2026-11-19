@@ -1110,17 +1110,14 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     private fun _setPlaying(playing: Boolean) {
+        // Read the running position before changing the flag: otherwise a pause
+        // returns the last sender report, and repeated play rewinds its anchor.
+        val position = currentPositionMs()
+        _positionMs.value = position
+        _progressBaseMs = position
+        _progressBaseTime = if (playing) SystemClock.elapsedRealtime() else 0L
         _playing.value = playing
         _refreshDacpPlayer()
-        if (playing) {
-            // resume extrapolation from current position
-            _progressBaseMs = _positionMs.value
-            _progressBaseTime = SystemClock.elapsedRealtime()
-        } else {
-            // freeze position
-            _positionMs.value = currentPositionMs()
-            _progressBaseTime = 0
-        }
         _updatePlaybackState()
     }
 

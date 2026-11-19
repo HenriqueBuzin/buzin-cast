@@ -219,7 +219,7 @@ class GestureStateContractTest {
     @Test fun verticalGesturesClampBrightnessAndVolumeAndExpireTheirIndicator() {
         val manager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val original = manager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val intent = Intent(context, DebugTvPreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val intent = Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             ActivityScenario.launch<DebugTvPreviewActivity>(intent).use { activity ->
                 lateinit var gesture: VolumeAndBrightnessGestureState

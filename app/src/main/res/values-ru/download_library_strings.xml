@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Загруженные видео</string>
+    <string name="tools_downloads_empty">Здесь появятся загруженные видео.</string>
+    <string name="tools_delete_download_confirm">Удалить загруженное видео?</string>
+    <string name="download_cancelled">Загрузка отменена</string>
+</resources>

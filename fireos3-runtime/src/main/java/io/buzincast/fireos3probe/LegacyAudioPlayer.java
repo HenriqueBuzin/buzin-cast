@@ -19,6 +19,8 @@ final class LegacyAudioPlayer {
     volatile boolean running, outputActive;
     volatile float focusGain=1;
     private final Runnable outputChanged;
+    interface PcmTap {void decoded(short[] pcm,int offset,int count,long ptsNs);}
+    volatile PcmTap tap;
 
     LegacyAudioPlayer(AudioPacketQueue queue, boolean muted, AudioPlaybackClock clock) {
         this(queue,muted,clock,null);
@@ -79,6 +81,11 @@ final class LegacyAudioPlayer {
                 if (decoder == null || generation != queue.generation()) continue;
                 decoder.read(pcm, 441);
                 long[] timing = decoder.timing();
+                PcmTap sink=tap;
+                if(sink!=null)for(int i=0;i<timing.length;i+=3) {
+                    int start=(int)timing[i]*2,count=(int)timing[i+1]*2;
+                    if(start>=0 && count>0 && start<=pcm.length-count && timing[i+2]>=0)sink.decoded(pcm,start,count,timing[i+2]);
+                }
                 if (firstSignalFrame < 0) {
                     for (int i=0; i<pcm.length; i++) if (pcm[i] != 0) {
                         firstSignalFrame = writtenFrames + i/2; break;

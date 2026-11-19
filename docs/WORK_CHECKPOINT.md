@@ -1,4 +1,785 @@
-# Retomada — 18 de novembro de 2026
+# Retomada — 19 de novembro de 2026
+
+## API17 — atraso AAC medido e apresentação dos downloads
+
+Concluída a etapa de compensação do atraso identificada no checkpoint abaixo.
+`AacEncoderPriming` configura o encoder escolhido e mede a saída com sinal
+sintético e correlação, com limites de memória/tempo e cache de oito
+configurações em memória. No emulador, o componente Google apresentou 2048
+amostras em mono 8 kHz e estéreo 44,1/48 kHz; esse número não é imposto a
+outros componentes. A calibração ocorre antes de abrir os codecs da conversão.
+
+O conversor drena o PCM real e acrescenta padding suficiente para o encoder
+entregar a cauda antes do EOS. `Mp4AudioPriming` mantém o preroll no arquivo,
+recompõe STTS com escala racional e adiciona edit lists padrão para apresentar
+somente o conteúdo. Preserva offsets, lacunas reais e o reinício de encoder
+entre períodos DASH. A publicação do arquivo só ocorre após finalizar os
+metadados; falha deixa a limpeza remover o parcial privado.
+
+A comparação RGB encontrou também uma declaração nclx incompleta escrita
+pelo muxer antigo como RGB/valores reservados. O exportador agora omite
+somente declarações incompletas e preserva metadados SDR/HDR válidos.
+Não há override de cor no verificador externo.
+
+Os quinze downloads passaram no emulador API17 e na decodificação independente
+FFmpeg/ffprobe em `outputs/legacy-aac-color-download/report.json`. Incluem
+duas conversões AAC em períodos DASH, timestamps com meio segundo de lacuna,
+quadros B com áudio convertido e início de áudio deslocado. Os testes
+conferem início dentro de 5 ms da origem, cauda, duração, frames de vídeo,
+cancelamento/liberação/reinício e reprodução local. O DASH de origem já tem
+cerca de 22,5 ms de lacuna entre períodos; a comparação usa os segmentos reais
+e limita o silêncio adicional a 10 ms. Os oito testes JVM novos passaram.
+Os dois builds `-Check` passaram. Download e gravação permaneceram bloqueados
+na edição DE/AT, conforme `outputs/legacy-aac-color-deat-download/report.json`
+e `outputs/legacy-aac-color-deat-recording/report.json`. Os runners removeram
+as instalações de teste ao terminar.
+
+SHA-256 dos APKs debug desta etapa:
+
+- Geral: `ca4934cb584e76c073aabef7a25d388d8bb1e59c238add18f181255b60fd81d6`.
+- DE/AT: `8bc7c854162d5fe1b7d5799093a14a6dd562a3d13392f25b5623b96793ae6d4c`.
+
+As 12 artes aprovadas permanecem intactas; auditoria pública de arquivos e
+histórico sem achados. Nenhuma TV física foi usada. Os APKs continuam prévias
+debug isoladas. Ainda faltam layouts YUV proprietários, produção/licença/
+assinatura, validação ARM e com emissores/Sticks antigos reais e outros itens
+de paridade: esta etapa não conclui o suporte universal a Fire TV Stick.
+
+## API17 — reamostragem e downmix dos downloads
+
+`LegacyPcmConverter` agora possui o libswresample estaticamente incluído,
+habilitado somente quando `BUZIN_RAOP_LEGACY_AUDIO` está ativo. Mantém o
+build moderno com sua configuração anterior. Java serializa o handle e
+o JNI valida taxas, máscara/permutação, buffers diretos, contagens e limites
+antes de acessar/alocar. Entrada: PCM intercalado U8/S16/S24/S32/float,
+1–8 canais e 1–384 kHz. Cada chamada aceita até 16.384 quadros e limita a
+saída a 262.144 quadros. Packed S24 é expandido para S32 sem alterar escala.
+
+O exportador alimenta o AAC mono/estéreo em uma taxa válida entre 8 e 48 kHz,
+com contador de quadros para timestamps, contrapressão e drenagem do filtro
+antes do EOS do encoder. Downmix inclui centro/LFE, normaliza o ganho e
+usa as posições da máscara de canais. O primeiro teste 5.1 detectou a ordem
+Vorbis crua do `OMX.google.vorbis.decoder`: o SoftVorbis/Tremolo AOSP até
+API25 entrega essa ordem sem máscara. O adaptador limita a permutação a
+esse componente/versões sem máscara; os demais mantêm a ordem declarada.
+
+Passaram os onze downloads, reprodução local, decodificação FFmpeg/ffprobe,
+conversão/cancelamento/reinício e os testes JNI de formatos, entradas
+inválidas, identidade, relação fracionária, pacotes, oito falantes e filtro.
+O teste 96→48 kHz preservou 880/1760 Hz e suprimiu o alias do tom de 30 kHz;
+os seis falantes 5.1 foram roteados corretamente, sem saturar a cauda alta.
+Evidência geral: `outputs/legacy-pcm-final-download/report.json` e regressão
+ALAC/gravação em `outputs/legacy-pcm-final-recording/report.json`.
+Os dois builds `-Check` passaram; os gates DE/AT de download/gravação estão
+em `outputs/legacy-pcm-final-deat-*/report.json`.
+
+SHA-256 dos APKs debug finais:
+
+- Geral: `9f305564d3884fcb1737bf3023455f0a7b300a4d181cb6b8717ef95b6457210c`.
+- DE/AT: `99acc881b4511f3224d2953db5d19960c4322411b471a9aebf98880b351e77a9`.
+
+O próximo ponto concreto é a compensação do atraso inicial do áudio:
+`outputs/legacy-pcm-final-timing.json` compara o início do sinal nas duas
+origens e nos MP4s e mede cerca de 42,65–42,67 ms acrescentados à conversão
+a 48 kHz. Investigar priming de decoder/encoder e metadados/timestamps;
+não corrigir usando uma constante arbitrária para todos os componentes.
+Também permanecem layouts YUV proprietários, produção/licença/assinatura,
+validação com emissores e Sticks antigos reais e demais itens de paridade.
+Nenhuma TV física foi usada; os APKs continuam prévias debug isoladas.
+
+## API17 — conversão de download com codecs do sistema
+
+`LegacyUrlDownload` mantém a cópia direta de faixas aceitas pelo muxer e
+liga `LegacyDownloadTranscoder` nas outras faixas decodificáveis. O caminho
+novo usa buffers MediaCodec API16, sem Surface/AudioTrack; converte para
+AVC Baseline/AAC-LC e preserva as faixas que dispensam conversão. Fica no
+mesmo worker do exportador, com entrada/saída limitada e contrapressão,
+sem carregar o arquivo inteiro nem executar um processo FFmpeg no aparelho.
+
+O teste revelou o aborto do SoftAVC do Android 4.2 quando o buffer calculado
+é menor que seu padrão QCIF, além da exigência de dimensões múltiplas de 16.
+A entrada agora recebe padding, retirado da imagem visível por recorte SPS
+padrão, preservando pixels e proporção. O nível AVC é escolhido entre os
+anunciados para comportar blocos/fps/bitrate. Também são tratados CSD em
+buffers separados, NALs crus do encoder antigo, PCM maior que a entrada do
+AAC e liberação independente de todos os recursos em falhas/cancelamento.
+
+As três amostras novas são padrões sintéticos e tom de 880 Hz: VP8/Vorbis
+em WebM, AVC/Vorbis e VP8/AAC em Matroska. O teste no emulador exige nove
+exports, reprodução local e decodificação independente com FFmpeg/ffprobe;
+as conversões preservam os 120 quadros e dimensões de 160×90, cores e tom.
+Cancelamento com quatro codecs ativos, liberação, ausência de arquivo
+parcial e reinício no mesmo exportador também passaram em
+`outputs/legacy-transcode-cancel-download`. Os nove testes JVM de SPS passaram.
+A rodada final `outputs/legacy-transcode-final-download` passou com erro RGB
+médio de 0,2649/255 na conversão de vídeo e tom de 879,93 Hz no áudio.
+Os dois builds com `-Check` passaram; download e gravação bloqueados na
+edição regional passaram em `outputs/legacy-transcode-final-deat-*`.
+SHA-256 dos APKs debug finais:
+
+- Geral: `33ead798d140ab7054c067c9108cdc4a1e81ea1e139d4fd8b19cb13ca1f80c87`.
+- DE/AT: `1e92ac16e940a7ba927a91714806b7539ac45dc9df2eaa6fe76fbf44ecc5a72d`.
+
+As falhas anteriores e logs estão em `outputs/legacy-transcode-*`.
+Auditoria de arquivos/histórico público sem achados e 12 artes aprovadas
+preservadas. Todos os APKs de teste foram desinstalados na limpeza.
+
+Ainda falta ampliar a conversão para reamostragem/downmix e layouts YUV
+proprietários ou outros limites fora dos codecs disponíveis. O caminho
+atual aceita PCM 16-bit mono/estéreo de 8–48 kHz e YUV420 planar/NV12;
+falhas não publicam um MP4 parcial. Permanecem produção/licença/assinatura,
+validação ARM/real com emissores e Sticks antigos e demais itens de paridade.
+Nenhuma TV física foi usada; os APKs continuam prévias debug isoladas.
+
+## API17 — retransmissão integrada ao serviço e à interface
+
+`LegacyRelay` liga o transporte compartilhado a `LegacyRelayPlayback` e ao
+tap nativo de AVC/PCM. Ferramentas oferece receber, conectar e parar, com
+formulário por controle/toque e bordas de foco. Usa os recursos existentes
+nos 22 idiomas; os erros internos ficam nos diagnósticos, com mensagem
+traduzida na interface. O formulário reduz sua altura junto com a janela
+quando o teclado ocupa espaço, mantendo os botões fora da área rolável.
+
+A saída API17 usa MediaCodec/Surface e AudioTrack com o relógio PCM comum.
+Mantém um quadro de preparação antes da primeira Surface, fila AVC de
+4 MiB/16 quadros e PCM de 256 KiB/64 pacotes. Ganho/foco acorda o worker
+mesmo sem novos pacotes. O serviço estaciona o vídeo nativo antes de ligar
+a Surface da retransmissão e só o restaura depois de ambos os workers
+encerrarem e liberarem a saída. Cache de binding evita recriar o codec a
+cada atualização de estado. A captura de saída combina gravação e envio;
+as restrições DE/AT continuam no gravador/download, sem arquivo de relay.
+
+A retransmissão também pode funcionar com o receptor nativo desligado.
+O serviço observa a rede enquanto a tela está aberta e tem uma ação própria
+de início para manter a sessão sem Activity, preservando o pedido nativo
+desligado. Depois do fim da sessão solta a trava de energia e deixa de ser
+foreground quando não há outra função ativa. Mudança de rede com o receptor
+nativo desligado não deve produzir um erro falso de inicialização nativa.
+
+As integrações comprovaram imagem/PCM, relógio de áudio, foco,
+segundo plano/retorno com outra Activity, captura nativa de envio, tomada
+por espelhamento nativo e URL, parada local/global, modo independente e
+destruição/reabertura de todas as Activities. A sessão pendente usa um
+booleano do transporte, exposto somente na cópia gerada API17: mudar o
+idioma durante a conexão não encerra o serviço por comparar textos traduzidos.
+
+`--relay-app` passou nas duas edições, incluindo essa troca de idioma:
+`outputs/legacy-relay-app-locale-diagnostic/report.json` (geral) e
+`outputs/legacy-relay-app-final-deat-relay-app/report.json` (regional).
+Os SHA-256 dos APKs debug são, respectivamente,
+`96c7f8382187cfa597f47f4b1b7002c33b9ca7b4ac6e6f32515d20d96efdae89` e
+`346b80fc269b04fa9277ddc866804b4cecdf3677e5d327307e8d7e4126ab3df0`.
+Uma primeira rodada geral falhou esperando o handshake de envio;
+o teste ganhou diagnóstico do estado/par e passou na repetição, sem mudar
+o APK. Não foi estabelecida a causa dessa falha transitória.
+Ferramentas e formulário foram conferidos visualmente. Nenhuma TV física
+foi usada; todos os testes desinstalam as prévias ao terminar.
+
+A regressão anterior da mesma integração passou em transporte independente,
+URL/URL nativa, gravação, download, PIN, mídia do sistema, DLNA e FCast;
+relatórios `outputs/legacy-relay-app-regression-*/report.json` (para PIN,
+mídia do sistema, DLNA e FCast usar os diretórios `regression-final-*`).
+A primeira tentativa de PIN perdeu o servidor ADB isolado; a repetição
+passou após recuperá-lo. Os 18 recursos usados pela interface estão presentes
+nos 22 diretórios de idiomas. Build/check passou nas duas variantes;
+`audit_public_repo.py --history` não encontrou dados privados e
+`verify_brand.py` confirmou as 12 artes aprovadas.
+No APK geral final passaram novamente transporte independente, URL/retorno
+ao receptor e mídia do sistema (`outputs/legacy-relay-app-final-regression-*`).
+No regional final passaram as negativas de download e gravação
+(`outputs/legacy-relay-app-final-deat-download` e `-recording`).
+
+Ainda faltam outros formatos/transcodificação de download, produção
+(SDK/licença/assinatura), validação com emissores e Sticks reais e demais
+itens de paridade. Os testes de relay não comprovam High Profile ou 1080p
+físico: a imagem sintética decodificada é AVC Baseline de 160×90.
+
+## API17 — canal e transporte de retransmissão compartilhados
+
+`SecureMirrorChannel` agora aceita a implementação de cifra. O motor JVM
+atual foi isolado numa classe própria, mantendo o padrão moderno e o
+formato de rede. API17 fornece AES-256-GCM pelo OpenSSL já incluído, com
+limites JNI antes de alocação/cópia, verificação de tag e limpeza das cópias
+nativas. Não rebaixa protocolo, PBKDF2, sequência, AAD, nonce ou tag.
+
+O build copia `MirrorRelay.kt` da edição moderna, adaptando R, injeção da
+cifra e uma fila com limite adicional de 8 MiB. As âncoras exigem revisão
+se as linhas adaptadas mudarem. A implementação compartilhada continua
+limitando tentativas, prazo de pareamento, timeouts e um par por sessão.
+
+`outputs/legacy-relay-final-relay` passou no emulador API17, com cliente Python
+independente de PBKDF2/AES-GCM: recepção e envio com bytes exatos de vídeo/PCM,
+keepalive, End, código incorreto, tag, sequência, tamanho, truncamento,
+pacote inválido, ocupado e parada durante handshake. Passaram os limites
+da cifra, o orçamento de bytes da fila e a ausência de threads restantes.
+O teste não depende de duas pontas com o mesmo motor criptográfico.
+
+A compilação geral com `-Check` passou, assim como `dlna-domain:check`,
+incluindo o gate de cobertura e o motor JVM padrão. As regressões PIN,
+Cast V2/TLS e gravação passaram com os artefatos finais da edição geral.
+O teste de PIN revelou uma condição de corrida na própria verificação:
+o serviço publica o PIN antes do retorno assíncrono da Activity de segundo
+plano. Agora aguarda apresentação, foco e notificação, mantendo as mesmas
+exigências e acrescentando `isShown()` antes de publicar o código ao host.
+
+`outputs/legacy-relay-deat-relay` passou pelos mesmos 12 estágios. Os testes
+negativos DE/AT de download e gravação também passaram. Os 12 recursos de
+marca e a auditoria direcionada de arquivos/histórico público passaram.
+Os testes usaram somente o emulador próprio; nenhuma TV foi ocupada.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `6869e2456c15f46a4757bcfb2a4386eb49e6b6c3168c8b510c7d3a67614945db`.
+- DE/AT: `8eb40c01eac58cf6ce3bc5ee777d0fc04e271c69f390a61ff44e85e38fb6f3f6`.
+
+Essa etapa NÃO oferece retransmissão no menu: ainda falta integrar o
+transporte ao serviço, renderização/sincronismo de vídeo e PCM, arbitragem
+de Surface/foco, captura de saída e interface. O próximo passo continua
+sendo a função completa, sem limitar a meta ao transporte. Transcodificação,
+produção e validação física também permanecem pendentes.
+
+## API17 — HTTPS do player, exportador e fotos
+
+O ensaio público reproduziu uma falha concreta: o HEAD do Sintel/W3C
+falha com `unsupported protocol` usando a fábrica padrão do Android 4.2,
+mas retorna 200 com TLS 1.2 ativado e validação normal de certificado/domínio.
+`LegacyHttps` agora configura apenas conexões próprias antes da API20,
+com TLS 1.2 e cifras AES. Preserva as raízes e o verificador de domínio
+da plataforma, sem fábrica global, certificado instalado ou trust-all.
+Player/exportador usam um adaptador do hook interno da Media3 1.2.1;
+o tratamento HTTP/Range/redirecionamento/erro continua no código da biblioteca.
+O carregador de fotos aplica a mesma política a cada redirecionamento.
+
+`outputs/legacy-https-general-verified` passou. O teste inclui conexões
+públicas com ECDHE/ECDSA e ECDHE/RSA, reprodução Baseline 320×240,
+avanço do relógio, pausa/retomada, foto com redirecionamento HTTPS e
+exportação MP4 do Sintel. O ffprobe confirmou 1.253 pacotes AVC High e
+2.435 AAC-LC; o FFmpeg decodificou integralmente as duas faixas sem erro.
+Um fixture isolado exige recusa de identidade não confiável e de domínio
+incorreto, mesmo quando a identidade é aceita como âncora apenas no teste.
+Fábricas globais/verificador são preservados e não sobram sockets nativos.
+
+O decodificador de software do emulador API17 falhou com o Sintel High
+Profile; o extrator Android também não enumerou faixas do MP4 exportado,
+embora a inspeção/decodificação independente tenha passado. Não considerar
+High Profile validado no Stick. Os arquivos públicos no host ficam em
+`outputs`, ignorado pelo Git; o teste limpa os arquivos/app no emulador.
+
+As regressões de download (MP4/HLS/DASH/múltiplos períodos/B-frames,
+decodificação independente, biblioteca e cancelamento) e URLs nativas/FCUP
+passaram com os APKs atuais. As duas compilações com `-Check` passaram;
+as últimas recompilações atualizam apenas o teste e os artefatos de prévia.
+A edição DE/AT passou em `outputs/legacy-https-deat-https`: mesmos testes de
+TLS, certificados, domínio, playback e foto, sem iniciar exportação. O teste
+negativo `outputs/legacy-https-deat-download` confirmou o bloqueio regional.
+Os 12 recursos de marca foram preservados; a auditoria direcionada de
+arquivos e histórico público não encontrou ocorrências.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `ce835264340a5da9cf9a45d2e65dd9e7fb05ca7f456cdb82780a3ea28a1daad2`.
+- DE/AT: `3430f87aa3d1594a35918aa57cb6c08bc51220022ac655ab566c5fb8bf3784c8`.
+
+Permanecem a retransmissão, transcodificação de outros formatos,
+licença/SDK/assinatura de produção, emissores e Sticks físicos e demais
+itens da paridade. Este ensaio cobre HTTPS público real, mas não todos os
+servidores/raízes/cifras, TLS 1.3 exclusivo, DRM ou live.
+
+## API17 — Cast V2 e TLS compatível com clientes modernos
+
+O transporte `CastV2Receiver.kt` é copiado do app moderno. A adaptação
+troca apenas a fábrica de identidade/sockets; âncoras e SHA-256 do trecho
+original exigem revisão quando a política compartilhada mudar. Há opção
+desligada por padrão, ciclo de vida por rede/nome/aprovação e porta dinâmica.
+O trabalho de identidade e inicialização ocorre no worker de protocolos.
+
+API17 não tem AndroidKeyStore. Uma identidade própria RSA-2048/SHA256 fica
+em arquivo atômico privado, com limites de tamanho, validade e verificação
+de correspondência chave/certificado. O certificado é explicitamente não-CA.
+O parser X509 antigo trata a sequência vazia de BasicConstraints como CA;
+o adaptador valida a codificação DER exata emitida pelo próprio gerador.
+
+O primeiro servidor JSSE passou entre dois endpoints API17, mas o cliente
+moderno recusou a conexão. As listas capturadas comprovaram a falta de
+cifras atuais em comum. O servidor final usa o OpenSSL já incluído no app,
+com TLS 1.2, AES-GCM e compatibilidade ECDHE/AES-CBC com clientes antigos.
+Não inclui RC4, DES ou cifras anônimas. Não altera provedores TLS globais.
+
+O adaptador interno usa IDs com registro/refcount nativo. Fechar remove o
+ID, chama shutdown para acordar I/O e só libera memória/descritor depois
+da última operação. Accept tem espera interrompível e os buffers são
+limitados a 64 KiB. Um contador exige zero objetos vivos ao desligar.
+
+`outputs/legacy-castv2-final` passou: descoberta, TLS real, protobuf,
+DeviceAuth explicitamente indisponível, reprodução e controles, aprovação,
+quadros grandes recusados, persistência e regeneração de identidade,
+encerramento durante handshake e ausência de recursos TLS restantes.
+O cliente independente negociou TLS 1.2 com AES256-GCM, conferiu o
+certificado público/assinatura/não-CA e heartbeat/erro de DeviceAuth.
+A inspeção ELF de ARMv7 e x86 confirmou os nove métodos JNI, símbolos
+OpenSSL privados e ausência de dependência do SSL/crypto do sistema.
+
+As duas compilações com `-Check` passaram. Na edição geral passaram as
+regressões FCast, DLNA, URLs nativas/FCUP, PIN e gravação. Na edição DE/AT,
+`outputs/legacy-castv2-deat-castv2` passou pela mesma integração Cast, e os
+testes negativos de download e gravação passaram. As execuções afetadas por
+desconexão do servidor ADB foram repetidas após reconectar o emulador;
+o polling do host foi reduzido, mantendo os ACKs e as verificações.
+Os 12 recursos de marca e os textos Cast nos 22 idiomas foram conferidos.
+A auditoria direcionada dos arquivos e do histórico público passou.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `887c408c57cae0f6aa32683c62e7ca9a70a1893acc4801d4c28cc9c28559e945`.
+- DE/AT: `037234f8b1e84ef601e89c26a5e35e2ff1fb21e96ed816e8aacc6d4a843aba5d`.
+
+São previews debug, sem assinatura/SDK de produção. Os testes foram feitos
+no emulador API17, sem usar as TVs. Retransmissão, outros formatos de download,
+HTTPS real do player, testes físicos e demais itens da paridade permanecem
+pendentes. O Cast mantém as limitações experimentais do app moderno.
+
+## API17 — PIN experimental e validação do pareamento nativo
+
+`ReceiverOptions` repassa `requirePin` ao JNI sem alterar o padrão das
+assinaturas antigas. O receptor gera um PIN aleatório por execução com
+o CSPRNG existente e falha na inicialização se a geração falhar. Anuncia
+o sinal de senha nos dois serviços DNS-SD e entrega o callback nativo à
+janela/notificação. Mudar a opção reinicia o receptor. Fechar, parar,
+reconfigurar, iniciar mídia ou encerrar a sessão limpa a indicação.
+
+As chaves públicas registradas ficam limitadas a 16 na fila da sessão,
+sem arquivo de confiança persistente. Callbacks rejeitam tamanhos e
+formatos inválidos; fechar a fila elimina as chaves e ignora retornos
+tardios. O texto do log nativo que revelava o PIN foi filtrado.
+
+Os patches compartilhados 0013–0016 validam estado e tamanhos no SRP,
+recusam confirmação antes da prova e repetição depois de liberar o estado,
+e rejeitam verificadores/chaves de cliente inválidos antes de os usar.
+Isso evita acesso a contexto nulo e leitura de campos menores que os
+tamanhos copiados. A preparação isolada do núcleo Vega foi atualizada
+para o inventário de 16 patches e passou com proteção de edições locais.
+O app Vega não foi compilado nem testado neste PC.
+
+As integrações geral e DE/AT passaram com cliente independente: PIN errado,
+SRP correto, prova do servidor, tag GCM inválida, nova troca SRP após falha,
+confirmação AES-GCM/identidade do servidor, resposta X25519/Ed25519 e 18
+entradas malformadas. Janela/foco, notificação, segundo plano, modo
+desligado e parada também passaram. As capturas foram conferidas visualmente.
+Os relatórios são `outputs/legacy-pin-general/report.json` e
+`outputs/legacy-pin-deat-pin/report.json`.
+
+Passaram as duas compilações com `-Check`, os testes JVM e lint. A edição
+geral passou novamente por aprovação de conexões, URLs nativas/FCUP e
+gravação MKV com validação independente dos pacotes. Na edição DE/AT,
+download e gravação continuam bloqueados e passaram pelos testes negativos.
+Os 12 recursos de marca foram preservados. A auditoria direcionada de
+arquivos/histórico público não encontrou ocorrências.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `696bf00082118d8a293df9c7a451d597cb209ed94fb16456bb313c277ce65200`.
+- DE/AT: `5cf849fabb4ce7934741a90d712cf4426072b1db00446ee0f00c2160d5ec6dd2`.
+
+As mudanças compartilhadas de pareamento ainda precisam ser incorporadas
+e verificadas nos próximos builds moderno/compat antes de publicá-los.
+
+A implementação continua experimental, como no app moderno. Não comprova
+interoperabilidade/retomada de emissores Apple físicos nem autenticação
+universal de todos os caminhos do protocolo. Os APKs são previews debug;
+licença/SDK, assinatura de produção, Cast V2, retransmissão, outros formatos
+de download e testes em Sticks antigos reais continuam pendentes.
+
+## API17 — aprovação de conexões
+
+A prévia compartilha `ConnectionApproval` com o app moderno, sem adaptar
+sua regra de autorização: um pedido pendente, 25 segundos para responder,
+autorização por protocolo/IP durante cinco minutos e recusa temporária de
+30 segundos. O padrão continua desligado. Não substitui o PIN de pareamento.
+
+A admissão nativa preserva a verificação de rede e só depois chama a porta
+Java; uma exceção JNI recusa a conexão. O callback não detém o monitor da
+fila de vídeo e a parada invalida uma autorização ainda em espera. FCast
+e DLNA passam pelo mesmo coordenador e conferem a geração após a resposta.
+Mudança da opção reinicia os receptores para retirar clientes anteriores.
+
+A janela usa os textos compartilhados, começa com Recusar focado e recusa
+ao voltar/fechar ou sair da Activity. Uma solicitação em segundo plano
+reabre a Activity. Não registra endereços dos solicitantes no diagnóstico.
+
+As duas edições passaram em API17: RTSP/FCast/DLNA, aceitação/recusa,
+isolamento por protocolo, resposta tardia, timeout real, cancelamento ao
+parar e retorno do segundo plano, retirada do cliente anterior ao ativar
+a opção e captura da janela. As capturas foram conferidas visualmente.
+Os textos usados estão presentes nos 22 idiomas compartilhados.
+
+Os dois builds com `-Check` passaram, incluindo lint e o teste JVM que
+confirma que uma aprovação bloqueada não segura o monitor da fila de vídeo.
+Na edição geral passaram as regressões de FCast, DLNA, URL nativa/FCUP e
+download dos seis MP4s com FFmpeg/ffprobe e comparação de quadros B.
+Na edição DE/AT passaram os bloqueios de download e gravação.
+Os relatórios estão em `outputs/legacy-approval-final-*` e
+`outputs/legacy-approval-deat-*`; os APKs continuam sendo previews debug,
+sem integração/assinatura de produção para a loja.
+
+SHA-256 dos APKs conferidos:
+
+- Geral: `cf22eb40385e3d644e8075467691501251bde10f231944f49332c18eff08a6f9`.
+- DE/AT: `c118e5df9a6d98cefc1bd3ad9cc9606d5c6f17847497e3547e1ad4150f275c2e`.
+
+Os manifestos sintéticos DASH foram normalizados para LF antes do cálculo
+de hashes. ElementTree preservava CRLF de nós textuais do FFmpeg, enquanto
+o Git os normalizava no commit, divergindo do inventário de recursos.
+Os 19 hashes também foram conferidos contra os blobs preparados para commit.
+
+Permanecem pendentes PIN, Cast V2, retransmissão, transcodificação de mais
+formatos, licença/produção e validação em Sticks/emissores físicos antigos.
+
+## API17 — download de URLs para MP4
+
+`LegacyUrlDownload` lê amostras codificadas de MediaPeriod/SampleStream
+na sua própria thread e usa Media3 Muxer 1.2.1. Não adiciona Transformer
+API21 nem força minSdk de dependência. Seleciona vídeo/áudio compatíveis,
+preserva cabeçalhos, exige HTTP(S) também em URIs filhas e recusa DRM,
+janelas live/dynamic e mudanças incompatíveis de formato. A exportação
+começa do início do item, percorre períodos e não depende de Surface,
+decoder ou relógio de reprodução. Há orçamento por amostra/buffer,
+timeout de carregamento e verificações de espaço livre. O arquivo `.part`
+é privado e só é publicado por rename depois de fechar o container.
+Falha/cancelamento remove somente o temporário criado pelo próprio job.
+
+O serviço oferece download/progresso/cancelamento nos controles de vídeo,
+mantém a vida do serviço/wakelock enquanto necessário e cancela no Stop
+ou destruição. O worker só é criado no primeiro download. Ferramentas
+lista vídeos salvos com reprodução local, exportação e exclusão confirmada;
+o FileProvider só expõe as pastas privadas previstas. URLs locais entram
+por factory confiável; o construtor de rede continua recusando file/content.
+BuildConfig bloqueia UI, início, listagem e criação do worker em DE/AT.
+Quatro textos novos existem nos 22 idiomas. Cornish mantém a indicação
+de rascunho/revisão fluente que já acompanha as traduções desse idioma.
+
+A integração revelou e corrigiu prefixos Annex-B de três bytes em TS,
+tags de idioma BCP47 na API17 e timestamps de quadros B no muxer 1.2.
+O reparo de composição adiciona CTTS assinado e ajusta durações sem mover
+os dados de mídia: o moov anterior vira free e o novo é anexado antes da
+publicação. Há limites de metadados, verificação de contagem e testes JVM
+de payload/offsets, rejeição de estrutura inválida e overflow.
+
+`outputs/legacy-download-final` passou com MP4, HLS, DASH, dois períodos,
+quadros B e reexportação do arquivo reparado. FFmpeg/ffprobe confirmaram
+os seis arquivos, sem mensagens de erro; ambos os casos B produziram 120
+hashes de quadros idênticos à origem. Os demais arquivos também passaram
+por reprodução local. A API17 x86 tem decoder AVC Baseline e extrator
+antigo sem CTTS assinado: não tratar esses testes como suporte físico
+AVC Main. O leitor Media3 de CTTS foi comprovado pela reexportação.
+
+Uma interrupção deixou APK de teste inválido; o build foi reempacotado.
+Os scripts agora verificam ZIP/CRC e resultado textual da instalação antes
+de iniciar instrumentação, além da estrutura/hash ao exportar previews.
+A compilação das duas edições, lint e os sete testes JVM novos passaram.
+Também passaram as regressões gerais de URL/legendas, URL nativa/FCUP,
+gravação, FCast e DLNA. Na edição DE/AT, passaram download/gravação
+bloqueados e os cenários de URL nativa/FCUP e serviço/legendas.
+Uma queda do ADB interrompeu a primeira regressão de gravação; a repetição
+com os mesmos APKs concluiu e removeu os pacotes de teste.
+
+APKs de prévia conferidos (SHA-256):
+
+- Geral: `40722febad4a3498ee0119b5c17d4d358eb072b0423852054be94d1a44d5a65f`.
+- DE/AT: `552218a3c5ec8e139584223bdd260d8f0322ef35895260a73bc934224ec60787`.
+
+São previews debug, sem integração/assinatura final para publicar na loja.
+O verificador de marca preservou os 12 recursos aprovados; a auditoria
+direcionada não encontrou ocorrências nos arquivos ou histórico públicos.
+As telas de Ferramentas passaram nos testes em português e árabe (incluindo
+layout RTL) e em alemão na edição restrita. As três capturas foram conferidas
+visualmente; a imagem em português está em
+`docs/images/fireos3-native-download-tools.png`.
+
+A paridade completa permanece pendente: transcodificação para formatos
+que o muxer não aceita, Cast V2, retransmissão, aprovação/PIN, licença/SDK
+e assinatura de produção, testes físicos e demais itens do plano. HTTPS
+real, live/DRM, uso prolongado/memória em hardware antigo e o defeito nativo
+intermitente não ficam comprovados por esses testes sintéticos.
+
+## API17 — gravação MKV e HLS pelo canal reverso
+
+A prévia geral integra `LegacyMirrorCapture` ao mesmo `MatroskaRecorder`
+da produção. O worker de vídeo fornece AVC original com SPS/PPS e dimensões
+conhecidas mesmo sem Surface; o worker de áudio fornece apenas os intervalos
+PCM com timestamps reais, antes do ganho local. A fila de gravação fica
+limitada a 8 MiB/120 pacotes, sem I/O de disco nas threads de recepção/decoder.
+Inicia no próximo IDR, fecha ao parar o espelhamento/receptor e preserva o
+arquivo já gravado ao terminar por erro/limite. Capturas sem IDR não deixam
+arquivos. Exige 128 MiB livres para iniciar e encerra abaixo de 32 MiB.
+
+Ferramentas oferece preparar/parar, estado, biblioteca, reprodução local,
+exportação por FileProvider restrito à pasta de gravações e exclusão com
+confirmação. Usa os textos já traduzidos e os componentes de foco por
+controle/toque. Na API17, usa armazenamento interno privado sem pedir
+permissão ampla de escrita. O seletor local de arquivo não passa pelo
+construtor de URLs de rede: a fonte FileDataSource aceita somente a URI
+selecionada, enquanto manifestos e segmentos remotos continuam HTTP(S)-only.
+Os controles, início e listagem da captura ficam bloqueados na edição DE/AT.
+
+`--recording` passou em `outputs/legacy-recording-review`: captura sintética
+via callbacks nativos H.264/ALAC, MKV real, reprodução local com formato PCM
+44100 Hz estéreo selecionado no worker Media3, URI de exportação, exclusão,
+arquivo vazio, limite de bytes e encerramento com captura armada.
+`ffprobe` confirmou 60 pacotes AVC e 188 PCM. O extrator MKV do Android 4.2
+omite PCM; essa omissão não é usada como prova de ausência de áudio.
+As duas edições passaram em build, lint e testes JVM com
+`Build-FireOs.ps1 -Target legacy -Instrumentation -Check` (com `-NoDownload`
+na regional). As regressões de URL/legendas e URL nativa/FCUP passaram nas
+duas edições; DE/AT passou também no gate negativo de gravação.
+Relatórios: `outputs/legacy-recording-regression-*`,
+`outputs/legacy-recording-deat-*` e `outputs/legacy-recording-native-probe`.
+O probe nativo completo passou após os taps de vídeo/PCM, incluindo
+ALAC/AAC, relógio A/V, troca de Surface, reprodução sem Surface e parada.
+APKs debug testados (SHA-256):
+
+- Geral: `35209c3f602ac54c30781c56caf795610eacc6fab15327945928a1c41d00d738`.
+- DE/AT: `c337b75a684f0d8dc0840c95331fc99e5aef68ea081701c5d04eaaa9c1996cb8`.
+
+`test_legacy_app.py --tools-only` acrescenta captura/verificação dos controles
+de gravação. Sem `--locales`, percorre todos os idiomas; com uma lista,
+restringe-se a ela. Passou em inglês, pt-BR e árabe (incluindo layout RTL),
+com captura preparada/parada sem arquivo vazio, e em alemão com a edição
+restrita sem controles de gravação. Também aceita a conexão local TCP de
+um emulador em servidor ADB isolado, com autenticação do console para
+screenshots e verificação `ro.kernel.qemu` antes de qualquer instalação.
+Referência visual conferida: `docs/images/fireos3-native-recording-tools.png`.
+Nenhuma TV física foi usada; as 12 imagens aprovadas do launcher permanecem
+intactas. Os APKs continuam sendo prévias sem assinatura/SDK de produção.
+
+O cenário `--native-url` agora exige também Upgrade PTTH em `/reverse`,
+requisições `/event` reais e respostas `/action` bplist para master/media,
+reprodução através do proxy HLS nativo e pausa/busca/Stop. A versão inicial
+falhou ao consultar o snapshot imediatamente; esperar a publicação assíncrona
+com limite de tempo comprovou estado ready/duração/posição corretos.
+
+Ainda faltam download de URLs, Cast V2, retransmissão, aprovação/PIN,
+licença/SDK e assinatura de produção, além das demais pendências do plano.
+Canal reverso sintético não comprova interoperabilidade Apple, HTTPS real,
+live/DRM, sincronismo físico, sessões longas ou armazenamento de um Stick
+antigo. O defeito nativo intermitente também continua pendente.
+
+## API17 — callbacks de URL AirPlay
+
+`probe.c` registra play/wait-ready/scrub/rate/stop/playback-info/playlist-remove
+e resets de HLS. A URL atravessa JNI como bytes UTF-8 limitados, evitando
+NewStringUTF para caracteres suplementares. O receptor ativa `hls` e os
+bits de vídeo/HLS somente quando o listener Java aceita URL; o probe sem
+frontend de URL continua sem anunciar essas funções.
+
+`LegacyNativePlayback` mantém snapshots imutáveis e tokens por item.
+Wait-ready aguarda no objeto Java, com limite de 10 s, e sai em ready,
+substituição ou fechamento. Atualizações não usam o lock do handle JNI;
+Stop/close libera o worker de HTTP antes de destruir o receptor. Relatórios
+de gerações antigas e relatórios após finish são recusados. O serviço liga
+os comandos ao Media3 e publica posição/duração/rate/ready/buffering. O
+fechamento de um canal preparado/pausado encerra a URL; buffering e reprodução
+não são confundidos com abandono intencional.
+
+O encerramento por erro também fecha as filas Java antes de JNI aguardar
+os workers HTTP. Falha/reinício da sessão nativa encerra a URL pertencente
+àquela sessão; callbacks já enfileirados não iniciam mídia após a falha.
+
+Uma época de fluxo nativo distingue áudio/espelhamento novos de callbacks
+de conexão ou de um fluxo anterior ainda encerrando. Assim, o flush do
+áudio RTP ao entrar em URL não cancela a própria URL; um fluxo nativo novo
+continua podendo tomar a saída, como na etapa anterior.
+
+O patch UxPlay 0012 faz `/server-info` usar os recursos habilitados em vez
+de anunciar sempre 0x27F (inclusive fotos/FairPlay não habilitados). O task
+de patches aceita acrescentar patches a um prefixo cujo hash e arquivos
+anteriores conferem. Continua recusando alteração de patches anteriores e
+edição local dos arquivos já modificados; não executa reset. A migração e
+uma nova execução idempotente passaram neste checkout.
+
+Seis testes JVM cobrem tokens, controles/valores inválidos, ready/close/
+substituição concorrentes, frontend sem URL e abandono versus buffering.
+`test_legacy_gestures.py --native-url` usa HTTP nativo real, corpo bplist
+com UUID por item e X-Apple-Session-ID estável por conexão. Passou em
+`outputs/legacy-native-url-general-final-native-url`: RTP ALAC -> MP4, HLS direto, AAC, estado
+remoto, pausa/busca/velocidade, tecla local, Stop/EOF, fonte inválida,
+abandono pausado versus tocando, Stop durante `/play` aguardando mídia e
+reinício explícito do receptor. A resposta native readyToPlay é inteiro 1,
+aceito pelo parser de teste junto com boolean true.
+
+A compilação final geral e DE/AT passou com `-Check -Instrumentation`, incluindo
+os seis testes JVM novos e lint. O diagnóstico nativo completo passou em
+`outputs/legacy-native-url-probe-final`: DNS/RTSP, H.264, ALAC/AAC, timeline,
+troca de Surface, saída de áudio e encerramento. Um APK incremental antigo
+do probe falhou com `AbstractMethodError` no novo método default do listener;
+após limpar e recompilar o módulo consumidor, o mesmo cenário passou.
+Repetir essa compilação limpa se esse erro reaparecer após mudanças na interface.
+
+Os oito cenários finais passaram: `native-url`, `url-service`, `fcast` e
+`dlna` nas duas edições. Os relatórios estão em
+`outputs/legacy-native-url-general-final-*` e
+`outputs/legacy-native-url-deat-final-*`, todos com limpeza por desinstalação.
+O cenário de URL inclui legendas externas e retomada do áudio nativo no
+mesmo processo. Hashes SHA-256 dos APKs debug efetivamente testados:
+
+- Geral: `4be96c32bea4a02445ef2c240e17dda9d2c041e34290f4793da05bfc21f266b0`.
+- DE/AT: `a55a9b8013f1594da2316a773c936b15ff98864d4a818212725a6294026932e6`.
+
+São prévias API17 em emulador, sem assinatura/SDK de produção integrado;
+não foram submetidas à loja nem instaladas nas TVs da casa. As 12 imagens
+aprovadas do launcher foram preservadas, e a auditoria de código/histórico
+público não encontrou ocorrências nas regras verificadas.
+
+FCUP/canal reverso, emissores Apple físicos, live/DRM e HTTPS real ainda
+precisam de validação; os testes HTTP diretos não cobrem esses cenários.
+Seguem também download/gravação, demais recursos do plano, produção e o
+defeito nativo intermitente. Isso não conclui a paridade completa.
+
+## API17 — receptor persistente durante URL
+
+O serviço não encerra mais UxPlay/descoberta ao abrir uma URL. Primeiro
+`detachVideoOutput` pede ao worker AVC para retirar a Surface; só depois de
+liberar o codec e a Surface anterior ele confirma a passagem ao serviço.
+O player Media3 só começa após essa confirmação. Épocas descartam replies
+de passagens canceladas. Pedidos após o fechamento do worker também recebem
+confirmação sem aguardar uma thread já encerrada.
+
+O receptor mantém listener e identidade durante URL. Sua saída de áudio
+fica localmente silenciada enquanto Media3 tem a saída; ao chegar áudio
+nativo ou um novo modo de espelhamento, a URL fecha antes da devolução da
+Surface/ganho. O foco existente é aplicado ao novo player, e o wakelock não
+é liberado pelo fechamento de URL quando ainda pertence ao receptor ativo.
+Reiniciar explicitamente o serviço ou mudar de rede continua podendo
+substituir a sessão nativa.
+
+O teste de URL agora mantém o mesmo socket RTSP desde antes da primeira
+carga até a tomada de saída por ALAC nativo. Inclui cancelamentos rápidos,
+verificação de codec/Surface nativos retirados durante URL, Back, 404,
+Stop, legendas e comprovação de Media3 fechado antes de liberar ganho
+nativo. O roteiro de áudio faz sua própria reinicialização explícita mais
+adiante; a identidade é conferida antes dessa etapa intencional.
+Stop seguido imediatamente por Play agora mantém a última URL validada
+enquanto o player anterior fecha. Pausa, posição, volume e velocidade
+recebidos durante essa passagem ficam associados à nova carga; Stop pode
+cancelá-la. O snapshot dos protocolos mostra buffering durante a espera.
+Sem isso, a nova disponibilidade permanente do listener mascarava o fato
+de Media3 ainda estar fechando e o próximo Play recebia erro.
+O probe verifica confirmação de detach após aposentar Surfaces usadas pelo
+decoder real, continuidade de áudio/RTSP, retomada por IDR e reply tardio
+após fechar o receptor.
+
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições. URL, FCast
+(incluindo Stop/Play e a sequência de pausa/busca/volume/velocidade) e DLNA
+passaram em `outputs/legacy-output-handoff-url-service-final`,
+`outputs/legacy-output-handoff-fcast-final` e
+`outputs/legacy-output-handoff-dlna-final`; as três suítes também passaram
+nos diretórios correspondentes com `-nodownload-final`.
+SHA256 geral/DE-AT:
+`b4bc432e8a7b6eee39edfca4177c21fb72511114d3a4ed5bac2739a9149fa43b` e
+`49d821fefc5d0551f27104b91b0324727039b0e3e89d048e4a328027116c564a`.
+O probe fez dois ciclos completos em `outputs/legacy-output-handoff-native-final`;
+o APK foi preservado em `outputs/legacy-output-handoff-probe.apk`, SHA256
+`a8d1f4f1a26034916e151b184f073bba4e22f1aea0cfe02c569a815cfc665c80`.
+Os DEX desse probe foram conferidos com as novas verificações de confirmação
+e reply tardio. As instalações temporárias foram removidas. Não foi usada
+nenhuma TV física nesta etapa. Marca e auditoria pública/histórico passaram.
+
+Isso prepara a ligação dos callbacks AirPlay de URL; eles ainda não foram
+portados e os bits de recursos correspondentes não foram habilitados.
+Permanecem download/gravação, demais recursos do plano, testes físicos,
+produção e a investigação do defeito intermitente de dlfree. Não há ainda
+paridade completa com o app atual. As logos seguem preservadas.
+
+## API17 — legendas externas
+
+O player agora aceita uma fonte de legenda isolada, carregada de bytes já
+importados pelo usuário. A fábrica de vídeo/manifestos continua HTTP-only;
+não passa a abrir arquivos/ContentProviders por causa de uma URI remota.
+O frontend compartilha `ExternalSubtitles` com o app moderno: SRT/VTT UTF-8,
+BOM aceito, limite de 2 MiB. O arquivo intermediário do importador é removido.
+Texto de cues é limitado a 4000 caracteres, como no frontend Compose.
+
+O botão CC abre um diálogo traduzido com escolher arquivo/desativar. Na
+API17 usa ACTION_GET_CONTENT; ACTION_OPEN_DOCUMENT só existe desde API19.
+A legenda é mesclada ao vídeo no worker Media3, preservando posição,
+playWhenReady e velocidade. O serviço rejeita resultados de sessões antigas
+e mantém uma permissão temporária de execução enquanto o seletor fica
+aberto (até cinco minutos), inclusive com segundo plano desativado.
+
+O teste de URL foi ampliado com ContentProvider sintético exclusivo do
+APK de testes, importação SRT/BOM VTT pelo resultado de Activity, cues
+reais, texto na View, pausa/posição/velocidade, desativação, formatos
+inválidos e limite de tamanho. O provider precisa estar no primeiro DEX
+para iniciar no processo próprio do APK de testes antes do runner instalar
+multidex; `main-dex-rules.pro` garante isso, sem incluí-lo no app.
+O roteiro verifica pausa/posição antes de dar Play para observar cues,
+pois o renderer Media3 1.2.1 só os entrega ao iniciar a reprodução.
+
+O receptor DLNA compartilhado agora distingue buffering de Pause. O teste
+de DLNA adiciona legenda com atraso HTTP de 1,2 s (maior que seu tick de
+500 ms) e exige retomada com texto, sem PAUSED_PLAYBACK indevido.
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições.
+Os relatórios `outputs/legacy-subtitles-final` e
+`outputs/legacy-subtitles-dlna-final` passaram no emulador API17.
+`outputs/legacy-subtitles-formats-final` passou novamente MP4/HLS/DASH/AAC,
+velocidade, fontes sem extensão/MIME e a recusa de segmento local válido.
+As mesmas suítes de serviço/CC e DLNA passaram na edição DE/AT em
+`outputs/legacy-subtitles-nodownload-final` e
+`outputs/legacy-subtitles-dlna-nodownload-final`. As instalações temporárias
+foram removidas. O provider e os textos sintéticos não existem nos DEX dos
+APKs do app. Marca aprovada e auditoria pública/histórico passaram.
+SHA256 geral/DE-AT:
+`fb1d519f3798c88cee78bd4876996a67c990b769c5b5b5a7db255e8303e95481` e
+`1010a595f99f0ea2bc03a2094915dadd34267ad83cd9486edace6288d23644d9`.
+
+Continuam pendentes AirPlay por URL, arbitragem sem suspender o receptor
+nativo, download/gravação e demais recursos do plano. HTTPS real, sessões
+longas, defeito nativo intermitente e validação física/produção ainda não
+estão concluídos. As legendas foram verificadas com mídia sintética, não
+com todos os formatos/transmissões ou emissores físicos.
+
+## API17 — receptor DLNA e fotos compartilhadas
+
+O alvo antigo passou a compilar os mesmos `DlnaReceiver`, `ControlServer`,
+`SubscriptionRegistry` e `SsdpAgent` do app atual. DLNA começa desativado e
+tem chave traduzida nas configurações. O serviço acompanha rede/nome e
+desativa os transportes fora da thread principal. Getters usados por SOAP
+leem um snapshot imutável publicado pelo serviço; comandos continuam no main.
+FCast e DLNA usam o mesmo adaptador com proprietário/época por protocolo.
+
+`PhotoActivity` compartilha a interface nativa, histórico e controles do app
+atual. O Sync altera somente os bindings de R, lifecycle e loader, com guardas
+que falham se os marcadores upstream mudarem. A base API17 mantém o serviço
+visível enquanto a foto está aberta e aplica bordas de foco/toque aos seis
+botões. O loader preserva o limite de 16 MiB, grava temporariamente no cache
+privado, valida HTTP(S) em cada redirecionamento e decodifica com amostragem
+até 1920×1080 para reduzir a pressão no heap dos aparelhos antigos.
+
+Foi corrigida também a exceção assíncrona de prepareAndPlay no receptor DLNA
+compartilhado: falhas na callback de carga/foto passam a notificar o estado
+de erro da sessão sem escapar para o main. O runner
+`tools/test_legacy_gestures.py --dlna` exercita descoberta SSDP, descrição,
+SOAP, vídeo HTTP, pausa/busca/play/stop, URL rejeitada após o despacho SOAP,
+foto sintética e controles de girar/escala, erro de imagem, limpeza de cache,
+desativação e reativação do listener. Usar somente emulador isolado API17.
+
+Build ARMv7/x86, lint e testes JVM passaram nas duas edições. DLNA passou em
+`outputs/legacy-dlna-final` e `outputs/legacy-dlna-nodownload-final`. O roteiro
+aguarda PLAYING no protocolo antes de enviar Pause; a primeira rodada final
+falhou na espera da pausa, que antes podia começar ainda em TRANSITIONING.
+Agora o instrumentation grava a stack completa em caso de falha.
+FCast também passou nas duas edições em `outputs/legacy-dlna-fcast-final`
+e `outputs/legacy-dlna-fcast-nodownload-final`. Todos os testes desinstalaram
+as prévias temporárias. Não foi utilizada nenhuma TV física nesta etapa.
+SHA256 dos APKs geral/DE-AT, respectivamente:
+`de48282f5b58ec13151c3c459c155e1add6dfc4ed5e10c9547da25620c0f866b` e
+`c272564c2395bcb596aaa6260383a2519a8ef0c31fa06fa7a1191c30da1b4984`.
+
+Essa etapa não conclui a paridade: ainda faltam AirPlay por URL,
+legendas/faixas, download/gravação e demais recursos do plano. GENA/volume,
+slideshow/histórico prolongado e limites de fotos ainda precisam de testes
+de integração específicos no API17. Permanecem a arbitragem nativa/URL,
+HTTPS real, consumo prolongado, defeito intermitente de dlfree, produção e
+validação física. Vega segue separado no Mac. As logos não foram alteradas.
 
 ## Worker de vídeo ligado à sessão AirPlay — 18 de novembro de 2026
 

@@ -116,7 +116,9 @@ final class LegacyFcastScenario {
                 frame(client,1,request.toString());
                 await(()->state(runner,service)!=null && state(runner,service).phase==LegacyUrlPlayer.Phase.READY && state(runner,service).playing);
                 frame(client,2,"");await(()->!state(runner,service).playing);
-                if(read(runner,service,"session")!=null)throw new AssertionError("FCast shared the native output");
+                if(read(runner,service,"session")!=nativeReceiver || nativeReceiver.isClosed())throw new AssertionError("FCast restarted the native receiver");
+                Object nativeVideo=field(nativeReceiver,"videoPlayer");
+                if(field(nativeVideo,"codec")!=null || field(field(nativeVideo,"targets"),"active")!=null)throw new AssertionError("FCast shared the native output");
                 frame(client,5,"{\"time\":1}");await(()->Math.abs(state(runner,service).positionMs-1000)<100);
                 frame(client,8,"{\"volume\":0.35}");
                 receiveMatching(client,7,body->Math.abs(body.getDouble("volume")-.35)<.001);
@@ -131,6 +133,13 @@ final class LegacyFcastScenario {
                 receiveMatching(client,6,body->Math.abs(body.getDouble("speed")-1.25)<.001);
                 frame(client,10,"{\"speed\":0.5}");await(()->state(runner,service).speed==.5f);
                 receiveMatching(client,6,body->Math.abs(body.getDouble("speed")-.5)<.001);
+                // Consecutive wire commands also have to survive an in-flight
+                // Stop/Play replacement; do not wait for a new native listener.
+                SystemClock.sleep(550); // Respect FCast's 500 ms new-item rate limit.
+                frame(client,4,"");frame(client,1,request.toString());frame(client,2,"");
+                frame(client,5,"{\"time\":2}");frame(client,8,"{\"volume\":0.4}");frame(client,10,"{\"speed\":0.75}");
+                await(()-> {LegacyUrlPlayer.State value=state(runner,service);return value!=null && value.phase==LegacyUrlPlayer.Phase.READY && !value.playing && value.speed==.75f && Math.abs(value.positionMs-2000)<100;});
+                receiveMatching(client,7,body->Math.abs(body.getDouble("volume")-.4)<.001);
                 frame(client,4,"");
                 await(()-> {LegacyReceiverSession session=(LegacyReceiverSession)read(runner,service,"session");return state(runner,service)==null && session!=null && session.listeningPort()>0;});
                 configure(runner,activity,false);disabled(runner,service);

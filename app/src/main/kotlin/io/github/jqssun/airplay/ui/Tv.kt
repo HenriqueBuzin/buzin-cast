@@ -117,6 +117,12 @@ internal fun Modifier.smoothFocusOutline(shape: Shape, color: Color, width: Dp):
 fun Modifier.dpadAdjust(onLeft: () -> Unit, onRight: () -> Unit): Modifier = composed {
     val focus = LocalFocusManager.current
     onPreviewKeyEvent { e ->
+        // The custom key-down already commits the step. Letting a Slider see
+        // its key-up can finish an old value and undo that committed step.
+        if (e.type == KeyEventType.KeyUp && e.key in listOf(
+                Key.DirectionLeft, Key.DirectionRight, Key.DirectionUp, Key.DirectionDown)) {
+            return@onPreviewKeyEvent true
+        }
         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (e.key) {
             Key.DirectionLeft -> { onLeft(); true }

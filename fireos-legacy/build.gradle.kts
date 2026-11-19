@@ -10,6 +10,7 @@ import com.android.build.api.instrumentation.InstrumentationScope
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
+import java.security.MessageDigest
 
 // JmDNS 3.6.5 uses StandardCharsets (Android API 19). Keep the maintained
 // library and substitute its constant lookups with the equivalent API 1 call.
@@ -54,11 +55,74 @@ val sharedResources = tasks.register<SharedResourcesCopy>("syncSharedResources")
     outputDir.set(layout.buildDirectory.dir("generated/shared-res"))
     into(outputDir)
 }
-// Compile the production FCast transport used by the modern frontend too.
-// Only discovery/platform bindings are supplied by this API17 frontend.
+// Share transports and photo controls with the modern frontend. Only platform
+// lifecycle/resource bindings and the bounded API17 photo loader differ.
 val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport") {
     from(rootProject.file("app/src/main/kotlin")) {
-        include("io/github/jqssun/airplay/discovery/FCastReceiver.kt")
+        include("io/github/jqssun/airplay/discovery/FCastReceiver.kt", "io/github/jqssun/airplay/discovery/DlnaReceiver.kt",
+            "io/leancast/app/ControlServer.kt", "io/leancast/app/SubscriptionRegistry.kt", "io/leancast/app/SsdpAgent.kt",
+            "io/github/jqssun/airplay/media/PhotoActivity.kt")
+        include("io/github/jqssun/airplay/media/ExternalSubtitles.kt")
+        include("io/github/jqssun/airplay/media/ConnectionApproval.kt")
+        include("io/github/jqssun/airplay/discovery/CastV2Receiver.kt")
+        include("io/github/jqssun/airplay/media/MirrorRelay.kt")
+        filesMatching("**/MirrorRelay.kt") {
+            filter { line: String -> when {
+                line == "import io.github.jqssun.airplay.R" -> "import io.buzincast.legacy.R"
+                line == "    private val queue = ArrayBlockingQueue<MirrorPacket>(120)" ->
+                    "    private val queue = io.buzincast.legacy.LegacyRelayQueue(120)"
+                line == "    private val alive = AtomicBoolean(false)" ->
+                    line + "\n    fun sessionActive(): Boolean = alive.get()"
+                line.trimStart().startsWith("val channel = SecureMirrorChannel(") ->
+                    line.dropLast(1) + ", io.buzincast.legacy.LegacyMirrorCipher.INSTANCE)"
+                else -> line
+            } }
+        }
+        filesMatching("**/CastV2Receiver.kt") {
+            var replacingTls = false
+            filter { line: String -> when {
+                line == "    private fun tls(): SSLContext {" -> {
+                    replacingTls = true
+                    "    private fun tls(): io.buzincast.fireos3probe.LegacyNativeTls = io.buzincast.fireos3probe.LegacyTlsIdentity.nativeContext(context)"
+                }
+                replacingTls && line == "    @Synchronized override fun start() {" -> { replacingTls = false; line }
+                replacingTls -> ""
+                else -> line
+            } }
+        }
+        filesMatching("**/PhotoActivity.kt") {
+            filter { line: String -> when {
+                line == "import androidx.lifecycle.lifecycleScope" || line == "import androidx.activity.ComponentActivity" -> ""
+                line == "import io.github.jqssun.airplay.R" -> "import io.buzincast.legacy.R\nimport io.buzincast.legacy.LegacyPhotoActivityBase\nimport io.buzincast.legacy.LegacyPhotoLoader"
+                line == "class PhotoActivity : ComponentActivity() {" -> "class PhotoActivity : LegacyPhotoActivityBase() {"
+                line.contains("val loaded = withContext(Dispatchers.IO) { loadPhoto(url) }") ->
+                    line.replace("loadPhoto(url)", "LegacyPhotoLoader.load(this@PhotoActivity, url)")
+                line.contains("private class PhotoLoadException") -> line.replace("private class PhotoLoadException", "class PhotoLoadException")
+                else -> line
+            } }
+        }
+    }
+    doFirst {
+        val relay = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/media/MirrorRelay.kt").readText()
+        check(relay.lineSequence().count { it.trimStart().startsWith("val channel = SecureMirrorChannel(") && it.endsWith("))") } == 2 &&
+            relay.contains("    private val queue = ArrayBlockingQueue<MirrorPacket>(120)") &&
+            relay.split("    private val alive = AtomicBoolean(false)").size == 2 &&
+            relay.contains("import io.github.jqssun.airplay.R")) { "Review API17 relay crypto/resource/queue bindings: shared source changed" }
+        val cast = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/discovery/CastV2Receiver.kt").readText().replace("\r\n", "\n")
+        listOf("    private fun tls(): SSLContext {", "    @Synchronized override fun start() {").forEach {
+            check(cast.split(it).size == 2) { "Review the API17 Cast TLS binding: upstream source changed" }
+        }
+        val tlsSection = cast.substring(cast.indexOf("    private fun tls(): SSLContext {"), cast.indexOf("    @Synchronized override fun start() {"))
+        val tlsHash = MessageDigest.getInstance("SHA-256").digest(tlsSection.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        check(tlsHash == "0c336e18a5d5dedcd355e89fef5d0ca11d4ad2fc81a66ef7cac926d0e8de7257") {
+            "Review the API17 Cast TLS binding: upstream identity policy changed"
+        }
+        val source = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/media/PhotoActivity.kt").readText()
+        listOf("import androidx.lifecycle.lifecycleScope", "class PhotoActivity : ComponentActivity() {",
+            "val loaded = withContext(Dispatchers.IO) { loadPhoto(url) }", "private class PhotoLoadException").forEach {
+            check(source.split(it).size == 2) { "Review the API17 photo platform binding: upstream source changed" }
+        }
     }
     outputDir.set(layout.buildDirectory.dir("generated/shared-transport"))
     into(outputDir)
@@ -78,6 +142,9 @@ android {
         versionCode = 1
         versionName = "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
         multiDexEnabled = true
+        // The synthetic provider can start in the test APK's own process,
+        // before the instrumentation runner installs secondary dex files.
+        multiDexKeepProguard = file("main-dex-rules.pro")
         ndk { abiFilters += setOf("armeabi-v7a", "x86") }
         buildConfigField("boolean", "VIDEO_DOWNLOAD_ENABLED", (!noDownload).toString())
         buildConfigField("boolean", "RECORDING_ENABLED", (!noDownload).toString())
@@ -101,6 +168,8 @@ dependencies {
     implementation(project(":fireos3-runtime"))
     implementation(project(":dlna-domain"))
     implementation(project(":receiver-core"))
+    implementation(libs.kotlinx.coroutines)
+    implementation("androidx.core:core:1.8.0")
     implementation("org.jmdns:jmdns:3.6.5")
     implementation("androidx.multidex:multidex:2.0.1")
     coreLibraryDesugaring(libs.desugar)

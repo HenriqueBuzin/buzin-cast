@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Video đã tải xuống</string>
+    <string name="tools_downloads_empty">Video bạn tải xuống sẽ xuất hiện ở đây.</string>
+    <string name="tools_delete_download_confirm">Xóa video đã tải xuống?</string>
+    <string name="download_cancelled">Đã hủy tải xuống</string>
+</resources>

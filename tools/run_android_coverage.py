@@ -41,12 +41,13 @@ def filesystem_path(path):
 def class_roots(root, build, archive=None):
     if archive is not None:
         return {name:filesystem_path(archive)/"classes"/name for name in ("app","app-kotlin","core","domain")}
-    return {
+    roots = {
         "app":build/"intermediates/classes/debug/transformDebugClassesWithAsm/dirs",
         "app-kotlin":build/"tmp/kotlin-classes/debug",
         "core":root/"receiver-core/build/classes/kotlin/main",
         "domain":root/"dlna-domain/build/classes/kotlin/main",
     }
+    return {name:filesystem_path(directory) for name,directory in roots.items()}
 
 
 def native_library(build):

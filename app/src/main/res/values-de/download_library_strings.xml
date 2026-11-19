@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Heruntergeladene Videos</string>
+    <string name="tools_downloads_empty">Hier werden Ihre heruntergeladenen Videos angezeigt.</string>
+    <string name="tools_delete_download_confirm">Heruntergeladenes Video löschen?</string>
+    <string name="download_cancelled">Download abgebrochen</string>
+</resources>

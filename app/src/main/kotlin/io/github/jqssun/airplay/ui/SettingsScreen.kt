@@ -665,9 +665,13 @@ private fun SettingTextField(
         return
     }
     var text by remember(value) { mutableStateOf(value) }
-    val valid = range == null || text.toIntOrNull()?.let { it in range } == true
+    fun isValid(input: String) = range == null || input.toIntOrNull()?.let { it in range } == true
+    val valid = isValid(text)
     fun save() {
-        if (valid && text != value) onCommit(text)
+        // IME/focus events can arrive before the next composition. Validate the
+        // same current text that will be committed, not the previous UI result.
+        val current = text
+        if (isValid(current) && current != value) onCommit(current)
     }
     OutlinedTextField(
         value = text,
@@ -680,7 +684,7 @@ private fun SettingTextField(
             keyboardType = if (range == null) KeyboardType.Text else KeyboardType.Number,
             imeAction = ImeAction.Done
         ),
-        keyboardActions = doneAndHide(::save),
+        keyboardActions = doneAndHide { save() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)

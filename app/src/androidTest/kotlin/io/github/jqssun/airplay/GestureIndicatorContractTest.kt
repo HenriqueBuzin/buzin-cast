@@ -1,0 +1,236 @@
+package io.github.jqssun.airplay
+
+import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.graphics.Bitmap
+import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import android.provider.Settings
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelStore
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import io.github.jqssun.airplay.ui.gestures.DoubleTapIndicator
+import io.github.jqssun.airplay.ui.gestures.GestureInfoText
+import io.github.jqssun.airplay.ui.gestures.TapGestureState
+import io.github.jqssun.airplay.ui.gestures.VerticalProgressIndicator
+import io.github.jqssun.airplay.ui.theme.AirPlayTheme
+import io.github.jqssun.airplay.viewmodel.MainViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.abs
+
+/** Actual Compose pixels and accessibility, not a second implementation of the UI. */
+@RunWith(AndroidJUnit4::class)
+class GestureIndicatorContractTest {
+    private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
+    private val context get() = instrumentation.targetContext
+    private var lastTexts = emptyList<String>()
+    private var originalScale = 1f
+    private var store: ViewModelStore? = null
+    private var scope: CoroutineScope? = null
+    private var files: File? = null
+    private var preferences: String? = null
+
+    @Before fun setup() {
+        originalScale = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        scale(1f)
+    }
+    private fun scale(value: Float) {
+        ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+            "settings put global animator_duration_scale $value")).use { it.readBytes() }
+        await("Animator scale not applied") {
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, -1f) == value
+        }
+    }
+    @After fun cleanup() {
+        instrumentation.runOnMainSync { scope?.cancel(); store?.clear() }
+        preferences?.let { context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit() }
+        files?.deleteRecursively()
+        scale(originalScale)
+        if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
+    }
+    private fun await(message: String, condition: () -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + 15000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (condition()) return
+            Thread.sleep(25)
+        }
+        fail("$message; last accessible texts=$lastTexts")
+    }
+    private fun activity(block: (ActivityScenario<DebugTvPreviewActivity>) -> Unit) {
+        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use(block)
+    }
+    @Suppress("DEPRECATION")
+    private fun texts(): List<String>? {
+        val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+        try {
+            if (root.packageName?.toString() != context.packageName || root.childCount == 0) return null
+            val result = mutableListOf<String>()
+            fun visit(node: android.view.accessibility.AccessibilityNodeInfo) {
+                if (node.isVisibleToUser) node.text?.toString()?.let { result += it }
+                repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
+                    try { visit(child) } finally { child.recycle() }
+                } }
+            }
+            visit(root)
+            lastTexts = result
+            return result.takeIf { it.isNotEmpty() }
+        } finally { root.recycle() }
+    }
+    private fun textVisible(value: String) = texts()?.contains(value) == true
+    private fun shot(bounds: Rect): Bitmap {
+        val screen = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
+        var crop: Bitmap? = null
+        return try {
+            crop = Bitmap.createBitmap(screen, bounds.left.toInt(), bounds.top.toInt(), bounds.width.toInt(), bounds.height.toInt())
+            requireNotNull(crop.copy(Bitmap.Config.ARGB_8888, false))
+        } finally { if (crop !== screen) crop?.recycle(); screen.recycle() }
+    }
+    private fun Bitmap.point(x: Float, y: Float) = getPixel((width * x).toInt(), (height * y).toInt())
+    private fun near(actual: Int, red: Int, green: Int, blue: Int) =
+        abs(android.graphics.Color.red(actual) - red) <= 5 && abs(android.graphics.Color.green(actual) - green) <= 5 &&
+            abs(android.graphics.Color.blue(actual) - blue) <= 5
+
+    @Test fun verticalProgressClampsFillAndPreservesTheDisplayedValue() = activity { scenario ->
+        val value = mutableStateOf(100)
+        val bounds = AtomicReference<Rect>()
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                    VerticalProgressIndicator(value.value, Icons.Rounded.PlayArrow,
+                        Modifier.width(64.dp).height(250.dp).onGloballyPositioned { bounds.set(it.boundsInWindow()) })
+                }
+            }
+        } }
+        await("Progress indicator missing") { bounds.get() != null && textVisible("100") }
+        fun filledRows(): Int {
+            val bitmap = shot(bounds.get())
+            return try { (0 until bitmap.height).count { near(bitmap.getPixel(bitmap.width / 2, it), 124, 244, 205) } }
+            finally { bitmap.recycle() }
+        }
+        var full = 0
+        await("Full progress bar was not painted") { full = filledRows(); full > 30 }
+        for ((input, fraction) in listOf(0 to 0f, 25 to .25f, 50 to .5f, 100 to 1f, -20 to 0f, 120 to 1f)) {
+            instrumentation.runOnMainSync { value.value = input }
+            await("Displayed progress did not update to $input") { textVisible(input.toString()) }
+            await("Progress fill did not match $input (full=$full)") { abs(filledRows() - full * fraction) <= 3f }
+        }
+    }
+
+    @Test fun gestureInformationUpdatesAndStaysCentered() = activity { scenario ->
+        val info = mutableStateOf("Gesture contract alpha")
+        val bounds = AtomicReference<Rect>()
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                    GestureInfoText(info.value, Modifier.onGloballyPositioned { bounds.set(it.boundsInWindow()) })
+                }
+            }
+        } }
+        for (text in listOf("Gesture contract alpha", "Zoom 125%")) {
+            instrumentation.runOnMainSync { info.value = text }
+            await("Gesture information missing: $text") { bounds.get() != null && textVisible(text) }
+            await("Gesture information was not centered") {
+                val bitmap = shot(bounds.get())
+                try {
+                    var left = bitmap.width; var right = -1
+                    for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) {
+                        if (near(bitmap.getPixel(x, y), 255, 255, 255)) { left = minOf(left, x); right = maxOf(right, x) }
+                    }
+                    right > left && abs((left + right) / 2f - bitmap.width / 2f) < bitmap.width * .08f
+                } finally { bitmap.recycle() }
+            }
+        }
+        await("Old gesture information remained accessible") {
+            texts()?.let { "Zoom 125%" in it && "Gesture contract alpha" !in it } == true
+        }
+    }
+
+    private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }
+    @Suppress("UNCHECKED_CAST")
+    private fun playbackState(model: MainViewModel) {
+        (MainViewModel::class.java.getDeclaredField("_videoDurationMs").apply { isAccessible = true }.get(model) as MutableStateFlow<Long>).value = 100_000L
+        (MainViewModel::class.java.getDeclaredField("_videoPlaybackActive").apply { isAccessible = true }.get(model) as MutableStateFlow<Boolean>).value = true
+    }
+    @Test fun doubleTapPaintsOnlyItsDirectionAndDisappearsAfterTimeout() = activity { scenario ->
+        val name = "gesture-indicator-${System.nanoTime()}"
+        val directory = File(context.cacheDir, name).apply { mkdirs() }; files = directory; preferences = name
+        val isolated = object : ContextWrapper(context) {
+            override fun getFilesDir() = directory
+            override fun getCacheDir() = directory
+            override fun getSharedPreferences(key: String, mode: Int) = super.getSharedPreferences(name, mode)
+        }
+        lateinit var tap: TapGestureState
+        val bounds = AtomicReference<Rect>()
+        instrumentation.runOnMainSync {
+            val model = MainViewModel(TestApplication(isolated))
+            store = ViewModelStore().also { it.put("indicator", model) }
+            playbackState(model)
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+            tap = TapGestureState(model, requireNotNull(scope))
+        }
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                Box(Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { bounds.set(it.boundsInWindow()) }) {
+                    DoubleTapIndicator(tap)
+                }
+            }
+        } }
+        await("Indicator surface missing") { bounds.get() != null }
+        fun pixels(predicate: (Bitmap) -> Boolean): Boolean {
+            val bitmap = shot(bounds.get())
+            return try { predicate(bitmap) } finally { bitmap.recycle() }
+        }
+        await("Inactive double-tap indicator was visible") { pixels { near(it.point(.1f, .2f), 0, 0, 0) && near(it.point(.9f, .2f), 0, 0, 0) } }
+        for (forward in listOf(true, false)) {
+            await("Double-tap indicator did not paint its direction: $forward") {
+                instrumentation.runOnMainSync {
+                    if (tap.seekMillis == 0L || (tap.seekMillis > 0) != forward) {
+                        tap.handleDoubleTap(Offset(if (forward) 900f else 100f, 100f), IntSize(1000, 1000))
+                    }
+                }
+                pixels {
+                    val selected = it.point(if (forward) .9f else .1f, .2f)
+                    val unselected = it.point(if (forward) .1f else .9f, .2f)
+                    android.graphics.Color.red(selected) in 40..110 && near(unselected, 0, 0, 0) && near(it.point(.5f, .2f), 0, 0, 0)
+                }
+            }
+        }
+        await("Seek accumulator did not expire") {
+            var expired = false; instrumentation.runOnMainSync { expired = tap.seekMillis == 0L }; expired
+        }
+        await("Expired double-tap indicator remained painted") { pixels { near(it.point(.1f, .2f), 0, 0, 0) && near(it.point(.9f, .2f), 0, 0, 0) } }
+    }
+}

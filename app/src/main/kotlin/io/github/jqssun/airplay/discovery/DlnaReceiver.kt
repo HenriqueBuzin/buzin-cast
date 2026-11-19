@@ -52,15 +52,22 @@ class DlnaReceiver(
             check(playback.activeConnections == 0) { "An AirPlay session is active" }
             main.post {
                 if (!closed && playback.activeConnections == 0) {
-                    ownsPlayback = true
-                    val imageMetadata = session.currentMetaData.orEmpty().let { it.contains("image/jpeg", true) || it.contains("image/png", true) }
-                    if (imageMetadata || URI(uri).path.orEmpty().lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") || it.endsWith(".png") }) {
+                    try {
+                        ownsPlayback = true
+                        val imageMetadata = session.currentMetaData.orEmpty().let { it.contains("image/jpeg", true) || it.contains("image/png", true) }
+                        if (imageMetadata || URI(uri).path.orEmpty().lowercase().let { it.endsWith(".jpg") || it.endsWith(".jpeg") || it.endsWith(".png") }) {
+                            ownsPlayback = false
+                            ownsPhoto = true
+                            photoStartedAt = System.currentTimeMillis()
+                            playback.photo(uri)
+                            session.onPlayerPrepared()
+                        } else playback.load(MediaRequest(uri, Protocol.DLNA))
+                    } catch (error: Exception) {
                         ownsPlayback = false
-                        ownsPhoto = true
-                        photoStartedAt = System.currentTimeMillis()
-                        playback.photo(uri)
-                        session.onPlayerPrepared()
-                    } else playback.load(MediaRequest(uri, Protocol.DLNA))
+                        ownsPhoto = false
+                        session.onPlayerError()
+                        log("DLNA playback failed: ${error.javaClass.simpleName}")
+                    }
                 } else session.onPlayerError()
             }
         }
@@ -108,7 +115,7 @@ class DlnaReceiver(
                 } else {
                     val info = playback.playbackInfo
                     if (!info.buffering && info.playing) session.onPlayerPrepared()
-                    if (!info.playing && session.state == TransportState.PLAYING) session.pause()
+                    if (!info.buffering && !info.playing && session.state == TransportState.PLAYING) session.pause()
                     if (info.playing && session.state == TransportState.PAUSED_PLAYBACK) session.resume()
                 }
             }

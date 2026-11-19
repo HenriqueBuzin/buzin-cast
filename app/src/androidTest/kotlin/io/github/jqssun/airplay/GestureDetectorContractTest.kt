@@ -45,7 +45,7 @@ class GestureDetectorContractTest {
     }
 
     private fun fixture(mode: Mode, consumed: Boolean = false, block: (Events, Offset) -> Unit) {
-        val intent = Intent(context, DebugTvPreviewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val intent = Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ActivityScenario.launch<DebugTvPreviewActivity>(intent).use { activity ->
             val events = Events()
             val laidOut = CountDownLatch(1)

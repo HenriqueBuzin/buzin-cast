@@ -117,6 +117,7 @@ public:
 
 private:
     friend class OboeCallbacks;
+    friend struct AudioOutputContractAccess;
 
     // oboe error thread, on device loss: reopen and restart unless tearing down
     void reopenAfterError() {

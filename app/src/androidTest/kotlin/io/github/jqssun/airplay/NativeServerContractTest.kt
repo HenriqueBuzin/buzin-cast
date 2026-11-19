@@ -88,6 +88,45 @@ class NativeServerContractTest {
         if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
     }
 
+    @Test fun partialServerRejectsUnavailableChildrenAndDestroysItsCallbackBinding() {
+        org.junit.Assume.assumeTrue("Requires coverage-only partial-server fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        val callback = Callbacks()
+        val handle = DebugCoverage.nativeCreatePartialServer(callback)
+        assertNotEquals("Partial context callback initialization failed", 0L, handle)
+        try {
+            assertEquals(-1, NativeBridge.nativeStart(handle, 7000))
+            assertNull(NativeBridge.nativeGetRaopTxtRecords(handle))
+            assertNull(NativeBridge.nativeGetAirplayTxtRecords(handle))
+            assertNull(NativeBridge.nativeGetRaopServiceName(handle))
+            assertNull(NativeBridge.nativeGetServerName(handle))
+            NativeBridge.nativeSetDisplaySize(handle, 1920, 1080, 60)
+            NativeBridge.nativeSetPlist(handle, "width", 1920)
+            NativeBridge.nativeSetLang(handle, "en")
+            for (enabled in listOf(false, true)) {
+                NativeBridge.nativeSetCaptureEnabled(handle, enabled)
+                NativeBridge.nativeSetH265Enabled(handle, enabled)
+                NativeBridge.nativeSetHlsEnabled(handle, enabled)
+                NativeBridge.nativeSetFeature(handle, 42, enabled)
+                NativeBridge.nativeSetCodecs(handle, enabled, !enabled)
+                NativeBridge.nativeUpdatePlaybackInfo(handle, 1f, 10f, 1f, enabled)
+            }
+            assertFalse(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 256, false, false, false, false, false))
+            assertFalse(NativeBridge.nativeServerAudioStart(handle))
+            assertFalse(NativeBridge.nativeServerAudioDebug(handle, ByteBuffer.allocateDirect(256)))
+            NativeBridge.nativeServerAudioSetClientGain(handle, 0.5f)
+            NativeBridge.nativeServerAudioFormat(handle, 2, 352)
+            repeat(2) {
+                NativeBridge.nativeServerAudioStop(handle)
+                NativeBridge.nativeStop(handle)
+            }
+            assertTrue(callback.pcm.isEmpty())
+            assertTrue(callback.logs.isEmpty())
+        } finally { NativeBridge.nativeDestroy(handle) }
+        assertTrue(callback.pcm.isEmpty())
+        assertTrue(callback.logs.isEmpty())
+    }
+
     @Test fun capabilitiesAndCodecsArePublishedForBothEnabledAndDisabledValues() {
         val handle = create()
         assertEquals("JNI Contract", NativeBridge.nativeGetServerName(handle))
@@ -206,6 +245,14 @@ class NativeServerContractTest {
         assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 0, true, true, false, false, false))
         NativeBridge.nativeSetCaptureEnabled(handle, true)
         val base = System.nanoTime()
+        // Rejected JNI input must not emit PCM or poison the next real decode.
+        DebugNativeBridge.nativeFeedAudio(0L, frames.first(), base)
+        val feed = DebugNativeBridge::class.java.getMethod("nativeFeedAudio",
+            java.lang.Long.TYPE, ByteArray::class.java, java.lang.Long.TYPE)
+        feed.invoke(DebugNativeBridge, handle, null, base)
+        DebugNativeBridge.nativeFeedAudio(handle, ByteArray(0), base)
+        DebugNativeBridge.nativeFeedAudio(handle, ByteArray(8193), base)
+        assertTrue("Rejected audio input emitted PCM", callback.pcm.isEmpty())
         val count = frames.size * 3 // enough real decodes to exercise latency reporting
         for (index in 0 until count) {
             if (index == 20)

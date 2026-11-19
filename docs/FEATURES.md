@@ -25,9 +25,51 @@ boot por opção e tem retomada após morte do processo. Background desligado
 encerra o servidor ao sair. A recuperação de rede preserva a identidade e tem
 tentativas limitadas. Integra título/capa/progresso, comandos DACP e o cliente
 de mídia do Android, com teclas em segundo plano e foco de áudio durante
-música/espelhamento. Os testes dessas etapas usam emulador e pacotes
-sintéticos, como detalhado em [TESTING.md](TESTING.md). Ainda faltam os demais
-protocolos e funções abaixo, licença e validação com emissores e Sticks antigos reais.
+música/espelhamento. Já recebe URLs nativas, inclusive HLS via canal reverso
+FCUP, FCast v2 e DLNA com fotos, usando os transportes compartilhados. Oferece
+legendas externas SRT/VTT e gravação MKV de H.264/PCM, biblioteca, reprodução
+local, URI de exportação e exclusão. Inclui download de URLs para MP4 sem
+transcodificação, com progresso, cancelamento e biblioteca local, validado
+com AVC/AAC em MP4, HLS e DASH. Download e gravação ficam indisponíveis na
+edição DE/AT. Essa prévia também oferece aprovação opcional de conexões por controle,
+com autorização temporária por protocolo/IP e recusa por tempo limite.
+Oferece o mesmo PIN experimental de quatro dígitos do receptor nativo,
+com janela, notificação e registro temporário de dispositivos na sessão.
+Inclui o receptor Cast V2 experimental compartilhado, com TLS 1.2 via
+OpenSSL incluído no app, descoberta, controles, aprovação e reprodução de
+URLs. Não oferece identidade certificada Google nem conteúdo protegido.
+O cliente HTTP da prévia ativa TLS 1.2/AES no Android antigo, preservando
+as raízes e a verificação de domínio do sistema para player, downloads e fotos.
+Os testes usam emulador, mídia sintética e amostras HTTPS públicas, como detalhado em
+[TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
+compatíveis com os codecs/layouts de conversão disponíveis,
+licença/produção e demais itens do plano,
+além da validação com emissores e Sticks antigos reais.
+
+O exportador antigo preserva as faixas já aceitas pelo MP4 e pode converter
+as demais com MediaCodec em buffers API16: AVC Baseline e AAC-LC, sem saída
+de vídeo/áudio durante o download. VP8/Vorbis e combinações com uma faixa
+preservada são verificados no emulador. O recorte AVC mantém a imagem visível
+quando o encoder exige padding. A conversão depende dos codecs do aparelho,
+YUV420 planar/NV12 e PCM intercalado de 1–8 canais: 8/16/24/32 bits ou float.
+O libswresample incluído normaliza o PCM de 1–384 kHz para uma taxa AAC
+de 8–48 kHz, preservando mono/estéreo e reduzindo multicanal para estéreo
+com ganho normalizado. Reordena a saída Vorbis do componente Google antigo
+quando necessário. A conversão mede o atraso do componente AAC configurado
+com sinal sintético e guarda o resultado em memória. Drena o conteúdo real
+antes do EOS e usa edit lists MP4 para retirar o preroll e o padding da
+apresentação, preservando offsets, lacunas e períodos DASH. Metadados de cor
+incompletos são omitidos; declarações válidas, inclusive HDR, são preservadas.
+Layouts YUV proprietários e validação física continuam pendentes.
+
+A prévia também integra a retransmissão Buzin-a-Buzin em Ferramentas, com
+recepção por código, conexão manual à outra TV e parada. Reaproveita o
+transporte criptografado compartilhado e o tap nativo de AVC/PCM. A saída
+API17 recebe AVC até o orçamento 1080p do primeiro Stick e PCM 44,1 kHz/stereo,
+com Surface exclusiva, relógio de áudio e foco. A edição DE/AT mantém esse
+transporte em memória; download e gravação continuam desativados. A validação
+de integração usa pares sintéticos locais; não comprova uma sessão física
+entre duas TVs.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.
 - Recuperação: reanúncio após mudança de rede e até três tentativas do player em falhas de conexão/timeout; AirPlay pode exigir reconexão no emissor.

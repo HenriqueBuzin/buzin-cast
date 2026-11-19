@@ -17,6 +17,16 @@ static_assert(std::numeric_limits<decltype(SpscRingTestAccess::position(std::dec
               "Audio positions must remain 64-bit on ARM32 as well as ARM64");
 #define CHECK(condition) do { if (!(condition)) throw std::runtime_error(std::string(#condition)+" at line "+std::to_string(__LINE__)); } while(false)
 #include "log_sink_contracts.h"
+#ifdef BUZIN_CLOCK_CONTRACTS
+#include "timeline_clock_contracts.h"
+#endif
+#ifdef BUZIN_CALLBACK_KEY_CONTRACTS
+extern "C" int callbackThreadKeyCreationFailureStatus(void);
+static void callbackThreadKeyCreationFailureBlocksAttachment() {
+    const int status = callbackThreadKeyCreationFailureStatus();
+    if (status) throw std::runtime_error("TLS key contract failed at line " + std::to_string(status));
+}
+#endif
 
 static void ringBoundsAndWrap() {
     SpscRing ring(7);
@@ -50,6 +60,12 @@ static void fixedAndAdaptiveJitter() {
     for(int i=0;i<600;++i) adaptive.observe(1000000000LL+i*20000000LL,1800000000LL+i*20000000LL,20000000);
     CHECK(adaptive.target()>initial && adaptive.target()<=adaptive.ceil());
     adaptive.reanchor(); adaptive.observe(100,200,10000000); CHECK(adaptive.target()<=adaptive.ceil());
+    DelayTracker extreme(1000,1,0,95);
+    extreme.observe(1000000000,1000000000,10000000);
+    CHECK(extreme.target()==15);
+    // A multi-second arrival spike saturates the histogram and cushion ceiling.
+    extreme.observe(1010000000,4010000000,10000000);
+    CHECK(extreme.ceil()==1000 && extreme.target()==extreme.ceil());
 }
 static void pcmUnderrunAndReprime() {
     TimelineBuffer timeline(1000,1,0,95); int16_t input[]={1,2,3,4}, output[4]{};
@@ -73,6 +89,25 @@ static void timestampGapsDropsAndCapture() {
     int16_t output[40]{}; timeline.read(output,40);
     for(int i=0;i<10;++i) CHECK(output[i]==1); for(int i=10;i<30;++i) CHECK(output[i]==0); for(int i=30;i<40;++i) CHECK(output[i]==2);
     auto debug=timeline.debugInfo(); CHECK(debug.metrics.silences==1 && debug.metrics.drops==1);
+
+    // Unsynchronized packets must remain audible without entering timestamped
+    // capture. Once the sender clock is ready, capture receives the original PCM.
+    TimelineBuffer syncing(1000,1,0,95);
+    int synchronizedCaptures=0;
+    syncing.capturePcm=[&](const int16_t *pcm,size_t samples,int64_t pts) {
+        CHECK(pcm==second.data() && samples==second.size() && pts==2000000000);
+        ++synchronizedCaptures;
+    };
+    syncing.write(first.data(),0,0);
+    syncing.write(first.data(),first.size(),0);
+    CHECK(synchronizedCaptures==0);
+    int16_t capturedOutput[10]{};
+    CHECK(syncing.read(capturedOutput,10).samples==10);
+    for(auto value:capturedOutput) CHECK(value==1);
+    syncing.write(second.data(),second.size(),2000000000);
+    CHECK(synchronizedCaptures==1);
+    CHECK(syncing.read(capturedOutput,10).samples==10);
+    for(auto value:capturedOutput) CHECK(value==2);
 }
 static void discontinuityAndMetrics() {
     TimelineBuffer timeline(1000,1,0,95); int16_t data[10]{};
@@ -93,6 +128,9 @@ static void sustainedBacklogIsTrimmed() {
     CHECK(output==1 && timeline.debugInfo().metrics.trims==1 && timeline.debugInfo().backlogMs==19);
     auto timing=clock.read(read.firstSample,read.samples);
     CHECK(read.firstSample==80 && timing.size()==3 && timing[2]==1080000000);
+#ifdef BUZIN_CLOCK_CONTRACTS
+    backlogTrimmingWaitsAfterAnUnderrun();
+#endif
 }
 static void acceptedClockExcludesLatePacketsAndPadding() {
     TimelineBuffer timeline(1000,1,0,95); int16_t packet[10]{};
@@ -133,6 +171,9 @@ static void acceptedClockReportsActualRingCapacity() {
     timeline.enqueuedPcm=[&](uint64_t first,size_t count,int64_t){CHECK(first==0);accepted+=count;};
     timeline.write(input.data(),input.size(),1000000000);
     CHECK(accepted>0 && accepted<input.size());
+    const size_t atCapacity=accepted;
+    timeline.write(input.data(),input.size(),0);
+    CHECK(accepted==atCapacity); // A full ring emits no accepted-clock metadata.
     CHECK(timeline.read(output.data(),10000).samples==accepted);
 }
 static void stereoResumesAfterUnderrunAndClockReset() {
@@ -171,7 +212,11 @@ int main() {
         {"JNI VM failures and thread attachment",logSinkVmFailuresAndAttachment},
         {"JNI callback binding failures",logSinkBindingFailures},
         {"JNI string allocation and callback failures",logSinkAllocationAndCallbackFailures},
-        {"JNI log rebinding reference ownership",logSinkRebindingReleasesReferences}};
+        {"JNI log rebinding reference ownership",logSinkRebindingReleasesReferences}
+#ifdef BUZIN_CALLBACK_KEY_CONTRACTS
+        ,{"TLS key creation failure blocks JVM attachment",callbackThreadKeyCreationFailureBlocksAttachment}
+#endif
+    };
     int failures=0;
     for(const auto &test:cases) { try {test.second(); std::cout<<"PASS "<<test.first<<std::endl;} catch(const std::exception &error) {++failures; std::cerr<<"FAIL "<<test.first<<": "<<error.what()<<std::endl;} }
     std::cout<<"Native tests: "<<std::size(cases)<<", failures: "<<failures<<std::endl;

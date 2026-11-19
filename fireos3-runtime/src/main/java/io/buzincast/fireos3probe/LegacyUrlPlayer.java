@@ -10,12 +10,18 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.text.Cue;
+import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.LegacyHttpDataSource;
 import androidx.media3.datasource.ResolvingDataSource;
+import androidx.media3.datasource.ByteArrayDataSource;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.source.MediaSource;
+import androidx.media3.exoplayer.source.MergingMediaSource;
+import androidx.media3.exoplayer.source.SingleSampleMediaSource;
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import java.util.concurrent.CountDownLatch;
 import java.net.ProtocolException;
@@ -34,9 +40,12 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
         public final float speed;
         public final int width,height;
         public final Exception failure;
-        State(Phase phase,long generation,long positionMs,long durationMs,boolean playing,boolean buffering,float speed,int width,int height,Exception failure) {
+        public final String caption;
+        public final boolean externalSubtitle;
+        State(Phase phase,long generation,long positionMs,long durationMs,boolean playing,boolean buffering,float speed,int width,int height,Exception failure,String caption,boolean externalSubtitle) {
             this.phase=phase;this.generation=generation;this.positionMs=positionMs;this.durationMs=durationMs;
             this.playing=playing;this.buffering=buffering;this.speed=speed;this.width=width;this.height=height;this.failure=failure;
+            this.caption=caption;this.externalSubtitle=externalSubtitle;
         }
     }
     public interface Listener {void changed(State state);}
@@ -50,12 +59,17 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
     private final OwnedTargetSlot<Surface> targets=new OwnedTargetSlot<>();
     private OwnedTargetSlot.Target<Surface> target;
     private ExoPlayer player;
+    private DefaultMediaSourceFactory sources;
+    private MediaItem item;
+    private String caption="";
+    private byte[] subtitle;
+    private String subtitleMime;
     private long generation;
     private boolean buffering;
     private float gain=1,focusGain,speed=1;
     private int width,height;
     private Phase phase=Phase.IDLE;
-    private volatile State state=new State(Phase.IDLE,0,0,0,false,false,1,0,0,null);
+    private volatile State state=new State(Phase.IDLE,0,0,0,false,false,1,0,0,null,"",false);
     private final Runnable tick=new Runnable() {
         @Override public void run() {if(closing.get())return;if(player!=null) {publish(null);worker.postDelayed(this,250);}}
     };
@@ -77,9 +91,7 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
             phase=Phase.LOADING;publish(null);
             // HTTP-only sources also apply to manifest/segment URIs. Never route
             // a sender-provided child URI through file/content/asset data sources.
-            DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory().setUserAgent("BuzinCast")
-                .setConnectTimeoutMs(10000).setReadTimeoutMs(15000).setAllowCrossProtocolRedirects(false)
-                .setDefaultRequestProperties(request.headers);
+            androidx.media3.datasource.DataSource.Factory http=LegacyHttpDataSource.factory(request.headers);
             ResolvingDataSource.Factory network=new ResolvingDataSource.Factory(http,spec-> {
                 String scheme=spec.uri.getScheme();
                 if((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) || spec.uri.getHost()==null ||
@@ -87,7 +99,11 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
                     throw new ProtocolException("Expected HTTP(S) media resource without embedded credentials");
                 return spec;
             });
-            DefaultMediaSourceFactory sources=new DefaultMediaSourceFactory(network)
+            androidx.media3.datasource.DataSource.Factory data=network;
+            if(request.localRecording)data=new ResolvingDataSource.Factory(androidx.media3.datasource.FileDataSource::new,spec-> {
+                if(!spec.uri.toString().equals(request.location))throw new ProtocolException("Expected the selected local recording");return spec;
+            });
+            sources=new DefaultMediaSourceFactory(data)
                 .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(2));
             ExoPlayer next=new ExoPlayer.Builder(context,new DefaultRenderersFactory(context).setEnableDecoderFallback(true))
                 .setLooper(thread.getLooper()).setMediaSourceFactory(sources).build();
@@ -96,24 +112,54 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
             next.addListener(new Player.Listener() {
                 @Override public void onPlaybackStateChanged(int playbackState) {
                     if(!current(next))return;
-                    buffering=playbackState==Player.STATE_BUFFERING;
                     if(playbackState==Player.STATE_READY) {phase=Phase.READY;}
                     else if(playbackState==Player.STATE_ENDED) {phase=Phase.ENDED;worker.removeCallbacks(tick);}
+                    buffering=playbackState==Player.STATE_BUFFERING || phase==Phase.LOADING;
                     publish(null);
                 }
                 @Override public void onIsPlayingChanged(boolean playing) {if(current(next))publish(null);}
                 @Override public void onVideoSizeChanged(VideoSize size) {if(current(next)) {width=size.width;height=size.height;publish(null);}}
                 @Override public void onPlayerError(PlaybackException error) {if(current(next))fail(error);}
+                @Override public void onCues(CueGroup cues) {
+                    if(!current(next))return;
+                    StringBuilder text=new StringBuilder();
+                    for(Cue cue:cues.cues)if(cue.text!=null) {
+                        if(text.length()>0 && text.length()<4000)text.append('\n');
+                        int remaining=4000-text.length();if(remaining<=0)break;
+                        text.append(cue.text,0,Math.min(cue.text.length(),remaining));
+                    }
+                    caption=text.toString();publish(null);
+                }
             });
             if(target!=null)next.setVideoSurface(target.value);
             MediaItem.Builder item=new MediaItem.Builder().setUri(request.location);
             if(request.mime!=null)item.setMimeType(request.mime);
-            next.setMediaItem(item.build(),request.startMs);next.setPlayWhenReady(play);next.prepare();
+            this.item=item.build();next.setMediaSource(sources.createMediaSource(this.item),request.startMs);next.setPlayWhenReady(play);next.prepare();
             worker.removeCallbacks(tick);worker.post(tick);
         });
         return owner;
     }
     private boolean current(ExoPlayer candidate) {return !closing.get() && player==candidate && generation==commands.get();}
+    /** Only user-imported bytes enter this isolated source. Remote manifests remain HTTP-only. */
+    public void subtitle(long expectedGeneration,byte[] content,String mime) {
+        if(content!=null && (content.length>2*1024*1024 || !("text/vtt".equals(mime) || "application/x-subrip".equals(mime))))
+            throw new IllegalArgumentException("Unsupported external subtitle");
+        byte[] owned=content==null?null:content.clone();
+        post(()-> {
+            if(player==null || expectedGeneration!=generation || expectedGeneration!=commands.get())return;
+            subtitle=owned;subtitleMime=mime;caption="";
+            long position=player.getCurrentPosition();boolean playing=player.getPlayWhenReady();
+            MediaSource media=sources.createMediaSource(item);
+            if(owned!=null) {
+                MediaItem.SubtitleConfiguration config=new MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse("buzin-subtitle://local/caption"))
+                    .setMimeType(subtitleMime).setLanguage("und").setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build();
+                MediaSource text=new SingleSampleMediaSource.Factory(()->new ByteArrayDataSource(owned)).createMediaSource(config,C.TIME_UNSET);
+                media=new MergingMediaSource(media,text);
+            }
+            buffering=true;phase=Phase.LOADING;
+            player.setMediaSource(media,Math.max(0,position));player.setPlayWhenReady(playing);player.prepare();publish(null);
+        });
+    }
     public void playing(boolean playing) {post(()-> {
         if(player==null)return;
         if(playing && phase==Phase.ENDED) {player.seekTo(0);phase=Phase.READY;}
@@ -157,7 +203,7 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
             position=Math.max(0,player.getCurrentPosition());duration=Math.max(0,player.getDuration());playing=player.isPlaying();
             speed=player.getPlaybackParameters().speed;
         }}catch(RuntimeException invalid) {fail(invalid);return;}
-        state=new State(phase,generation,position,duration,playing,buffering,speed,width,height,error);listener.changed(state);
+        state=new State(phase,generation,position,duration,playing,buffering,speed,width,height,error,caption,subtitle!=null);listener.changed(state);
     }
     private void fail(Exception error) {
         try {releasePlayer();}catch(RuntimeException release) {error.addSuppressed(release);}
@@ -165,6 +211,7 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
     }
     private void releasePlayer() {
         worker.removeCallbacks(tick);ExoPlayer previous=player;player=null;
+        sources=null;item=null;subtitle=null;subtitleMime=null;caption="";
         if(previous!=null)previous.release();
     }
     @Override public void close() {

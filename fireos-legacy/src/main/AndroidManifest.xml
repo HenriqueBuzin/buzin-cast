@@ -20,6 +20,12 @@
             </intent-filter>
         </activity>
         <service android:name=".LegacyReceiverService" android:exported="false" android:foregroundServiceType="connectedDevice" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.recordings"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/recording_paths" />
+        </provider>
+        <activity android:name="io.github.jqssun.airplay.media.PhotoActivity" android:exported="false"
+            android:screenOrientation="landscape" android:launchMode="singleTop" />
         <receiver android:name=".LegacyMediaButtonReceiver" android:exported="false">
             <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON" /></intent-filter>
         </receiver>

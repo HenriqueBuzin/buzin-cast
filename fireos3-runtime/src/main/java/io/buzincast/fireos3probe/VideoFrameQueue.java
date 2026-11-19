@@ -10,8 +10,54 @@ final class VideoFrameQueue {
     static final int MAX_FRAMES = 16;
     private final ArrayDeque<Frame> frames = new ArrayDeque<>();
     private int bytes;
-    private boolean closed;
+    private volatile boolean closed;
     private volatile int activeConnections;
+    interface Pin {void display(String code);}
+    private volatile Pin pin;
+    private final java.util.Set<String> trustedKeys=new java.util.HashSet<>();
+    void pin(Pin value) {pin=value;}
+    @SuppressWarnings("unused") public void onDisplayPin(String code) {
+        Pin listener=pin;
+        if(!closed && listener!=null && code!=null && code.matches("[0-9]{4}"))listener.display(code);
+    }
+    @SuppressWarnings("unused") public void onRegisterClient(String key) {
+        synchronized(this) {
+            if(closed || pin==null || key==null || !key.matches("[A-Za-z0-9+/]{43}=") || trustedKeys.size()>=16 && !trustedKeys.contains(key))return;
+            trustedKeys.add(key);
+        }
+        Pin listener=pin;if(listener!=null && !closed)listener.display(null);
+    }
+    @SuppressWarnings("unused") public synchronized boolean onCheckRegister(String key) {
+        return !closed && pin!=null && trustedKeys.contains(key);
+    }
+    interface Admission {boolean allow(String peer);}
+    private volatile Admission admission;
+    void admission(Admission value) {admission=value;}
+    @SuppressWarnings("unused") public boolean onConnectionRequest(String peer) {
+        Admission gate=admission;
+        return !closed && (gate==null || gate.allow(peer)) && !closed;
+    }
+    final LegacyNativePlayback url=new LegacyNativePlayback();
+    @SuppressWarnings("unused") public boolean videoUrlEnabled() {return url.enabled();}
+    @SuppressWarnings("unused") public boolean onVideoPlay(byte[] bytes,float seconds) {
+        String location;
+        try {location=java.nio.charset.Charset.forName("UTF-8").newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(bytes)).toString();}
+        catch(java.nio.charset.CharacterCodingException invalid) {return false;}
+        try {url.play(location,seconds);}catch(IllegalArgumentException invalid) {return false;}
+        if(!url.enabled())return false;
+        onVideoReset();if(audio!=null)audio.flush();return true;
+    }
+    @SuppressWarnings("unused") public void onVideoWaitReady() {
+        try {url.awaitReady(10000);}catch(InterruptedException interrupted) {Thread.currentThread().interrupt();}
+    }
+    @SuppressWarnings("unused") public void onVideoScrub(float seconds) {url.seek(seconds);}
+    @SuppressWarnings("unused") public void onVideoRate(float rate) {url.rate(rate);}
+    @SuppressWarnings("unused") public void onVideoStop() {url.stop();}
+    @SuppressWarnings("unused") public double[] getVideoPlaybackInfo() {return url.state().values();}
+    @SuppressWarnings("unused") public void onVideoUrlReset(boolean abandoned) {
+        LegacyNativePlayback.State state=url.state();
+        if(!abandoned || state.ready && !state.buffering && state.rate==0)url.stop();
+    }
     private volatile Runnable connectionsChanged;
     void connections(Runnable changed) {connectionsChanged=changed;}
     int connectionCount() {return activeConnections;}
@@ -118,6 +164,8 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        trustedKeys.clear();pin=null;
+        url.close();
         activeConnections=0;connectionsChanged=null;
         mirrorMode(false);
         controls=null;
