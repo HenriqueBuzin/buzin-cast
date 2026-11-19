@@ -23,14 +23,14 @@ val regionalAppstoreAssets = providers.gradleProperty("buzinRegionalAppstoreAsse
     }
 }
 val noDownloadEdition = regionalAppstoreAssets != null || providers.gradleProperty("buzinNoDownload").orNull == "true"
-val editionVersionCode = when {
-    legacyEdition && noDownloadEdition -> 45
-    legacyEdition -> 44
-    noDownloadEdition -> 47
-    else -> 46
+val fireOsRelease = Properties().apply {
+    rootProject.file("gradle/fireos-release.properties").inputStream().use(::load)
 }
+val releaseTarget = if (legacyEdition) "compat" else "modern"
+val releaseRegion = if (noDownloadEdition) "nodownload" else "general"
+val editionVersionCode = fireOsRelease.getProperty("$releaseTarget.$releaseRegion.versionCode").toInt()
 val editionVersionName = buildString {
-    append("0.6.7")
+    append(fireOsRelease.getProperty("versionName"))
     if (legacyEdition) append("-compat")
     if (noDownloadEdition) append("-nodownload")
 }
@@ -58,7 +58,7 @@ android {
 
     defaultConfig {
         applicationId = if (regionalAppstoreAssets == null) "com.buzincast.tv" else "com.buzincast.tv.deat"
-        minSdk = if (legacyEdition) 22 else 25
+        minSdk = fireOsRelease.getProperty("$releaseTarget.minSdk").toInt()
         targetSdk = 37
         versionCode = editionVersionCode
         versionName = editionVersionName

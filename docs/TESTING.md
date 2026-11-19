@@ -1,5 +1,12 @@
 # Testes automatizados
 
+## Identidade dos seis APKs Fire OS
+
+O plano compartilhado, a geração dos manifestos nas seis configurações e
+a conferência dos APKs finais estão em [Release Fire OS](FIREOS_RELEASE.md).
+O relatório separa identidade local de seleção de dispositivos no console;
+validar um manifesto não comprova um APK assinado ou execução física.
+
 ## Encerramento e reconexão do transporte na API17
 
 `build_native_tests.py --legacy --mirror-transport` compila as funções reais

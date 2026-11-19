@@ -7,6 +7,38 @@ espelhamento. O VVD confirmou a espera antes da execução do comando,
 recusa, reapertura com nova confirmação e bloqueio de SETUP de
 espelhamento sem PIN. Veja [Retomada Vega](VEGA_HANDOFF.md).
 
+## Numeração coordenada dos seis APKs Fire OS
+
+Os candidatos nativos usavam 48/49, acima dos códigos 44–47 que ainda
+estavam configurados para compatível/moderno. Isso contrariava a regra
+Amazon de código crescente com a API mínima ao enviar múltiplos APKs.
+`gradle/fireos-release.properties` agora é compartilhado pelos projetos:
+nativo API17 48/49, compatível API22 50/51 e moderno API25 52/53.
+O build de produção nativo rejeita versões explícitas fora desse plano.
+
+`tools/Check-FireOsRelease.ps1` gera e copia manifestos de release nas seis
+configurações. A execução completa passou em
+`outputs/fireos-release-matrix/report.json`: seis identidades reais,
+`completeSet=true`, `deviceTargetingVerified=false`. O verificador
+`tools/check_fireos_release.py` também aceitou os dois APKs nativos
+assinados existentes, cujos códigos e nomes não mudaram, em
+`outputs/fireos-release-legacy-check.json`.
+
+Sete controles negativos foram rejeitados: pacote incorreto, depuração,
+filtro de API máxima, código antigo, perda de API17, inversão da ordem dos
+códigos e conjunto incompleto. Evidência:
+`outputs/fireos-release-negative/report.json`. O runner também invalida
+um relatório anterior quando falha; esse caminho foi exercitado com um
+interpretador inexistente em `outputs/fireos-release-runner-error`.
+
+Os manifestos não são quatro novos APKs compatível/moderno. Reconstruir
+essas quatro edições com 50–53 e testar os releases antes de publicar.
+O console Amazon exige atribuição manual de modelos por APK: conferir
+somente os Fire TV Sticks físicos e os códigos já publicados/LAT. O plano
+local não consulta nem modifica a loja. Ver [Release Fire OS](FIREOS_RELEASE.md).
+Persistem também os gates de licença, hardware ARM e paridade abaixo.
+Nenhuma TV foi usada; as 12 artes aprovadas continuam intactas.
+
 ## Aprovação FCast no Vega
 
 A preferência salva para DLNA também ativa a confirmação no FCast.
