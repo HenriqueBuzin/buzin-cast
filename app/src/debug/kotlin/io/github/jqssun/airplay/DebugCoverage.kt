@@ -15,6 +15,11 @@ object DebugCoverage {
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     external fun nativeCallbackInitContracts(mode: Int): String
     external fun nativeCreatePartialServer(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): Long
+    external fun nativeInitWithPinResult(bridge: io.github.jqssun.airplay.bridge.NativeBridge,
+        callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler, hardware: ByteArray,
+        name: String, keyFile: String, result: Int): Long
+    external fun nativeFeedWithInputNotReady(bridge: DebugNativeBridge, handle: Long,
+        data: ByteArray, ptsNs: Long, failures: Int): Int
     fun dump(context: Context) {
         val dir = File(context.filesDir, "coverage").apply { mkdirs() }
         val runtime = Class.forName("org.jacoco.agent.rt.RT").getMethod("getAgent").invoke(null)

@@ -191,7 +191,8 @@ if(BUZIN_COVERAGE)
       set_source_files_properties(${BRIDGE_SOURCES} coverage_bridge.cpp PROPERTIES
         COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping;-fcoverage-mcdc;-fprofile-update=atomic")
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
-    target_link_options(airplay_native PRIVATE -fprofile-instr-generate)
+    target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
+        "-Wl,--wrap=AMediaCodec_dequeueInputBuffer")
 endif()
 
 # Keep upstream C libraries in their declared dialect; app-owned C uses C23.

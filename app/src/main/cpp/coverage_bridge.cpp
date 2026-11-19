@@ -11,6 +11,8 @@
 #include <vector>
 #include <chrono>
 #include <oboe/Oboe.h>
+#include <android/log.h>
+#include <media/NdkMediaCodec.h>
 #include "audio_engine.h"
 #include "audio_output.h"
 #include "log_sink.h"
@@ -23,6 +25,97 @@ extern "C" {
 }
 extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
+
+extern "C" int __real_random_pin(void);
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
+    JNIEnv *, jobject, jobject, jbyteArray, jstring, jstring, jboolean, jboolean);
+extern "C" JNIEXPORT void JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy(JNIEnv *, jobject, jlong);
+extern "C" JNIEXPORT void JNICALL
+Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(JNIEnv *, jobject, jlong, jbyteArray, jlong);
+extern "C" ssize_t __real_AMediaCodec_dequeueInputBuffer(AMediaCodec *, int64_t);
+
+namespace {
+struct PinResultContract {
+    int result;
+    int calls = 0;
+};
+thread_local PinResultContract *activePinResult = nullptr;
+struct ScopedPinResult {
+    PinResultContract value;
+    PinResultContract *previous;
+    explicit ScopedPinResult(int result) : value{result}, previous(activePinResult) { activePinResult = &value; }
+    ~ScopedPinResult() { activePinResult = previous; }
+};
+struct InputBufferContract { int remaining = 1; int calls = 0; };
+thread_local InputBufferContract *activeInputBuffer = nullptr;
+struct ScopedInputBuffer {
+    InputBufferContract value;
+    InputBufferContract *previous = activeInputBuffer;
+    explicit ScopedInputBuffer(int failures) : value{failures} { activeInputBuffer = &value; }
+    ~ScopedInputBuffer() { activeInputBuffer = previous; }
+};
+}
+
+extern "C" ssize_t __wrap_AMediaCodec_dequeueInputBuffer(AMediaCodec *codec, int64_t timeoutUs) {
+    if (activeInputBuffer) {
+        ++activeInputBuffer->calls;
+        __android_log_print(ANDROID_LOG_DEBUG, "NativeInputContract", "input call=%d timeoutUs=%lld forcedRemaining=%d",
+            activeInputBuffer->calls, static_cast<long long>(timeoutUs), activeInputBuffer->remaining);
+        if (activeInputBuffer->remaining > 0) {
+            --activeInputBuffer->remaining;
+            std::this_thread::sleep_for(std::chrono::microseconds(std::clamp<int64_t>(timeoutUs, 0, 100000)));
+            return AMEDIACODEC_INFO_TRY_AGAIN_LATER;
+        }
+    }
+    const ssize_t result = __real_AMediaCodec_dequeueInputBuffer(codec, timeoutUs);
+    if (result < 0) __android_log_print(ANDROID_LOG_WARN, "NativeInputContract",
+        "actual input dequeue timeoutUs=%lld result=%lld", static_cast<long long>(timeoutUs), static_cast<long long>(result));
+    return result;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeFeedWithInputNotReady(
+        JNIEnv *env, jobject, jobject bridge, jlong handle, jbyteArray data, jlong ptsNs, jint failures) {
+    if (failures < 0 || failures > 2) {
+        jclass error = env->FindClass("java/lang/IllegalArgumentException");
+        if (error) { env->ThrowNew(error, "Expected zero, one or two unavailable input results"); env->DeleteLocalRef(error); }
+        return 0;
+    }
+    ScopedInputBuffer forced(failures);
+    Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(env, bridge, handle, data, ptsNs);
+    return forced.value.calls;
+}
+
+// Only the instrumented library links this wrapper. Ordinary calls, including
+// other threads, use the original CSPRNG implementation without modification.
+extern "C" int __wrap_random_pin(void) {
+    if (activePinResult) {
+        ++activePinResult->calls;
+        return activePinResult->result;
+    }
+    return __real_random_pin();
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeInitWithPinResult(
+        JNIEnv *env, jobject, jobject bridge, jobject callback, jbyteArray hardware,
+        jstring name, jstring keyFile, jint result) {
+    ScopedPinResult forced(result);
+    const jlong handle = Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
+        env, bridge, callback, hardware, name, keyFile, JNI_FALSE, JNI_TRUE);
+    if (!env->ExceptionCheck() && forced.value.calls != 1) {
+        if (handle) Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy(env, bridge, handle);
+        jclass error = env->FindClass("java/lang/AssertionError");
+        if (error) {
+            env->ThrowNew(error, "PIN contract did not invoke the actual wrapped generator exactly once");
+            env->DeleteLocalRef(error);
+        }
+        return 0;
+    }
+    return handle;
+}
 
 // Own a real callback binding and synchronization primitives, but intentionally
 // stop before creating child subsystems. No listener, decoder or output opens.

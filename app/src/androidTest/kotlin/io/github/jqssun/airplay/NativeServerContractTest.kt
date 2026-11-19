@@ -127,6 +127,32 @@ class NativeServerContractTest {
         assertTrue(callback.logs.isEmpty())
     }
 
+    @Test fun invalidPinResultsAbortInitializationAndValidBoundariesRecover() {
+        org.junit.Assume.assumeTrue("Requires coverage-only PIN fault fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        for (pin in listOf(-1, 10000, 0, 9999)) {
+            val key = File.createTempFile("native-pin-contract-", ".pem", context.cacheDir).also { keys += it }
+            val callback = Callbacks()
+            val handle = DebugCoverage.nativeInitWithPinResult(NativeBridge, callback,
+                byteArrayOf(16, 32, 48, 64, 80, 96), "PIN Contract", key.absolutePath, pin)
+            if (pin < 0 || pin > 9999) {
+                if (handle != 0L) handles += handle
+                assertEquals("Invalid generated PIN was accepted: $pin", 0L, handle)
+            } else {
+                assertNotEquals("Valid PIN boundary was rejected: $pin", 0L, handle)
+                handles += handle
+                assertEquals("PIN Contract", NativeBridge.nativeGetServerName(handle))
+                assertTrue("Initialization unexpectedly registered discovery records",
+                    requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(handle)).isEmpty())
+            }
+            assertTrue("Initialization unexpectedly emitted audio", callback.pcm.isEmpty())
+        }
+        // The scoped override must not contaminate ordinary PIN generation.
+        val ordinary = create(pin = true)
+        assertEquals("JNI Contract", NativeBridge.nativeGetServerName(ordinary))
+        assertTrue(requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(ordinary)).isEmpty())
+    }
+
     @Test fun capabilitiesAndCodecsArePublishedForBothEnabledAndDisabledValues() {
         val handle = create()
         assertEquals("JNI Contract", NativeBridge.nativeGetServerName(handle))
@@ -292,7 +318,11 @@ class NativeServerContractTest {
             // decoder lookahead can release every frame of the original fixture.
             val supplied = frames.size + 8
             for (index in 0 until supplied) {
-                DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
+                if (index == 0 && runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) {
+                    val attempts = DebugCoverage.nativeFeedWithInputNotReady(DebugNativeBridge,
+                        handle, frames[index % frames.size], pts(index), 1)
+                    assertEquals("Startup input did not recover from transient unavailability", 2, attempts)
+                } else DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
                 assertAccepted(index)
                 // Feed at the fixture's 1024/44100-second packet duration. A
                 // 10ms interval is over twice real time and can fill codec input
@@ -332,6 +362,53 @@ class NativeServerContractTest {
             assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
             assertEquals("Native decoder reported rejected packets", 0, debug.getInt(34))
         }
+    }
+
+    @Test fun platformInputWarmupIsBoundedAndDoesNotExtendTheLiveInputBudget() {
+        org.junit.Assume.assumeTrue("Requires coverage-only input availability fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        val frames = aacFrames()
+        val handle = create()
+        val callback = callbacks.getValue(handle)
+        NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
+        assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 0, true, false, false, false, false))
+        NativeBridge.nativeSetCaptureEnabled(handle, true)
+        val base = System.nanoTime() / 1000 * 1000
+        fun pts(index: Int) = (base + index * 1024L * 1_000_000_000L / 44100) / 1000 * 1000
+        fun forced(index: Int, failures: Int) = DebugCoverage.nativeFeedWithInputNotReady(
+            DebugNativeBridge, handle, frames[index % frames.size], pts(index), failures)
+        val debug = ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder())
+        fun rejected(expected: Int) {
+            assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
+            assertEquals("Unexpected platform input rejection; logs=${callback.logs}", expected, debug.getInt(34))
+        }
+        assertEquals("Persistent startup starvation was not bounded", 2, forced(0, 2))
+        rejected(1)
+        assertTrue(callback.pcm.isEmpty())
+        assertEquals("Startup did not recover on its second attempt", 2, forced(0, 1))
+        rejected(1)
+        assertEquals("Live input incorrectly used the startup retry", 1, forced(1, 1))
+        rejected(2)
+        val supplied = frames.size + 8
+        val frameDelayMs = (1024L * 1000 + 44100 - 1) / 44100
+        for (index in 1 until supplied) {
+            DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
+            rejected(2)
+            Thread.sleep(frameDelayMs)
+        }
+        val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10)
+        while (callback.pcm.size < frames.size && System.nanoTime() < deadline) Thread.sleep(10)
+        NativeBridge.nativeSetCaptureEnabled(handle, false)
+        NativeBridge.nativeServerAudioStop(handle)
+        assertTrue("Platform recovery lost PCM: ${callback.pcm.size}; logs=${callback.logs}",
+            callback.pcm.size in frames.size..supplied)
+        for ((index, record) in callback.pcm.withIndex()) {
+            assertEquals(44100, record.rate); assertEquals(2, record.channels)
+            assertEquals(4096, record.bytes.size)
+            assertTrue(record.bytes.all { it == 0.toByte() })
+            assertEquals("Recovery timestamp $index", pts(index), record.pts)
+        }
+        rejected(2)
     }
 
     @Test fun audioRendererPreservesDetachedConfigurationAndClearsEngineLabels() {

@@ -893,3 +893,37 @@ suite passed and before Android instrumentation finished. That partial run has
 no accepted result or replay baseline; its files remain diagnostic evidence.
 The successful selected retry uses a separate output and cannot substitute for
 the required complete four-edition acceptance run.
+
+The subsequent frozen normal 190-test cohort completed all required runtime
+labels, passed independent snapshot validation and remained below target. JVM
+branches are 3986/5948 and native MC/DC is 146/167. It predates the following
+decoder fix and must retain its own compiled mappings and execution profiles.
+
+Coverage-only, thread-scoped PIN substitution now invokes the real JNI
+initialization with generated values -1, 10000, 0 and 9999. Invalid values must
+abort; valid boundaries and a following ordinary RNG-backed request must succeed.
+The fixture checks that the wrapped generator was actually called exactly once.
+Ordinary calls use the original generator, and noncoverage builds do not link
+either fault wrapper.
+
+The initial 18-case selection exposed a platform AAC packet-zero rejection.
+The original failing API return was not recorded, so its exact cause is not
+asserted. A separate contract then reproduced a concrete startup failure: when
+the first input dequeue returns the valid transient TRY_AGAIN_LATER result, the
+decoder made one attempt and rejected the packet (one test failed in 0.175s).
+The decoder now permits one additional 95ms wait after its initial 5ms wait,
+only until obtaining its first input buffer. Persistent starvation remains
+bounded; subsequent live input retains its original 5ms budget.
+
+All 19 JNI/server/init cases passed on API28 in 16.914 seconds without skips.
+Contracts cover bounded persistent startup starvation, successful startup retry,
+no warmup retry after input becomes ready, exact rejection counters and complete
+PCM/timestamp recovery. The library-only export covers both new startup-guard
+conditions and both PIN-bound conditions, with no LLVM warnings. Bridge MC/DC
+reaches 45/47. The actual recovery code adds four mapped branches, three lines,
+two MC/DC conditions and four regions; no inventory is removed. A current
+noncoverage x86_64 native Debug build also passed, and its symbols confirm the
+original PIN generator/JNI initialization are present while fault wrappers and
+LLVM profile symbols are absent. No release APK was signed or published.
+The current complete cohort now requires 192 Android and 19 native tests across
+all four editions, with every metric and mandatory runtime gate still required.

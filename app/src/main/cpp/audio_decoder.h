@@ -227,7 +227,12 @@ public:
 
     bool decode(const uint8_t *data, size_t len, int64_t ptsNs) override {
         ssize_t ii = AMediaCodec_dequeueInputBuffer(mCodec, 5000);
+        // Codec startup can outlast the live stream's 5ms input budget. Allow
+        // one bounded warmup wait before the first buffer, never for live input.
+        if (ii == AMEDIACODEC_INFO_TRY_AGAIN_LATER && !mInputReady)
+            ii = AMediaCodec_dequeueInputBuffer(mCodec, 95000);
         if (ii < 0) return false;
+        mInputReady = true;
         size_t cap = 0;
         uint8_t *in = AMediaCodec_getInputBuffer(mCodec, (size_t)ii, &cap);
         if (!in) return false;
@@ -268,6 +273,7 @@ private:
     LatencyProbe mProbe;
     std::thread mDrainThread;
     std::atomic<bool> mDrainRun{false};
+    bool mInputReady = false;  // producer-thread only
 };
 #endif
 
