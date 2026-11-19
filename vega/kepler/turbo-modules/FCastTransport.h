@@ -10,9 +10,10 @@ public:
   ~FCastTransport();
   FCastTransport(const FCastTransport&) = delete;
   FCastTransport& operator=(const FCastTransport&) = delete;
-  int start(int port = 46899, bool loopbackOnly = false);
+  int start(int port = 46899, bool loopbackOnly = false, bool requireApproval = false);
   void stop();
   std::string pollCommand();
+  void answerApproval(double id, bool allow);
   bool isClient(double client) const;
   void disconnect(double client);
   void error(double client, const std::string& message);

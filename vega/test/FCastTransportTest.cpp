@@ -61,6 +61,15 @@ struct Socket {
     }
   }
 };
+std::string nextCommand(FCastTransport& receiver) {
+  for (int i = 0; i < 100; ++i) {
+    auto event = receiver.pollCommand();
+    if (!event.empty()) return event;
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  throw std::runtime_error("FCast command not delivered");
+}
+
 int main() {
   try {
     FCastTransport receiver;
@@ -105,6 +114,47 @@ int main() {
       check(Clock::now() - before < std::chrono::milliseconds(500));
     }
     receiver.start(port, true); receiver.stop();
+    {
+      const auto protectedPort = receiver.start(0, true, true);
+      Socket denied(protectedPort);
+      check(nextCommand(receiver) == "{\"approval\":{\"id\":1,\"peer\":\"127.0.0.1\"}}");
+      char byte;
+      check(recv(denied.fd, &byte, 1, MSG_DONTWAIT) < 0 && (errno == EAGAIN || errno == EWOULDBLOCK));
+      receiver.answerApproval(1, false);
+      denied.closed();
+      check(nextCommand(receiver) == "{\"approval\":null}");
+      Socket repeated(protectedPort); repeated.closed();
+      check(receiver.pollCommand().empty());
+      receiver.stop();
+    }
+    {
+      const auto protectedPort = receiver.start(0, true, true);
+      {
+        Socket waiting(protectedPort);
+        check(nextCommand(receiver).find("\"id\":2") != std::string::npos);
+        receiver.answerApproval(1, false);
+        waiting.sendPacket(12);
+        receiver.answerApproval(2, true);
+        waiting.until(11, "{\"version\":2}");
+        waiting.until(13, "");
+        check(nextCommand(receiver) == "{\"approval\":null}");
+      }
+      // Wait for the worker to observe EOF before reconnecting.
+      for (int i = 0; i < 100 && receiver.isClient(5); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      Socket trusted(protectedPort);
+      trusted.until(11, "{\"version\":2}");
+      check(receiver.pollCommand().empty());
+      receiver.stop();
+    }
+    {
+      Socket pending(receiver.start(0, true, true));
+      check(nextCommand(receiver).find("\"id\":3") != std::string::npos);
+      const auto before = Clock::now();
+      receiver.stop();
+      pending.closed();
+      check(Clock::now() - before < std::chrono::milliseconds(500));
+    }
     std::cout << "FCast transport: fragmented UTF-8, exclusive client, ping, updates, stale owner, oversize, deadline and restart passed\n";
     return 0;
   } catch (const std::exception& error) {std::cerr << error.what() << '\n'; return 1;}

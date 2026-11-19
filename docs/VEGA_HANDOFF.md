@@ -1,5 +1,36 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Aprovação de conexões FCast no Vega
+
+**Configurações → Aprovar conexões DLNA e FCast** aplica a preferência
+existente aos dois receptores. Cada protocolo mantém suas próprias
+decisões temporárias. O FCast aguarda a confirmação antes de enviar a
+versão do protocolo ou processar comandos. Uma conexão recusada é
+fechada e, depois de Permitir, reconexões do mesmo IPv4 reutilizam a
+aprovação por cinco minutos ou até fechar a tela.
+
+O VVD confirmou Recusar, Permitir, negociação FCast v2, reprodução
+MP4, pausa, busca, velocidade e volume. A regressão do DLNA confirmou
+aprovação, GENA e reprodução. Relatórios em `build/vega-fcast-approval-vvd`
+e `build/vega-shared-approval-dlna-vvd`. Lint, TypeScript, 69 testes Jest,
+testes nativos com ASan/UBSan e as três validações de ABI passaram.
+
+## Aprovação de conexões DLNA no Vega
+
+**Configurações → Aprovar conexões DLNA** salva a preferência no sandbox.
+Quando ativada, descoberta e descrições continuam disponíveis, e o
+primeiro comando SOAP ou inscrição GENA do emissor aguarda confirmação
+na TV. A aprovação vale por cinco minutos para o IPv4 do emissor.
+A recusa vale por 30 segundos e a confirmação expira em 25 segundos.
+Fechar o receptor descarta decisões e pedidos pendentes. As inscrições
+GENA expiram no máximo ao vencer a aprovação.
+
+O VVD confirmou Permitir e Recusar pelo controle, bloqueio de SOAP e
+GENA após a recusa e nova aprovação ao reabrir. O teste nativo também
+verificou resposta atrasada com ID anterior, recusa reaplicada e
+cancelamento da espera ao fechar. Lint, TypeScript, 69 testes Jest e
+validação de ABI nas três arquiteturas passaram.
+
 ## Notificações GENA do DLNA no Vega
 
 Os serviços AVTransport, RenderingControl e ConnectionManager aceitam

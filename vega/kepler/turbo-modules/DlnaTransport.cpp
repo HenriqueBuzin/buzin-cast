@@ -1,4 +1,5 @@
 #include "DlnaTransport.h"
+#include "ConnectionApproval.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -232,6 +233,7 @@ std::string_view reason(int status) {
   switch (status) {
     case 200: return "OK";
     case 400: return "Bad Request";
+    case 403: return "Forbidden";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
     case 412: return "Precondition Failed";
@@ -351,10 +353,13 @@ public:
     wake.notify_one();
   }
 
-  Response request(const HttpRequest& http, uint32_t peer, size_t service) {
+  Response request(const HttpRequest& http, uint32_t peer, size_t service, Clock::time_point grant) {
     if (!http.body.empty()) return {400, {}};
     const auto& headers = http.events;
     const bool unsubscribe = http.parser.method == HTTP_UNSUBSCRIBE;
+    const auto available = std::chrono::duration_cast<std::chrono::seconds>(grant - Clock::now()).count();
+    const auto seconds = std::min(eventTimeout(headers.timeout),
+        static_cast<unsigned>(std::clamp<int64_t>(available, 0, 1800)));
     std::lock_guard lock(mutex);
     if (!running) return {503, {}};
     expire();
@@ -369,14 +374,12 @@ public:
         subscribers.erase(entry);
         return {200, {}};
       }
-      const auto seconds = eventTimeout(headers.timeout);
       if (!seconds) return {400, {}};
       entry->expires = Clock::now() + std::chrono::seconds(seconds);
       return accepted(entry->sid, seconds);
     }
     if (unsubscribe || !headers.callback || !headers.nt || lower(trim(*headers.nt)) != "upnp:event") return {412, {}};
     auto endpoint = parseCallback(*headers.callback, peer);
-    const auto seconds = eventTimeout(headers.timeout);
     if (!endpoint) return {412, {}};
     if (!seconds) return {400, {}};
     if (subscribers.size() >= 12) return {503, {}};
@@ -506,6 +509,7 @@ Socket multicastSocket(const Lan& lan) {
 struct DlnaTransport::Impl {
   std::atomic<bool> active{false};
   std::thread worker;
+  std::thread discoveryWorker;
   Socket listener;
   Socket ssdp;
   Events events;
@@ -514,6 +518,7 @@ struct DlnaTransport::Impl {
   unsigned int sequence = 0;
   unsigned int pendingId = 0;
   std::string pending;
+  ConnectionApproval approval;
   Response reply{0, {}};
   Lan lan;
   std::string uuid;
@@ -545,14 +550,18 @@ struct DlnaTransport::Impl {
     return lan.address && privatePeer(peer) && (peer & lan.mask) == (lan.address & lan.mask);
   }
 
+  unsigned int nextId() {
+    if (++sequence == 0) ++sequence;
+    return sequence;
+  }
+
   Response dispatch(const HttpRequest& request) {
     std::unique_lock lock(mutex);
-    if (++sequence == 0) ++sequence;
-    pending = "{\"id\":" + std::to_string(sequence) + ",\"method\":" +
+    pendingId = nextId();
+    pending = "{\"id\":" + std::to_string(pendingId) + ",\"method\":" +
         json(llhttp_method_name(static_cast<llhttp_method_t>(request.parser.method))) +
         ",\"path\":" + json(request.path) + ",\"soapAction\":" + json(request.soapAction) +
         ",\"contentType\":" + json(request.contentType) + ",\"body\":" + json(request.body) + "}";
-    pendingId = sequence;
     changed.wait_for(lock, 1500ms, [this] { return !active || reply.status; });
     pending.clear();
     pendingId = 0;
@@ -574,12 +583,18 @@ struct DlnaTransport::Impl {
       if (bytes > MaxRequest) { response.status = 413; break; }
       const auto parsed = llhttp_execute(&request.parser, input, static_cast<size_t>(count));
       if (request.ready && parsed == HPE_PAUSED) {
-        const bool event = request.parser.method == HTTP_SUBSCRIBE || request.parser.method == HTTP_UNSUBSCRIBE;
-        if (event) {
+        const auto method = request.parser.method;
+        const bool event = method == HTTP_SUBSCRIBE || method == HTTP_UNSUBSCRIBE;
+        const bool control = method == HTTP_POST && request.path.starts_with("/ctl/");
+        const auto grant = (event || control) ? approval.authorize(fd, peer) :
+            std::optional{Clock::time_point::max()};
+        if (!grant) {
+          response = {403, {}};
+        } else if (event) {
           constexpr std::string_view paths[] = {"/evt/avt", "/evt/rcs", "/evt/cmn"};
           const auto path = std::find(std::begin(paths), std::end(paths), request.path);
           response = path == std::end(paths) ? Response{404, {}} :
-              events.request(request, peer, static_cast<size_t>(path - std::begin(paths)));
+              events.request(request, peer, static_cast<size_t>(path - std::begin(paths)), *grant);
         } else {
           response = dispatch(request);
         }
@@ -598,47 +613,56 @@ struct DlnaTransport::Impl {
     events.activate(response.initial, delivered);
   }
 
-  void run() noexcept {
+  void runDiscovery() noexcept {
     const auto group = address(htonl(SsdpGroup), SsdpPort);
     auto nextAnnounce = Clock::now();
     auto nextSearch = nextAnnounce;
     try {
       while (active) {
         const auto now = Clock::now();
-        if (ssdp.fd >= 0 && now >= nextAnnounce) {
+        if (now >= nextAnnounce) {
           discovery(group, {}, false, false);
           nextAnnounce = now + 10min;
         }
-        pollfd items[] = {{listener.fd, POLLIN, 0}, {ssdp.fd, POLLIN, 0}};
-        const auto count = ::poll(items, 2, 50);
+        pollfd item{ssdp.fd, POLLIN, 0};
+        const auto count = ::poll(&item, 1, 50);
         if (count < 0 && errno != EINTR) break;
-        if (count <= 0) continue;
-        if (items[1].revents & POLLIN) {
-          char packet[1500];
-          sockaddr_in peer{};
-          socklen_t size = sizeof(peer);
-          const auto received = recvfrom(ssdp.fd, packet, sizeof(packet), 0,
-              reinterpret_cast<sockaddr*>(&peer), &size);
-          if (received > 0 && received < static_cast<ssize_t>(sizeof(packet)) &&
-              sameLan(peer.sin_addr.s_addr) && now >= nextSearch) {
-            const auto target = searchTarget({packet, static_cast<size_t>(received)});
-            if (!target.empty()) {
-              discovery(peer, target, true, false);
-              nextSearch = now + 100ms;
-            }
-          }
-        }
-        if (items[0].revents & POLLIN) {
-          sockaddr_in peer{};
-          socklen_t size = sizeof(peer);
-          Socket client{::accept(listener.fd, reinterpret_cast<sockaddr*>(&peer), &size)};
-          if (client.fd >= 0 && (sameLan(peer.sin_addr.s_addr) || (ntohl(peer.sin_addr.s_addr) >> 24) == 127)) {
-            nonblocking(client.fd);
-            serve(client.fd, peer.sin_addr.s_addr);
+        if (count <= 0 || !(item.revents & POLLIN)) continue;
+        char packet[1500];
+        sockaddr_in peer{};
+        socklen_t size = sizeof(peer);
+        const auto received = recvfrom(ssdp.fd, packet, sizeof(packet), 0,
+            reinterpret_cast<sockaddr*>(&peer), &size);
+        if (received > 0 && received < static_cast<ssize_t>(sizeof(packet)) &&
+            sameLan(peer.sin_addr.s_addr) && now >= nextSearch) {
+          const auto target = searchTarget({packet, static_cast<size_t>(received)});
+          if (!target.empty()) {
+            discovery(peer, target, true, false);
+            nextSearch = now + 100ms;
           }
         }
       }
-      if (ssdp.fd >= 0) discovery(group, {}, false, true);
+      discovery(group, {}, false, true);
+    } catch (...) {
+      // An interface can disappear while the HTTP listener is still serving.
+    }
+  }
+
+  void run() noexcept {
+    try {
+      while (active) {
+        pollfd item{listener.fd, POLLIN, 0};
+        const auto count = ::poll(&item, 1, 50);
+        if (count < 0 && errno != EINTR) break;
+        if (count <= 0 || !(item.revents & POLLIN)) continue;
+        sockaddr_in peer{};
+        socklen_t size = sizeof(peer);
+        Socket client{::accept(listener.fd, reinterpret_cast<sockaddr*>(&peer), &size)};
+        if (client.fd >= 0 && (sameLan(peer.sin_addr.s_addr) || (ntohl(peer.sin_addr.s_addr) >> 24) == 127)) {
+          nonblocking(client.fd);
+          serve(client.fd, peer.sin_addr.s_addr);
+        }
+      }
     } catch (...) {
       // poll() reports shutdown to the screen so it can release the player.
     }
@@ -649,7 +673,7 @@ struct DlnaTransport::Impl {
 DlnaTransport::DlnaTransport() : impl(std::make_unique<Impl>()) {}
 DlnaTransport::~DlnaTransport() { stop(); }
 
-uint16_t DlnaTransport::start(const std::string& uuid, bool loopbackOnly) {
+uint16_t DlnaTransport::start(const std::string& uuid, bool loopbackOnly, bool requireApproval) {
   if (impl->worker.joinable()) throw std::runtime_error("DLNA receiver already started");
   impl->uuid = uuid;
   impl->lan = loopbackOnly ? Lan{} : lanIpv4();
@@ -671,8 +695,10 @@ uint16_t DlnaTransport::start(const std::string& uuid, bool loopbackOnly) {
   impl->listener.fd = listener.release();
   try {
     impl->active = true;
+    impl->approval.start(requireApproval);
     impl->events.start();
     impl->worker = std::thread([this] { impl->run(); });
+    if (impl->ssdp.fd >= 0) impl->discoveryWorker = std::thread([this] { impl->runDiscovery(); });
   } catch (...) {
     stop();
     throw;
@@ -686,7 +712,9 @@ void DlnaTransport::stop() noexcept {
     impl->active = false;
   }
   impl->changed.notify_all();
+  impl->approval.stop();
   if (impl->worker.joinable()) impl->worker.join();
+  if (impl->discoveryWorker.joinable()) impl->discoveryWorker.join();
   impl->events.stop();
   impl->ssdp.reset();
   impl->listener.reset();
@@ -695,6 +723,7 @@ void DlnaTransport::stop() noexcept {
 std::string DlnaTransport::poll() {
   std::lock_guard lock(impl->mutex);
   if (!impl->active) throw std::runtime_error("DLNA receiver stopped");
+  if (auto event = impl->approval.poll(); !event.empty()) return event;
   return std::exchange(impl->pending, {});
 }
 
@@ -714,4 +743,9 @@ void DlnaTransport::publish(std::string transport, std::string rendering, std::s
   if (transport.size() > MaxResponse || rendering.size() > MaxResponse || connection.size() > MaxResponse)
     throw std::invalid_argument("DLNA event too large");
   impl->events.update({std::move(transport), std::move(rendering), std::move(connection)});
+}
+
+
+void DlnaTransport::answerApproval(double id, bool allow) {
+  impl->approval.respond(id, allow);
 }

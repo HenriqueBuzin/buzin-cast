@@ -17,11 +17,15 @@ export interface BuzinNetwork extends KeplerTurboModule {
   startFCast: () => number;
   stopFCast: () => void;
   pollFCastCommand: () => string;
+  answerFCastApproval: (requestId: number, allow: boolean) => void;
   isFCastClient: (client: number) => boolean;
   disconnectFCastClient: (client: number) => void;
   fcastError: (client: number, message: string) => void;
   updateFCastState: (playback: string, volume: string) => void;
   startDlna: () => string;
+  getConnectionApproval: () => boolean;
+  setConnectionApproval: (enabled: boolean) => void;
+  answerDlnaApproval: (requestId: number, allow: boolean) => void;
   stopDlna: () => void;
   pollDlnaRequest: () => string;
   respondDlna: (requestId: number, status: number, body: string) => void;

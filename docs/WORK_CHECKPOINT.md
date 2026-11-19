@@ -32,6 +32,20 @@ local não consulta nem modifica a loja. Ver [Release Fire OS](FIREOS_RELEASE.md
 Persistem também os gates de licença, hardware ARM e paridade abaixo.
 Nenhuma TV foi usada; as 12 artes aprovadas continuam intactas.
 
+## Aprovação FCast no Vega
+
+A preferência salva para DLNA também ativa a confirmação no FCast.
+O VVD confirmou que Recusar fecha o socket, que Permitir libera a
+negociação e que vídeo, controles e encerramento continuam funcionando.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Aprovação DLNA no Vega
+
+A opção **Aprovar conexões DLNA** pede confirmação na TV e guarda
+somente a preferência. O VVD confirmou Permitir e Recusar pelo
+controle, bloqueio de SOAP e GENA após a recusa e nova confirmação
+depois de fechar e reabrir o receptor. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## API17 — integração 0019 reconstruída e validada
 
 Os dois candidatos assinados foram reconstruídos após o merge de pareamento

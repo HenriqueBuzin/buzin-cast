@@ -43,14 +43,32 @@ std::string readReceiverName(const std::string& path) {
   validateReceiverName(name);
   return name;
 }
-void writeReceiverName(const std::string& path, const std::string& name) {
-  validateReceiverName(name);
+static void writeSetting(const std::string& path, const std::string& value) {
   const auto temporary = path + ".tmp";
   std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-  output.write(name.data(), static_cast<std::streamsize>(name.size()));
+  output.write(value.data(), static_cast<std::streamsize>(value.size()));
   output.close();
   if (!output || std::rename(temporary.c_str(), path.c_str()) != 0) {
     std::remove(temporary.c_str());
-    throw std::runtime_error("Could not save receiver name");
+    throw std::runtime_error("Could not save receiver setting");
   }
+}
+
+void writeReceiverName(const std::string& path, const std::string& name) {
+  validateReceiverName(name);
+  writeSetting(path, name);
+}
+
+bool readApprovalSetting(const std::string& path) {
+  errno = 0;
+  std::ifstream input(path, std::ios::binary);
+  if (!input && errno == ENOENT) return false;
+  const auto value = input.get();
+  if ((value != '1' && value != '0') || input.peek() != std::char_traits<char>::eof() || input.bad())
+    throw std::runtime_error("Invalid receiver approval setting");
+  return value == '1';
+}
+
+void writeApprovalSetting(const std::string& path, bool enabled) {
+  writeSetting(path, enabled ? "1" : "0");
 }

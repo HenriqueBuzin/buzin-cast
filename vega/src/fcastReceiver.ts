@@ -3,12 +3,14 @@ import type {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import Network from './turbo-modules/BuzinNetwork';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 import {number, object, playRequest} from './fcastProtocol';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 
 export function createFCastReceiver(
   onReady: (token: number | null) => void,
   onChange: (snapshot: PlaybackSnapshot | null) => void,
   onFailure: () => void,
   onListening?: () => void,
+  onApproval?: (request: ConnectionApprovalRequest | null) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -90,6 +92,7 @@ export function createFCastReceiver(
     try {
       stop();
     } finally {
+      onApproval?.(null);
       onFailure();
     }
   }
@@ -202,6 +205,10 @@ export function createFCastReceiver(
           break;
         }
         const event = object(JSON.parse(encoded));
+        if ('approval' in event) {
+          onApproval?.(event.approval as ConnectionApprovalRequest | null);
+          continue;
+        }
         const client = number(event, 'client', 1, Number.MAX_SAFE_INTEGER);
         const opcode = number(event, 'opcode', 0, 255);
         try {
@@ -250,6 +257,10 @@ export function createFCastReceiver(
       if (ownsMedia) {
         session?.togglePause();
       }
+    },
+    answerApproval(id: number, allow: boolean) {
+      if (!listening || closed) {return;}
+      try {Network.answerFCastApproval(id, allow);} catch {fail();}
     },
     stop,
   };

@@ -33,11 +33,15 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("startFCast", &BuzinNetworkSpec::startFCast);
   methodAggregator.addMethod("stopFCast", &BuzinNetworkSpec::stopFCast);
   methodAggregator.addMethod("pollFCastCommand", &BuzinNetworkSpec::pollFCastCommand);
+  methodAggregator.addMethod("answerFCastApproval", &BuzinNetworkSpec::answerFCastApproval);
   methodAggregator.addMethod("isFCastClient", &BuzinNetworkSpec::isFCastClient);
   methodAggregator.addMethod("disconnectFCastClient", &BuzinNetworkSpec::disconnectFCastClient);
   methodAggregator.addMethod("fcastError", &BuzinNetworkSpec::fcastError);
   methodAggregator.addMethod("updateFCastState", &BuzinNetworkSpec::updateFCastState);
   methodAggregator.addMethod("startDlna", &BuzinNetworkSpec::startDlna);
+  methodAggregator.addMethod("getConnectionApproval", &BuzinNetworkSpec::getConnectionApproval);
+  methodAggregator.addMethod("setConnectionApproval", &BuzinNetworkSpec::setConnectionApproval);
+  methodAggregator.addMethod("answerDlnaApproval", &BuzinNetworkSpec::answerDlnaApproval);
   methodAggregator.addMethod("stopDlna", &BuzinNetworkSpec::stopDlna);
   methodAggregator.addMethod("pollDlnaRequest", &BuzinNetworkSpec::pollDlnaRequest);
   methodAggregator.addMethod("respondDlna", &BuzinNetworkSpec::respondDlna);

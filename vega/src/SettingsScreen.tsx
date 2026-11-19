@@ -8,11 +8,14 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
     try {return Network.getReceiverName();} catch {return '';}
   });
   const [message, setMessage] = useState('');
+  const [approval, setApproval] = useState<boolean | null>(() => {
+    try {return Network.getConnectionApproval();} catch {return null;}
+  });
   const [focus, setFocus] = useState('name');
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Configurações</Text>
-      <Text style={styles.text}>Nome mostrado aos emissores FCast</Text>
+      <Text style={styles.text}>Nome mostrado aos emissores</Text>
       <TextInput
         aria-label="Nome do receptor"
         accessibilityHint="Edita o nome exibido aos emissores"
@@ -26,6 +29,23 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
         autoCapitalize="sentences"
       />
       <Text style={styles.text}>Use um nome curto, sem ponto ou barra invertida.</Text>
+      <TvButton
+        role="switch"
+        aria-label="Aprovar conexões DLNA e FCast"
+        accessibilityState={{checked: approval === true, disabled: approval === null}}
+        disabled={approval === null}
+        onFocus={() => setFocus('approval')}
+        onBlur={() => setFocus('')}
+        style={[styles.button, focus === 'approval' && styles.focused]}
+        onPress={() => {
+          try {
+            Network.setConnectionApproval(!approval);
+            setApproval(!approval);
+            setMessage('Preferência de aprovação salva.');
+          } catch {setMessage('Não foi possível salvar a preferência de aprovação.');}
+        }}>
+        <Text style={styles.label}>Aprovar conexões DLNA e FCast {approval === null ? '· indisponível' : approval ? '· ativado' : '· desativado'}</Text>
+      </TvButton>
       <Text style={styles.text} aria-live="polite">{message}</Text>
       <View style={styles.actions}>
         {['save', 'back'].map((id) => (
@@ -42,7 +62,7 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
                 const value = name.trim();
                 Network.setReceiverName(value);
                 setName(value);
-                setMessage('Nome salvo. Será usado ao ativar FCast.');
+                setMessage('Nome salvo. Será usado na próxima ativação.');
               } catch {
                 setMessage('Não foi possível salvar. Confira o nome e tente novamente.');
               }

@@ -1,4 +1,5 @@
 #include "FCastTransport.h"
+#include "ConnectionApproval.h"
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -85,6 +86,7 @@ struct FCastTransport::Impl {
   std::thread worker;
   std::atomic<bool> stopped{true};
   int listener = -1;
+  ConnectionApproval approval;
   int client = -1;
   int port = 0;
   uint64_t generation = 0;
@@ -123,10 +125,17 @@ struct FCastTransport::Impl {
           socklen_t length = sizeof(peer);
           const int incoming = ::accept(listener, reinterpret_cast<sockaddr*>(&peer), &length);
           if (incoming >= 0) {
-            std::lock_guard lock(mutex);
-            if (client >= 0 || !localPeer(peer.sin_addr.s_addr)) ::close(incoming);
+            if (fd >= 0 || !localPeer(peer.sin_addr.s_addr)) ::close(incoming);
             else {
-              try {nonblocking(incoming);} catch (...) {::close(incoming); throw;}
+              try {
+                nonblocking(incoming);
+                if (!approval.authorize(incoming, peer.sin_addr.s_addr, true)) {
+                  ::close(incoming);
+                  continue;
+                }
+              } catch (...) {::close(incoming); throw;}
+              std::lock_guard lock(mutex);
+              if (stopped) {::close(incoming); break;}
               const int yes = 1;
               setsockopt(incoming, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
               client = incoming;
@@ -204,7 +213,7 @@ struct FCastTransport::Impl {
 
 FCastTransport::FCastTransport() : impl(std::make_unique<Impl>()) {}
 FCastTransport::~FCastTransport() {stop();}
-int FCastTransport::start(int requestedPort, bool loopbackOnly) {
+int FCastTransport::start(int requestedPort, bool loopbackOnly, bool requireApproval) {
   if (impl->worker.joinable()) throw std::runtime_error("FCast already started");
   const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0) throw std::runtime_error("FCast socket failed");
@@ -223,19 +232,22 @@ int FCastTransport::start(int requestedPort, bool loopbackOnly) {
       throw std::runtime_error("FCast socket address failed");
     impl->port = ntohs(address.sin_port);
     impl->listener = fd;
+    impl->approval.start(requireApproval);
     impl->stopped = false;
     impl->worker = std::thread([this] {impl->run();});
     return impl->port;
-  } catch (...) {::close(fd); impl->listener = -1; impl->stopped = true; throw;}
+  } catch (...) {::close(fd); impl->listener = -1; impl->stopped = true; impl->approval.stop(); throw;}
 }
 void FCastTransport::stop() {
   impl->stopped = true;
+  impl->approval.stop();
   if (impl->worker.joinable()) impl->worker.join();
   if (impl->listener >= 0) {::close(impl->listener); impl->listener = -1;}
 }
 std::string FCastTransport::pollCommand() {
   std::lock_guard lock(impl->mutex);
   if (impl->stopped) throw std::runtime_error("FCast listener stopped");
+  if (auto event = impl->approval.poll(); !event.empty()) return event;
   if (impl->commands.empty()) return "";
   auto result = std::move(impl->commands.front()); impl->commands.pop_front(); return result;
 }
@@ -256,3 +268,5 @@ void FCastTransport::update(const std::string& playback, const std::string& volu
   std::lock_guard lock(impl->mutex);
   impl->playback = playback; impl->volume = volume;
 }
+
+void FCastTransport::answerApproval(double id, bool allow) {impl->approval.respond(id, allow);}

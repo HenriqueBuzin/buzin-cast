@@ -6,6 +6,7 @@ import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
 import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 import type {PlaybackSnapshot} from './playbackSession';
 
 const titles = {
@@ -17,11 +18,12 @@ const titles = {
 
 export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: keyof typeof titles}) {
   const receiver = useRef<(Pick<ReturnType<typeof createFCastReceiver>, 'attachSurface' | 'detachSurface' | 'togglePause' | 'stop'> &
-    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed'>>) | null>(null);
+    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed' | 'answerApproval'>>) | null>(null);
   const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
   const [photo, setPhoto] = useState<DlnaPhotoView | null>(null);
+  const [approval, setApproval] = useState<ConnectionApprovalRequest | null>(null);
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pin, setPin] = useState('');
@@ -31,9 +33,9 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       const onFailure = () => setFailed(true);
       const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
       receiver.current = protocol === 'fcast'
-        ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening)
+        ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening, setApproval)
         : protocol === 'dlna'
-        ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto)
+        ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto, setApproval)
         : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
     } catch {
       setFailed(true);
@@ -120,6 +122,32 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
             } • ${snapshot.seconds.toFixed(1)} s`
           : ''}
       </Text>
+      {approval && (
+        <View style={styles.approval}>
+          <Text style={styles.details} aria-live="polite">
+            {protocol === 'fcast'
+              ? `Permitir a conexão FCast de ${approval.peer}?`
+              : `Permitir que ${approval.peer} controle o DLNA por cinco minutos?`}
+          </Text>
+          <View style={styles.actions}>
+            {[false, true].map(allow => {
+              const id = allow ? 'allow' : 'deny';
+              return (
+                <TvButton
+                  key={id}
+                  role="button"
+                  hasTVPreferredFocus={!allow}
+                  onFocus={() => setFocus(id)}
+                  onBlur={() => setFocus(current => current === id ? '' : current)}
+                  style={[styles.button, focus === id && styles.focused]}
+                  onPress={() => receiver.current?.answerApproval?.(approval.id, allow)}>
+                  <Text style={styles.label}>{allow ? 'Permitir' : 'Recusar'}</Text>
+                </TvButton>
+              );
+            })}
+          </View>
+        </View>
+      )}
       <View style={styles.actions}>
         {(token === null || protocol === 'mirror' ? ['back'] : ['pause', 'back']).map((id) => (
           <TvButton
@@ -130,7 +158,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
                 ? 'Desativa o receptor e retorna ao início'
                 : 'Pausa ou retoma a transmissão'
             }
-            hasTVPreferredFocus={id === 'back'}
+            hasTVPreferredFocus={id === 'back' && !approval}
             onFocus={() => setFocus(id)}
             onBlur={() => setFocus('')}
             onPress={
@@ -169,6 +197,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   actions: {flexDirection: 'row', gap: 24},
+  approval: {alignItems: 'center', marginBottom: 16},
   button: {
     paddingVertical: 10,
     paddingHorizontal: 28,

@@ -6,6 +6,7 @@ import {dlnaConnectionInfo, DlnaFault, DlnaRequest, DlnaService, formatDlnaTime,
 import {dlnaConnectionEvent, dlnaRenderingEvent, dlnaTransportEvent} from './dlnaProtocol';
 import {loadDlnaPhoto, photoSource} from './dlnaPhoto';
 import {playRequest} from './fcastProtocol';
+import type {ConnectionApprovalRequest} from './connectionApproval';
 
 type Media = {kind: 'photo'; url: string} | ({kind: 'player'} & PlaybackRequest);
 export type DlnaPhotoView = {token: number; source?: ReturnType<typeof photoSource>};
@@ -16,6 +17,7 @@ export function createDlnaReceiver(
   onFailure: () => void,
   onListening: (port: number) => void,
   onPhoto: (photo: DlnaPhotoView | null) => void,
+  onApproval: (request: ConnectionApprovalRequest | null) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -119,7 +121,7 @@ export function createDlnaReceiver(
 
   function fail() {
     if (closed) {return;}
-    try {stop();} finally {onPhoto(null); onReady(null); onChange(null); onFailure();}
+    try {stop();} finally {onApproval(null); onPhoto(null); onReady(null); onChange(null); onFailure();}
   }
 
   function transportState() {
@@ -246,7 +248,8 @@ export function createDlnaReceiver(
     try {
       const packet = Network.pollDlnaRequest();
       if (!packet) {return;}
-      const request = JSON.parse(packet) as DlnaRequest & {id: number};
+      const request = JSON.parse(packet) as (DlnaRequest & {id: number}) | {approval: ConnectionApprovalRequest | null};
+      if ('approval' in request) {onApproval(request.approval); return;}
       const result = routeDlna(request, uuid, name, dispatch);
       Network.respondDlna(request.id, result.status, result.body);
       publishEvents();
@@ -284,6 +287,10 @@ export function createDlnaReceiver(
     },
     togglePause() {if (active && uri?.kind === 'player') {session?.togglePause();}},
     photoDisplayed,
+    answerApproval(id: number, allow: boolean) {
+      if (!serving || closed) {return;}
+      try {Network.answerDlnaApproval(id, allow);} catch {fail();}
+    },
     stop,
   };
 }
