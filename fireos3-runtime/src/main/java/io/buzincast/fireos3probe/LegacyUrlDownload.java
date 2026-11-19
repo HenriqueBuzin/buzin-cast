@@ -13,7 +13,7 @@ import androidx.media3.common.Timeline;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.decoder.DecoderInputBuffer;
-import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.LegacyHttpDataSource;
 import androidx.media3.datasource.ResolvingDataSource;
 import androidx.media3.exoplayer.FormatHolder;
 import androidx.media3.exoplayer.LoadingInfo;
@@ -101,8 +101,7 @@ public final class LegacyUrlDownload implements java.io.Closeable {
             ownsTemporary=true;
             output=new FileOutputStream(temporary);
             muxer=new Mp4Muxer.Builder(output).setLastFrameDurationBehavior(Mp4Muxer.LAST_FRAME_DURATION_BEHAVIOR_DUPLICATE_PREV_DURATION).build();
-            DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory().setUserAgent("BuzinCast")
-                .setConnectTimeoutMs(10000).setReadTimeoutMs(15000).setAllowCrossProtocolRedirects(false).setDefaultRequestProperties(request.headers);
+            androidx.media3.datasource.DataSource.Factory http=LegacyHttpDataSource.factory(request.headers);
             ResolvingDataSource.Factory network=new ResolvingDataSource.Factory(http,spec-> {
                 String scheme=spec.uri.getScheme();
                 if((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) || spec.uri.getHost()==null ||

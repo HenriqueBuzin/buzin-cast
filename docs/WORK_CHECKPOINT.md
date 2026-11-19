@@ -1,5 +1,52 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — HTTPS do player, exportador e fotos
+
+O ensaio público reproduziu uma falha concreta: o HEAD do Sintel/W3C
+falha com `unsupported protocol` usando a fábrica padrão do Android 4.2,
+mas retorna 200 com TLS 1.2 ativado e validação normal de certificado/domínio.
+`LegacyHttps` agora configura apenas conexões próprias antes da API20,
+com TLS 1.2 e cifras AES. Preserva as raízes e o verificador de domínio
+da plataforma, sem fábrica global, certificado instalado ou trust-all.
+Player/exportador usam um adaptador do hook interno da Media3 1.2.1;
+o tratamento HTTP/Range/redirecionamento/erro continua no código da biblioteca.
+O carregador de fotos aplica a mesma política a cada redirecionamento.
+
+`outputs/legacy-https-general-verified` passou. O teste inclui conexões
+públicas com ECDHE/ECDSA e ECDHE/RSA, reprodução Baseline 320×240,
+avanço do relógio, pausa/retomada, foto com redirecionamento HTTPS e
+exportação MP4 do Sintel. O ffprobe confirmou 1.253 pacotes AVC High e
+2.435 AAC-LC; o FFmpeg decodificou integralmente as duas faixas sem erro.
+Um fixture isolado exige recusa de identidade não confiável e de domínio
+incorreto, mesmo quando a identidade é aceita como âncora apenas no teste.
+Fábricas globais/verificador são preservados e não sobram sockets nativos.
+
+O decodificador de software do emulador API17 falhou com o Sintel High
+Profile; o extrator Android também não enumerou faixas do MP4 exportado,
+embora a inspeção/decodificação independente tenha passado. Não considerar
+High Profile validado no Stick. Os arquivos públicos no host ficam em
+`outputs`, ignorado pelo Git; o teste limpa os arquivos/app no emulador.
+
+As regressões de download (MP4/HLS/DASH/múltiplos períodos/B-frames,
+decodificação independente, biblioteca e cancelamento) e URLs nativas/FCUP
+passaram com os APKs atuais. As duas compilações com `-Check` passaram;
+as últimas recompilações atualizam apenas o teste e os artefatos de prévia.
+A edição DE/AT passou em `outputs/legacy-https-deat-https`: mesmos testes de
+TLS, certificados, domínio, playback e foto, sem iniciar exportação. O teste
+negativo `outputs/legacy-https-deat-download` confirmou o bloqueio regional.
+Os 12 recursos de marca foram preservados; a auditoria direcionada de
+arquivos e histórico público não encontrou ocorrências.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `ce835264340a5da9cf9a45d2e65dd9e7fb05ca7f456cdb82780a3ea28a1daad2`.
+- DE/AT: `3430f87aa3d1594a35918aa57cb6c08bc51220022ac655ab566c5fb8bf3784c8`.
+
+Permanecem a retransmissão, transcodificação de outros formatos,
+licença/SDK/assinatura de produção, emissores e Sticks físicos e demais
+itens da paridade. Este ensaio cobre HTTPS público real, mas não todos os
+servidores/raízes/cifras, TLS 1.3 exclusivo, DRM ou live.
+
 ## API17 — Cast V2 e TLS compatível com clientes modernos
 
 O transporte `CastV2Receiver.kt` é copiado do app moderno. A adaptação

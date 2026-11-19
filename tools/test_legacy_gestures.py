@@ -30,17 +30,20 @@ def main():
     parser.add_argument('--approval',action='store_true',help='Verify real native/FCast/DLNA admission, modal focus, denial, protocol grants, timeout, stop and background prompt.')
     parser.add_argument('--pin',action='store_true',help='Verify real native SRP PIN proofs with an independent host client, focused UI, DNS-SD flags, background and lifecycle; requires cryptography.')
     parser.add_argument('--castv2',action='store_true',help='Verify shared Cast V2 over actual API17 TLS1.2, discovery, protobuf, playback, approval and private identity persistence/recovery.')
+    parser.add_argument('--https',action='store_true',help='Verify authenticated public HTTPS media/photo/export and negative certificate/hostname fixtures on API17; requires Internet access.')
     parser.add_argument('--ffprobe',type=Path,help='Optional ffprobe executable for independent packet/track validation of the synthetic recording.')
     parser.add_argument('--ffmpeg',type=Path,help='Optional FFmpeg executable for independent decoding of exported download fixtures.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
     args=parser.parse_args()
+    if args.https and not args.package.endswith('deat.legacy.preview') and (not args.ffprobe or not args.ffmpeg):
+        parser.error('--https on the general edition requires --ffprobe and --ffmpeg to validate the public export independently.')
     for path in (args.apk,args.test_apk):
         with ZipFile(path) as archive:
             if not {'AndroidManifest.xml','classes.dex'}.issubset(archive.namelist()) or archive.testzip() is not None:
                 parser.error('APK is incomplete or corrupt: '+str(path))
-    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,args.pin,args.castv2,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
+    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,args.pin,args.castv2,args.https,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -70,6 +73,7 @@ def main():
     if args.approval:report['scope']='Actual API17 native RTSP, FCast and DLNA admission and remote-focus UI; grants, refusal, timeout, lifecycle and background prompt; not PIN pairing or a physical sender test'
     if args.pin:report['scope']='Actual API17 native PIN/SRP, independent SHA1/SRP/AES-GCM/Ed25519/X25519 client, malformed input rejection, native UI, DNS-SD flags, background and stop; not a physical Apple sender or universal access-control certification'
     if args.castv2:report['scope']='Actual API17 TLS1.2 with the owned experimental identity, shared Cast V2 discovery/protobuf/media/approval and key persistence/recovery; synthetic sender, no Google certification or protected services'
+    if args.https:report['scope']='Public HTTPS media playback, photo redirect and permitted MP4 export with default Android roots; owned untrusted/wrong-hostname rejection; not universal server or physical-device validation'
     if display:report['display_init']=display
     def capture_native_view(source='legacy-metadata.b64',target='metadata-ui.png'):
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/'+source,timeout=30))
@@ -151,13 +155,14 @@ def main():
         options=['-e','checks','download' if args.download else 'recording' if args.recording else 'native_url' if args.native_url else 'dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna or args.native_url or args.recording or args.download else []
         if args.approval:options=['-e','checks','approval']
         if args.castv2:options=['-e','checks','castv2']
+        if args.https:options=['-e','checks','https']
         if args.pin:
             from legacy_pin_client import run_instrument
             result=run_instrument(args,adb)
         elif args.castv2:
             from legacy_cast_client import run_instrument
             result=run_instrument(args,adb)
-        else:result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
+        else:result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=300 if args.https else 180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
@@ -165,6 +170,7 @@ def main():
         if args.approval:expected='approval=native_fcast_dlna_allow_deny_timeout_stop_background_and_protocol_grants'
         if args.pin:expected='pin=native_srp_proofs_ui_txt_background_disabled_and_stop'
         if args.castv2:expected='castv2=shared_tls12_dns_proto_media_approval_and_identity_lifecycle'
+        if args.https:expected='https=public_media_export_photos_and_certificate_rejection'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
         if args.approval:capture_native_view('legacy-approval.b64','approval-ui.png')
         if args.pin:capture_native_view('legacy-pin.b64','pin-ui.png')
@@ -250,6 +256,21 @@ def main():
             report.pop('touch_and_dpad_across_receiver_restart',None)
             report['castv2_tls_transport_playback_approval_identity']='pass'
             report['independent_tls']=json.loads((args.output/'host-tls.json').read_text(encoding='utf-8'))
+        if args.https:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            if not args.package.endswith('deat.legacy.preview'):
+                payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-https-export.b64',timeout=30).strip(),validate=True)
+                if len(payload)>16*1024*1024 or payload[4:8]!=b'ftyp':raise AssertionError('Invalid HTTPS MP4 export')
+                exported=args.output/'public-https-export.mp4';exported.write_bytes(payload)
+                probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-of','json',str(exported)],timeout=30))
+                video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
+                audio=next((s for s in probe['streams'] if s.get('codec_type')=='audio'),{})
+                if video.get('codec_name')!='h264' or int(video.get('nb_read_packets',0))<100 or audio.get('codec_name')!='aac' or int(audio.get('nb_read_packets',0))<300:
+                    raise AssertionError('Independent HTTPS export track/packet validation failed')
+                subprocess.run([str(args.ffmpeg),'-hide_banner','-loglevel','error','-xerror','-i',str(exported),'-map','0:v:0','-map','0:a:0','-f','null','-'],check=True,timeout=60,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+                (args.output/'https-export-ffprobe.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
+                report['https_export_independent_avc_aac_decode']='pass'
+            report['public_https_media_and_certificate_policy']='pass'
     except Exception as error:
         report['status']='failed';report['error']=str(error)
         try:
@@ -259,6 +280,12 @@ def main():
         raise
     finally:
         try:
+            if args.https and args.package in installed:
+                try:
+                    report['https_probes']=json.loads(adb('shell','run-as',args.package,'cat','files/legacy-https.json',timeout=30))
+                except Exception as diagnostic:
+                    report['https_probe_error']=type(diagnostic).__name__
+                    if report['status']=='pass':raise AssertionError('HTTPS evidence was not available') from diagnostic
             if args.download and not args.package.endswith('deat.legacy.preview') and args.package in installed and report.get('status')!='pass':
                 try:
                     available=adb('shell','run-as',args.package,'ls','files',timeout=30).split()

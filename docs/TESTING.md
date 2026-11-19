@@ -1,5 +1,49 @@
 # Testes automatizados
 
+## HTTPS na prévia API17
+
+`tools/test_legacy_gestures.py --https` exige Internet e um emulador API17
+isolado. Compara HEAD padrão e TLS 1.2 em três sites públicos; o resultado
+HTTP de Amazon/Google é diagnóstico, sem exigir que aceitem HEAD. O vídeo
+Sintel da W3C deve responder 200 com TLS 1.2. Depois verifica o player Media3
+real, avanço do relógio com tamanho de vídeo, pausa/retomada, foto HTTPS
+com redirecionamento e, na edição geral, exportação MP4 com faixas AVC/AAC.
+O arquivo de cache é removido do app. A edição geral exige `--ffprobe` e
+`--ffmpeg`: uma cópia em `outputs` (ignorada pelo Git) deve conter as duas
+faixas com pacotes e decodificar inteiramente sem erro no host. A versão
+Base64 temporária no app desaparece junto com a desinstalação de limpeza.
+O playback usa `movie_300.mp4` (AVC Baseline, 320×240). O emulador API17
+recusou o AVC High Profile do Sintel no decodificador `OMX.google.h264.decoder`;
+isso é registrado separadamente da falha TLS original. O exportador continua
+usando Sintel, sem precisar decodificá-lo. High Profile no Stick físico
+continua sem validação; este teste não comprova essa capacidade.
+O extrator da API17 também não enumerou faixas no MP4 High Profile
+exportado, enquanto o ffprobe encontrou AVC/AAC e o FFmpeg decodificou ambos.
+Por isso o extrator antigo é evidência diagnóstica; a validação independente
+é obrigatória, em vez de aprovar o arquivo apenas porque foi salvo.
+
+O fixture local usa a identidade própria do Cast para exigir recusa de
+certificado não confiável. Um KeyStore exclusivo do teste confia nessa
+identidade: primeiro um handshake bruto deve funcionar; depois HTTPS deve
+recusá-la por não corresponder ao domínio. Não altera as raízes ou o
+verificador de domínio de produção. O relatório registra os resultados em
+`https_probes`; se faltar o artefato, a execução não pode passar.
+
+No Android antigo, TLS 1.2 é suportado desde API16, mas não vem ativado por
+padrão antes da API20 ([documentação oficial](https://developer.android.com/reference/javax/net/ssl/SSLSocket)).
+`LegacyHttps` ativa TLS 1.2 e cifras AES nas conexões próprias antes da API20,
+mantendo as raízes e a verificação de domínio do sistema. Não modifica
+fábricas globais nem instala certificados. As versões mais novas mantêm
+a configuração da plataforma. O player e o exportador usam o hook
+`openConnection` da [Media3 1.2.1](https://github.com/androidx/media/blob/1.2.1/libraries/datasource/src/main/java/androidx/media3/datasource/DefaultHttpDataSource.java),
+herdando o tratamento de HTTP, Range, redirecionamentos e erros. O adaptador
+fica no mesmo pacote porque o hook é interno; `@Override` exige revisão se
+uma atualização o remover. A versão da dependência continua fixada.
+
+Esse ensaio não comprova todos os servidores HTTPS: certificados/raízes
+ausentes no firmware, servidores sem TLS 1.2 ou sem cifras comuns ainda
+podem falhar. Não cobre emissor físico, DRM ou mídia live.
+
 ## Cast V2 experimental na prévia API17
 
 `tools/test_legacy_gestures.py --castv2` verifica o mesmo transporte Kotlin

@@ -13,7 +13,7 @@ import androidx.media3.common.VideoSize;
 import androidx.media3.common.text.Cue;
 import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.LegacyHttpDataSource;
 import androidx.media3.datasource.ResolvingDataSource;
 import androidx.media3.datasource.ByteArrayDataSource;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -91,9 +91,7 @@ public final class LegacyUrlPlayer implements java.io.Closeable {
             phase=Phase.LOADING;publish(null);
             // HTTP-only sources also apply to manifest/segment URIs. Never route
             // a sender-provided child URI through file/content/asset data sources.
-            DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory().setUserAgent("BuzinCast")
-                .setConnectTimeoutMs(10000).setReadTimeoutMs(15000).setAllowCrossProtocolRedirects(false)
-                .setDefaultRequestProperties(request.headers);
+            androidx.media3.datasource.DataSource.Factory http=LegacyHttpDataSource.factory(request.headers);
             ResolvingDataSource.Factory network=new ResolvingDataSource.Factory(http,spec-> {
                 String scheme=spec.uri.getScheme();
                 if((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) || spec.uri.getHost()==null ||

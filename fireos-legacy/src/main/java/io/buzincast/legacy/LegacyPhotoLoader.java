@@ -23,6 +23,7 @@ public final class LegacyPhotoLoader {
                 // Validate every redirect before opening a connection.
                 url=new URL(new LegacyUrlRequest(url.toString(),0,null).location);
                 HttpURLConnection connection=(HttpURLConnection)url.openConnection();
+                io.buzincast.fireos3probe.LegacyHttps.configure(connection);
                 connection.setConnectTimeout(5000);connection.setReadTimeout(8000);connection.setInstanceFollowRedirects(false);
                 try {
                     int status=connection.getResponseCode();

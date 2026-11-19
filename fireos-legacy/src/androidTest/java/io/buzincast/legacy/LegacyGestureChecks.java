@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2,https;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -32,6 +32,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         approval=arguments!=null && "approval".equals(arguments.getString("checks"));
         pin=arguments!=null && "pin".equals(arguments.getString("checks"));
         castV2=arguments!=null && "castv2".equals(arguments.getString("checks"));
+        https=arguments!=null && "https".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -52,7 +53,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(castV2) {
+            if(https) {
+                LegacyHttpsScenario.check(this,activity);
+                result.putString("https","public_media_export_photos_and_certificate_rejection");
+            } else if(castV2) {
                 LegacyCastScenario.check(this,activity);
                 result.putString("castv2","shared_tls12_dns_proto_media_approval_and_identity_lifecycle");
             } else if(pin) {
