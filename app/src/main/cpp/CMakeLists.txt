@@ -20,7 +20,14 @@ set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
 # Also skip building libcrypto.so/libssl.so themselves: nothing here links
 # against them, and the shared-lib link command's huge object-file list blows
 # past Windows' command-line length limit during a native Windows build.
-set(OPENSSL_MODULES no-shared CACHE STRING "" FORCE)
+set(airplay_openssl_modules no-shared)
+if(BUZIN_RAOP_CORE_ONLY AND ANDROID_ABI STREQUAL "armeabi-v7a" AND CMAKE_SYSTEM_VERSION VERSION_LESS "18")
+    # The Android API17 ARM build uses signal-based CPU probing in the
+    # OpenSSL constructor. This can crash while loading the JNI library
+    # under Android's ARM native bridge, before application code runs.
+    list(APPEND airplay_openssl_modules no-asm)
+endif()
+set(OPENSSL_MODULES "${airplay_openssl_modules}" CACHE STRING "" FORCE)
 set(OPENSSL_BUILD_VERSION "3.5.9" CACHE STRING "" FORCE)
 set(CROSS_ANDROID ON CACHE BOOL "" FORCE)
 string(REGEX MATCH "[0-9]+" AIRPLAY_ANDROID_API "${ANDROID_PLATFORM}")
