@@ -37,6 +37,8 @@ public:
   virtual void setReceiverName(std::string name) = 0;
   virtual double startAirPlayUrl() = 0;
   virtual double startAirPlayAudio() = 0;
+  virtual double startAirPlayVideo() = 0;
+  virtual std::string getAirPlayVideoState() = 0;
   virtual void stopAirPlayAudio() = 0;
   virtual std::string getAirPlayAudioState() = 0;
   virtual void stopAirPlayUrl() = 0;

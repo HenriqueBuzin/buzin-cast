@@ -1763,3 +1763,73 @@ Ensaio High do dono comum aprovado em `build/vega-video-output-owned`:
 frames produzidos; Voltar encerrou o segundo ciclo em 62/120 com `clientClosed`,
 produtor/player/superfície liberados. Os contadores de vídeo continuaram zero;
 o relatório mantém `visualValidation=false` e não certifica imagem exibida.
+
+
+### Callbacks e worker de vídeo AirPlay
+
+```sh
+clang++ -std=c++23 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined \
+  -Ivega/generated/UxPlay/lib vega/test/AirPlayVideoWorkerTest.cpp \
+  vega/kepler/turbo-modules/AirPlayVideoWorker.cpp \
+  -o build/vega-native-tests/airplay-video-worker
+build/vega-native-tests/airplay-video-worker
+python3 tools/test_vega_airplay_audio.py --serial emulator-5554 \
+  --vpkg vega/build/aarch64-release/buzincast_aarch64.vpkg --video \
+  --output build/vega-video-worker-ui
+```
+
+O teste C++ usa um sink controlado para verificar geração, SPS/PPS/IDR,
+propriedade da thread, cópia, timestamps, cancelamento em startup e AVIO,
+limites de fila incluindo callback em processamento e bloqueio de reinício
+quando a liberação não foi confirmada. O modo `--video` do runner de UI
+confere a tela nova, OPTIONS, Voltar/background e fechamento do socket/worker;
+não testa negociação nem mídia de um emissor. Sem `--video` permanece o
+ensaio de áudio, incluindo callbacks de volume/mute.
+
+`test_vega_local_video.py` agora exige evidência `workerOwned=true`, ausência
+de descarte da fixture e orçamento de callbacks limitado. O produtor `--serve`
+usa `forwardAirPlayVideo`/`forwardAirPlayVideoSize` e o worker real, com NTP
+sintético conhecido; o player continua sendo acionado pela tela por URL. Este
+ensaio ainda não injeta vídeo via RTSP/FairPlay/AES da nova tela. Não confundir
+contrato de callback/saída e ciclo de vida com validação de emissor Apple.
+A marca `visualValidation=false` e o teste estrito de contadores positivos
+continuam obrigatórios; o worker ainda pressupõe H.264 sem reordenação, duração
+inicial estimada em 30 Hz e épocas de áudio/vídeo independentes.
+
+Evidência do worker em VVD High: `build/vega-video-worker-stream` passou com
+`nativeCallbackWorker=true`, 120 frames/179947 bytes no ciclo completo e
+61/120 frames no ciclo cancelado, `clientClosed`, filas vazias e recursos
+liberados. A reprodução começou com 39/120 frames aceitos. O relatório mantém
+`visualValidation=false`, com contadores total/dropped zero. A regressão de
+UI/volume/mute/encerramento de áudio passou em dois ciclos em
+`build/vega-video-worker-audio-regression`; a nova tela passou em
+`build/vega-video-worker-ui`. Nenhum desses relatórios negocia mídia Apple real.
+
+
+## Transporte criptografado do vídeo AirPlay — 19 de novembro de 2026
+
+O probe de desenvolvimento agora passa a amostra H.264 pelo receptor TCP de
+espelhamento do UxPlay. Usa uma chave de teste pública, sincroniza NTP por
+loopback e compara os bytes descriptografados e timestamps antes de enviar
+cada quadro ao worker de produção. O player recebe a URL do fMP4 pela tela
+AirPlay por URL. O probe permanece fora dos VPKGs.
+
+O teste ASan/UBSan encontrou uma falha quando um fragmento chegava menor que o
+saldo do bloco AES anterior. O patch compartilhado 0017 passa cada fragmento
+ao mesmo contexto CTR sem preencher ou descartar blocos entre pacotes. O teste
+confere partições curtas, chamadas vazias, buffers sobrepostos e troca de chave.
+O staging Vega agora aplica 17 patches. O CI roda o teste de regressão.
+
+No VVD ARM64, `build/vega-mirror-ctr-fixed-high/result.json` registra 120
+frames com bytes e timestamps verificados no ciclo completo. O player avançou
+com 35 frames produzidos. Ao sair com Voltar no segundo ciclo, o fluxo encerrou
+em 61/120 e liberou sockets TCP/NTP, produtor, player e superfície. As três
+arquiteturas passaram no build e na validação de ABI. Ainda faltam negociação
+FairPlay com emissor real, comprovação de imagem exibida e sincronismo A/V.
+O relatório mantém `fairPlayNegotiation=false` e `visualValidation=false`.
+
+Execute `python3 tools/test_vega_mirror_crypto.py` após preparar o UxPlay.
+No macOS, passe `--openssl-prefix` com o prefixo da instalação de desenvolvimento
+do OpenSSL. Para repetir o ensaio VVD acima, use `test_vega_local_video.py` com
+`--mirror --profile high --transport-only`. O modo estrito continua exigindo
+contadores de vídeo positivos.

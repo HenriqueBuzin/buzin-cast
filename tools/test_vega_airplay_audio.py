@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VVD-only UI/RTSP lifecycle and volume callbacks for experimental AirPlay audio."""
+"""VVD-only UI/RTSP lifecycle for manual AirPlay audio or video experiments."""
 import argparse
 import json
 from pathlib import Path
@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--vpkg', required=True, type=Path)
+    parser.add_argument('--video', action='store_true', help='Test video worker ownership; no Apple media negotiation or rendering proof')
     parser.add_argument('--output', type=Path, default=Path('build/vega-airplay-audio'))
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -23,7 +24,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     sdk = shutil.which('vega')
     history, cycles, forwards = [], [], []
-    report = {'passed': False, 'physicalValidation': False}
+    mode = 'video' if args.video else 'audio'
+    report = {'passed': False, 'physicalValidation': False, 'mode': mode, 'mediaNegotiation': False, 'visualValidation': False}
     client = None
 
     def run(*command, timeout=30):
@@ -41,13 +43,13 @@ def main():
         last = None
         while time.monotonic() < deadline:
             try:
-                last = json.loads(shell('-c', COMPONENT, 'cat', '/data/airplay-audio-state.json'))
+                last = json.loads(shell('-c', COMPONENT, 'cat', f'/data/airplay-{mode}-state.json'))
                 if predicate(last):
                     return last
             except (RuntimeError, json.JSONDecodeError):
                 pass
             time.sleep(0.15)
-        raise RuntimeError(f'Native audio observation did not match: {last}')
+        raise RuntimeError(f'Native {mode} observation did not match: {last}')
 
     def request(method, sequence, body=b''):
         client.sendall(f'{method} rtsp://127.0.0.1/audio RTSP/1.0\r\nCSeq: {sequence}\r\nContent-Type: text/parameters\r\nContent-Length: {len(body)}\r\n\r\n'.encode() + body)
@@ -68,34 +70,36 @@ def main():
             shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
         for cycle in range(2):
-            shell('-c', COMPONENT, 'rm', '-f', '/data/airplay-audio-port.json', '/data/airplay-audio-state.json')
-            for key in ['KEY_ENTER', 'KEY_DOWN', 'KEY_DOWN', 'KEY_ENTER']:
+            shell('-c', COMPONENT, 'rm', '-f', f'/data/airplay-{mode}-port.json', f'/data/airplay-{mode}-state.json')
+            for key in ['KEY_ENTER', *(['KEY_DOWN'] * (3 if args.video else 2)), 'KEY_ENTER']:
                 shell('inputd-cli', 'button_press', key)
             deadline = time.monotonic() + 10
             port = None
             while time.monotonic() < deadline:
                 try:
-                    port = json.loads(shell('-c', COMPONENT, 'cat', '/data/airplay-audio-port.json'))['port']
+                    port = json.loads(shell('-c', COMPONENT, 'cat', f'/data/airplay-{mode}-port.json'))['port']
                     break
                 except (RuntimeError, json.JSONDecodeError):
                     time.sleep(0.2)
             if not isinstance(port, int) or not 0 < port <= 65535:
-                raise RuntimeError('Audio listener did not start')
+                raise RuntimeError(f'{mode} listener did not start')
             run('device', 'start-port-forwarding', '-d', args.serial, '--port', str(port), '--forward', 'true')
             forwards.append(port)
             client = socket.create_connection(('127.0.0.1', port), timeout=3)
             request('OPTIONS', 1)
             waiting = observation(lambda value: value.get('phase') == 'waiting')
-            request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
-            gain = observation(lambda value: value.get('volumeDb') == -18)
-            request('SET_PARAMETER', 3, b'volume: -144.000000\r\n')
-            muted = observation(lambda value: value.get('volumeDb') == -144)
+            details = {}
+            if not args.video:
+                request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
+                details['gain'] = observation(lambda value: value.get('volumeDb') == -18)
+                request('SET_PARAMETER', 3, b'volume: -144.000000\r\n')
+                details['muted'] = observation(lambda value: value.get('volumeDb') == -144)
             shell('inputd-cli', 'button_press', 'KEY_BACK' if cycle == 0 else 'KEY_HOMEPAGE')
             stopped = observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
             if client.recv(1) != b'':
                 raise RuntimeError('Leaving the screen did not close the native control socket')
             client.close(); client = None
-            cycles.append({'waiting': waiting, 'gain': gain, 'muted': muted, 'stopped': stopped, 'controlSocketClosed': True})
+            cycles.append({'waiting': waiting, **details, 'stopped': stopped, 'controlSocketClosed': True})
         report.update(passed=True, cycles=cycles)
         print(json.dumps(report, indent=2))
     except Exception as error:

@@ -50,6 +50,34 @@ Auditoria pública de arquivos/histórico sem achados e as 12 artes aprovadas
 preservadas. As três capturas de referência do release estão em
 `docs/images/fireos3-store-release-*.png`, vindas do framebuffer do emulador.
 
+A sincronização seguinte trouxe do Mac o patch compartilhado UxPlay 0017,
+descrito abaixo. Os hashes e ensaios desta etapa de SDK são anteriores a esse
+patch. Recompilar os candidatos e validar a regressão CTR também na API17
+antes de usá-los em LAT ou publicação; eles continuam não prontos para envio.
+
+## Transporte criptografado do vídeo AirPlay — 19 de novembro de 2026
+
+O probe de desenvolvimento agora passa a amostra H.264 pelo receptor TCP de
+espelhamento do UxPlay. Usa uma chave de teste pública, sincroniza NTP por
+loopback e compara os bytes descriptografados e timestamps antes de enviar
+cada quadro ao worker de produção. O player recebe a URL do fMP4 pela tela
+AirPlay por URL. O probe permanece fora dos VPKGs.
+
+O teste ASan/UBSan encontrou uma falha quando um fragmento chegava menor que o
+saldo do bloco AES anterior. O patch compartilhado 0017 passa cada fragmento
+ao mesmo contexto CTR sem preencher ou descartar blocos entre pacotes. O teste
+confere partições curtas, chamadas vazias, buffers sobrepostos e troca de chave.
+O staging Vega agora aplica 17 patches. O CI roda o teste de regressão.
+
+No VVD ARM64, `build/vega-mirror-ctr-fixed-high/result.json` registra 120
+frames com bytes e timestamps verificados no ciclo completo. O player avançou
+com 35 frames produzidos. Ao sair com Voltar no segundo ciclo, o fluxo encerrou
+em 61/120 e liberou sockets TCP/NTP, produtor, player e superfície. As três
+arquiteturas passaram no build e na validação de ABI. Ainda faltam negociação
+FairPlay com emissor real, comprovação de imagem exibida e sincronismo A/V.
+O relatório mantém `fairPlayNegotiation=false` e `visualValidation=false`.
+
+
 ## API17 — atraso AAC medido e apresentação dos downloads
 
 Concluída a etapa de compensação do atraso identificada no checkpoint abaixo.
@@ -830,6 +858,53 @@ slideshow/histórico prolongado e limites de fotos ainda precisam de testes
 de integração específicos no API17. Permanecem a arbitragem nativa/URL,
 HTTPS real, consumo prolongado, defeito intermitente de dlfree, produção e
 validação física. Vega segue separado no Mac. As logos não foram alteradas.
+
+## Worker de vídeo ligado à sessão AirPlay — 18 de novembro de 2026
+
+- `AirPlayVideoWorker` recebe cópias dos callbacks UxPlay em fila de até
+  256 eventos/8 MiB, incluindo o callback em processamento; cada access unit
+  tem no máximo 2 MiB. Libera a cópia concluída antes de devolver seu orçamento
+  à fila. Overflow, entrada inválida ou consumidor desconectado encerram a
+  saída, marcam erro e produzem comando de parada.
+- SPS/PPS e IDR inicial são obrigatórios. O parser Annex B limitado é
+  compartilhado com o muxer. Mudança de dimensões invalida fila e parâmetros;
+  flush preserva a configuração negociada, mas exige novo IDR e nova época.
+  Mudança de SPS/PPS recria muxer/URL. Comandos de saída são coalescidos para
+  não reter URLs antigas. NTP local em ns vira PTS relativo em microssegundos;
+  timestamps duplicados/anteriores são descartados.
+- Esta primeira etapa pressupõe H.264 sem reordenação: DTS=PTS. A duração do
+  primeiro frame é estimada em 30 Hz; depois usa a cadência observada, limitada
+  a um segundo por amostra. Ainda não é sincronismo A/V nem suporte a B-frames.
+- `AirPlaySession` inicia e para o worker dentro de seu rollback de transporte;
+  encaminha tamanho, amostras, flush/reset e stop. Só a URL efêmera cruza o
+  TurboModule. `BuzinNetwork` possui o worker antes da sessão, preservando a
+  ordem de destruição, e liga a saída fMP4 real no app nas três arquiteturas.
+- Estado do port tem `Testar vídeo AirPlay`: modo manual experimental, sem
+  descoberta/PIN/áudio integrado. O receptor JS aceita nesse modo somente URLs
+  de loopback com o token gerado nativamente; permite substituições rápidas de
+  formato e rejeita comandos de carga do modo URL. Não oferece pausa manual
+  de uma saída ao vivo. Recursos de descoberta AirPlay continuam zerados.
+- Contratos C++ com ASan/UBSan passaram: cópia de payload, gating de IDR,
+  timestamps, flush, dimensão/SPS/PPS, cancelamento durante startup/escrita,
+  limites por bytes/eventos, falha do consumidor e barreira de liberação.
+  CI executa o novo teste. Lint, TypeScript, 62 testes Jest, regressão portátil
+  ALAC/mux/saída e build/validação dos três VPKGs passaram.
+- A nova tela passou em dois ciclos VVD de OPTIONS/Voltar/background, com
+  worker parado, fila vazia e EOF do socket RTSP em `build/vega-video-worker-ui`.
+  Isso não negocia mídia Apple. O probe de mídia agora alimenta o mesmo helper
+  de callback e worker com fixture própria; não executa FairPlay/RTSP/AES do
+  espelhamento. Integração criptografada real, pixels, A/V, reconexões completas
+  e paridade com Fire OS continuam pendentes.
+
+
+Evidência do worker em VVD High: `build/vega-video-worker-stream` passou com
+`nativeCallbackWorker=true`, 120 frames/179947 bytes no ciclo completo e
+61/120 frames no ciclo cancelado, `clientClosed`, filas vazias e recursos
+liberados. A reprodução começou com 39/120 frames aceitos. O relatório mantém
+`visualValidation=false`, com contadores total/dropped zero. A regressão de
+UI/volume/mute/encerramento de áudio passou em dois ciclos em
+`build/vega-video-worker-audio-regression`; a nova tela passou em
+`build/vega-video-worker-ui`. Nenhum desses relatórios negocia mídia Apple real.
 
 ## API17 — Media3, formatos e velocidade
 

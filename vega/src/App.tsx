@@ -16,7 +16,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const [selected, setSelected] = useState('status');
@@ -44,6 +44,9 @@ export default function App() {
 
   if (page === 'airplay') {
     return <FCastScreen onBack={goHome} protocol="airplay" />;
+  }
+  if (page === 'airplayVideo') {
+    return <FCastScreen onBack={goHome} protocol="mirror" />;
   }
 
   if (page === 'fcast') {
@@ -208,6 +211,7 @@ export default function App() {
           {page === 'status' && <Text style={styles.details}>{report}</Text>}
           {page === 'status' && action('airplay', 'Testar AirPlay por URL', () => setPage('airplay'), false)}
           {page === 'status' && action('airplayAudio', 'Testar áudio AirPlay', () => setPage('airplayAudio'), false)}
+          {page === 'status' && action('airplayVideo', 'Testar vídeo AirPlay', () => setPage('airplayVideo'), false)}
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}

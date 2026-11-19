@@ -9,6 +9,7 @@ export function createAirPlayReceiver(
   onChange: (snapshot: PlaybackSnapshot | null) => void,
   onFailure: () => void,
   onListening?: (port: number) => void,
+  mode: 'url' | 'mirror' = 'url',
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -61,7 +62,7 @@ export function createAirPlayReceiver(
     if (closed) {return;}
     player = ready;
     try {
-      port = Network.startAirPlayUrl();
+      port = mode === 'mirror' ? Network.startAirPlayVideo() : Network.startAirPlayUrl();
       clearTimeout(deadline);
       publish();
       onListening?.(port);
@@ -78,9 +79,13 @@ export function createAirPlayReceiver(
         const packet = Network.pollAirPlayCommand();
         if (!packet) {break;}
         const event = object(JSON.parse(packet));
-        if (event.kind === 'play') {
-          if (Date.now() - lastPlay < 500) {throw new Error('Play rate exceeded');}
+        if (event.kind === 'play' || event.kind === 'mirror') {
           const url = String(event.url);
+          if (mode === 'mirror') {
+            if (event.kind !== 'mirror' || !/^http:\/\/127\.0\.0\.1:\d{1,5}\/[0-9a-f]{64}\.mp4$/.test(url)) {
+              throw new Error('Invalid native mirror output');
+            }
+          } else if (event.kind !== 'play' || Date.now() - lastPlay < 500) {throw new Error('Play rate exceeded');}
           const container = /\.m3u8(?:[?#]|$)/i.test(url) ? 'application/x-mpegURL'
             : /\.mpd(?:[?#]|$)/i.test(url) ? 'application/dash+xml' : 'video/mp4';
           const request = playRequest({url, container, time: number(event, 'value', 0, 31536000)});
@@ -109,7 +114,7 @@ export function createAirPlayReceiver(
     get port() {return port;},
     attachSurface(current: number, handle: string) {if (current === token && ownsMedia) {session?.attachSurface(handle);}},
     detachSurface(current: number, handle: string) {if (current === token) {session?.detachSurface(handle);}},
-    togglePause() {if (ownsMedia) {session?.togglePause();}},
+    togglePause() {if (ownsMedia && mode !== 'mirror') {session?.togglePause();}},
     stop,
   };
 }

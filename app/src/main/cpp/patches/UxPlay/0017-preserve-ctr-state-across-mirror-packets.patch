@@ -1,0 +1,71 @@
+diff --git a/lib/mirror_buffer.c b/lib/mirror_buffer.c
+--- a/lib/mirror_buffer.c
++++ b/lib/mirror_buffer.c
+@@ -31,8 +31,6 @@
+ struct mirror_buffer_s {
+     logger_t *logger;
+     aes_ctx_t *aes_ctx;
+-    int nextDecryptCount;
+-    uint8_t og[16];
+     /* audio aes key is used in a hash for the video aes key and iv */
+     unsigned char aeskey_audio[RAOP_AESKEY_LEN];
+ };
+@@ -63,11 +61,6 @@
+     sha_final(ctx, aesiv_video, NULL);
+     sha_destroy(ctx);
+ 
+-    /* A re-key means a new stream, so the keystream restarts: any bytes held
+-     * back from the previous stream's last partial block must be dropped, or
+-     * this stream is decrypted at the wrong offset from its first packet. */
+-    mirror_buffer->nextDecryptCount = 0;
+-    memset(mirror_buffer->og, 0, sizeof(mirror_buffer->og));
+     if (mirror_buffer->aes_ctx) {
+         aes_ctr_destroy(mirror_buffer->aes_ctx);
+         mirror_buffer->aes_ctx = NULL;
+@@ -87,40 +80,17 @@
+     }
+     memcpy(mirror_buffer->aeskey_audio, aeskey, RAOP_AESKEY_LEN);
+     mirror_buffer->logger = logger;
+-    mirror_buffer->nextDecryptCount = 0;
+     return mirror_buffer;
+ }
+ 
+ void mirror_buffer_decrypt(mirror_buffer_t *mirror_buffer, unsigned char* input, unsigned char* output, int inputLen) {
+-    // Start decrypting
+-    if (mirror_buffer->nextDecryptCount > 0) {//mirror_buffer->nextDecryptCount = 10
+-        for (int i = 0; i < mirror_buffer->nextDecryptCount; i++) {
+-            output[i] = (input[i] ^ mirror_buffer->og[(16 - mirror_buffer->nextDecryptCount) + i]);
+-        }
++    if (inputLen <= 0) {
++        return;
+     }
+-    // Handling encrypted bytes
+-    int encryptlen = ((inputLen - mirror_buffer->nextDecryptCount) / 16) * 16;
+-    // Aes decryption
+-    aes_ctr_start_fresh_block(mirror_buffer->aes_ctx);
+-    aes_ctr_decrypt(mirror_buffer->aes_ctx, input + mirror_buffer->nextDecryptCount,
+-                    input + mirror_buffer->nextDecryptCount, encryptlen);
+-    // Copy to output
+-    memcpy(output + mirror_buffer->nextDecryptCount, input + mirror_buffer->nextDecryptCount, encryptlen);
+-    // int outputlength = mirror_buffer->nextDecryptCount + encryptlen;
+-    // Processing remaining length
+-    int restlen = (inputLen - mirror_buffer->nextDecryptCount) % 16;
+-    int reststart = inputLen - restlen;
+-    mirror_buffer->nextDecryptCount = 0;
+-    if (restlen > 0) {
+-        memset(mirror_buffer->og, 0, 16);
+-        memcpy(mirror_buffer->og, input + reststart, restlen);
+-        aes_ctr_decrypt(mirror_buffer->aes_ctx, mirror_buffer->og, mirror_buffer->og, 16);
+-        for (int j = 0; j < restlen; j++) {
+-            output[reststart + j] = mirror_buffer->og[j];
+-        }
+-        //outputlength += restlen;
+-        mirror_buffer->nextDecryptCount = 16 - restlen;// Difference 16-6=10 bytes
+-    }
++
++    /* EVP retains partial CTR blocks across calls. Keep one continuous
++     * keystream per streamConnectionID regardless of packet boundaries. */
++    aes_ctr_decrypt(mirror_buffer->aes_ctx, input, output, inputLen);
+ }
+ 
+ void
