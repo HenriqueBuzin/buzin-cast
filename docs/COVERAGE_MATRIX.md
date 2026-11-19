@@ -859,3 +859,22 @@ lines 7298/8413; native branches are 792/916 and MC/DC 123/167. No complete-edit
 metric is yet at 100%. This establishes a valid current production-code gap
 inventory; it does not prove coverage for the other three editions or include
 the later two ViewModel tests and unit-only clock assertions.
+
+A coverage-only partial-server fixture now owns a real callback binding and its
+initialized mutex/condition variable while leaving RAOP, discovery and audio
+children absent. Its context uses the same private native state declaration as
+the shipped bridge, moved unchanged into a shared header. The test invokes the
+shipped JNI controls, verifies unavailable children reject activation/debug or
+produce no records, and destroys the context through the shipped teardown path.
+It opens no listener, decoder or output stream.
+
+The final 17-case JNI/server/init selection passed on API28 in 10.902 seconds
+without skips, after a 26-second initial assembly and 9-second final test assembly.
+The matching library-only LLVM export reports all conditions covered for 18
+partial-owner guards, with no warnings. All 24 shipped JNI entries are retained,
+and the complete mapped native inventory remains exactly 916 branches, 202
+functions, 204 instantiations, 1729 lines, 167 MC/DC conditions and 1510 regions.
+The bridge file itself reaches MC/DC 39/47 in this selection; remaining paths stay
+in the report. These changed source mappings must not absorb the previous full
+187-test profiles. The next complete cohort must run 190 Android and 19 native
+tests and still satisfy all runtime labels independently for every edition.

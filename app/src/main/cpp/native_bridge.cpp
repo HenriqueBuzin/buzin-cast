@@ -19,20 +19,11 @@ extern "C" {
 
 #include "audio_engine.h"
 #include "log_sink.h"
+#include "native_server_context.h"
 
 #define TAG "AirPlayNative"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
-
-/* Holds all native state for one server instance */
-typedef struct {
-    raop_t *raop;
-    dnssd_t *dnssd;
-    android_callback_ctx_t cb_ctx;
-    raop_callbacks_t callbacks;
-    char hw_addr[6];
-    std::shared_ptr<LogSink> log;
-} server_ctx_t;
 
 static void _log_callback(void *cls, int level, const char *msg) {
     int prio = ANDROID_LOG_DEBUG;

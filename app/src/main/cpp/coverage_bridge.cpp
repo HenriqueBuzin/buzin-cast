@@ -14,6 +14,7 @@
 #include "audio_engine.h"
 #include "audio_output.h"
 #include "log_sink.h"
+#include "native_server_context.h"
 extern "C" {
 #include <libavcodec/defs.h>
 #include "dnssd.h"
@@ -22,6 +23,18 @@ extern "C" {
 }
 extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
+
+// Own a real callback binding and synchronization primitives, but intentionally
+// stop before creating child subsystems. No listener, decoder or output opens.
+// Kotlin must release the returned context through the shipped nativeDestroy.
+extern "C" JNIEXPORT jlong JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCreatePartialServer(
+        JNIEnv *env, jobject, jobject callback) {
+    auto ctx = std::make_unique<server_ctx_t>();
+    if (!android_callbacks_init(&ctx->cb_ctx, env, callback)) return 0;
+    android_callbacks_fill(&ctx->callbacks, &ctx->cb_ctx);
+    return reinterpret_cast<jlong>(ctx.release());
+}
 
 // Access owns references under the production lock; no stream state is faked.
 struct AudioOutputContractAccess {
