@@ -22,13 +22,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--vpkg', type=Path, required=True)
+    parser.add_argument('--jpeg', type=Path, help='Optional JPEG fixture for the extensionless DIDL resource')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-dlna')
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
         parser.error('Only VVD is allowed')
     args.output.mkdir(parents=True, exist_ok=True)
-    payload = (ROOT / 'vega/assets/raw/media/playback-sample.mp4').read_bytes()
+    photo = (ROOT / 'store/amazon/images/icon-114.png').read_bytes()
+    media = {
+        '/clip.mp4': ((ROOT / 'vega/assets/raw/media/playback-sample.mp4').read_bytes(), 'video/mp4'),
+        '/still.png': (photo, 'image/png'),
+        '/photo-image': (args.jpeg.read_bytes(), 'image/jpeg') if args.jpeg else (photo, 'image/png'),
+        '/broken.png': (b'Invalid image', 'image/png'),
+        '/slow.png': (photo, 'image/png'),
+    }
     fetched = threading.Event()
+    slow_started = threading.Event()
+    slow_release = threading.Event()
     result = {'passed': False, 'physicalValidation': False}
     forwards = []
     client = None
@@ -44,9 +54,14 @@ def main():
             self.serve(True)
 
         def serve(self, body):
-            if self.path != '/clip.mp4':
+            if self.path not in media:
                 self.send_error(404)
                 return
+            payload, mime = media[self.path]
+            if self.path == '/slow.png':
+                slow_started.set()
+                if not slow_release.wait(5):
+                    return
             start, end = 0, len(payload) - 1
             requested = self.headers.get('Range')
             if requested:
@@ -61,15 +76,19 @@ def main():
                     self.send_error(416)
                     return
             self.send_response(206 if requested else 200)
-            self.send_header('Content-Type', 'video/mp4')
+            self.send_header('Content-Type', mime)
             self.send_header('Content-Length', str(end - start + 1))
             self.send_header('Accept-Ranges', 'bytes')
             if requested:
                 self.send_header('Content-Range', f'bytes {start}-{end}/{len(payload)}')
             self.end_headers()
             if body:
-                fetched.set()
-                self.wfile.write(payload[start:end + 1])
+                if mime == 'video/mp4':
+                    fetched.set()
+                try:
+                    self.wfile.write(payload[start:end + 1])
+                except BrokenPipeError:
+                    pass
 
     server = ThreadingHTTPServer(('127.0.0.1', MEDIA_PORT), Media)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -193,6 +212,35 @@ def main():
         soap('avt', 'Play', Speed=1)
         wait(lambda: transport('PLAYING') and seconds() < 3)
         assert fetched.is_set()
+        assert 'http-get:*:image/png:*' in soap('cmn', 'GetProtocolInfo')['Sink']
+        photo_url = f'http://127.0.0.1:{MEDIA_PORT}/still.png'
+        time.sleep(0.55)
+        soap('avt', 'SetAVTransportURI', CurrentURI=photo_url, CurrentURIMetaData='')
+        wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == photo_url)
+        assert soap('avt', 'GetCurrentTransportActions')['Actions'] == 'Stop'
+        assert seconds() == 0
+        soap('avt', 'Pause', status=500)
+        soap('avt', 'Seek', status=500, Unit='REL_TIME', Target='00:00:03')
+        soap('avt', 'Stop')
+        assert transport('STOPPED')
+        time.sleep(0.55)
+        alternate = f'http://127.0.0.1:{MEDIA_PORT}/photo-image'
+        mime = media['/photo-image'][1]
+        metadata = f'<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><item><res protocolInfo="http-get:*:{mime}:*">{alternate}</res></item></DIDL-Lite>'
+        soap('avt', 'SetAVTransportURI', CurrentURI=alternate, CurrentURIMetaData=metadata)
+        wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == alternate)
+        time.sleep(0.55)
+        soap('avt', 'SetAVTransportURI', CurrentURI=f'http://127.0.0.1:{MEDIA_PORT}/broken.png', CurrentURIMetaData='')
+        wait(lambda: soap('avt', 'GetTransportInfo')['CurrentTransportStatus'] == 'ERROR_OCCURRED')
+        time.sleep(0.55)
+        soap('avt', 'SetAVTransportURI', CurrentURI=f'http://127.0.0.1:{MEDIA_PORT}/slow.png', CurrentURIMetaData='')
+        assert slow_started.wait(5) and transport('TRANSITIONING')
+        soap('avt', 'Stop')
+        slow_release.set()
+        time.sleep(0.55)
+        assert transport('STOPPED')
+        soap('avt', 'SetAVTransportURI', CurrentURI=f'http://127.0.0.1:{MEDIA_PORT}/clip.mp4', CurrentURIMetaData='')
+        wait(lambda: transport('PLAYING') and seconds() >= 1)
         shell('inputd-cli', 'button_press', 'KEY_BACK')
         wait(lambda: diagnostic('/data/playback-state.json').get('state') == 'released')
         assert startup() is None
@@ -203,12 +251,16 @@ def main():
         client = http.client.HTTPConnection('127.0.0.1', new_port, timeout=5)
         reopened = request_http('GET', '/desc.xml').findtext(f'{ns}device/{ns}UDN')
         assert reopened == identity and transport('NO_MEDIA_PRESENT')
+        soap('avt', 'SetAVTransportURI', CurrentURI=photo_url, CurrentURIMetaData='')
+        wait(lambda: transport('PLAYING'))
         shell('inputd-cli', 'button_press', 'KEY_HOMEPAGE')
         wait(lambda: diagnostic('/data/playback-state.json').get('state') == 'released')
         assert startup() is None
         result.update(passed=True, description=True, serviceDescriptions=True, prohibitedUriRejected=True,
                       httpMedia=True, autoPlay=True, pause=True, seek=True, resume=True, stop=True, replay=True,
-                      volumeAndMute=True, stableIdentity=True, playerReleased=True, backgroundReleased=True)
+                      volumeAndMute=True, stableIdentity=True, playerReleased=True, backgroundReleased=True,
+                      pngLoaded=True, didlPhotoLoaded=True, jpegLoaded=bool(args.jpeg),
+                      corruptPhotoRejected=True, pendingPhotoCancelledByStop=True, videoAfterPhoto=True)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)
@@ -219,6 +271,7 @@ def main():
             pass
         raise
     finally:
+        slow_release.set()
         if client:
             client.close()
         for number, direction in forwards:

@@ -2,14 +2,19 @@
 import type {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import Network from './turbo-modules/BuzinNetwork';
 import {createPlaybackSession, PlaybackRequest, PlaybackSnapshot} from './playbackSession';
-import {dlnaConnectionInfo, DlnaFault, DlnaRequest, DlnaService, formatDlnaTime, parseDlnaTime, routeDlna} from './dlnaProtocol';
+import {dlnaConnectionInfo, DlnaFault, DlnaRequest, DlnaService, formatDlnaTime, isDlnaPhoto, parseDlnaTime, routeDlna} from './dlnaProtocol';
+import {loadDlnaPhoto, photoSource} from './dlnaPhoto';
 import {playRequest} from './fcastProtocol';
+
+type Media = {kind: 'photo'; url: string} | ({kind: 'player'} & PlaybackRequest);
+export type DlnaPhotoView = {token: number; source?: ReturnType<typeof photoSource>};
 
 export function createDlnaReceiver(
   onReady: (token: number | null) => void,
   onChange: (snapshot: PlaybackSnapshot | null) => void,
   onFailure: () => void,
   onListening: (port: number) => void,
+  onPhoto: (photo: DlnaPhotoView | null) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -18,7 +23,9 @@ export function createDlnaReceiver(
   let serving = false;
   let token = 0;
   let surface: string | undefined;
-  let uri: PlaybackRequest | null = null;
+  let uri: Media | null = null;
+  let cancelPhoto: (() => void) | undefined;
+  let photoTimeout: ReturnType<typeof setTimeout> | undefined;
   let metadata = '';
   let snapshot: PlaybackSnapshot | null = null;
   let volume = 100;
@@ -27,27 +34,66 @@ export function createDlnaReceiver(
   let name = '';
   let lastLoad = -Infinity;
 
+  function clearPhotoTimeout() {
+    if (photoTimeout !== undefined) {
+      clearTimeout(photoTimeout);
+      photoTimeout = undefined;
+    }
+  }
+
   function endMedia() {
-    const wasActive = active;
+    const wasPlaying = active && uri?.kind === 'player';
     active = false;
     snapshot = null;
     ++token;
+    cancelPhoto?.();
+    cancelPhoto = undefined;
+    clearPhotoTimeout();
     if (surface) {
       session?.detachSurface(surface);
       surface = undefined;
     }
-    if (wasActive) {player?.pause();}
+    if (wasPlaying) {player?.pause();}
+    if (!closed) {onPhoto(null);}
     if (!closed) {onReady(null); onChange(null);}
   }
 
-  function startMedia(request: PlaybackRequest) {
+  function photoDisplayed(current: number, success: boolean) {
+    if (closed || !active || current !== token || uri?.kind !== 'photo' ||
+        snapshot?.state !== 'loading') {return;}
+    clearPhotoTimeout();
+    if (!success) {onPhoto({token});}
+    snapshot = {seconds: 0, state: success ? 'playing' : 'error'};
+    onChange(snapshot);
+  }
+
+  function startMedia(request: Media) {
     if (Date.now() - lastLoad < 500) {throw new DlnaFault(705, 'Transport busy');}
     lastLoad = Date.now();
     endMedia();
+    uri = request;
     active = true;
     snapshot = {seconds: 0, state: 'loading'};
-    session?.load(request);
-    onReady(token);
+    if (request.kind === 'photo') {
+      const current = token;
+      onChange(snapshot);
+      onPhoto({token: current});
+      try {
+        cancelPhoto = loadDlnaPhoto(request.url, source => {
+          if (closed || current !== token) {return;}
+          cancelPhoto = undefined;
+          photoTimeout = setTimeout(() => photoDisplayed(current, false), 8000);
+          onPhoto({token: current, source});
+        }, () => {
+          if (closed || current !== token) {return;}
+          cancelPhoto = undefined;
+          photoDisplayed(current, false);
+        });
+      } catch {photoDisplayed(current, false);}
+    } else {
+      session?.load(request);
+      onReady(token);
+    }
   }
 
   function stop() {
@@ -60,6 +106,8 @@ export function createDlnaReceiver(
     } finally {
       serving = false;
       active = false;
+      cancelPhoto?.();
+      clearPhotoTimeout();
       session?.stop();
       player = undefined;
     }
@@ -67,7 +115,7 @@ export function createDlnaReceiver(
 
   function fail() {
     if (closed) {return;}
-    try {stop();} finally {onFailure();}
+    try {stop();} finally {onPhoto(null); onReady(null); onChange(null); onFailure();}
   }
 
   function transportState() {
@@ -107,7 +155,7 @@ export function createDlnaReceiver(
     }
 
     const state = transportState();
-    const duration = formatDlnaTime(active ? player?.duration ?? 0 : 0);
+    const duration = formatDlnaTime(active && uri?.kind === 'player' ? player?.duration ?? 0 : 0);
     const position = formatDlnaTime(snapshot?.seconds ?? 0);
     switch (action) {
       case 'SetAVTransportURI': {
@@ -121,8 +169,9 @@ export function createDlnaReceiver(
         try {request = playRequest({url: args.CurrentURI.trim(), container: 'video/mp4'});}
         catch {throw new DlnaFault(714, 'Illegal MIME-type or URI');}
         // Match senders that only set the URI and poll the transport.
-        startMedia(request);
-        uri = request;
+        startMedia(isDlnaPhoto(request.url, args.CurrentURIMetaData || '')
+          ? {kind: 'photo', url: request.url}
+          : {kind: 'player', ...request});
         metadata = args.CurrentURIMetaData || '';
         break;
       }
@@ -133,14 +182,14 @@ export function createDlnaReceiver(
         else if (state === 'PAUSED_PLAYBACK') {player?.play().catch(() => endMedia());}
         break;
       case 'Pause':
-        if (state !== 'PLAYING' && state !== 'PAUSED_PLAYBACK') {throw new DlnaFault(701, 'Transition not available');}
+        if (uri?.kind !== 'player' || (state !== 'PLAYING' && state !== 'PAUSED_PLAYBACK')) {throw new DlnaFault(701, 'Transition not available');}
         player?.pause();
         break;
       case 'Stop':
         endMedia();
         break;
       case 'Seek':
-        if (!active || !player || !Number.isFinite(player.duration) || player.duration <= 0) {
+        if (uri?.kind !== 'player' || !active || !player || !Number.isFinite(player.duration) || player.duration <= 0) {
           throw new DlnaFault(701, 'Transition not available');
         }
         if (!['REL_TIME', 'ABS_TIME'].includes(args.Unit)) {throw new DlnaFault(710, 'Seek mode not supported');}
@@ -156,6 +205,7 @@ export function createDlnaReceiver(
         return {CurrentTransportState: state, CurrentTransportStatus: snapshot?.state === 'error' ? 'ERROR_OCCURRED' : 'OK',
           CurrentSpeed: '1'};
       case 'GetCurrentTransportActions':
+        if (uri?.kind === 'photo') {return {Actions: state === 'STOPPED' ? 'Play' : 'Stop'};}
         return {Actions: state === 'PLAYING' ? 'Pause,Stop' + (duration !== '00:00:00' ? ',Seek' : '') :
           state === 'PAUSED_PLAYBACK' ? 'Play,Stop' + (duration !== '00:00:00' ? ',Seek' : '') :
           state === 'TRANSITIONING' ? 'Stop' : uri ? 'Play' : ''};
@@ -189,7 +239,7 @@ export function createDlnaReceiver(
   }, state => {
     if (closed) {return;}
     if (!serving && state.state === 'error') {fail(); return;}
-    if (active) {snapshot = state; onChange(state);}
+    if (active && uri?.kind === 'player') {snapshot = state; onChange(state);}
   }, null);
 
   return {
@@ -203,7 +253,8 @@ export function createDlnaReceiver(
       surface = undefined;
       session?.detachSurface(handle);
     },
-    togglePause() {if (active) {session?.togglePause();}},
+    togglePause() {if (active && uri?.kind === 'player') {session?.togglePause();}},
+    photoDisplayed,
     stop,
   };
 }

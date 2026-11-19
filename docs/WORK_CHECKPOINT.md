@@ -1,5 +1,13 @@
 # Retomada — 19 de novembro de 2026
 
+## Fotos DLNA no Vega
+
+O receptor exibe JPEG e PNG, inclusive URI sem extensão com o recurso
+DIDL correspondente. O VVD confirmou a carga pelos eventos do componente,
+a rejeição de imagem inválida e a troca de vídeo para foto e de volta
+para vídeo. Notificações GENA, regras de acesso e validação física
+continuam pendentes. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Receptor DLNA no Vega
 
 O modo DLNA anuncia um MediaRenderer por SSDP e toca mídia HTTP(S) no

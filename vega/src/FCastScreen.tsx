@@ -1,11 +1,11 @@
 /* eslint-disable @amazon-devices/kepler/sdl-package-version-check-imports -- OS 2.0 system video surface. */
 import TvButton from './TvButton';
 import React, {useEffect, useRef, useState} from 'react';
-import {AppState, StyleSheet, Text, View} from 'react-native';
+import {AppState, Image, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
-import {createDlnaReceiver} from './dlnaReceiver';
+import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
 import type {PlaybackSnapshot} from './playbackSession';
 
 const titles = {
@@ -16,10 +16,12 @@ const titles = {
 };
 
 export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: keyof typeof titles}) {
-  const receiver = useRef<Pick<ReturnType<typeof createFCastReceiver>, 'attachSurface' | 'detachSurface' | 'togglePause' | 'stop'> | null>(null);
+  const receiver = useRef<(Pick<ReturnType<typeof createFCastReceiver>, 'attachSurface' | 'detachSurface' | 'togglePause' | 'stop'> &
+    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed'>>) | null>(null);
   const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
+  const [photo, setPhoto] = useState<DlnaPhotoView | null>(null);
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pin, setPin] = useState('');
@@ -31,7 +33,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       receiver.current = protocol === 'fcast'
         ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening)
         : protocol === 'dlna'
-        ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening)
+        ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto)
         : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
     } catch {
       setFailed(true);
@@ -50,7 +52,21 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>{titles[protocol]}</Text>
-      {token === null ? (
+      {photo ? (
+        <View style={styles.video}>
+          {photo.source && (
+            <Image
+              key={photo.token}
+              style={styles.photo}
+              source={photo.source}
+              resizeMode="contain"
+              aria-label="Foto recebida pelo DLNA"
+              onLoad={() => receiver.current?.photoDisplayed?.(photo.token, true)}
+              onError={() => receiver.current?.photoDisplayed?.(photo.token, false)}
+            />
+          )}
+        </View>
+      ) : token === null ? (
         <View style={styles.waiting}>
           <Text style={styles.details}>
             {failed
@@ -89,7 +105,10 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
         </View>
       )}
       <Text style={styles.details}>
-        {snapshot
+        {photo
+          ? snapshot?.state === 'error' ? 'Não foi possível exibir a foto.'
+            : snapshot?.state === 'loading' ? 'Carregando foto…' : ''
+          : snapshot
           ? `${
               snapshot.state === 'error'
                 ? 'Falha de reprodução'
@@ -142,6 +161,7 @@ const styles = StyleSheet.create({
   pin: {color: 'white', fontSize: 36, fontWeight: 'bold'},
   waiting: {flex: 1, maxWidth: 820, justifyContent: 'center', gap: 20},
   video: {width: '80%', flex: 1, backgroundColor: 'black'},
+  photo: {width: '100%', height: '100%'},
   details: {
     color: '#B7C9DD',
     fontSize: 20,

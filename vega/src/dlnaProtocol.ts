@@ -1,9 +1,11 @@
 import {DOMParser, Element} from '@xmldom/xmldom';
+import {DLNA_PHOTO_TYPES} from './dlnaPhoto';
 
 const SOAP = 'http://schemas.xmlsoap.org/soap/envelope/';
 const SERVICE = 'urn:schemas-upnp-org:service:';
 const DEVICE = 'urn:schemas-upnp-org:device:MediaRenderer:1';
-const TYPES = 'http-get:*:video/mp4:*,http-get:*:audio/mpeg:*,http-get:*:audio/mp4:*';
+const TYPES = ['video/mp4', 'audio/mpeg', 'audio/mp4', ...DLNA_PHOTO_TYPES]
+  .map(mime => `http-get:*:${mime}:*`).join(',');
 
 type Args = Record<string, string>;
 type ActionArguments = [name: string, type?: string][];
@@ -55,6 +57,27 @@ const envelope = (body: string) => `${xml}<s:Envelope xmlns:s="${SOAP}" s:encodi
 
 export class DlnaFault extends Error {
   constructor(readonly code: number, message: string) { super(message); }
+}
+
+export function isDlnaPhoto(uri: string, metadata: string) {
+  if (metadata && !metadata.includes('<!') && (metadata.match(/</g)?.length || 0) <= 256) {
+    try {
+      const doc = new DOMParser({onError: () => {throw new Error('Invalid DIDL metadata');}})
+        .parseFromString(metadata, 'text/xml');
+      for (const resource of Array.from(doc.getElementsByTagNameNS('*', 'res'))) {
+        if (resource.textContent?.trim() !== uri) {continue;}
+        const mime = resource.getAttribute('protocolInfo')?.split(':')[2]?.toLowerCase();
+        if (mime?.startsWith('image/')) {
+          if (DLNA_PHOTO_TYPES.some(type => type === mime)) {return true;}
+          throw new DlnaFault(714, 'Unsupported photo format');
+        }
+      }
+    } catch (error) {
+      if (error instanceof DlnaFault) {throw error;}
+      // Metadata is optional. Older senders report only the resource URI.
+    }
+  }
+  return /\.(jpe?g|png)$/i.test(uri.split(/[?#]/, 1)[0]);
 }
 
 function failure(error: DlnaFault): DlnaResult {
