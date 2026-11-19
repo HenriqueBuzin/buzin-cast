@@ -13,7 +13,7 @@ public:
   // packets. Both PTS values are relative to the same capture clock, and
   // packets on each track must not overlap.
   H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& parameterSets,
-                Output output, int audioSamplesPerFrame = 0);
+                Output output, int audioSamplesPerFrame = 0, bool convertAlac = false);
   ~H264Fmp4Muxer();
   H264Fmp4Muxer(const H264Fmp4Muxer&) = delete;
   H264Fmp4Muxer& operator=(const H264Fmp4Muxer&) = delete;

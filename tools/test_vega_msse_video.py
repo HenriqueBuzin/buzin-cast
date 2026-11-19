@@ -70,6 +70,7 @@ AUDIO_PROFILES = {
     'eld480': (8, 480, 'aac', 'ELD'),
     'eld512': (8, 512, 'aac', 'ELD'),
     'alac': (2, 352, 'alac', None),
+    'alac-aac': (2, 352, 'aac', 'LC'),
 }
 
 
@@ -112,16 +113,19 @@ def verify_audio_timeline(media, delay, raw_packets, profile):
                      '-show_data_hash', 'sha256', '-of', 'json', str(media)], timeout=30))
     stream, = info['streams']
     packets = info['packets']
-    _, samples, expected_codec, expected_profile = AUDIO_PROFILES[profile]
+    _, input_samples, expected_codec, expected_profile = AUDIO_PROFILES[profile]
+    converted = profile == 'alac-aac'
+    samples = 1024 if converted else input_samples
     if (stream['codec_name'], stream['sample_rate'], stream['channels'], stream['time_base']) != (expected_codec, '44100', 2, '1/44100'):
         raise RuntimeError('Native MP4 did not preserve the audio format')
     if expected_profile and stream.get('profile') != expected_profile:
         raise RuntimeError(f'Expected {expected_profile} but got {stream.get("profile")}')
-    if len(packets) != len(raw_packets):
-        raise RuntimeError('Native MP4 lost an audio access unit')
+    expected_packets = -(-len(raw_packets) * input_samples // samples)
+    if len(packets) != expected_packets:
+        raise RuntimeError('Native MP4 has the wrong audio packet count')
     initial_pts = round(delay * 44100 / 1000000)
-    for index, (packet, expected) in enumerate(zip(packets, raw_packets)):
-        if (packet['data_hash'] != 'SHA256:' + hashlib.sha256(expected).hexdigest()
+    for index, packet in enumerate(packets):
+        if ((not converted and packet['data_hash'] != 'SHA256:' + hashlib.sha256(raw_packets[index]).hexdigest())
                 or int(packet['pts']) != initial_pts + index * samples
                 or int(packet['duration']) != samples):
             raise RuntimeError(f'Native MP4 changed audio bytes or timeline at packet {index}')
@@ -130,7 +134,11 @@ def verify_audio_timeline(media, delay, raw_packets, profile):
     decoded_frames = len(packets) * samples
     if len(pcm) != decoded_frames * 4:
         raise RuntimeError('Native MP4 audio decoded to the wrong number of stereo PCM frames')
-    return {'audioPacketsIdentical': len(packets), 'audioStartUs': delay, 'audioDecodedOnHost': True,
+    if converted and not any(pcm):
+        raise RuntimeError('AAC encoder produced silence from the ALAC fixture')
+    return {'audioPacketsIdentical': 0 if converted else len(packets),
+            'audioPacketsWritten': len(packets), 'audioTranscoded': converted,
+            'audioStartUs': delay, 'audioDecodedOnHost': True,
             'audioProfile': profile, 'audioSamplesPerPacket': samples, 'decodedPcmFrames': decoded_frames}
 
 
@@ -192,7 +200,10 @@ def main():
         shell('cat > /data/buzin-msse-video-probe', payload=args.runner.read_bytes())
         shell('cat > /data/buzin-msse-video.bin', payload=fixture)
         shell('chmod', '700', '/data/buzin-msse-video-probe')
-        mode = '--av-mux' if args.av_mux else '--mux' if args.mux else args.mime
+        if args.av_mux:
+            mode = '--av-transcode' if args.audio_profile == 'alac-aac' else '--av-mux'
+        else:
+            mode = '--mux' if args.mux else args.mime
         output = shell(*(['env', 'GST_DEBUG=6', 'GST_DEBUG_FILE=/data/buzin-video-gst.log'] if args.gst_debug else []), 'timeout', '55', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', mode, timeout=60)
         (args.output / 'runner.log').write_text(output)
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]

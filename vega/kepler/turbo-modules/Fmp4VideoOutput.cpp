@@ -1,4 +1,5 @@
 #include "Fmp4VideoOutput.h"
+#include "AirPlayAudioFormat.h"
 #include "H264Fmp4Muxer.h"
 #include <mutex>
 #include <stdexcept>
@@ -37,7 +38,8 @@ std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint
   }
   try {
     next->mux = std::make_unique<H264Fmp4Muxer>(width,height,parameters,
-      [run = next.get()](const uint8_t* data, size_t size) {run->stream.write(data,size);}, audioSamplesPerFrame);
+      [run = next.get()](const uint8_t* data, size_t size) {run->stream.write(data,size);},
+      audioSamplesPerFrame, airPlayAudioCodec(audioSamplesPerFrame) == 2);
     return url;
   } catch (...) {stop(); throw;}
 }

@@ -1914,3 +1914,34 @@ arquivos sem índice. Os contadores do SDK ficaram em zero mesmo com a
 superfície associada. O relatório de ALAC ficou em carregamento e não avançou.
 Resultados em `build/vega-mirror-start-final-*`, `build/vega-mirror-player-*`
 e `build/vega-mirror-start-alac`.
+
+
+## ALAC convertido para AAC-LC no espelhamento — 19 de novembro de 2026
+
+A sessão manual volta a aceitar ALAC. A saída de vídeo decodifica os
+pacotes de 352 amostras e codifica AAC-LC estéreo a 44,1 kHz antes de
+montar o mesmo MP4 que carrega H.264. O codificador retém uma fração de
+quadro PCM, descarta o pacote de priming e preserva o início no relógio
+NTP. Em uma lacuna, só completa o AAC em andamento com silêncio e
+mantém o restante da lacuna. Ao terminar, completa a última fração de
+quadro. O muxer limita a espera inicial de vídeo a 32 quadros e 8 MiB.
+
+Os testes portáteis com ASan/UBSan verificaram atraso, lacunas, ordem e
+encerramento. No VVD, `--av-mux --audio-profile alac-aac` converteu 1003
+pacotes ALAC em 345 pacotes AAC por ciclo. O MP4 preservou 120 quadros
+idênticos e a diferença de 80 ms entre as trilhas. O host decodificou
+353280 quadros PCM. Relatório em `build/vega-alac-aac-file`.
+
+O patch mantém o ensaio ALAC direto para diagnóstico. Esse caminho ficou
+preso em carregamento no player do VVD. A saída do app usa a conversão.
+Ainda faltam validação com emissor Apple, áudio audível, imagem exibida
+e medição do sincronismo no aparelho.
+
+No ensaio `test_vega_local_video.py --alac-conversion --transport-only`,
+o player consumiu a saída HTTP enquanto o worker ainda produzia os
+fragmentos. O ciclo completo recebeu 120 quadros e 1003 pacotes ALAC,
+com relógio final de 8,09 s. Voltar cancelou o segundo ciclo em 61/120
+quadros e 500/1003 pacotes. Player, produtor e superfície foram liberados.
+O contador de vídeo permaneceu zero. Relatório em
+`build/vega-alac-aac-stream`. Builds das três arquiteturas, lint, TypeScript
+e 62 testes Jest passaram.

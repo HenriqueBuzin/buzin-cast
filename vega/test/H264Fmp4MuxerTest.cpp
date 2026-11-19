@@ -1,7 +1,9 @@
 #include "../kepler/turbo-modules/H264Fmp4Muxer.h"
+#include "../kepler/turbo-modules/AlacAacTranscoder.h"
 #include <algorithm>
 #include <cassert>
 #include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 
@@ -86,12 +88,51 @@ void verifyAvTimeline(bool audioFirst, int samples, const char* exportPath) {
     assert(file);
   }
 }
+
+void verifyAlacConversion(const std::vector<uint8_t>& alac) {
+  std::vector<int64_t> timestamps;
+  AlacAacTranscoder transcoder([&](const std::vector<uint8_t>& packet, int64_t pts) {
+    assert(!packet.empty());
+    timestamps.push_back(pts);
+  });
+  transcoder.append(alac,3528);
+  refuses([&] {transcoder.append(alac,3529);});
+  // A long gap closes the preceding partial AAC frame without generating
+  // silences over the full gap. The following frame retains its own start.
+  transcoder.append(alac,8820);
+  transcoder.finish();
+  transcoder.finish();
+  assert((timestamps == std::vector<int64_t>{3528,8820}));
+  refuses([&] {transcoder.append(alac,9172);});
+
+  std::vector<uint8_t> output;
+  H264Fmp4Muxer mux(320,180,parameters,[&](const uint8_t* bytes,size_t size) {
+    output.insert(output.end(),bytes,bytes+size);
+  },352,true);
+  mux.append(idr,0,0,40000);
+  mux.append(delta,40000,40000,40000);
+  mux.appendAudio(alac,80000);
+  mux.append(delta,80000,80000,40000);
+  assert(output.empty());
+  for (int i = 1; i < 12; ++i) {
+    mux.appendAudio(alac,80000+(int64_t(i)*352*1000000+22050)/44100);
+  }
+  const auto audio = boxTag(output,"mp4a");
+  assert(audio < boxTag(output,"moof"));
+  mux.finish();
+}
 }
 
 int main(int argc, char** argv) {
   verifyAvTimeline(true,960,nullptr);
-  verifyAvTimeline(false,1024,argc == 2 ? argv[1] : nullptr);
+  verifyAvTimeline(false,1024,argc == 3 ? argv[2] : nullptr);
   for (int samples : {352,480,512}) verifyAvTimeline(false,samples,nullptr);
+  if (argc >= 2) {
+    std::ifstream fixture(argv[1],std::ios::binary);
+    const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(fixture)),std::istreambuf_iterator<char>());
+    assert(!bytes.empty());
+    verifyAlacConversion(bytes);
+  }
   std::vector<uint8_t> previous;
   for (int cycle = 0; cycle < 2; ++cycle) {
     std::vector<uint8_t> output;

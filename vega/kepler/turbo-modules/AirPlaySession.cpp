@@ -116,13 +116,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   callbacks.audio_get_format = [](void* cls, unsigned char* codec, unsigned short* spf, bool*, bool*, uint64_t*) {
     auto& state = Impl::self(cls);
     if (state.audio) state.audio->format(codec ? *codec : 0, spf ? *spf : 0);
-    else if (state.video) {
-      // The Vega URL player stalled during ALAC preroll on VVD. Keep video
-      // available until this track has a working playback path. The native
-      // audio receiver uses its own ALAC decoder and remains independent.
-      const int mirrorCodec = codec && *codec != 2 ? *codec : 0;
-      state.video->audioFormat(mirrorCodec, spf ? *spf : 0);
-    }
+    else if (state.video) state.video->audioFormat(codec ? *codec : 0, spf ? *spf : 0);
   };
   callbacks.audio_set_volume = [](void* cls, float value) {
     if (auto* audio = Impl::self(cls).audio) audio->volume(value);

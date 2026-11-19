@@ -27,7 +27,7 @@ def main():
                            stderr=subprocess.STDOUT, check=True, timeout=300)
         run(['bash', source / 'configure', f'--prefix={prefix}', '--disable-all',
              '--disable-asm', '--disable-x86asm', '--disable-autodetect', '--disable-network',
-             '--disable-doc', '--disable-programs', '--enable-avcodec', '--enable-decoder=alac',
+             '--disable-doc', '--disable-programs', '--enable-avcodec', '--enable-decoder=alac', '--enable-encoder=aac',
              '--enable-static', '--disable-shared', '--enable-pic', '--enable-avformat', '--enable-muxer=mp4'])
         run(['make', '-j2'])
         run(['make', 'DESTDIR=', 'install'])
@@ -40,18 +40,20 @@ def main():
              ROOT / 'vega/kepler/turbo-modules/AlacDecoder.cpp', prefix / 'lib/libavcodec.a',
              prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', executable])
         run([executable, output / 'packet.bin'])
+        transcoder_sources = [ROOT / 'vega/kepler/turbo-modules/AlacDecoder.cpp',
+                              ROOT / 'vega/kepler/turbo-modules/AlacAacTranscoder.cpp']
         mux_test = output / 'h264-mux-test'
         run([args.compiler, '-std=c++23', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
              f'-I{prefix / "include"}', ROOT / 'vega/test/H264Fmp4MuxerTest.cpp',
-             ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', prefix / 'lib/libavformat.a',
+             ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', *transcoder_sources, prefix / 'lib/libavformat.a',
              prefix / 'lib/libavcodec.a', prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', mux_test])
-        run([mux_test])
+        run([mux_test, output / 'packet.bin'])
         output_test = output / 'fmp4-output-test'
         run([args.compiler, '-std=c++23', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
              f'-I{prefix / "include"}', ROOT / 'vega/test/Fmp4VideoOutputTest.cpp',
              ROOT / 'vega/kepler/turbo-modules/Fmp4VideoOutput.cpp',
              ROOT / 'vega/kepler/turbo-modules/LocalVideoStream.cpp',
-             ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', prefix / 'lib/libavformat.a',
+             ROOT / 'vega/kepler/turbo-modules/H264Fmp4Muxer.cpp', *transcoder_sources, prefix / 'lib/libavformat.a',
              prefix / 'lib/libavcodec.a', prefix / 'lib/libavutil.a', '-lm', '-pthread', '-o', output_test])
         run([output_test])
     result['passed'] = True

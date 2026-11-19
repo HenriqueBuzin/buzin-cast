@@ -17,6 +17,7 @@ namespace {
 // fixture file for independent decoding/timestamp checks on the host.
 class FileVideoOutput final : public VideoSampleSink {
 public:
+  explicit FileVideoOutput(bool convertAlac) : convertAlac(convertAlac) {}
   std::string start(int width, int height, const std::vector<uint8_t>& config, int audioSamples) override {
     stop();
     file.clear();
@@ -28,7 +29,7 @@ public:
     mux = std::make_unique<H264Fmp4Muxer>(width,height,config,[this](const uint8_t* bytes,size_t size) {
       file.write(reinterpret_cast<const char*>(bytes),size);
       if (!file) throw std::runtime_error("Could not write A/V probe output");
-    },audioSamples);
+    },audioSamples,convertAlac);
     return "file-probe-output";
   }
   void append(const std::vector<uint8_t>& sample, int64_t pts, int64_t dts, int64_t duration) override {
@@ -50,6 +51,7 @@ public:
   }
   LocalVideoStreamState state() const override {return output;}
 private:
+  bool convertAlac;
   std::ofstream file;
   std::unique_ptr<H264Fmp4Muxer> mux;
   LocalVideoStreamState output;
@@ -85,7 +87,10 @@ int main(int argc, char** argv) {
       if (key > 1 || total > 16*1024*1024) throw std::runtime_error("Unbounded video fixture");
       frames.push_back({pts,duration,key != 0,std::move(data)});
     }
-    const bool avMux = argc == 3 && std::string(argv[2]) == "--av-mux";
+    const std::string mode = argc == 3 ? argv[2] : "";
+    const bool avServe = mode == "--av-transcode-serve";
+    const bool convertAlac = avServe || mode == "--av-transcode";
+    const bool avMux = convertAlac || mode == "--av-mux";
     std::vector<std::vector<uint8_t>> audio;
     uint32_t audioOffsetUs = 0;
     int audioSamplesPerFrame = 0, audioCodec = 0;
@@ -94,7 +99,8 @@ int main(int argc, char** argv) {
       audioSamplesPerFrame = static_cast<int>(number());
       audioCodec = airPlayAudioCodec(audioSamplesPerFrame);
       const auto audioCount = number();
-      if (!audioCodec || audioOffsetUs > 1000000 || !audioCount || audioCount > 1200) {
+      if (!audioCodec || (convertAlac && audioCodec != 2) || audioOffsetUs > 1000000 ||
+          !audioCount || audioCount > 1200) {
         throw std::runtime_error("Invalid audio fixture format or timing");
       }
       audio.reserve(audioCount);
@@ -108,10 +114,25 @@ int main(int argc, char** argv) {
       }
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
-    if (argc == 3 && (std::string(argv[2]) == "--serve" || std::string(argv[2]) == "--mirror-serve")) {
+    constexpr uint64_t EpochNs = 1000000000;
+    auto audioPts = [&](size_t index) {
+      return audioOffsetUs+(uint64_t(index)*audioSamplesPerFrame*1000000+22050)/44100;
+    };
+    auto submitAudio = [&](AirPlayVideoWorker& worker, size_t index) {
+      auto& bytes = audio[index];
+      audio_decode_struct sample{};
+      sample.data = bytes.data();
+      sample.data_len = bytes.size();
+      sample.ct = audioCodec;
+      sample.ntp_time_local = EpochNs+audioPts(index)*1000;
+      forwardAirPlayMirrorAudio(worker,&sample);
+    };
+    if (avServe || mode == "--serve" || mode == "--mirror-serve") {
+      if (avServe && frames.size() < 2) throw std::runtime_error("A/V stream needs two initial video frames");
       AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
       worker.start();
-      const bool encryptedMirror = std::string(argv[2]) == "--mirror-serve";
+      if (avServe) worker.audioFormat(audioCodec,audioSamplesPerFrame);
+      const bool encryptedMirror = mode == "--mirror-serve";
       std::unique_ptr<AirPlayMirrorProbe> mirror;
       if (encryptedMirror) mirror = std::make_unique<AirPlayMirrorProbe>(worker,width,height,config,frames);
       const float reportedWidth = width, reportedHeight = height;
@@ -131,6 +152,8 @@ int main(int argc, char** argv) {
         output << "{\"framesFed\":" << workerState.accepted << ",\"sentBytes\":" << state.sentBytes
           << ",\"workerOwned\":true,\"callbackQueuedBytes\":" << workerState.queuedBytes
           << ",\"dropped\":" << workerState.dropped << ",\"generation\":" << workerState.generation
+          << ",\"audioAccepted\":" << workerState.audioAccepted << ",\"audioDropped\":" << workerState.audioDropped
+          << ",\"alacConversion\":" << (avServe ? "true" : "false")
           << ",\"mirrorEncrypted\":" << (mirror ? "true" : "false")
           << ",\"mirrorReceived\":" << (mirror ? mirror->received() : 0)
           << ",\"mirrorTimed\":" << (mirror ? mirror->timed() : 0)
@@ -149,6 +172,11 @@ int main(int argc, char** argv) {
       };
       try {
         submit(0);
+        size_t videoIndex = 1, audioIndex = 0;
+        if (avServe) {
+          submit(videoIndex++);
+          submitAudio(worker,audioIndex++);
+        }
         AirPlayVideoCommand command;
         auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
         for (;;) {
@@ -168,10 +196,15 @@ int main(int argc, char** argv) {
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         const auto start = std::chrono::steady_clock::now();
-        for (size_t i = 1; i < frames.size(); ++i) {
-          const auto& frame = frames[i];
-          std::this_thread::sleep_until(start+std::chrono::milliseconds(frame.pts));
-          check(); submit(i); report();
+        while (videoIndex < frames.size() || audioIndex < audio.size()) {
+          const bool videoNext = videoIndex < frames.size() &&
+            (audioIndex == audio.size() || uint64_t(frames[videoIndex].pts)*1000 <= audioPts(audioIndex));
+          const auto pts = videoNext ? uint64_t(frames[videoIndex].pts)*1000 : audioPts(audioIndex);
+          std::this_thread::sleep_until(start+std::chrono::microseconds(pts));
+          check();
+          if (videoNext) submit(videoIndex++);
+          else submitAudio(worker,audioIndex++);
+          if (videoNext || audioIndex == audio.size()) report();
         }
         if (mirror) {
           deadline = std::chrono::steady_clock::now()+std::chrono::seconds(3);
@@ -201,15 +234,11 @@ int main(int argc, char** argv) {
     }
     if (avMux) {
       for (int cycle = 0; cycle < 2; ++cycle) {
-        AirPlayVideoWorker worker([] {return std::make_unique<FileVideoOutput>();});
+        AirPlayVideoWorker worker([convertAlac] {return std::make_unique<FileVideoOutput>(convertAlac);});
         worker.start();
         worker.audioFormat(audioCodec,audioSamplesPerFrame);
         const float reportedWidth = width, reportedHeight = height;
         forwardAirPlayVideoSize(worker,&reportedWidth,&reportedHeight);
-        constexpr uint64_t EpochNs = 1000000000;
-        auto audioPts = [&](size_t index) {
-          return audioOffsetUs+(uint64_t(index)*audioSamplesPerFrame*1000000+22050)/44100;
-        };
         size_t nextVideo = 0, nextAudio = 0;
         const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(10);
         auto check = [&] {
@@ -234,13 +263,7 @@ int main(int argc, char** argv) {
             sample.ntp_time_local = EpochNs+uint64_t(frame.pts)*1000000;
             forwardAirPlayVideo(worker,&sample);
           } else {
-            auto& bytes = audio[nextAudio];
-            audio_decode_struct sample{};
-            sample.data = bytes.data();
-            sample.data_len = bytes.size();
-            sample.ct = audioCodec;
-            sample.ntp_time_local = EpochNs+audioPts(nextAudio++)*1000;
-            forwardAirPlayMirrorAudio(worker,&sample);
+            submitAudio(worker,nextAudio++);
           }
         }
         worker.end();

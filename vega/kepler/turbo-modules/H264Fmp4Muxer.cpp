@@ -1,7 +1,9 @@
 #include "H264Fmp4Muxer.h"
+#include "AlacAacTranscoder.h"
 #include "AirPlayAudioFormat.h"
 #include "H264AnnexB.h"
 #include <cstring>
+#include <deque>
 #include <exception>
 #include <limits>
 #include <stdexcept>
@@ -12,6 +14,11 @@ extern "C" {
 }
 using BuzinH264::split;
 struct H264Fmp4Muxer::Impl {
+  struct VideoPacket {
+    std::vector<uint8_t> bytes;
+    int64_t pts, dts, duration;
+    bool keyframe;
+  };
   AVFormatContext* context = nullptr;
   AVIOContext* io = nullptr;
   Output output;
@@ -23,6 +30,9 @@ struct H264Fmp4Muxer::Impl {
   bool firstFragmentWritten = false;
   bool started = false, ended = false, failed = false;
   std::vector<uint8_t> sps, pps;
+  std::unique_ptr<AlacAacTranscoder> transcoder;
+  std::deque<VideoPacket> pendingVideo;
+  size_t pendingVideoBytes = 0;
   ~Impl() {
     avformat_free_context(context);
     if (io) {av_freep(&io->buffer); avio_context_free(&io);}
@@ -77,12 +87,37 @@ struct H264Fmp4Muxer::Impl {
     check(0);
     firstFragmentWritten = true;
   }
+  void writeVideo(const std::vector<uint8_t>& bytes, int64_t pts, int64_t dts,
+                  int64_t duration, bool keyframe) {
+    writePacket(bytes,0,pts,dts,duration,keyframe);
+    expectedVideoDts = dts + duration;
+    started = true;
+    flushFragment();
+  }
+  void writeAudio(const std::vector<uint8_t>& bytes, int64_t dts) {
+    if (dts <= lastAudioDts) throw std::invalid_argument("Invalid audio timestamp");
+    writePacket(bytes,1,dts,dts,audioSamplesPerFrame,true);
+    lastAudioDts = dts;
+    flushFragment();
+    while (!pendingVideo.empty()) {
+      const auto& frame = pendingVideo.front();
+      writeVideo(frame.bytes,frame.pts,frame.dts,frame.duration,frame.keyframe);
+      pendingVideoBytes -= frame.bytes.size();
+      pendingVideo.pop_front();
+    }
+  }
 };
 H264Fmp4Muxer::H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& parameterSets,
-                             Output output, int audioSamplesPerFrame)
+                             Output output, int audioSamplesPerFrame, bool convertAlac)
   : impl(std::make_unique<Impl>()) {
   if (width < 16 || width > 3840 || height < 16 || height > 2160 || !output || parameterSets.size() > 65536)
     throw std::invalid_argument("Invalid video mux configuration");
+  if (convertAlac) {
+    if (airPlayAudioCodec(audioSamplesPerFrame) != 2) throw std::invalid_argument("Expected ALAC input");
+    impl->transcoder = std::make_unique<AlacAacTranscoder>(
+      [state = impl.get()](const std::vector<uint8_t>& bytes, int64_t pts) {state->writeAudio(bytes,pts);});
+    audioSamplesPerFrame = AlacAacTranscoder::FrameSamples;
+  }
   const int audioProfile = airPlayAudioCodec(audioSamplesPerFrame);
   if (audioSamplesPerFrame && !audioProfile)
     throw std::invalid_argument("Unsupported AirPlay audio track format");
@@ -149,7 +184,7 @@ H264Fmp4Muxer::H264Fmp4Muxer(int width, int height, const std::vector<uint8_t>& 
 H264Fmp4Muxer::~H264Fmp4Muxer() = default;
 void H264Fmp4Muxer::append(const std::vector<uint8_t>& bytes, int64_t pts, int64_t dts, int64_t duration) {
   if (impl->ended || impl->failed) throw std::runtime_error("Video mux is closed");
-  if (impl->audioSamplesPerFrame && impl->started && impl->lastAudioDts < 0) {
+  if (!impl->transcoder && impl->audioSamplesPerFrame && impl->started && impl->lastAudioDts < 0) {
     throw std::logic_error("Supply the first audio frame before more video");
   }
   if (pts < 0 || dts < 0 || pts < dts || dts <= impl->lastDts || duration <= 0 || duration > 1000000 ||
@@ -166,10 +201,20 @@ void H264Fmp4Muxer::append(const std::vector<uint8_t>& bytes, int64_t pts, int64
 
   }
   if (!vcl || (!impl->started && !keyframe)) throw std::invalid_argument("Video mux requires an initial IDR access unit");
-  impl->writePacket(bytes, 0, pts, dts, duration, keyframe);
-  impl->expectedVideoDts = dts + duration;
-  impl->lastDts = dts; impl->started = true;
-  impl->flushFragment();
+  if (impl->transcoder && impl->started && impl->lastAudioDts < 0) {
+    // AAC encoding buffers a few input packets. Keep the following video
+    // packets until the first encoded audio establishes the file timeline.
+    if (impl->pendingVideo.size() >= 32 || impl->pendingVideoBytes+bytes.size() > 8*1024*1024)
+      throw std::runtime_error("Video exceeded the AAC startup buffer");
+    const auto expected = impl->pendingVideo.empty() ? impl->expectedVideoDts
+      : impl->pendingVideo.back().dts + impl->pendingVideo.back().duration;
+    if (dts < expected) throw std::invalid_argument("Overlapping video packets during AAC startup");
+    impl->pendingVideo.push_back({bytes,pts,dts,duration,keyframe});
+    impl->pendingVideoBytes += bytes.size();
+  } else {
+    impl->writeVideo(bytes,pts,dts,duration,keyframe);
+  }
+  impl->lastDts = dts;
 }
 void H264Fmp4Muxer::appendAudio(const std::vector<uint8_t>& sample, int64_t ptsUs) {
   if (impl->ended || impl->failed || !impl->audioSamplesPerFrame) {
@@ -182,14 +227,17 @@ void H264Fmp4Muxer::appendAudio(const std::vector<uint8_t>& sample, int64_t ptsU
     throw std::invalid_argument("Invalid audio packet");
   }
   const auto dts = av_rescale_q(ptsUs, AVRational{1, 1000000}, AVRational{1, 44100});
-  if (dts <= impl->lastAudioDts) throw std::invalid_argument("Invalid audio timestamp");
-  impl->writePacket(sample, 1, dts, dts, impl->audioSamplesPerFrame, true);
-  impl->lastAudioDts = dts;
-  impl->flushFragment();
+  if (impl->transcoder) {
+    if (!impl->started) throw std::logic_error("Supply the first IDR before ALAC");
+    impl->transcoder->append(sample,dts);
+  } else {
+    impl->writeAudio(sample,dts);
+  }
 }
 void H264Fmp4Muxer::finish() {
   if (impl->ended) return;
   if (impl->failed) throw std::runtime_error("Video mux failed before finalization");
+  if (impl->transcoder) impl->transcoder->finish();
   if (impl->audioSamplesPerFrame && !impl->firstFragmentWritten) {
     throw std::logic_error("Both media tracks must start before finalization");
   }
