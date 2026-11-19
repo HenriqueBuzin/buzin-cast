@@ -22,13 +22,27 @@ A numeração não substitui essa seleção. Antes de publicar, conferir também
 os códigos que já existem em produção e no Live App Testing em cada ficha;
 o plano local não é uma consulta ao console.
 
-O direcionamento pretendido é a edição nativa para o Stick original,
-inclusive firmware antigo, a compatível para Sticks que exigem API22 e
-a moderna para Sticks API25 ou superior. O mesmo modelo recebe um único
-APK por ficha: atribuir manualmente o modelo original à edição nativa
-também atende suas unidades atualizadas. Conferir os modelos físicos no
-console e excluir televisores, Cubes, tablets e outros dispositivos.
-Essa intenção ainda precisa ser validada contra a seleção real da loja.
+Use os mesmos grupos de aparelhos nas duas fichas. A atribuição abaixo é
+o plano local e ainda precisa ser conferida no console da Amazon.
+
+- **Nativa (48/49)** — Fire TV Stick de 1ª geração (2014, `AFTM`).
+  Atribuir esse modelo à edição nativa mantém o mesmo APK para o firmware
+  original Fire OS 3/API17 e para aparelhos atualizados ao Fire OS 5/API22.
+- **Compatível (50/51)** — Fire TV Stick de 2ª geração e Basic Edition
+  (`AFTT`), Fire OS 5/API22. Selecionar ambos se aparecerem separadamente.
+- **Moderna (52/53)** — Stick 4K de 1ª geração (`AFTMM`), Fire OS 6/API25.
+  No Fire OS 7/API28, selecionar Stick de 3ª geração (`AFTSSS`), Stick Lite
+  e Stick HD de 2024 (`AFTSS`) e Stick 4K Max de 1ª geração (`AFTKA`).
+  No Fire OS 8/API30, selecionar Stick 4K de 2ª geração (`AFTKM`), Stick
+  4K Max de 2ª geração (`AFTKRT`) e Stick 4K Plus (`AFTMA08C15`).
+
+Conferir o nome comercial de cada opção. A Amazon lista soundbars com o
+mesmo código `AFTMM` do Stick 4K de 2018. Manter a seleção limitada a Sticks
+e reservar o 4K Select de 2025, o HD de 2026 e o 4K de 3ª geração de 2026
+para a faixa Vega. O catálogo oficial consultado em 19/11/2026 lista Fire
+OS 14 e 16 como famílias do sistema, mas nenhum Stick Fire OS nessas famílias.
+[Catálogo de dispositivos](https://developer.amazon.com/docs/device-specs/identify-fire-tv-devices.html) ·
+[Famílias Fire OS](https://developer.amazon.com/docs/fire-tv/fire-os-overview.html).
 
 ## Conferência repetível
 
