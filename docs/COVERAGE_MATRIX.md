@@ -1030,3 +1030,18 @@ The current source suite now has 206 Android cases. The preceding frozen
 compat, DE/AT and compat DE/AT, with 19 native cases and all 192 Android cases
 passing in each. Its strict 100% check still fails because coverage remains
 incomplete; its profiles must remain separate from the changed current inputs.
+
+The now-playing audio panel could compress its volume sliders into overlapping
+rows on a short landscape viewport. The panel now bounds the cover art to the
+available space and scrolls instead of compressing the controls. A seventh
+activity contract starts a real bound audio session, scrolls to the receiver
+slider, adjusts device media volume by touch and verifies single-step decreases
+and increases with the remote's arrows. It also checks that sender volume stays
+unavailable without a remote endpoint and restores the original device volume.
+
+The isolated contract passed on API28 in 19.538 seconds. The matched JaCoCo
+report covers all 329 instructions, 10 branches and 29 lines of `VolumeSlider`,
+which was unexecuted in the frozen 192-case baseline. All 12 activity and main
+screen regression cases also passed together on API28 in 168.854 seconds.
+The source suite now has 207 Android cases. The in-flight 206-case matrix keeps its original source and
+profiles, and the new test must run in a fresh matrix for all four editions.
