@@ -299,7 +299,7 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
 // ALAC decoding uses the production engine and its normal PCM capture tap.
 // Returned records are native-endian {int64 pts, int32 rate, int32 channels, PCM16}.
 extern "C" JNIEXPORT jobjectArray JNICALL
-Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame) {
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame, jboolean attachSinkAfterFirstDecode) {
 #define ALAC_CONTRACT(condition) do { if (!(condition)) { \
     auto error = env->FindClass("java/lang/AssertionError"); \
     if (error) { env->ThrowNew(error, #condition); env->DeleteLocalRef(error); } \
@@ -362,6 +362,18 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobjec
             input.data_len = -1;
             callbacks.audio_process(&callbackContext, nullptr, &input);
             ALAC_CONTRACT(capture.records.empty());
+            if (attachSinkAfterFirstDecode) {
+                // Capture may be enabled before a consumer is attached. Decode
+                // actual audio in that state, then attach the normal PCM tap.
+                audio_engine_set_pcm_callback(engine.get(), nullptr, nullptr);
+                input.data = bytes.data(); input.data_len = length;
+                ALAC_CONTRACT(pts[i] > 1'000'000'000);
+                input.ntp_time_local = static_cast<uint64_t>(pts[i] - 1'000'000'000);
+                callbacks.audio_process(&callbackContext, nullptr, &input);
+                ALAC_CONTRACT(capture.records.empty());
+                audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
+                input.ntp_time_local = static_cast<uint64_t>(pts[i]);
+            }
         }
         input.data = bytes.data(); input.data_len = length;
         callbacks.audio_process(&callbackContext, nullptr, &input);

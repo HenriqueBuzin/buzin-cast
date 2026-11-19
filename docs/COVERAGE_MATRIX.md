@@ -965,3 +965,19 @@ changed; production output locking is unchanged. The current source suite now
 has 194 Android cases; the ongoing frozen 192-case cohort remains separate.
 A separate noncoverage native Debug build passed in 12 seconds; symbol checks
 confirm the original entry points remain and the fault helpers are absent.
+
+The ALAC contract also covers capture enabled before a PCM consumer is attached.
+It decodes a real fixture packet through the normal RAOP callback with no sink,
+attaches the consumer and then verifies every stereo sample, channel, timestamp
+and short final packet using the existing fixture hashes. This adds one Android
+case, bringing the current source suite to 195 cases.
+
+All 27 selected output/JNI/server/init/ALAC cases passed on API28 in 17.888 seconds
+without skips, after a successful 1m28s assembly. The matching library-only export
+covers both conditions of the capture-enabled/consumer guard as well as the
+output diagnostic guard and all 47 bridge MC/DC conditions. The mapped production
+inventory and 24 shipped JNI entries remain unchanged; LLVM emitted no warnings.
+A separate noncoverage native Debug build passed in nine seconds. These remain
+selected contracts, separate from the ongoing complete frozen 192-case cohort.
+The selected run's archived owned-source identity starts `2f864a89107d`; later
+upstream source changes require fresh compiled mappings and execution evidence.

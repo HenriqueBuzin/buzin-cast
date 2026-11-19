@@ -10,7 +10,8 @@ object DebugCoverage {
     external fun nativeAudioContracts(): String
     external fun nativeDnsContracts(): String
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
-    external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int): Array<ByteArray>
+    external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int,
+        attachSinkAfterFirstDecode: Boolean = false): Array<ByteArray>
     external fun nativeOutputContracts(scenario: Int): String
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     external fun nativeCallbackInitContracts(mode: Int): String
