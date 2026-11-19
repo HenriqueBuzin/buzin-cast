@@ -1,5 +1,55 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — candidatos de produção assinados e SDK Appstore
+
+`Build-FireOs.ps1 -Target legacy -Release` agora produz os pacotes reais
+`com.buzincast.tv` e `com.buzincast.tv.deat`, com versões explicitamente
+informadas, R8 e assinatura de produção v1/v2. Reutiliza a configuração local
+de assinatura da edição moderna sem incluir credenciais no repositório.
+Os candidatos locais desta etapa são 0.6.7-legacy/código 48 e
+0.6.7-legacy-nodownload/código 49; revisar códigos e atribuição de dispositivos
+junto dos outros APKs antes de enviá-los à loja.
+
+O release de loja inclui SDK Appstore 3.0.9, receivers protegidos DRM/IAP,
+o inicializador `AppstoreBilling` compartilhado e a chave pública da ficha.
+O SDK declara suporte desde API14. As prévias debug continuam isoladas,
+inclusive no build de checagem de produção. O build exige chave pública RSA
+válida e recusa PEM privado/inválido e reutilização da chave geral no DE/AT.
+O teste negativo real do Gradle confirmou essa última rejeição em
+`outputs/legacy-store-wrong-key-check.log`. A ausência de versão/chave regional
+e os argumentos de loja em build de prévia também foram rejeitados.
+
+Os dois builds com `-Check` passaram. A prévia normal foi recompilada com
+instrumentação e manteve o hash `ca4934cb584e76c073aabef7a25d388d8bb1e59c238add18f181255b60fd81d6`
+da etapa anterior. Toque/DPAD durante reinício do receptor passaram em
+`outputs/legacy-store-preview-gestures/report.json`.
+`test_legacy_store.py` instalou os APKs
+reduzidos sem instrumentação em API17 x86 e confirmou assinatura v1, chaves,
+ABIs, abertura, resposta RTSP nativa, navegação, seleção do menu e Sobre.
+As capturas válidas foram inspecionadas; o `screencap` do guest saiu preto
+até no launcher. O fallback usa o framebuffer do console do emulador,
+sem redesenhar a interface. Evidências finais:
+
+- `outputs/legacy-store-final-smoke/report.json`.
+- `outputs/legacy-store-deat-final-smoke/report.json`.
+- Build geral: `outputs/legacy-store-final-build.log`.
+- Build DE/AT: `outputs/legacy-store-deat-build.log`.
+
+Os dois APKs usam o mesmo certificado de produção. SHA-256 dos APKs:
+
+- Geral: `44fa72ec14c49d6dd0cf6db8341652485e2a26b5ea23dccc24078cf40e9fa7bd`.
+- DE/AT: `140b0c72908f4c1b91a67ee68b903f913cba60166116a2eaac5bd1cd48c20998`.
+
+O SDK executou a verificação e retornou `UNKNOWN_ERROR` neste emulador sem
+cliente Appstore. Isso não é uma licença concedida nem certificação de DRM.
+Os candidatos continuam com `submissionReady=false`; não foram submetidos.
+Faltam validação da licença pela Appstore/LAT, execução ARM/Stick físico,
+layouts YUV proprietários e os demais itens de paridade. Nenhuma TV da casa
+foi utilizada. As instalações de teste foram removidas pelos runners.
+Auditoria pública de arquivos/histórico sem achados e as 12 artes aprovadas
+preservadas. As três capturas de referência do release estão em
+`docs/images/fireos3-store-release-*.png`, vindas do framebuffer do emulador.
+
 ## API17 — atraso AAC medido e apresentação dos downloads
 
 Concluída a etapa de compensação do atraso identificada no checkpoint abaixo.

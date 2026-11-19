@@ -54,6 +54,19 @@ Os controles de áudio pertencem ao aplicativo e usam a interface Player comum �
 
 O acesso à rede, à resolução física, aos fones e ao AndroidKeyStore tem caminhos específicos para Android 5.1. Esses caminhos devem passar por lint e execução API 22, além dos testes da edição principal.
 
+## Appstore da edição API17 — 19 de novembro de 2026
+
+O candidato de produção da edição antiga usa `amazon-appstore-sdk:3.0.9`,
+a mesma versão da edição moderna. A [visão geral oficial](https://developer.amazon.com/docs/appstore-sdk/appstore-sdk-overview.html)
+declara API14 como requisito mínimo; não há `overrideLibrary` para reduzir
+esse requisito. A [integração oficial](https://developer.amazon.com/docs/appstore-sdk/integrate-appstore-sdk.html)
+exige a chave pública por aplicativo: a ficha DE/AT usa sua própria chave,
+sem reaproveitar a chave da ficha geral. O SDK e os receivers DRM/IAP entram
+somente no release de loja; prévias debug permanecem sem essa inicialização.
+R8 preserva as classes/anotações da Amazon conforme a implementação moderna.
+Compilação, assinatura e startup em emulador não substituem o teste da licença
+real pela Appstore/LAT em um Fire TV Stick suportado.
+
 ## Player por URL API17 — 18 de novembro de 2026
 
 O runtime API17 fixa os módulos Media3 ExoPlayer, HLS e DASH em 1.2.1.

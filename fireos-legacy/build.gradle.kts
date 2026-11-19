@@ -11,6 +11,10 @@ import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 import java.security.MessageDigest
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
+import java.util.Base64
+import java.util.Properties
 
 // JmDNS 3.6.5 uses StandardCharsets (Android API 19). Keep the maintained
 // library and substitute its constant lookups with the equivalent API 1 call.
@@ -37,8 +41,39 @@ androidComponents.onVariants { variant ->
     variant.instrumentation.transformClassesWith(LegacyApi17Charsets::class.java, InstrumentationScope.ALL) {}
 }
 
-val noDownload = providers.gradleProperty("buzinNoDownload").orNull == "true"
-if (noDownload) layout.buildDirectory.set(file("build-nodownload"))
+val storeEdition = providers.gradleProperty("buzinLegacyStore").orNull == "true"
+val regionalAssets = providers.gradleProperty("buzinRegionalAppstoreAssets").orNull?.let(::file)
+val noDownload = regionalAssets != null || providers.gradleProperty("buzinNoDownload").orNull == "true"
+val storeVersionCode = providers.gradleProperty("buzinLegacyVersionCode").orNull?.toIntOrNull()
+val storeVersionName = providers.gradleProperty("buzinLegacyVersionName").orNull
+val signingProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use(::load)
+}
+val storeKey = if (noDownload) regionalAssets?.resolve("AppstoreAuthenticationKey.pem")
+    else rootProject.file("app/src/main/assets/AppstoreAuthenticationKey.pem")
+if (storeEdition) {
+    require(storeVersionCode != null && storeVersionCode > 0 && !storeVersionName.isNullOrBlank()) {
+        "A store candidate requires explicit buzinLegacyVersionCode and buzinLegacyVersionName"
+    }
+    require(storeKey?.isFile == true) { "Provide the matching app public key; DE/AT requires buzinRegionalAppstoreAssets" }
+    val publicKeyText = storeKey!!.readText(Charsets.US_ASCII).trim()
+    require(publicKeyText.matches(Regex("-----BEGIN PUBLIC KEY-----\\s+[A-Za-z0-9+/=\\s]+\\s+-----END PUBLIC KEY-----"))) {
+        "The Appstore asset must contain only a public key"
+    }
+    val encodedKey = Base64.getMimeDecoder().decode(publicKeyText.removePrefix("-----BEGIN PUBLIC KEY-----").removeSuffix("-----END PUBLIC KEY-----"))
+    KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(encodedKey))
+    if (noDownload) {
+        val generalKeyText = rootProject.file("app/src/main/assets/AppstoreAuthenticationKey.pem").readText(Charsets.US_ASCII).trim()
+        val generalEncodedKey = Base64.getMimeDecoder().decode(generalKeyText.removePrefix("-----BEGIN PUBLIC KEY-----").removeSuffix("-----END PUBLIC KEY-----"))
+        require(!encodedKey.contentEquals(generalEncodedKey)) {
+            "The separate DE/AT app must not reuse the general app public key"
+        }
+    }
+    require(listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all { !signingProperties.getProperty(it).isNullOrBlank() }) {
+        "A store candidate requires the release signing configuration in local.properties"
+    }
+}
+if (storeEdition || noDownload) layout.buildDirectory.set(file("build" + (if (storeEdition) "-store" else "") + (if (noDownload) "-nodownload" else "")))
 abstract class SharedResourcesCopy : Sync() {
     @get:org.gradle.api.tasks.OutputDirectory
     abstract val outputDir: org.gradle.api.file.DirectoryProperty
@@ -131,16 +166,31 @@ androidComponents.onVariants { variant ->
     variant.sources.res?.addGeneratedSourceDirectory(sharedResources, SharedResourcesCopy::outputDir)
     variant.sources.java?.addGeneratedSourceDirectory(sharedTransport, SharedResourcesCopy::outputDir)
 }
+if (storeEdition) {
+    val storeSources = tasks.register<SharedResourcesCopy>("syncAppstoreSource") {
+        from(rootProject.file("app/src/main/kotlin")) { include("io/github/jqssun/airplay/billing/AppstoreBilling.kt") }
+        outputDir.set(layout.buildDirectory.dir("generated/appstore-source")); into(outputDir)
+    }
+    val storeAssets = tasks.register<SharedResourcesCopy>("syncAppstoreKey") {
+        from(storeKey); outputDir.set(layout.buildDirectory.dir("generated/appstore-assets")); into(outputDir)
+    }
+    androidComponents.onVariants { variant ->
+        if (variant.buildType == "release") {
+            variant.sources.java?.addGeneratedSourceDirectory(storeSources, SharedResourcesCopy::outputDir)
+            variant.sources.assets?.addGeneratedSourceDirectory(storeAssets, SharedResourcesCopy::outputDir)
+        }
+    }
+}
 android {
     namespace = "io.buzincast.legacy"
     compileSdk = 37
     defaultConfig {
-        applicationId = if (noDownload) "com.buzincast.tv.deat.legacy.preview" else "com.buzincast.tv.legacy.preview"
+        applicationId = (if (noDownload) "com.buzincast.tv.deat" else "com.buzincast.tv") + if (storeEdition) "" else ".legacy.preview"
         minSdk = 17
         targetSdk = 37
         testInstrumentationRunner = "io.buzincast.legacy.LegacyGestureChecks"
-        versionCode = 1
-        versionName = "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
+        versionCode = if (storeEdition) storeVersionCode!! else 1
+        versionName = if (storeEdition) storeVersionName!! else "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
         multiDexEnabled = true
         // The synthetic provider can start in the test APK's own process,
         // before the instrumentation runner installs secondary dex files.
@@ -151,20 +201,42 @@ android {
     }
     buildFeatures { buildConfig = true }
     sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("fireos3-probe/src/main/assets"))
+    if (storeEdition) {
+        sourceSets.getByName("release").apply {
+            manifest.srcFile("src/store/AndroidManifest.xml")
+            java.srcDir("src/store/java")
+        }
+        signingConfigs.create("storeRelease") {
+            storeFile = rootProject.file("app").resolve(signingProperties.getProperty("storeFile"))
+            storePassword = signingProperties.getProperty("storePassword")
+            keyAlias = signingProperties.getProperty("keyAlias")
+            keyPassword = signingProperties.getProperty("keyPassword")
+            enableV1Signing = true // Android 4.2 cannot verify APK Signature Scheme v2.
+            enableV2Signing = true
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
     buildTypes {
+        debug {
+            if (storeEdition) {
+                applicationIdSuffix = ".legacy.preview"
+                versionNameSuffix = "-preview"
+            }
+        }
         release {
             isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (storeEdition) signingConfig = signingConfigs.getByName("storeRelease")
         }
     }
 }
 tasks.named("preBuild") { dependsOn(sharedResources, sharedTransport) }
 dependencies {
+    if (storeEdition) add("releaseImplementation", "com.amazon.device:amazon-appstore-sdk:3.0.9")
     implementation(project(":fireos3-runtime"))
     implementation(project(":dlna-domain"))
     implementation(project(":receiver-core"))

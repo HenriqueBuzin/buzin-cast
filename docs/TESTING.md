@@ -1,5 +1,56 @@
 # Testes automatizados
 
+## Candidato assinado da edição API17
+
+`tools/Build-FireOs.ps1 -Target legacy -Release` ativa o ID real da ficha,
+o entry point Appstore, o SDK 3.0.9 e R8. Exige `-VersionCode`, `-VersionName`
+e a configuração de assinatura de produção em `local.properties`; não usa
+assinatura debug como alternativa. A assinatura v1 fica habilitada, pois a
+API17 não verifica v2. A edição geral recebe a chave pública existente em
+`app/src/main/assets`. A edição DE/AT exige `-RegionalAppstoreAssets` com sua
+própria `AppstoreAuthenticationKey.pem` e desliga download/gravação.
+O código `AppstoreBilling` é copiado da implementação moderna, preservando
+os blocos independentes de registro IAP e verificação de licença. As prévias
+debug continuam com seus próprios pacotes, sem inicializador/SDK da loja.
+
+Exemplo de candidatos locais; conferir códigos disponíveis e direcionamento
+de dispositivos junto aos APKs moderno/compatível antes de qualquer envio:
+
+```powershell
+./tools/Build-FireOs.ps1 -Target legacy -Release -VersionCode 48 -VersionName 0.6.7-legacy -Check -PosixBin $posixBin
+./tools/Build-FireOs.ps1 -Target legacy -Release -VersionCode 49 -VersionName 0.6.7-legacy-nodownload -RegionalAppstoreAssets $regionalPublicAssets -Check -PosixBin $posixBin
+```
+
+Os arquivos ficam em `outputs/fireos/legacy-store[-nodownload]`, separados
+das prévias. O manifesto `artifact.json` registra hash/identidade e mantém
+`submissionReady=false`: gerar/assinar não faz publicação nem comprova licença
+ou compatibilidade física.
+
+`tools/test_legacy_store.py` testa o APK reduzido sem instrumentação nem regras
+de R8 para expor campos privados aos testes. Exige emulador x86 API17 isolado
+em inglês, assinatura v1 de release, chave pública esperada e as duas ABIs.
+Recusa pacote já instalado para evitar remoção implícita de dados. Verifica
+startup, resposta RTSP real do receptor nativo, navegação, seleção persistente
+do menu e Sobre. Captura as telas e logcat e desinstala somente a cópia que
+instalou. Exige Python com Pillow e um emulador 1280×720 com gráficos ativos.
+Se `screencap` do guest retornar preto, tenta o framebuffer real pelo console
+local do emulador, autenticado com seu token local sem imprimi-lo. Registra o
+backend de cada captura e rejeita imagens vazias nos dois caminhos. Não usa
+desenho manual das Views como substituto da tela do release.
+Falhas de linkage/VM não contam como sucesso. A evidência do
+inicializador real não é uma licença concedida: a validação pela Appstore/LAT
+em um Stick suportado continua obrigatória antes de considerar a edição pronta.
+
+Capturas do framebuffer do release API17 no emulador, com seleção persistente
+atrás do Sobre e Ferramentas sem gravação/download na edição DE/AT
+(endereço virtual do emulador):
+
+![Tela inicial do release API17](images/fireos3-store-release-home.png)
+
+![Sobre no release API17](images/fireos3-store-release-about.png)
+
+![Ferramentas do release API17 DE/AT](images/fireos3-store-release-deat-tools.png)
+
 ## Retransmissão integrada na prévia API17
 
 `tools/test_legacy_gestures.py --relay-app` exercita os controles reais de

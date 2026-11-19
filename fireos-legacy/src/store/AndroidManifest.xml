@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application android:name=".LegacyAppstoreApplication" tools:replace="android:name">
+        <receiver android:name="com.amazon.device.drm.ResponseReceiver" android:exported="true"
+            android:permission="com.amazon.drm.Permission.NOTIFY">
+            <intent-filter><action android:name="com.amazon.drm.NOTIFY" /></intent-filter>
+        </receiver>
+        <receiver android:name="com.amazon.device.iap.ResponseReceiver" android:exported="true"
+            android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY">
+            <intent-filter><action android:name="com.amazon.inapp.purchasing.NOTIFY" /></intent-filter>
+        </receiver>
+    </application>
+</manifest>

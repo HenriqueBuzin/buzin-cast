@@ -43,8 +43,15 @@ as raízes e a verificação de domínio do sistema para player, downloads e fot
 Os testes usam emulador, mídia sintética e amostras HTTPS públicas, como detalhado em
 [TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
 compatíveis com os codecs/layouts de conversão disponíveis,
-licença/produção e demais itens do plano,
+validação da licença pela Appstore e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
+
+O alvo API17 também pode gerar candidatos assinados para as duas fichas,
+com R8 e o mesmo SDK Appstore da edição moderna. O pacote, a chave pública
+e as restrições DE/AT são selecionados no build; a prévia debug permanece
+separada. Assinatura v1, abertura, receptor nativo e navegação do release
+são verificados em emulador. Isso ainda não comprova concessão de licença
+pela Amazon nem distribuição e operação no firmware original de um Stick.
 
 O exportador antigo preserva as faixas já aceitas pelo MP4 e pode converter
 as demais com MediaCodec em buffers API16: AVC Baseline e AAC-LC, sem saída

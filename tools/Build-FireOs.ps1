@@ -5,10 +5,23 @@ param(
     [string[]]$Abis,
     [switch]$Check,
     [switch]$Instrumentation,
-    [switch]$NoDownload
+    [switch]$NoDownload,
+    [switch]$Release,
+    [int]$VersionCode,
+    [string]$VersionName,
+    [string]$RegionalAppstoreAssets
 )
 $ErrorActionPreference = 'Stop'
 if ($Instrumentation -and $Target -ne 'legacy') { throw '-Instrumentation currently applies only to the native API17 frontend.' }
+if ($Release -and ($Target -ne 'legacy' -or $Instrumentation)) { throw '-Release currently requires -Target legacy and cannot be combined with -Instrumentation.' }
+if ($Release -and ($VersionCode -lt 1 -or [string]::IsNullOrWhiteSpace($VersionName))) { throw 'Pass an explicit -VersionCode and -VersionName for a store candidate.' }
+if (-not $Release -and ($RegionalAppstoreAssets -or $VersionCode -or $VersionName)) { throw 'Store keys and version arguments require -Release.' }
+if ($RegionalAppstoreAssets) {
+    $RegionalAppstoreAssets = (Resolve-Path -LiteralPath $RegionalAppstoreAssets).Path
+    if (-not (Test-Path -LiteralPath (Join-Path $RegionalAppstoreAssets 'AppstoreAuthenticationKey.pem') -PathType Leaf)) { throw 'Missing regional Appstore public key.' }
+    $NoDownload = $true
+}
+if ($Release -and $NoDownload -and -not $RegionalAppstoreAssets) { throw 'The DE/AT store candidate requires -RegionalAppstoreAssets.' }
 if (-not $SdkRoot) { $SdkRoot = Join-Path $env:LOCALAPPDATA 'Android/Sdk' }
 if ($PosixBin) {
     foreach ($utility in @('bash.exe','make.exe','perl.exe')) {
@@ -52,9 +65,14 @@ try {
         if ($Check) { $buildArguments += @(':fireos3-runtime:testDebugUnitTest',':fireos3-runtime:lintDebug',':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug') }
     } elseif ($Target -eq 'legacy') {
         if ($Abis) { throw 'The API17 runtime uses its fixed ARMv7/x86 pair.' }
-        $buildArguments += @('-PbuzinFireOsLegacy=true',':fireos-legacy:assembleDebug')
+        $buildArguments += '-PbuzinFireOsLegacy=true'
+        if ($Release) {
+            $buildArguments += @('-PbuzinLegacyStore=true',"-PbuzinLegacyVersionCode=$VersionCode","-PbuzinLegacyVersionName=$VersionName",':fireos-legacy:assembleRelease')
+            if ($RegionalAppstoreAssets) { $buildArguments += "-PbuzinRegionalAppstoreAssets=$RegionalAppstoreAssets" }
+        } else { $buildArguments += ':fireos-legacy:assembleDebug' }
         if ($Instrumentation) { $buildArguments += ':fireos-legacy:assembleDebugAndroidTest' }
         if ($Check) { $buildArguments += @('-PbuzinFireOs3Probe=true',':fireos3-probe:assembleDebug',':fireos3-probe:testDebugUnitTest',':fireos3-probe:lintDebug',':fireos3-runtime:testDebugUnitTest',':fireos3-runtime:lintDebug',':fireos-legacy:lintDebug',':fireos-legacy:testDebugUnitTest',':dlna-domain:test',':receiver-core:check') }
+        if ($Release -and $Check) { $buildArguments += @(':fireos-legacy:lintRelease',':fireos3-runtime:lintRelease') }
     } else {
         if ($Target -eq 'compat') { $buildArguments += '-PbuzinLegacy=true' }
         if ($Abis) { $buildArguments += '-PbuzinAbis='+($Abis -join ',') }
@@ -66,6 +84,25 @@ try {
     finally { Pop-Location }
     if ($buildResult -ne 0) { throw "Gradle failed with exit code $buildResult." }
     if ($Target -eq 'legacy') {
+        if ($Release) {
+            $storeBuild = Join-Path $repo ('fireos-legacy/build-store'+$(if ($NoDownload) {'-nodownload'} else {''}))
+            $storeMetadata = Get-Content -LiteralPath (Join-Path $storeBuild 'outputs/apk/release/output-metadata.json') -Raw | ConvertFrom-Json
+            $storeId = if ($NoDownload) {'com.buzincast.tv.deat'} else {'com.buzincast.tv'}
+            if ($storeMetadata.applicationId -ne $storeId -or $storeMetadata.elements[0].versionCode -ne $VersionCode -or $storeMetadata.elements[0].versionName -ne $VersionName) { throw 'Unexpected store candidate identity/version.' }
+            $storeSource = Join-Path $storeBuild 'outputs/apk/release/fireos-legacy-release.apk'
+            Assert-PreviewApk $storeSource
+            $storeExport = Join-Path $repo ('outputs/fireos/legacy-store'+$(if ($NoDownload) {'-nodownload'} else {''}))
+            New-Item -ItemType Directory -Path $storeExport -Force | Out-Null
+            $storeApk = Join-Path $storeExport 'fireos-legacy-release.apk'
+            Copy-Item -LiteralPath $storeSource -Destination $storeApk
+            if ((Get-FileHash -LiteralPath $storeSource).Hash -ne (Get-FileHash -LiteralPath $storeApk).Hash) { throw 'Exported store candidate differs from build output.' }
+            $artifact = [ordered]@{preview=$false;submissionReady=$false;applicationId=$storeId;versionName=$VersionName;versionCode=$VersionCode;
+                builtAtUtc=[DateTime]::UtcNow.ToString('o');apk='fireos-legacy-release.apk';sha256=(Get-FileHash -LiteralPath $storeApk -Algorithm SHA256).Hash.ToLowerInvariant();
+                pending=@('Validate the Amazon license through the Appstore on a supported physical Stick','Review device targeting and version codes alongside the modern/compat APKs')}
+            [IO.File]::WriteAllText((Join-Path $storeExport 'artifact.json'),($artifact | ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
+            Write-Host "Signed legacy store candidate exported to $storeExport (not submitted)"
+            return
+        }
         # A project-wide buildDirectory switch can make Gradle remove the other
         # edition's APK as stale output. Export completed previews outside it.
         $legacyBuild = Join-Path $repo ('fireos-legacy/'+$(if ($NoDownload) {'build-nodownload'} else {'build'}))

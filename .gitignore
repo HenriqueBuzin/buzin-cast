@@ -37,3 +37,5 @@ __pycache__/
 /app/build-nodownload-coverage/
 /app/build-legacy-nodownload-coverage/
 /fireos-legacy/build-nodownload/
+/fireos-legacy/build-store/
+/fireos-legacy/build-store-nodownload/
