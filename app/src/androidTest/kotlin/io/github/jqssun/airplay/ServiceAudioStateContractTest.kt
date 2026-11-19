@@ -269,6 +269,7 @@ class ServiceAudioStateContractTest {
         val receiverIndex = audio.getStreamMaxVolume(stream) / 2
         val originalDacp = service.dacpController
         val field = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        val targetField = AirPlayService::class.java.getDeclaredField("_clientVolTarget").apply { isAccessible = true }
         DacpHttpContractTest.Sender().use { sender ->
             val dacp = DacpController { _, listener ->
                 listener.onServiceResolved(NsdServiceInfo().apply {
@@ -315,6 +316,32 @@ class ServiceAudioStateContractTest {
                 assertEquals("/ctrl-int/1/playresume", commands().last())
                 assertEquals("Convergence sent an extra volume step", 5, commands().size)
                 assertEquals(0.2f, service.clientVolume(), 0.001f)
+
+                main {
+                    service.setClientVolume(0.55f)
+                    service.setClientVolume(0.9f)
+                }
+                awaitCommand(5, "volumeup")
+                await("Missing feedback did not release the pending sender volume target") {
+                    var inactive = false
+                    main { inactive = targetField.getFloat(service) < 0f }
+                    inactive
+                }
+                feedback(-18f) // Late feedback must not resume the expired request.
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals("Late feedback sent a volume command after timeout", 7, commands().size)
+                assertEquals("/ctrl-int/1/playresume", commands().last())
+
+                // A sender that reports the same level must never be driven indefinitely.
+                val firstRepeatedStep = commands().size
+                main { service.setClientVolume(0.95f) }
+                repeat(32) { step ->
+                    awaitCommand(firstRepeatedStep + step, "volumeup")
+                    feedback(-18f)
+                }
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals("Unchanged feedback exceeded the 32-command limit", firstRepeatedStep + 33, commands().size)
+                assertEquals("/ctrl-int/1/playresume", commands().last())
                 assertEquals("Independent sender control changed receiver volume", receiverIndex, audio.getStreamVolume(stream))
             } finally {
                 main {
