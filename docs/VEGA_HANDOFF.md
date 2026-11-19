@@ -1,5 +1,39 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Notificações GENA do DLNA no Vega
+
+Os serviços AVTransport, RenderingControl e ConnectionManager aceitam
+inscrições com prazo e enviam o estado inicial com sequência zero.
+Mudanças de transporte, volume e mudo geram `LastChange`. Renovação e
+cancelamento usam o SID e o serviço da inscrição. Cada URL de retorno
+usa HTTP com o mesmo IPv4 do cliente inscrito. A fila de notificações é
+independente do socket de controle.
+[Arquitetura UPnP da OCF](https://openconnectivity.org/wp-content/uploads/2015/11/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf)
+
+O VVD confirmou a entrega inicial de cada serviço, atualizações de
+reprodução, pausa e mudo, renovação, expiração, cancelamento, descarte
+das inscrições ao fechar e recusa de callback em outro endereço.
+Relatório em `build/vega-dlna-gena-vvd-final`. Lint, TypeScript, 68
+testes Jest e as três validações de ABI passaram. Regras de acesso do
+app e validação em aparelho físico continuam pendentes.
+
+## Fotos via DLNA no Vega
+
+O receptor aceita JPEG e PNG pela extensão da URI ou pelo recurso DIDL
+correspondente à URI enviada. Abre a foto com proporção preservada na
+mesma tela em que recebe vídeo. O download tem limite de 16 MiB e a
+imagem aceita até cerca de 25 megapixels. O receptor cancela o download ao trocar
+de mídia, receber Stop ou fechar a tela. O estado UPnP só muda para
+`PLAYING` depois da confirmação de carga pelo componente Image.
+[Image no React Native Vega](https://www.developer.amazon.com/docs/react-native-vega/0.83/image)
+
+O VVD confirmou PNG, JPEG sem extensão por DIDL, rejeição de imagem
+inválida e cancelamento com Stop enquanto o servidor ainda aguardava
+para enviar os bytes. O ensaio voltou a tocar MP4 e encerrou o receptor
+em segundo plano com uma foto aberta. Relatório em
+`build/vega-dlna-photo-vvd-final`. Lint, TypeScript, 67 testes Jest
+e validação ABI das três arquiteturas passaram.
+
 ## Receptor DLNA no Vega — 19 de novembro de 2026
 
 **Estado do port → Ativar DLNA** abre um MediaRenderer com descoberta SSDP

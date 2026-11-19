@@ -1,9 +1,11 @@
 import {DOMParser, Element} from '@xmldom/xmldom';
+import {DLNA_PHOTO_TYPES} from './dlnaPhoto';
 
 const SOAP = 'http://schemas.xmlsoap.org/soap/envelope/';
 const SERVICE = 'urn:schemas-upnp-org:service:';
 const DEVICE = 'urn:schemas-upnp-org:device:MediaRenderer:1';
-const TYPES = 'http-get:*:video/mp4:*,http-get:*:audio/mpeg:*,http-get:*:audio/mp4:*';
+const TYPES = ['video/mp4', 'audio/mpeg', 'audio/mp4', ...DLNA_PHOTO_TYPES]
+  .map(mime => `http-get:*:${mime}:*`).join(',');
 
 type Args = Record<string, string>;
 type ActionArguments = [name: string, type?: string][];
@@ -52,9 +54,52 @@ const element = (name: string, value: string) => `<${name}>${escape(value)}</${n
 const namespace = (id: DlnaService) => `${SERVICE}${services[id].name}:1`;
 const version = '<specVersion><major>1</major><minor>0</minor></specVersion>';
 const envelope = (body: string) => `${xml}<s:Envelope xmlns:s="${SOAP}" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>${body}</s:Body></s:Envelope>`;
+const connectionVariables = {
+  Source: 'SourceProtocolInfo',
+  Sink: 'SinkProtocolInfo',
+  ConnectionIDs: 'CurrentConnectionIDs',
+} as const;
+const properties = (values: Args) => `${xml}<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">` +
+  Object.entries(values).map(([key, value]) => `<e:property>${element(key, value)}</e:property>`).join('') + '</e:propertyset>';
+
+export const dlnaConnectionEvent = properties({SourceProtocolInfo: '', SinkProtocolInfo: TYPES, CurrentConnectionIDs: '0'});
+
+export function dlnaTransportEvent(state: string, status: string, uri: string, duration: string, actions: string) {
+  const values = {TransportState: state, TransportStatus: status, TransportPlaySpeed: '1',
+    CurrentTrackURI: uri, AVTransportURI: uri, CurrentTrackDuration: duration,
+    CurrentMediaDuration: duration, CurrentTransportActions: actions};
+  const inner = Object.entries(values).map(([key, value]) => `<${key} val="${escape(value)}"/>`).join('');
+  return properties({LastChange: `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/"><InstanceID val="0">${inner}</InstanceID></Event>`});
+}
+
+export function dlnaRenderingEvent(volume: number, muted: boolean) {
+  return properties({LastChange: `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/RCS/"><InstanceID val="0">` +
+    `<Volume channel="Master" val="${volume}"/><Mute channel="Master" val="${muted ? 1 : 0}"/></InstanceID></Event>`});
+}
 
 export class DlnaFault extends Error {
   constructor(readonly code: number, message: string) { super(message); }
+}
+
+export function isDlnaPhoto(uri: string, metadata: string) {
+  if (metadata && !metadata.includes('<!') && (metadata.match(/</g)?.length || 0) <= 256) {
+    try {
+      const doc = new DOMParser({onError: () => {throw new Error('Invalid DIDL metadata');}})
+        .parseFromString(metadata, 'text/xml');
+      for (const resource of Array.from(doc.getElementsByTagNameNS('*', 'res'))) {
+        if (resource.textContent?.trim() !== uri) {continue;}
+        const mime = resource.getAttribute('protocolInfo')?.split(':')[2]?.toLowerCase();
+        if (mime?.startsWith('image/')) {
+          if (DLNA_PHOTO_TYPES.some(type => type === mime)) {return true;}
+          throw new DlnaFault(714, 'Unsupported photo format');
+        }
+      }
+    } catch (error) {
+      if (error instanceof DlnaFault) {throw error;}
+      // Metadata is optional. Older senders report only the resource URI.
+    }
+  }
+  return /\.(jpe?g|png)$/i.test(uri.split(/[?#]/, 1)[0]);
 }
 
 function failure(error: DlnaFault): DlnaResult {
@@ -79,17 +124,20 @@ function description(uuid: string, name: string) {
 
 function scpd(id: DlnaService) {
   const variables = new Map<string, string>();
+  const evented = new Set<string>(id === 'cmn' ? Object.values(connectionVariables) : ['LastChange']);
+  for (const name of evented) {variables.set(name, 'string');}
   const actions = Object.entries(services[id].actions).map(([name, spec]) => {
     const argumentsXml = ([['in', spec.input], ['out', spec.output]] as const).flatMap(([direction, args]) =>
       args.map(([arg, type = 'string']) => {
-        const variable = `A_ARG_TYPE_${arg}`;
+        const variable = (id === 'cmn' && connectionVariables[arg as keyof typeof connectionVariables]) ||
+          `A_ARG_TYPE_${arg}`;
         variables.set(variable, type);
         return `<argument>${element('name', arg)}${element('direction', direction)}${element('relatedStateVariable', variable)}</argument>`;
       })).join('');
     return `<action>${element('name', name)}${argumentsXml ? `<argumentList>${argumentsXml}</argumentList>` : ''}</action>`;
   }).join('');
   const table = [...variables].map(([name, type]) =>
-    `<stateVariable sendEvents="no">${element('name', name)}${element('dataType', type)}</stateVariable>`).join('');
+    `<stateVariable sendEvents="${evented.has(name) ? 'yes' : 'no'}">${element('name', name)}${element('dataType', type)}</stateVariable>`).join('');
   return `${xml}<scpd xmlns="urn:schemas-upnp-org:service-1-0">${version}<actionList>${actions}</actionList><serviceStateTable>${table}</serviceStateTable></scpd>`;
 }
 
@@ -132,9 +180,6 @@ export function routeDlna(request: DlnaRequest, uuid: string, name: string,
     if (path === '/desc.xml') {return {status: 200, body: description(uuid, name)};}
     if (id && path === `/scpd/${id}.xml`) {return {status: 200, body: scpd(id)};}
     return {status: 404, body: ''};
-  }
-  if (id && path === `/evt/${id}` && (method === 'SUBSCRIBE' || method === 'UNSUBSCRIBE')) {
-    return {status: 501, body: ''};
   }
   if (!id || path !== `/ctl/${id}`) {return {status: 404, body: ''};}
   if (method !== 'POST') {return {status: 405, body: ''};}

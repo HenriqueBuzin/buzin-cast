@@ -1,20 +1,26 @@
 #include "DlnaTransport.h"
 
+#include <algorithm>
 #include <arpa/inet.h>
+#include <array>
 #include <atomic>
 #include <cerrno>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <mutex>
 #include <net/if.h>
+#include <optional>
 #include <poll.h>
+#include <random>
 #include <stdexcept>
 #include <string_view>
 #include <thread>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 extern "C" {
 #include "llhttp.h"
@@ -138,6 +144,13 @@ std::string json(std::string_view value) {
   return result + '"';
 }
 
+struct EventHeaders {
+  std::optional<std::string> callback;
+  std::optional<std::string> nt;
+  std::optional<std::string> sid;
+  std::optional<std::string> timeout;
+};
+
 struct HttpRequest {
   llhttp_t parser{};
   std::string path;
@@ -146,6 +159,7 @@ struct HttpRequest {
   std::string soapAction;
   std::string contentType;
   std::string body;
+  EventHeaders events;
   bool ready = false;
 
   HttpRequest() {
@@ -179,6 +193,13 @@ struct HttpRequest {
           if (!destination->empty()) return static_cast<int>(HPE_USER);
           *destination = std::move(state.value);
         }
+        auto* event = field == "callback" ? &state.events.callback :
+            field == "nt" ? &state.events.nt : field == "sid" ? &state.events.sid :
+            field == "timeout" ? &state.events.timeout : nullptr;
+        if (event) {
+          if (*event) return static_cast<int>(HPE_USER);
+          *event = std::move(state.value);
+        }
         state.key.clear();
         state.value.clear();
         return 0;
@@ -203,6 +224,8 @@ struct HttpRequest {
 struct Response {
   int status;
   std::string body;
+  std::string headers{};
+  std::string initial{};
 };
 
 std::string_view reason(int status) {
@@ -211,6 +234,7 @@ std::string_view reason(int status) {
     case 400: return "Bad Request";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
+    case 412: return "Precondition Failed";
     case 413: return "Content Too Large";
     case 415: return "Unsupported Media Type";
     case 500: return "Internal Server Error";
@@ -218,6 +242,247 @@ std::string_view reason(int status) {
     default: return "Service Unavailable";
   }
 }
+
+bool socketReady(const std::atomic<bool>& active, int fd, short events, Clock::time_point deadline) {
+  while (active && Clock::now() < deadline) {
+    pollfd item{fd, events, 0};
+    const auto result = ::poll(&item, 1, 50);
+    if (result > 0) return item.revents & events;
+    if (result < 0 && errno != EINTR) return false;
+  }
+  return false;
+}
+
+bool sendAll(const std::atomic<bool>& active, int fd, std::string_view data, Clock::time_point deadline) {
+  while (!data.empty() && socketReady(active, fd, POLLOUT, deadline)) {
+#ifdef MSG_NOSIGNAL
+    const auto count = send(fd, data.data(), data.size(), MSG_NOSIGNAL);
+#else
+    const auto count = send(fd, data.data(), data.size(), 0);
+#endif
+    if (count < 0 && (errno == EAGAIN || errno == EINTR)) continue;
+    if (count <= 0) return false;
+    data.remove_prefix(static_cast<size_t>(count));
+  }
+  return data.empty();
+}
+
+std::string subscriptionId() {
+  static constexpr char digits[] = "0123456789abcdef";
+  std::random_device random;
+  std::string id = "uuid:";
+  for (int i = 0; i < 16; ++i) {
+    if (i == 4 || i == 6 || i == 8 || i == 10) id += '-';
+    unsigned byte = random() & 255;
+    if (i == 6) byte = 0x40 | (byte & 15);
+    if (i == 8) byte = 0x80 | (byte & 63);
+    id += digits[byte >> 4];
+    id += digits[byte & 15];
+  }
+  return id;
+}
+
+struct Callback {
+  sockaddr_in endpoint;
+  std::string host;
+  std::string path;
+};
+
+std::optional<Callback> parseCallback(std::string_view value, uint32_t peer) {
+  value = trim(value);
+  if (!value.starts_with("<http://") || !value.ends_with('>') || value.size() > 2048) return {};
+  value.remove_prefix(8);
+  value.remove_suffix(1);
+  const auto slash = value.find('/');
+  const auto authority = value.substr(0, slash);
+  const auto path = slash == value.npos ? "/" : value.substr(slash);
+  if (path.find_first_of("<>#\\") != path.npos ||
+      std::any_of(path.begin(), path.end(), [](unsigned char c) { return c <= 32 || c >= 127; })) return {};
+  const auto colon = authority.find(':');
+  const std::string host(authority.substr(0, colon));
+  in_addr ip{};
+  if (inet_pton(AF_INET, host.c_str(), &ip) != 1 || ip.s_addr != peer) return {};
+  unsigned port = 80;
+  if (colon != authority.npos) {
+    const auto text = authority.substr(colon + 1);
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), port);
+    if (parsed.ec != std::errc() || parsed.ptr != text.data() + text.size() || !port || port > 65535) return {};
+  }
+  return Callback{address(peer, static_cast<uint16_t>(port)), host + ':' + std::to_string(port), std::string(path)};
+}
+
+unsigned eventTimeout(const std::optional<std::string>& header) {
+  if (!header) return 1800;
+  auto value = trim(*header);
+  if (lower(value.substr(0, 7)) != "second-") return 0;
+  value.remove_prefix(7);
+  if (lower(value) == "infinite") return 1800;
+  unsigned seconds = 0;
+  const auto result = std::from_chars(value.data(), value.data() + value.size(), seconds);
+  if (result.ec != std::errc() || result.ptr != value.data() + value.size()) return 0;
+  return std::min(seconds, 1800u);
+}
+
+class Events {
+public:
+  void start() {
+    running = true;
+    worker = std::thread([this] { run(); });
+  }
+
+  void stop() {
+    {
+      std::lock_guard lock(mutex);
+      running = false;
+    }
+    wake.notify_all();
+    if (worker.joinable()) worker.join();
+    {
+      std::lock_guard lock(mutex);
+      subscribers.clear();
+      snapshots = {};
+    }
+  }
+
+  void update(std::array<std::string, 3> state) {
+    std::lock_guard lock(mutex);
+    if (!running || state == snapshots) return;
+    snapshots = std::move(state);
+    wake.notify_one();
+  }
+
+  Response request(const HttpRequest& http, uint32_t peer, size_t service) {
+    if (!http.body.empty()) return {400, {}};
+    const auto& headers = http.events;
+    const bool unsubscribe = http.parser.method == HTTP_UNSUBSCRIBE;
+    std::lock_guard lock(mutex);
+    if (!running) return {503, {}};
+    expire();
+    if (headers.sid) {
+      if (headers.callback || headers.nt || (unsubscribe && headers.timeout)) return {400, {}};
+      auto entry = std::find_if(subscribers.begin(), subscribers.end(), [&](const auto& item) {
+        return item.sid == trim(*headers.sid) && item.service == service &&
+            item.callback.endpoint.sin_addr.s_addr == peer;
+      });
+      if (entry == subscribers.end()) return {412, {}};
+      if (unsubscribe) {
+        subscribers.erase(entry);
+        return {200, {}};
+      }
+      const auto seconds = eventTimeout(headers.timeout);
+      if (!seconds) return {400, {}};
+      entry->expires = Clock::now() + std::chrono::seconds(seconds);
+      return accepted(entry->sid, seconds);
+    }
+    if (unsubscribe || !headers.callback || !headers.nt || lower(trim(*headers.nt)) != "upnp:event") return {412, {}};
+    auto endpoint = parseCallback(*headers.callback, peer);
+    const auto seconds = eventTimeout(headers.timeout);
+    if (!endpoint) return {412, {}};
+    if (!seconds) return {400, {}};
+    if (subscribers.size() >= 12) return {503, {}};
+    const auto sid = subscriptionId();
+    subscribers.push_back({sid, service, std::move(*endpoint), Clock::now() + std::chrono::seconds(seconds)});
+    auto response = accepted(sid, seconds);
+    response.initial = sid;
+    return response;
+  }
+
+  void activate(const std::string& sid, bool delivered) {
+    if (sid.empty()) return;
+    std::lock_guard lock(mutex);
+    const auto entry = std::find_if(subscribers.begin(), subscribers.end(), [&](const auto& item) {
+      return item.sid == sid;
+    });
+    if (entry == subscribers.end()) return;
+    if (!delivered) subscribers.erase(entry);
+    else { entry->active = true; wake.notify_one(); }
+  }
+
+private:
+  struct Subscriber {
+    std::string sid;
+    size_t service;
+    Callback callback;
+    Clock::time_point expires;
+    bool active = false;
+    uint32_t sequence = 0;
+    std::string previous{};
+  };
+
+  static Response accepted(const std::string& sid, unsigned seconds) {
+    return {200, {}, "SID: " + sid + "\r\nTIMEOUT: Second-" + std::to_string(seconds) + "\r\n"};
+  }
+
+  void expire() {
+    const auto now = Clock::now();
+    std::erase_if(subscribers, [&](const auto& item) { return item.expires <= now; });
+  }
+
+  bool notify(const Subscriber& item) const {
+    Socket socket{::socket(AF_INET, SOCK_STREAM, 0)};
+    if (socket.fd < 0) return false;
+    nonblocking(socket.fd);
+    const auto end = Clock::now() + 800ms;
+    if (::connect(socket.fd, reinterpret_cast<const sockaddr*>(&item.callback.endpoint),
+        sizeof(item.callback.endpoint)) != 0) {
+      if (errno != EINPROGRESS || !socketReady(running, socket.fd, POLLOUT, end)) return false;
+      int error = 0;
+      socklen_t size = sizeof(error);
+      if (getsockopt(socket.fd, SOL_SOCKET, SO_ERROR, &error, &size) != 0 || error) return false;
+    }
+    const auto message = "NOTIFY " + item.callback.path + " HTTP/1.1\r\nHOST: " + item.callback.host +
+        "\r\nCONTENT-TYPE: text/xml; charset=\"utf-8\"\r\nNT: upnp:event\r\nNTS: upnp:propchange\r\nSID: " +
+        item.sid + "\r\nSEQ: " + std::to_string(item.sequence) + "\r\nConnection: close\r\nContent-Length: " +
+        std::to_string(item.previous.size()) + "\r\n\r\n" + item.previous;
+    if (!sendAll(running, socket.fd, message, end)) return false;
+    std::string reply;
+    while (reply.size() < 64 && socketReady(running, socket.fd, POLLIN, end)) {
+      char buffer[64];
+      const auto received = recv(socket.fd, buffer, sizeof(buffer), 0);
+      if (received < 0 && (errno == EAGAIN || errno == EINTR)) continue;
+      if (received <= 0) return false;
+      reply.append(buffer, static_cast<size_t>(received));
+      if (reply.size() >= 13) {
+        return (reply.starts_with("HTTP/1.1 200") || reply.starts_with("HTTP/1.0 200")) &&
+            (reply[12] == ' ' || reply[12] == '\r');
+      }
+    }
+    return false;
+  }
+
+  void run() noexcept {
+    try {
+      std::unique_lock lock(mutex);
+      while (running) {
+        expire();
+        auto entry = std::find_if(subscribers.begin(), subscribers.end(), [&](const auto& item) {
+          return item.active && !snapshots[item.service].empty() && snapshots[item.service] != item.previous;
+        });
+        if (entry == subscribers.end()) {
+          wake.wait_for(lock, 100ms);
+          continue;
+        }
+        entry->previous = snapshots[entry->service];
+        const auto work = *entry;
+        if (++entry->sequence == 0) entry->sequence = 1;
+        std::rotate(entry, entry + 1, subscribers.end());
+        lock.unlock();
+        // An unavailable subscriber can still receive the next state before expiry.
+        try { notify(work); } catch (const std::runtime_error&) {}
+        lock.lock();
+      }
+    } catch (...) {
+      running = false;
+    }
+  }
+
+  std::atomic<bool> running{false};
+  std::thread worker;
+  std::mutex mutex;
+  std::condition_variable wake;
+  std::vector<Subscriber> subscribers;
+  std::array<std::string, 3> snapshots;
+};
 
 Socket multicastSocket(const Lan& lan) {
   Socket socket{::socket(AF_INET, SOCK_DGRAM, 0)};
@@ -243,6 +508,7 @@ struct DlnaTransport::Impl {
   std::thread worker;
   Socket listener;
   Socket ssdp;
+  Events events;
   std::mutex mutex;
   std::condition_variable changed;
   unsigned int sequence = 0;
@@ -279,16 +545,6 @@ struct DlnaTransport::Impl {
     return lan.address && privatePeer(peer) && (peer & lan.mask) == (lan.address & lan.mask);
   }
 
-  bool ready(int fd, short events, Clock::time_point deadline) const {
-    while (active && Clock::now() < deadline) {
-      pollfd item{fd, events, 0};
-      const auto result = ::poll(&item, 1, 50);
-      if (result > 0) return item.revents & events;
-      if (result < 0 && errno != EINTR) return false;
-    }
-    return false;
-  }
-
   Response dispatch(const HttpRequest& request) {
     std::unique_lock lock(mutex);
     if (++sequence == 0) ++sequence;
@@ -304,13 +560,13 @@ struct DlnaTransport::Impl {
     return response.status ? std::move(response) : Response{503, {}};
   }
 
-  void serve(int fd) {
+  void serve(int fd, uint32_t peer) {
     HttpRequest request;
     Response response{400, {}};
     const auto end = Clock::now() + 1500ms;
     size_t bytes = 0;
     char input[4096];
-    while (ready(fd, POLLIN, end)) {
+    while (socketReady(active, fd, POLLIN, end)) {
       const auto count = recv(fd, input, sizeof(input), 0);
       if (count < 0 && (errno == EAGAIN || errno == EINTR)) continue;
       if (count <= 0) return;
@@ -318,27 +574,28 @@ struct DlnaTransport::Impl {
       if (bytes > MaxRequest) { response.status = 413; break; }
       const auto parsed = llhttp_execute(&request.parser, input, static_cast<size_t>(count));
       if (request.ready && parsed == HPE_PAUSED) {
-        response = dispatch(request);
+        const bool event = request.parser.method == HTTP_SUBSCRIBE || request.parser.method == HTTP_UNSUBSCRIBE;
+        if (event) {
+          constexpr std::string_view paths[] = {"/evt/avt", "/evt/rcs", "/evt/cmn"};
+          const auto path = std::find(std::begin(paths), std::end(paths), request.path);
+          response = path == std::end(paths) ? Response{404, {}} :
+              events.request(request, peer, static_cast<size_t>(path - std::begin(paths)));
+        } else {
+          response = dispatch(request);
+        }
         break;
       }
       if (parsed != HPE_OK) break;
     }
     std::string output = "HTTP/1.1 " + std::to_string(response.status) + " ";
     output += reason(response.status);
+    output += "\r\nSERVER: ";
+    output += Server;
     output += "\r\nContent-Type: text/xml; charset=\"utf-8\"\r\nConnection: close\r\nContent-Length: " +
-        std::to_string(response.body.size()) + "\r\n\r\n";
+        std::to_string(response.body.size()) + "\r\n" + response.headers + "\r\n";
     if (request.parser.method != HTTP_HEAD) output += response.body;
-    const auto writeEnd = Clock::now() + 500ms;
-    for (size_t sent = 0; sent < output.size() && ready(fd, POLLOUT, writeEnd);) {
-#ifdef MSG_NOSIGNAL
-      const auto count = send(fd, output.data() + sent, output.size() - sent, MSG_NOSIGNAL);
-#else
-      const auto count = send(fd, output.data() + sent, output.size() - sent, 0);
-#endif
-      if (count < 0 && (errno == EAGAIN || errno == EINTR)) continue;
-      if (count <= 0) break;
-      sent += static_cast<size_t>(count);
-    }
+    const bool delivered = sendAll(active, fd, output, Clock::now() + 500ms);
+    events.activate(response.initial, delivered);
   }
 
   void run() noexcept {
@@ -377,7 +634,7 @@ struct DlnaTransport::Impl {
           Socket client{::accept(listener.fd, reinterpret_cast<sockaddr*>(&peer), &size)};
           if (client.fd >= 0 && (sameLan(peer.sin_addr.s_addr) || (ntohl(peer.sin_addr.s_addr) >> 24) == 127)) {
             nonblocking(client.fd);
-            serve(client.fd);
+            serve(client.fd, peer.sin_addr.s_addr);
           }
         }
       }
@@ -414,6 +671,7 @@ uint16_t DlnaTransport::start(const std::string& uuid, bool loopbackOnly) {
   impl->listener.fd = listener.release();
   try {
     impl->active = true;
+    impl->events.start();
     impl->worker = std::thread([this] { impl->run(); });
   } catch (...) {
     stop();
@@ -429,6 +687,7 @@ void DlnaTransport::stop() noexcept {
   }
   impl->changed.notify_all();
   if (impl->worker.joinable()) impl->worker.join();
+  impl->events.stop();
   impl->ssdp.reset();
   impl->listener.reset();
 }
@@ -448,4 +707,11 @@ void DlnaTransport::respond(double requestId, double status, std::string body) {
     throw std::invalid_argument("Invalid DLNA response status");
   impl->reply = {static_cast<int>(status), std::move(body)};
   impl->changed.notify_one();
+}
+
+
+void DlnaTransport::publish(std::string transport, std::string rendering, std::string connection) {
+  if (transport.size() > MaxResponse || rendering.size() > MaxResponse || connection.size() > MaxResponse)
+    throw std::invalid_argument("DLNA event too large");
+  impl->events.update({std::move(transport), std::move(rendering), std::move(connection)});
 }

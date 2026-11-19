@@ -34,6 +34,20 @@ Nenhuma TV física foi usada. Permanecem os limites de Appstore/LAT, ARM
 físico, códigos/dispositivos e paridade descritos abaixo; os artefatos
 continuam `submissionReady=false`. As 12 artes aprovadas foram conferidas.
 
+## Notificações DLNA no Vega
+
+GENA entrega o estado inicial e avisa os emissores de mudanças no
+transporte, volume e mudo. O VVD confirmou inscrição, renovação,
+expiração e cancelamento. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
+## Fotos DLNA no Vega
+
+O receptor exibe JPEG e PNG, inclusive URI sem extensão com o recurso
+DIDL correspondente. O VVD confirmou a carga pelos eventos do componente,
+a rejeição de imagem inválida e a troca de vídeo para foto e de volta
+para vídeo. Notificações GENA, regras de acesso e validação física
+continuam pendentes. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Registro anterior — integração posterior aos testes 0018
 
 O merge incorporou também o patch compartilhado UxPlay 0019 de pareamento.

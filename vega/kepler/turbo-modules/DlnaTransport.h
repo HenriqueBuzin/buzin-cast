@@ -13,6 +13,7 @@ public:
 
   uint16_t start(const std::string& uuid, bool loopbackOnly = false);
   void stop() noexcept;
+  void publish(std::string transport, std::string rendering, std::string connection);
   std::string poll();
   void respond(double requestId, double status, std::string body);
 

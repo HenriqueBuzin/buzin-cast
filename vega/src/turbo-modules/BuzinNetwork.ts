@@ -25,6 +25,7 @@ export interface BuzinNetwork extends KeplerTurboModule {
   stopDlna: () => void;
   pollDlnaRequest: () => string;
   respondDlna: (requestId: number, status: number, body: string) => void;
+  publishDlnaEvents: (transport: string, rendering: string, connection: string) => void;
   recordVideoPlaybackQuality: (total: number, dropped: number, attached: boolean) => void;
   recordPlaybackState: (state: string, seconds: number) => void;
   recordMediaCapabilities: (h264: number, hevc: number, aac: number) => string;
