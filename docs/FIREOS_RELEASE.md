@@ -120,3 +120,15 @@ neste ensaio. Os relatórios de abertura estão nas pastas
 `compat.general-density160` e `compat.nodownload-smoke` no mesmo diretório.
 Esses APKs foram gerados com as mudanças compartilhadas de UxPlay até o
 patch 0019. A compilação e validação com o patch 0020 permanecem pendentes.
+
+## Execução do APK moderno geral
+
+O APK 52 passou nos emuladores API25, API28 e API30, cobrindo as bases
+Android dos Fire OS 6, 7 e 8. Os três relatórios registram a mesma soma
+SHA-256, a assinatura, a chave pública da ficha, a abertura pelo atalho,
+o RTSP, o menu e a tela Sobre. Em `outputs/fireos/coordinated`, os
+relatórios ficam em `modern.general-api25`, `modern.general-api28-retest`
+e `modern.general-api30-retest`. Na API28, o primeiro teste capturou um
+erro do app de mensagens do emulador. Na API30, o redirecionamento fechou
+a conexão antes de o receptor responder. A repetição passou com o log
+filtrado pelo processo do BuzinCast e a espera pela primeira resposta RTSP.
