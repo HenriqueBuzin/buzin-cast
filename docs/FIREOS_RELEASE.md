@@ -105,3 +105,18 @@ Para repetir no emulador API22, adicione `--device-sdk 22` à chamada de
 `tools/test_legacy_store.py` para o APK nativo. Os relatórios locais do
 ensaio estão em `outputs/fireos/coordinated/legacy.general-api22-early`
 e `outputs/fireos/coordinated/legacy.nodownload-api22-early`.
+
+## Execução dos APKs compatíveis no Android 5.1
+
+Os APKs 50 e 51 passaram na API22 x86-64, com abertura pelo atalho da TV,
+resposta RTSP, menu, tela Sobre e chave pública da ficha. As capturas de
+Ferramentas mostram o botão de gravação na edição geral e a seção sem
+gravação na edição DE/AT. Isso verifica a interface de gravação nesse
+ensaio. O teste de abertura não exercita um download nem uma gravação real.
+
+O relatório local `outputs/fireos/coordinated/signed-48-51.json` confirma
+pacote, versão, API mínima e certificado para os quatro APKs disponíveis
+neste ensaio. Os relatórios de abertura estão nas pastas
+`compat.general-density160` e `compat.nodownload-smoke` no mesmo diretório.
+Esses APKs foram gerados com as mudanças compartilhadas de UxPlay até o
+patch 0019. A compilação e validação com o patch 0020 permanecem pendentes.
