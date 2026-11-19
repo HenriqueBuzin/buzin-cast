@@ -44,6 +44,11 @@ androidComponents.onVariants { variant ->
 val storeEdition = providers.gradleProperty("buzinLegacyStore").orNull == "true"
 val regionalAssets = providers.gradleProperty("buzinRegionalAppstoreAssets").orNull?.let(::file)
 val noDownload = regionalAssets != null || providers.gradleProperty("buzinNoDownload").orNull == "true"
+val fireOsRelease = Properties().apply {
+    rootProject.file("gradle/fireos-release.properties").inputStream().use(::load)
+}
+val plannedVersionCode = fireOsRelease.getProperty("legacy.${if (noDownload) "nodownload" else "general"}.versionCode").toInt()
+val plannedVersionName = fireOsRelease.getProperty("versionName") + "-legacy" + if (noDownload) "-nodownload" else ""
 val storeVersionCode = providers.gradleProperty("buzinLegacyVersionCode").orNull?.toIntOrNull()
 val storeVersionName = providers.gradleProperty("buzinLegacyVersionName").orNull
 val signingProperties = Properties().apply {
@@ -54,6 +59,9 @@ val storeKey = if (noDownload) regionalAssets?.resolve("AppstoreAuthenticationKe
 if (storeEdition) {
     require(storeVersionCode != null && storeVersionCode > 0 && !storeVersionName.isNullOrBlank()) {
         "A store candidate requires explicit buzinLegacyVersionCode and buzinLegacyVersionName"
+    }
+    require(storeVersionCode == plannedVersionCode && storeVersionName == plannedVersionName) {
+        "Legacy store version must match gradle/fireos-release.properties; update the coordinated plan first"
     }
     require(storeKey?.isFile == true) { "Provide the matching app public key; DE/AT requires buzinRegionalAppstoreAssets" }
     val publicKeyText = storeKey!!.readText(Charsets.US_ASCII).trim()
@@ -186,11 +194,11 @@ android {
     compileSdk = 37
     defaultConfig {
         applicationId = (if (noDownload) "com.buzincast.tv.deat" else "com.buzincast.tv") + if (storeEdition) "" else ".legacy.preview"
-        minSdk = 17
+        minSdk = fireOsRelease.getProperty("legacy.minSdk").toInt()
         targetSdk = 37
         testInstrumentationRunner = "io.buzincast.legacy.LegacyGestureChecks"
         versionCode = if (storeEdition) storeVersionCode!! else 1
-        versionName = if (storeEdition) storeVersionName!! else "0.6.7-legacy-preview" + if (noDownload) "-nodownload" else ""
+        versionName = if (storeEdition) storeVersionName!! else fireOsRelease.getProperty("versionName") + "-legacy-preview" + if (noDownload) "-nodownload" else ""
         multiDexEnabled = true
         // The synthetic provider can start in the test APK's own process,
         // before the instrumentation runner installs secondary dex files.
