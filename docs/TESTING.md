@@ -1,5 +1,42 @@
 # Testes automatizados
 
+## Download de URLs na prévia API17
+
+`tools/test_legacy_gestures.py --download` verifica AVC/AAC em MP4, HLS/TS,
+DASH/fMP4 e dois períodos DASH; cabeçalhos HTTP são exigidos em manifestos
+e segmentos. Exige arquivo completo, faixas/duração, reprodução local no
+Media3, URI FileProvider, biblioteca/exclusão, cancelamento, falha com URI
+filha local, limpeza de `.part` e preservação de arquivos preexistentes.
+Com `--package com.buzincast.tv.deat.legacy.preview`, exige ausência do
+botão e bloqueio de início/listagem/worker na edição restrita.
+
+`--ffprobe <executável>` verifica as faixas e contagens dos seis MP4s
+sintéticos. `--ffmpeg <executável>` exige decodificação sem mensagens de
+erro, inclusive erros de timestamp que retornam status zero. Os dois
+arquivos com quadros B (exportação e reexportação pelo leitor Media3)
+precisam produzir os mesmos 120 hashes de quadros da origem.
+
+O OMX do emulador API17 não decodifica AVC Main e seu extrator do sistema
+omite faixas com CTTS assinado. Esses dois casos não são usados como
+prova de reprodução Main no dispositivo: o leitor Media3 é exercitado
+sem decoder, e a validação independente ocorre no host. MP4/HLS/DASH
+Baseline também passam por reprodução local real no emulador.
+
+`tools/generate_legacy_download_fixtures.py` gera os padrões AVC/AAC sem
+ler mídia pessoal e registra hashes dos recursos. O MPD inclui idioma
+`en-US` para verificar a adaptação de idioma ISO3 em API17. Os testes JVM
+cobrem prefixos Annex-B mistos/limites, reparo de composição sem alterar
+payload/offsets, metadados inválidos/overflow e códigos de idioma.
+
+Captura da tela nativa de Ferramentas em API17, com gravações e downloads:
+
+![Ferramentas com biblioteca de vídeos baixados](images/fireos3-native-download-tools.png)
+
+Os helpers de build/exportação verificam a estrutura dos APKs e os hashes
+de cópia. O runner verifica ZIP/CRC antes de ADB e exige `Success` na
+instalação: versões antigas do ADB podem retornar código zero com
+`INSTALL_FAILED_*`. APK corrompido não conta como falha de execução do app.
+
 ## Gravação de espelhamento na prévia API17
 
 `tools/test_legacy_gestures.py --recording` usa H.264 e ALAC sintéticos no

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Mga na-download na video</string>
+    <string name="tools_downloads_empty">Lalabas dito ang mga na-download mong video.</string>
+    <string name="tools_delete_download_confirm">Burahin ang na-download na video?</string>
+    <string name="download_cancelled">Nakansela ang pag-download</string>
+</resources>

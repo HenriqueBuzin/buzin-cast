@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Pobrane filmy</string>
+    <string name="tools_downloads_empty">Tutaj pojawią się pobrane filmy.</string>
+    <string name="tools_delete_download_confirm">Usunąć pobrany film?</string>
+    <string name="download_cancelled">Pobieranie anulowane</string>
+</resources>

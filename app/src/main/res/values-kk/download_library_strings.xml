@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Жүктеп алынған бейнелер</string>
+    <string name="tools_downloads_empty">Жүктеп алынған бейнелеріңіз осында көрсетіледі.</string>
+    <string name="tools_delete_download_confirm">Жүктеп алынған бейнені жою керек пе?</string>
+    <string name="download_cancelled">Жүктеп алу тоқтатылды</string>
+</resources>

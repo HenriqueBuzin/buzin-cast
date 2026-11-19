@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Vídeos baixados</string>
+    <string name="tools_downloads_empty">Seus vídeos baixados aparecerão aqui.</string>
+    <string name="tools_delete_download_confirm">Excluir o vídeo baixado?</string>
+    <string name="download_cancelled">Download cancelado</string>
+</resources>

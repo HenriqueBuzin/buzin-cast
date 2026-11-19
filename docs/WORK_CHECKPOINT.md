@@ -1,5 +1,72 @@
 # Retomada — 18 de novembro de 2026
 
+## API17 — download de URLs para MP4
+
+`LegacyUrlDownload` lê amostras codificadas de MediaPeriod/SampleStream
+na sua própria thread e usa Media3 Muxer 1.2.1. Não adiciona Transformer
+API21 nem força minSdk de dependência. Seleciona vídeo/áudio compatíveis,
+preserva cabeçalhos, exige HTTP(S) também em URIs filhas e recusa DRM,
+janelas live/dynamic e mudanças incompatíveis de formato. A exportação
+começa do início do item, percorre períodos e não depende de Surface,
+decoder ou relógio de reprodução. Há orçamento por amostra/buffer,
+timeout de carregamento e verificações de espaço livre. O arquivo `.part`
+é privado e só é publicado por rename depois de fechar o container.
+Falha/cancelamento remove somente o temporário criado pelo próprio job.
+
+O serviço oferece download/progresso/cancelamento nos controles de vídeo,
+mantém a vida do serviço/wakelock enquanto necessário e cancela no Stop
+ou destruição. O worker só é criado no primeiro download. Ferramentas
+lista vídeos salvos com reprodução local, exportação e exclusão confirmada;
+o FileProvider só expõe as pastas privadas previstas. URLs locais entram
+por factory confiável; o construtor de rede continua recusando file/content.
+BuildConfig bloqueia UI, início, listagem e criação do worker em DE/AT.
+Quatro textos novos existem nos 22 idiomas. Cornish mantém a indicação
+de rascunho/revisão fluente que já acompanha as traduções desse idioma.
+
+A integração revelou e corrigiu prefixos Annex-B de três bytes em TS,
+tags de idioma BCP47 na API17 e timestamps de quadros B no muxer 1.2.
+O reparo de composição adiciona CTTS assinado e ajusta durações sem mover
+os dados de mídia: o moov anterior vira free e o novo é anexado antes da
+publicação. Há limites de metadados, verificação de contagem e testes JVM
+de payload/offsets, rejeição de estrutura inválida e overflow.
+
+`outputs/legacy-download-final` passou com MP4, HLS, DASH, dois períodos,
+quadros B e reexportação do arquivo reparado. FFmpeg/ffprobe confirmaram
+os seis arquivos, sem mensagens de erro; ambos os casos B produziram 120
+hashes de quadros idênticos à origem. Os demais arquivos também passaram
+por reprodução local. A API17 x86 tem decoder AVC Baseline e extrator
+antigo sem CTTS assinado: não tratar esses testes como suporte físico
+AVC Main. O leitor Media3 de CTTS foi comprovado pela reexportação.
+
+Uma interrupção deixou APK de teste inválido; o build foi reempacotado.
+Os scripts agora verificam ZIP/CRC e resultado textual da instalação antes
+de iniciar instrumentação, além da estrutura/hash ao exportar previews.
+A compilação das duas edições, lint e os sete testes JVM novos passaram.
+Também passaram as regressões gerais de URL/legendas, URL nativa/FCUP,
+gravação, FCast e DLNA. Na edição DE/AT, passaram download/gravação
+bloqueados e os cenários de URL nativa/FCUP e serviço/legendas.
+Uma queda do ADB interrompeu a primeira regressão de gravação; a repetição
+com os mesmos APKs concluiu e removeu os pacotes de teste.
+
+APKs de prévia conferidos (SHA-256):
+
+- Geral: `40722febad4a3498ee0119b5c17d4d358eb072b0423852054be94d1a44d5a65f`.
+- DE/AT: `552218a3c5ec8e139584223bdd260d8f0322ef35895260a73bc934224ec60787`.
+
+São previews debug, sem integração/assinatura final para publicar na loja.
+O verificador de marca preservou os 12 recursos aprovados; a auditoria
+direcionada não encontrou ocorrências nos arquivos ou histórico públicos.
+As telas de Ferramentas passaram nos testes em português e árabe (incluindo
+layout RTL) e em alemão na edição restrita. As três capturas foram conferidas
+visualmente; a imagem em português está em
+`docs/images/fireos3-native-download-tools.png`.
+
+A paridade completa permanece pendente: transcodificação para formatos
+que o muxer não aceita, Cast V2, retransmissão, aprovação/PIN, licença/SDK
+e assinatura de produção, testes físicos e demais itens do plano. HTTPS
+real, live/DRM, uso prolongado/memória em hardware antigo e o defeito nativo
+intermitente não ficam comprovados por esses testes sintéticos.
+
 ## API17 — gravação MKV e HLS pelo canal reverso
 
 A prévia geral integra `LegacyMirrorCapture` ao mesmo `MatroskaRecorder`

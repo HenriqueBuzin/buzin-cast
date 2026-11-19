@@ -92,6 +92,15 @@ public final class LegacyReceiverService extends Service {
     private Exception mediaFailure;
     private LegacySystemMedia systemMedia;
     private LegacyMirrorCapture capture;
+    private LegacyDownloads downloads;
+    private LegacyUrlRequest currentUrlRequest;
+    private io.buzincast.fireos3probe.LegacyUrlDownload.Phase downloadNotice;
+    LegacyDownloads downloads() {return downloads;}
+    boolean canDownload() {return BuildConfig.VIDEO_DOWNLOAD_ENABLED && urlRequested && currentUrlRequest!=null && !currentUrlRequest.localRecording;}
+    void download() {
+        if(!canDownload())return;downloads.start(currentUrlRequest);acquireWakeLock();reconcile();
+    }
+    void playDownload(String name) throws java.io.IOException {loadUrl(LegacyUrlRequest.downloaded(downloads.file(name)));}
     LegacyMirrorCapture capture() {return capture;}
     void playRecording(String name) throws java.io.IOException {
         loadUrl(LegacyUrlRequest.recording(capture.file(name)));
@@ -166,6 +175,16 @@ public final class LegacyReceiverService extends Service {
     @Override public void onCreate() {
         super.onCreate();prefs=new LegacyPreferences(this);name=prefs.name();
         capture=new LegacyMirrorCapture(this,()->main.post(()-> {if(!destroyed)publish();}),BuildConfig.RECORDING_ENABLED);
+        downloads=new LegacyDownloads(this,()->main.post(()-> {
+            if(destroyed)return;
+            io.buzincast.fireos3probe.LegacyUrlDownload.State state=downloads.state();
+            if(state!=null && downloadNotice!=state.phase) {
+                downloadNotice=state.phase;
+                if(state.phase==io.buzincast.fireos3probe.LegacyUrlDownload.Phase.SAVED || state.phase==io.buzincast.fireos3probe.LegacyUrlDownload.Phase.FAILED)
+                    android.widget.Toast.makeText(this,downloads.message(),android.widget.Toast.LENGTH_LONG).show();
+            }
+            reconcile();
+        }),BuildConfig.VIDEO_DOWNLOAD_ENABLED);
         systemMedia=new LegacySystemMedia(this,new LegacySystemMedia.Sink() {
             @Override public void command(LegacyDacp.Command command) {control(command,null);}
             @Override public void gain(float gain) {
@@ -190,7 +209,7 @@ public final class LegacyReceiverService extends Service {
         if(action==null) {if(!opened) {desired=prefs.serviceRequested();bootSession=prefs.bootAutoStart();opened=true;}}
         else if(OPEN.equals(action)) {if(!opened) {desired=prefs.autoStart();opened=true;}}
         else if(START.equals(action)) {desired=true;opened=true;failure=null;urlFailure=null;resetRetries();}
-        else if(STOP.equals(action)) {desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;stopUrl();}
+        else if(STOP.equals(action)) {desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();stopUrl();}
         else if(BOOT.equals(action)) {desired=prefs.bootAutoStart();bootSession=desired;opened=true;}
         else if(RESTART.equals(action)) {name=prefs.name();resetRetries();if(session!=null)stopNative();}
         else if(Intent.ACTION_MEDIA_BUTTON.equals(action)) {
@@ -278,7 +297,7 @@ public final class LegacyReceiverService extends Service {
         if(session!=null)session.audioFocusGain(systemGain);
         bindSurface();
     }
-    private boolean wanted() {return (desired || urlRequested) && (visible || prefs.background() || bootSession || subtitlePicker!=0);}
+    private boolean wanted() {return (desired || urlRequested || downloads!=null && downloads.active()) && (visible || prefs.background() || bootSession || subtitlePicker!=0);}
     /** Internal protocol entry point. Validate before disturbing the active receiver. */
     void loadUrl(LegacyUrlRequest request) {
         loadUrl(request,Protocol.LOCAL);
@@ -286,6 +305,7 @@ public final class LegacyReceiverService extends Service {
     private void loadUrl(LegacyUrlRequest request,Protocol protocol) {
         if(request==null)throw new IllegalArgumentException("Missing media request");
         if(destroyed || !(visible || prefs.background() || subtitlePicker!=0))throw new IllegalStateException("Receiver is unavailable");
+        currentUrlRequest=request;
         urlRequestEpoch++;pendingUrl=request;urlPlay=true;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
         urlStreamSession=session;urlStreamEpoch=session==null?0:session.streamEpoch();
         reconcile();
@@ -576,7 +596,10 @@ public final class LegacyReceiverService extends Service {
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
     }
-    private void releaseWakeLock() {if(wakeLock!=null) {if(wakeLock.isHeld())wakeLock.release();wakeLock=null;}}
+    private void releaseWakeLock() {
+        if(!destroyed && downloads!=null && downloads.active())return;
+        if(wakeLock!=null) {if(wakeLock.isHeld())wakeLock.release();wakeLock=null;}
+    }
     @android.annotation.SuppressLint("WakelockTimeout")
     private void acquireWakeLock() {
         if(wakeLock==null) {
@@ -615,6 +638,7 @@ public final class LegacyReceiverService extends Service {
     @Override public void onDestroy() {
         destroyed=true;++outputEpoch;client=null;observer=null;target=null;closeWatcher();
         if(capture!=null)capture.close();
+        if(downloads!=null)downloads.close();
         if(systemMedia!=null)systemMedia.close();
         fcastEpoch++;
         dlnaEpoch++;networkState=EMPTY_NETWORK;

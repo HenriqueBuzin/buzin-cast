@@ -1,0 +1,48 @@
+"""Generate small synthetic AVC/AAC download fixtures, without reading personal media."""
+import argparse
+import copy
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import xml.etree.ElementTree as ET
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--ffmpeg',default=shutil.which('ffmpeg'))
+    parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats')
+    args=parser.parse_args()
+    if not args.ffmpeg:parser.error('Install FFmpeg or pass --ffmpeg.')
+    args.output.mkdir(parents=True,exist_ok=True)
+    def run(*options):
+        subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y',*options],cwd=args.output,check=True)
+    run('-f','lavfi','-i','testsrc=size=160x90:rate=15','-f','lavfi','-i','anullsrc=r=44100:cl=stereo',
+        '-t','8','-c:v','libx264','-pix_fmt','yuv420p','-profile:v','baseline','-g','30','-keyint_min','30',
+        '-sc_threshold','0','-bf','0','-c:a','aac','-b:a','64k','-movflags','+faststart','movie.mp4')
+    run('-i','movie.mp4','-c','copy','-hls_time','2','-hls_list_size','0','-hls_segment_filename','hls-%02d.ts','movie.m3u8')
+    run('-i','movie.mp4','-c','copy','-f','dash','-seg_duration','2','-use_template','1','-use_timeline','1',
+        '-init_seg_name','init-$RepresentationID$.mp4','-media_seg_name','chunk-$RepresentationID$-$Number$.m4s',
+        '-adaptation_sets','id=0,streams=v id=1,streams=a','movie.mpd')
+    run('-i','movie.mp4','-c:v','libx264','-pix_fmt','yuv420p','-profile:v','main','-g','30','-bf','2',
+        '-c:a','copy','-movflags','+faststart','bframes.mp4')
+    ns='{urn:mpeg:dash:schema:mpd:2011}'
+    tree=ET.parse(args.output/'movie.mpd');root=tree.getroot();period=root.find(ns+'Period')
+    for adaptation in period.findall(ns+'AdaptationSet'):
+        if adaptation.get('contentType')=='audio':adaptation.set('lang','en-US')
+    ET.register_namespace('',ns[1:-1]);tree.write(args.output/'movie.mpd',encoding='utf-8',xml_declaration=True)
+    period.set('duration','PT8S');second=copy.deepcopy(period);second.set('id','1');second.set('start','PT8S')
+    root.append(second);root.set('mediaPresentationDuration','PT16S')
+    tree.write(args.output/'two-periods.mpd',encoding='utf-8',xml_declaration=True)
+    names=['movie.mp4','movie.m3u8','movie.mpd','two-periods.mpd','bframes.mp4']
+    names += [f'hls-{i:02d}.ts' for i in range(4)]
+    names += [f'init-{track}.mp4' for track in range(2)]
+    names += sorted(p.name for p in args.output.glob('chunk-*.m4s'))
+    manifest={'scope':'Synthetic test pattern AVC plus silent AAC; eight seconds, duplicated DASH periods sixteen seconds',
+        'sha256':{name:hashlib.sha256((args.output/name).read_bytes()).hexdigest() for name in names}}
+    (args.output/'fixtures.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+    print(f'Generated {len(names)} synthetic resources.')
+
+
+if __name__=='__main__':main()

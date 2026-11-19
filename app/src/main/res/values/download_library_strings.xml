@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Downloaded videos</string>
+    <string name="tools_downloads_empty">Your downloaded videos will appear here.</string>
+    <string name="tools_delete_download_confirm">Delete downloaded video?</string>
+    <string name="download_cancelled">Download cancelled</string>
+</resources>

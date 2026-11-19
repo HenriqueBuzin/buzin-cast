@@ -28,9 +28,12 @@ de mídia do Android, com teclas em segundo plano e foco de áudio durante
 música/espelhamento. Já recebe URLs nativas, inclusive HLS via canal reverso
 FCUP, FCast v2 e DLNA com fotos, usando os transportes compartilhados. Oferece
 legendas externas SRT/VTT e gravação MKV de H.264/PCM, biblioteca, reprodução
-local, URI de exportação e exclusão. A gravação fica indisponível na edição
-DE/AT. Os testes usam emulador e mídia sintética, como detalhado em
-[TESTING.md](TESTING.md). Ainda faltam download de URLs, Cast V2,
+local, URI de exportação e exclusão. Inclui download de URLs para MP4 sem
+transcodificação, com progresso, cancelamento e biblioteca local, validado
+com AVC/AAC em MP4, HLS e DASH. Download e gravação ficam indisponíveis na
+edição DE/AT. Os testes usam emulador e mídia sintética, como detalhado em
+[TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
+compatíveis com o muxer MP4, Cast V2,
 retransmissão, aprovação/PIN, licença/produção e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
 

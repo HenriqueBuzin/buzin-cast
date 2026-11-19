@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Gedownloade video’s</string>
+    <string name="tools_downloads_empty">Je gedownloade video’s verschijnen hier.</string>
+    <string name="tools_delete_download_confirm">Gedownloade video verwijderen?</string>
+    <string name="download_cancelled">Download geannuleerd</string>
+</resources>

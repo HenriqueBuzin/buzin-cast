@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Vidéos téléchargées</string>
+    <string name="tools_downloads_empty">Vos vidéos téléchargées apparaîtront ici.</string>
+    <string name="tools_delete_download_confirm">Supprimer la vidéo téléchargée ?</string>
+    <string name="download_cancelled">Téléchargement annulé</string>
+</resources>

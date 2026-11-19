@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">डाउनलोड किए गए वीडियो</string>
+    <string name="tools_downloads_empty">आपके डाउनलोड किए गए वीडियो यहाँ दिखाई देंगे।</string>
+    <string name="tools_delete_download_confirm">डाउनलोड किया गया वीडियो मिटाएँ?</string>
+    <string name="download_cancelled">डाउनलोड रद्द किया गया</string>
+</resources>

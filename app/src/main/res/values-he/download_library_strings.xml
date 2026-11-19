@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">סרטונים שהורדו</string>
+    <string name="tools_downloads_empty">הסרטונים שהורדת יופיעו כאן.</string>
+    <string name="tools_delete_download_confirm">למחוק את הסרטון שהורד?</string>
+    <string name="download_cancelled">ההורדה בוטלה</string>
+</resources>

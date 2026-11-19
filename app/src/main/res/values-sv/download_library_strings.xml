@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Hämtade videor</string>
+    <string name="tools_downloads_empty">Dina hämtade videor visas här.</string>
+    <string name="tools_delete_download_confirm">Ta bort den hämtade videon?</string>
+    <string name="download_cancelled">Hämtningen avbröts</string>
+</resources>

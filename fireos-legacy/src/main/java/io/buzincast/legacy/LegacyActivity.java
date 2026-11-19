@@ -63,6 +63,10 @@ public final class LegacyActivity extends Activity {
     private LinearLayout captureLibrary;
     private String captureFilesKey;
     private LegacyMirrorCapture.State captureSnapshot;
+    private Button urlDownload,downloadCancel;
+    private TextView downloadStatus;
+    private LinearLayout downloadLibrary;
+    private String downloadFilesKey;
     private LegacyMedia.State mediaState=LegacyMedia.inactive();
     private LinearLayout mediaPanel,connectionSteps;
     private TextView trackTitle,trackArtist,trackAlbum,trackTime;
@@ -197,7 +201,7 @@ public final class LegacyActivity extends Activity {
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
             video=state.video && !videoDismissed;videoWidth=state.width;videoHeight=state.height;
-            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();fitVideo();updateAwake();
+            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();refreshDownloadUi();fitVideo();updateAwake();
         });
         if(textureTarget!=null)service.showSurface(serviceOwner,textureTarget);
         service.endSubtitlePicker();
@@ -228,6 +232,12 @@ public final class LegacyActivity extends Activity {
             Button subtitles=button(this,R.string.subtitle_external,false,this::subtitleDialog);subtitles.setText("CC");subtitles.setTag("url-subtitles");subtitles.setContentDescription(getString(R.string.subtitle_external));
             Button stop=button(this,R.string.btn_stop,false,()-> {if(service!=null)service.stopUrl();});stop.setTag("url-stop");
             for(Button button:new Button[]{urlRewind,urlToggle,urlForward,urlSpeed,subtitles,stop})buttons.addView(button,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            if(BuildConfig.VIDEO_DOWNLOAD_ENABLED) {
+                urlDownload=button(this,R.string.cd_download,false,()-> {
+                    if(service==null)return;
+                    if(service.downloads().busy())service.downloads().cancel();else service.download();refreshUrlUi();
+                });urlDownload.setTag("url-download");buttons.addView(urlDownload,new LinearLayout.LayoutParams(0,dp(this,48),1));
+            }
             FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);params.setMargins(dp(this,24),0,dp(this,24),dp(this,16));root.addView(urlControls,params);
             urlControls.setVisibility(View.GONE);
             urlCaption=text(this,"",22,WHITE,true);urlCaption.setTag("url-caption");urlCaption.setGravity(Gravity.CENTER);
@@ -250,6 +260,12 @@ public final class LegacyActivity extends Activity {
         urlToggle.setText(senderPlaying()?"Ⅱ":"▶");urlToggle.setContentDescription(getString(R.string.cd_play_pause));
         urlSpeed.setText(String.format(Locale.getDefault(),"%.2f×",urlState.speed));urlSpeed.setContentDescription(getString(R.string.select_playback_speed));
         boolean ready=urlState.phase==LegacyUrlPlayer.Phase.READY;
+        if(urlDownload!=null && service!=null) {
+            boolean downloading=service.downloads().busy();io.buzincast.fireos3probe.LegacyUrlDownload.State progress=service.downloads().state();
+            urlDownload.setEnabled(downloading || ready && service.canDownload());
+            urlDownload.setText(downloading?progress!=null && progress.progress>=0?progress.progress+"%":"■":"↓");
+            urlDownload.setContentDescription(getString(downloading?R.string.cd_cancel_download:R.string.cd_download));
+        }
         urlToggle.setEnabled(ready);urlRewind.setEnabled(ready && urlState.durationMs>0);urlForward.setEnabled(ready && urlState.durationMs>0);
         if(!wasVisible) {
             if(ready)urlToggle.requestFocus();else urlControls.findViewWithTag("url-stop").requestFocus();
@@ -348,6 +364,7 @@ public final class LegacyActivity extends Activity {
     private void render() {
         if(pane==null)return;
         captureToggle=null;captureStatus=null;captureLibrary=null;captureFilesKey=null;captureSnapshot=null;
+        downloadStatus=null;downloadLibrary=null;downloadCancel=null;downloadFilesKey=null;
         receiverStatus=receiverLabel=diagnosticView=null;receiverToggle=null;
         senderControls=null;
         root.removeCallbacks(mediaTick);mediaPanel=connectionSteps=null;shownArtwork=null;
@@ -475,6 +492,14 @@ public final class LegacyActivity extends Activity {
             Button refresh=button(this,R.string.tools_refresh,false,()-> {captureFilesKey=null;refreshCaptureUi();});refresh.setTag("capture-refresh");addSpaced(body,refresh,-2);
             captureLibrary=column(this);addSpaced(body,captureLibrary,-2);refreshCaptureUi();
         }
+        if(BuildConfig.VIDEO_DOWNLOAD_ENABLED) {
+            addSpaced(body,text(this,getString(R.string.tools_downloads),18,WHITE,true),-2);
+            downloadStatus=text(this,"",13,MUTED,false);downloadStatus.setTag("download-status");addSpaced(body,downloadStatus,-2);
+            downloadCancel=button(this,R.string.cd_cancel_download,false,()-> {if(service!=null)service.downloads().cancel();});
+            downloadCancel.setTag("download-cancel");addSpaced(body,downloadCancel,-2);
+            Button refresh=button(this,R.string.tools_refresh,false,()-> {downloadFilesKey=null;refreshDownloadUi();});refresh.setTag("download-refresh");addSpaced(body,refresh,-2);
+            downloadLibrary=column(this);addSpaced(body,downloadLibrary,-2);refreshDownloadUi();
+        }
         LinearLayout calibrate=row(this,getString(R.string.tools_calibrate),getString(R.string.setting_tv_margin_desc),()->calibrate(prefs.margin()));
         calibrate.setTag("calibration");addSpaced(body,calibrate,-2);
         addSpaced(body,row(this,getString(R.string.tools_connection_diagnostics),null,()->diagnostics(true)),-2);
@@ -500,10 +525,7 @@ public final class LegacyActivity extends Activity {
             Button play=button(this,R.string.tools_play,false,()->recordingAction(()->service.playRecording(name)));
             Button share=button(this,R.string.btn_export,false,()->recordingAction(()-> {
                 Uri uri=androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".recordings",service.capture().file(name));
-                Intent send=new Intent(Intent.ACTION_SEND).setType("video/x-matroska").putExtra(Intent.EXTRA_STREAM,uri)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                send.setClipData(android.content.ClipData.newRawUri(name,uri));
-                startActivity(Intent.createChooser(send,getString(R.string.btn_export)));
+                shareLocal(uri,name,"video/x-matroska");
             }));
             Button delete=button(this,R.string.tools_delete,false,()->deleteRecording(name));
             play.setTag("capture-play:"+name);share.setTag("capture-share:"+name);delete.setTag("capture-delete:"+name);
@@ -511,6 +533,39 @@ public final class LegacyActivity extends Activity {
         }
     }
     private interface RecordingAction {void run() throws Exception;}
+    private void shareLocal(Uri uri,String name,String mime) {
+        Intent send=new Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM,uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        send.setClipData(android.content.ClipData.newRawUri(name,uri));startActivity(Intent.createChooser(send,getString(R.string.btn_export)));
+    }
+    private void refreshDownloadUi() {
+        if(downloadStatus==null || service==null)return;
+        LegacyDownloads downloads=service.downloads();downloadStatus.setText(downloads.message());
+        downloadCancel.setVisibility(downloads.busy()?View.VISIBLE:View.GONE);
+        io.buzincast.fireos3probe.LegacyUrlDownload.State state=downloads.state();
+        String key=downloads.busy()+"|"+(state==null?"":state.phase)+"|"+(state==null || state.file==null?"":state.file.getName());
+        if(key.equals(downloadFilesKey))return;downloadFilesKey=key;downloadLibrary.removeAllViews();
+        java.io.File[] files=downloads.files();
+        if(files.length==0)downloadLibrary.addView(text(this,getString(R.string.tools_downloads_empty),13,MUTED,false));
+        for(java.io.File file:files) {
+            String name=file.getName();downloadLibrary.addView(text(this,name+" · "+file.length()/1024+" KB",13,WHITE,false));
+            LinearLayout actions=new LinearLayout(this);downloadLibrary.addView(actions);
+            Button play=button(this,R.string.tools_play,false,()->recordingAction(()->service.playDownload(name)));
+            Button share=button(this,R.string.btn_export,false,()->recordingAction(()->shareLocal(
+                androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".recordings",downloads.file(name)),name,"video/mp4")));
+            Button delete=button(this,R.string.tools_delete,false,()->deleteDownload(name));
+            play.setTag("download-play:"+name);share.setTag("download-share:"+name);delete.setTag("download-delete:"+name);
+            for(Button action:new Button[]{play,share,delete}) {action.setEnabled(!downloads.busy());actions.addView(action,new LinearLayout.LayoutParams(0,dp(this,48),1));}
+        }
+    }
+    private void deleteDownload(String name) {
+        Modal modal=dialog();LinearLayout body=dialogBody(modal,dp(this,260));
+        addSpaced(body,text(this,getString(R.string.tools_delete_download_confirm),20,WHITE,true),-2);
+        addSpaced(body,text(this,name,13,MUTED,false),-2);
+        Button confirm=button(this,R.string.tools_delete,false,()-> {
+            recordingAction(()->service.downloads().delete(name));modal.dismiss();downloadFilesKey=null;refreshDownloadUi();
+        });confirm.setTag("download-delete-confirm");addSpaced(body,confirm,-2);
+        Button cancel=button(this,android.R.string.cancel,false,modal::dismiss);addSpaced(body,cancel,-2);show(modal);cancel.requestFocus();
+    }
     private void recordingAction(RecordingAction action) {
         try {if(service!=null)action.run();}
         catch(Exception error) {Toast.makeText(this,R.string.error_label,Toast.LENGTH_SHORT).show();}

@@ -30,6 +30,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.2.1")
+    implementation("androidx.media3:media3-muxer:1.2.1")
     runtimeOnly("org.slf4j:slf4j-nop:2.0.7")
     testImplementation(libs.junit4)
 }

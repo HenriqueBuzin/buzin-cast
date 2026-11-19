@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tools_downloads">Ληφθέντα βίντεο</string>
+    <string name="tools_downloads_empty">Τα βίντεο που κατεβάζετε θα εμφανίζονται εδώ.</string>
+    <string name="tools_delete_download_confirm">Να διαγραφεί το ληφθέν βίντεο;</string>
+    <string name="download_cancelled">Η λήψη ακυρώθηκε</string>
+</resources>

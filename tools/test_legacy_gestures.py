@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
+from zipfile import ZipFile
 
 
 def main():
@@ -25,12 +26,18 @@ def main():
     parser.add_argument('--dlna',action='store_true',help='Verify shared DLNA SOAP playback, photos and lifecycle on API17.')
     parser.add_argument('--native-url',action='store_true',help='Verify native UxPlay HTTP URL commands, JNI snapshots, playback and shutdown.')
     parser.add_argument('--recording',action='store_true',help='Verify native H.264/PCM recording, real MKV/local playback/export/delete, or DE/AT recording disabled.')
+    parser.add_argument('--download',action='store_true',help='Verify API17 MP4/HLS/DASH export, local playback, library, cancellation and restricted gate.')
     parser.add_argument('--ffprobe',type=Path,help='Optional ffprobe executable for independent packet/track validation of the synthetic recording.')
+    parser.add_argument('--ffmpeg',type=Path,help='Optional FFmpeg executable for independent decoding of exported download fixtures.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
         'com.buzincast.tv.legacy.preview','com.buzincast.tv.deat.legacy.preview'])
     parser.add_argument('--output',type=Path,default=Path('outputs/legacy-gesture-checks'))
     args=parser.parse_args()
-    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
+    for path in (args.apk,args.test_apk):
+        with ZipFile(path) as archive:
+            if not {'AndroidManifest.xml','classes.dex'}.issubset(archive.namelist()) or archive.testzip() is not None:
+                parser.error('APK is incomplete or corrupt: '+str(path))
+    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -56,6 +63,7 @@ def main():
     if args.dlna:report['scope']='Shared DLNA SOAP transport, synthetic HTTP playback, photo controls and lifecycle on API17; not physical sender interoperability'
     if args.native_url:report['scope']='Native UxPlay HTTP URL callbacks through JNI/service/Media3 on API17; synthetic direct MP4/HLS/AAC and FCUP reverse-channel HLS, not a physical Apple sender test'
     if args.recording:report['scope']='Synthetic native H.264/ALAC through bounded capture/shared Matroska writer, actual local playback/export/delete; DE/AT negative gate; not physical mirroring'
+    if args.download:report['scope']='Synthetic AVC/AAC MP4/HLS/DASH, repeated DASH periods and B-frame AVC -> MP4 export/local playback/library/cancellation; DE/AT disabled; not transcoding, physical or real HTTPS validation'
     if display:report['display_init']=display
     def capture_native_view():
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-metadata.b64',timeout=30))
@@ -129,16 +137,47 @@ def main():
     try:
         adb('shell','input','keyevent',82)
         for package,path in [(args.package,args.apk),(args.package+'.test',args.test_apk)]:
-            adb('install','-r',path.resolve());installed.append(package)
+            result=adb('install','-r',path.resolve())
+            if not re.search(r'(?m)^Success\s*$',result):raise AssertionError('APK installation failed: '+result.strip())
+            installed.append(package)
         adb('shell','pm','clear',args.package)
         adb('logcat','-c')
-        options=['-e','checks','recording' if args.recording else 'native_url' if args.native_url else 'dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna or args.native_url or args.recording else []
+        options=['-e','checks','download' if args.download else 'recording' if args.recording else 'native_url' if args.native_url else 'dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna or args.native_url or args.recording or args.download else []
         result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
-        expected=('recording=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'recording=native_h264_pcm_mkv_local_play_export_delete') if args.recording else 'native_url=native_http_play_info_rate_seek_stop_and_lifecycle' if args.native_url else 'dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
+        expected=('download=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'download=mp4_hls_dash_multiperiod_bframes_cancel_local_library') if args.download else ('recording=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'recording=native_h264_pcm_mkv_local_play_export_delete') if args.recording else 'native_url=native_http_play_info_rate_seek_stop_and_lifecycle' if args.native_url else 'dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
+        if args.download and not args.package.endswith('deat.legacy.preview'):
+            artifacts=[]
+            for index in range(6):
+                payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
+                if payload[4:8]!=b'ftyp':raise AssertionError('Download artifact was not MP4')
+                path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload)
+                record={'file':path.name}
+                if args.ffmpeg:
+                    decoded=subprocess.run([str(args.ffmpeg),'-hide_banner','-loglevel','error','-xerror','-i',str(path),'-map','0:v:0','-map','0:a:0','-f','null','-'],check=True,timeout=30,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+                    if decoded.stderr.strip():raise AssertionError('Independent decode/timestamp errors in '+path.name+': '+decoded.stderr.decode('utf-8','replace')[:1200])
+                    record['independent_decode']='pass'
+                    if index>=4:
+                        original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats/bframes.mp4'
+                        def frames(media):
+                            result=subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-f','framemd5','-'],timeout=30)
+                            return [line.rsplit(b',',1)[-1].strip() for line in result.splitlines() if not line.startswith(b'#')]
+                        expected_frames=frames(original);actual_frames=frames(path)
+                        if actual_frames!=expected_frames or len(actual_frames)!=120:raise AssertionError('B-frame export changed decoded video frames')
+                        record['decoded_frame_hashes']='120 identical to the source'
+                if args.ffprobe:
+                    probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-show_format','-of','json',str(path)],timeout=30))
+                    video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
+                    audio=next((s for s in probe['streams'] if s.get('codec_type')=='audio'),{})
+                    if video.get('codec_name')!='h264' or int(video.get('nb_read_packets',0))<100 or audio.get('codec_name')!='aac' or int(audio.get('nb_read_packets',0))<300:
+                        raise AssertionError('Independent download codec/packet checks failed')
+                    record.update(video_packets=int(video['nb_read_packets']),aac_packets=int(audio['nb_read_packets']))
+                    (args.output/f'ffprobe-{index}.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
+                artifacts.append(record)
+            report['download_artifacts']=artifacts
         if args.recording and not args.package.endswith('deat.legacy.preview'):
             payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-recording.b64',timeout=30))
             if not payload.startswith(bytes.fromhex('1a45dfa3')):raise AssertionError('Recording artifact was not Matroska')
@@ -181,7 +220,7 @@ def main():
                 raise AssertionError('Test APK did not run mirror transition checks')
             report['mirror_modes']='three headless encoded-packet/native RTSP teardown cycles; metadata isolation, duck/transient/permanent audio focus without music commands, explicit Play focus recovery, fresh audio metadata, same native receiver; not decoded video or a real sender'
             report['system_media']='platform client metadata/artwork ownership, audio focus duck/loss/gain, real background media keys, launcher return, unregister and no RTSP resurrection after stop'
-        report['status']='pass';report['recording_lifecycle_or_restricted_gate' if args.recording else 'native_http_url_callbacks_playback_lifecycle' if args.native_url else 'dlna_soap_photos_lifecycle' if args.dlna else 'fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
+        report['status']='pass';report['download_lifecycle_or_restricted_gate' if args.download else 'recording_lifecycle_or_restricted_gate' if args.recording else 'native_http_url_callbacks_playback_lifecycle' if args.native_url else 'dlna_soap_photos_lifecycle' if args.dlna else 'fcast_transport_discovery_playback_lifecycle' if args.fcast else 'url_service_handoff_http_controls_recovery' if args.url_service else 'sender_control_native_dns_http_touch_keys' if args.controls else 'touch_and_dpad_across_receiver_restart']='pass'
     except Exception as error:
         report['status']='failed';report['error']=str(error)
         try:
@@ -191,6 +230,17 @@ def main():
         raise
     finally:
         try:
+            if args.download and not args.package.endswith('deat.legacy.preview') and args.package in installed and report.get('status')!='pass':
+                try:
+                    available=adb('shell','run-as',args.package,'ls','files',timeout=30).split()
+                    artifacts=[]
+                    for index in range(6):
+                        if f'legacy-download-{index}.b64' not in available:continue
+                        payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
+                        if payload[4:8]==b'ftyp':
+                            path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload);artifacts.append(path.name)
+                    report['diagnostic_downloads']=artifacts
+                except Exception as diagnostic:report['diagnostic_download_error']=type(diagnostic).__name__
             if args.recording and not args.package.endswith('deat.legacy.preview') and args.package in installed and not (args.output/'synthetic-recording.mkv').exists():
                 try:
                     payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/legacy-recording.b64',timeout=30))

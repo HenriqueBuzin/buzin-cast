@@ -17,9 +17,15 @@ public final class LegacyUrlRequest {
     public final boolean localRecording;
     /** Trusted frontend-only entry point; network constructors remain HTTP(S)-only. */
     public static LegacyUrlRequest recording(java.io.File file) throws java.io.IOException {
+        return local(file,"video/x-matroska");
+    }
+    public static LegacyUrlRequest downloaded(java.io.File file) throws java.io.IOException {
+        return local(file,"video/mp4");
+    }
+    private static LegacyUrlRequest local(java.io.File file,String mime) throws java.io.IOException {
         java.io.File canonical=file.getCanonicalFile();
         if(!canonical.isFile())throw new java.io.IOException("Recording is unavailable");
-        return new LegacyUrlRequest(canonical.toURI().toASCIIString(),0,Collections.emptyMap(),"video/x-matroska",true);
+        return new LegacyUrlRequest(canonical.toURI().toASCIIString(),0,Collections.emptyMap(),mime,true);
     }
     private LegacyUrlRequest(String location,long start,Map<String,String> headers,String mime,boolean local) {
         this.location=location;this.startMs=start;this.headers=headers;this.mime=mime;this.localRecording=local;
