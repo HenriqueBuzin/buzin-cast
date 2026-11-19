@@ -850,3 +850,12 @@ Its matching Android-only execution profile, APKs, native library, source and
 class mappings were archived before reporting, with no unrelated JVM profiles.
 The current full normal run predates these two cases; the next complete cohort
 must therefore run 189 Android tests, plus the current 19 native cases.
+
+The frozen 187-test normal cohort subsequently completed every required runtime
+result label and generated both JaCoCo and LLVM reports. Its archived snapshot
+validated independently, including the exact source/compiled-input identities.
+The strict gate correctly remains below target: JVM branches are 3975/5948 and
+lines 7298/8413; native branches are 792/916 and MC/DC 123/167. No complete-edition
+metric is yet at 100%. This establishes a valid current production-code gap
+inventory; it does not prove coverage for the other three editions or include
+the later two ViewModel tests and unit-only clock assertions.
