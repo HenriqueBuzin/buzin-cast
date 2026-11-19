@@ -27,6 +27,7 @@ std::string BuzinNetwork::getAirPlayVideoState() {
   std::ostringstream output; output.imbue(std::locale::classic());
   output << "{\"phase\":\"" << state.phase << "\",\"generation\":" << state.generation
     << ",\"accepted\":" << state.accepted << ",\"dropped\":" << state.dropped << ",\"flushes\":" << state.flushes
+    << ",\"audioAccepted\":" << state.audioAccepted << ",\"audioDropped\":" << state.audioDropped
     << ",\"queuedBytes\":" << state.queuedBytes << ",\"released\":" << (state.released ? "true" : "false")
     << ",\"error\":\"" << state.error << "\"}";
   const auto json = output.str();

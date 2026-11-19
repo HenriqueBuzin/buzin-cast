@@ -6,6 +6,7 @@
 struct AirPlayVideoState {
   std::string phase = "stopped", error;
   uint64_t generation = 0, accepted = 0, dropped = 0, flushes = 0;
+  uint64_t audioAccepted = 0, audioDropped = 0;
   size_t queuedBytes = 0;
   int width = 0, height = 0;
   bool released = true;
@@ -31,6 +32,8 @@ public:
   void stop() noexcept;
   void format(int width, int height) noexcept;
   void sample(const uint8_t* bytes, size_t length, bool h265, uint64_t localNtpNs) noexcept;
+  void audioFormat(int codec, int samplesPerFrame) noexcept;
+  void audioSample(const uint8_t* bytes, size_t length, int codec, uint64_t localNtpNs) noexcept;
   void flush() noexcept;
   void end() noexcept;
   bool poll(AirPlayVideoCommand& command);

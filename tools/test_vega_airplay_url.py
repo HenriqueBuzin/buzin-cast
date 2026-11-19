@@ -21,6 +21,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--vpkg', type=Path, required=True)
+    parser.add_argument('--media-file', type=Path, default=ROOT / 'vega/assets/raw/media/playback-sample.mp4')
+    parser.add_argument('--live', action='store_true', help='Check startup and release without seeking in an unindexed MP4')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-airplay-url')
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -28,14 +30,14 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     sdk = shutil.which('vega')
     history = []
-    result = {'physicalValidation': False, 'checks': {}}
+    result = {'physicalValidation': False, 'liveStartupOnly': args.live, 'checks': {}}
     forwards = []
     client = None
     log_stream = None
     log_output = None
     media_requests = []
 
-    content = (ROOT / 'vega/assets/raw/media/playback-sample.mp4').read_bytes()
+    content = args.media_file.read_bytes()
 
     class Media(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -144,27 +146,38 @@ def main():
                     self.will_close = self.headers.get('Connection', '').lower() == 'close'
         client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
         client.response_class = AirPlayResponse
-        request('POST', '/play', b'Content-Location: http://127.0.0.1:40881/playback-sample.mp4\r\nStart-Position: 1\r\n')
+        start = 0 if args.live else 1
+        request('POST', '/play', f'Content-Location: http://127.0.0.1:40881/playback-sample.mp4\r\nStart-Position: {start}\r\n'.encode())
         # A currentTime setter can expose its target before native seeking
         # finishes. Require an advancing clock before issuing pause.
-        result['checks']['playing'] = wait(lambda value: value.get('rate', 0) > 0 and value.get('position', 0) > 1.3)
-        request('POST', '/rate?value=0')
-        paused = wait(lambda value: value.get('rate') == 0 and value.get('duration', 0) > 0)
-        time.sleep(0.5)
-        held = info()
-        if abs(held['position'] - paused['position']) > 0.3:
-            raise RuntimeError('Paused clock advanced')
-        result['checks']['paused'] = held
-        request('POST', '/scrub?position=3')
-        result['checks']['seek'] = wait(lambda value: abs(value.get('position', 0) - 3) < 0.4)
-        request('POST', '/rate?value=1')
-        result['checks']['resumed'] = wait(lambda value: value.get('rate', 0) > 0 and value.get('position', 0) > 3.3)
-        request('POST', '/stop')
-        result['checks']['stopped'] = wait(lambda value: value.get('rate') == 0 and value.get('duration') == 0)
+        result['checks']['playing'] = wait(lambda value: value.get('rate', 0) > 0 and value.get('position', 0) > start + 0.3)
+        try:
+            result['videoQuality'] = json.loads(shell('-c', COMPONENT, 'cat', '/data/video-quality.json'))
+        except (RuntimeError, json.JSONDecodeError):
+            result['videoQuality'] = {'available': False}
+        if not args.live:
+            request('POST', '/rate?value=0')
+            paused = wait(lambda value: value.get('rate') == 0 and value.get('duration', 0) > 0)
+            time.sleep(0.5)
+            held = info()
+            if abs(held['position'] - paused['position']) > 0.3:
+                raise RuntimeError('Paused clock advanced')
+            result['checks']['paused'] = held
+            request('POST', '/scrub?position=3')
+            result['checks']['seek'] = wait(lambda value: abs(value.get('position', 0) - 3) < 0.4)
+            request('POST', '/rate?value=1')
+            result['checks']['resumed'] = wait(lambda value: value.get('rate', 0) > 0 and value.get('position', 0) > 3.3)
+            request('POST', '/stop')
+            result['checks']['stopped'] = wait(lambda value: value.get('rate') == 0 and value.get('duration') == 0)
         if not any(value['body'] for value in media_requests):
             raise RuntimeError('The system player did not request the media')
         shell('inputd-cli', 'button_press', 'KEY_BACK')
-        result['checks']['released'] = json.loads(shell('-c', COMPONENT, 'cat', '/data/playback-state.json'))
+        deadline = time.monotonic() + 5
+        while True:
+            result['checks']['released'] = json.loads(shell('-c', COMPONENT, 'cat', '/data/playback-state.json'))
+            if result['checks']['released']['state'] == 'released' or time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
         if result['checks']['released']['state'] != 'released':
             raise RuntimeError('Native player was not released')
         result['mediaRequests'] = media_requests

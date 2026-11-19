@@ -85,7 +85,8 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   callbacks.audio_process = [](void* cls, raop_ntp_t*, audio_decode_struct* data) {
     auto& state = Impl::self(cls);
     if (data && state.audio) forwardAirPlayAudio(*state.audio, data);
-    else if (data && !state.video) state.sample(AirPlayEvent::Kind::Audio, data->data, data->data_len, data->ct, data->ntp_time_local, data->ntp_time_remote);
+    else if (data && state.video) forwardAirPlayMirrorAudio(*state.video, data);
+    else if (data) state.sample(AirPlayEvent::Kind::Audio, data->data, data->data_len, data->ct, data->ntp_time_local, data->ntp_time_remote);
   };
   callbacks.video_process = [](void* cls, raop_ntp_t*, video_decode_struct* data) {
     auto& state = Impl::self(cls);
@@ -108,11 +109,19 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   };
   callbacks.audio_flush = [](void* cls) {
     auto& state = Impl::self(cls);
-    if (state.audio) state.audio->flush(); else state.simple(AirPlayEvent::Kind::FlushAudio);
+    if (state.audio) state.audio->flush();
+    else if (state.video) state.video->flush();
+    else state.simple(AirPlayEvent::Kind::FlushAudio);
   };
   callbacks.audio_get_format = [](void* cls, unsigned char* codec, unsigned short* spf, bool*, bool*, uint64_t*) {
-    if (auto* audio = Impl::self(cls).audio) {
-      audio->format(codec ? *codec : 0, spf ? *spf : 0);
+    auto& state = Impl::self(cls);
+    if (state.audio) state.audio->format(codec ? *codec : 0, spf ? *spf : 0);
+    else if (state.video) {
+      // The Vega URL player stalled during ALAC preroll on VVD. Keep video
+      // available until this track has a working playback path. The native
+      // audio receiver uses its own ALAC decoder and remains independent.
+      const int mirrorCodec = codec && *codec != 2 ? *codec : 0;
+      state.video->audioFormat(mirrorCodec, spf ? *spf : 0);
     }
   };
   callbacks.audio_set_volume = [](void* cls, float value) {
