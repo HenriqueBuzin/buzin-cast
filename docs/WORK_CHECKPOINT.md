@@ -1,5 +1,50 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — CTR validado e guarda de pilha compatível com x86 antigo
+
+Os candidatos foram reconstruídos com o patch compartilhado UxPlay 0017.
+O teste `MirrorCryptoTest.cpp`, também usado no Vega, agora pode ser compilado
+por `build_native_tests.py --legacy --mirror-crypto` com NDK r23/C++17 e o
+OpenSSL do runtime Android. Na API17 x86, passaram 66 combinações de
+fragmentos curtos/vazios, saída in-place/separada e troca de chave, comparando
+todos os 4097 bytes com a referência. O processo e seu teardown encerraram
+com status zero. Evidência: `outputs/legacy-ctr-native-x86-global`.
+O teste ARM também compilou em `outputs/legacy-ctr-native-arm`; `passed=null`
+registra corretamente que não houve execução ARM.
+
+O primeiro ensaio x86 abortou antes da comparação CTR: o NDK usa TLS slot 5
+como canário, mas o Bionic 4.2 ainda permite que pthread keys usem esse slot.
+O diagnóstico observou zero antes do OpenSSL e um ponteiro depois, com a
+guarda global estável. A reserva aparece no Bionic 4.3. O runtime x86/API17
+passou a usar `-mstack-protector-guard=global`, mantendo stack protector forte.
+A inspeção de `OPENSSL_init_crypto` confirmou proteção presente e ausência
+do acesso à guarda TLS. UBSan por trap permanece ligado no teste.
+O prefixo de build separado impede reutilizar o OpenSSL antigo, pois o
+wrapper considera uma instalação existente pronta mesmo se CFLAGS mudou.
+ARM e o frontend moderno mantêm suas opções anteriores.
+
+Os dois builds completos com `-Check` passaram. Os releases foram verificados
+com `test_legacy_store.py`: assinatura v1, chaves por ficha, abertura, RTSP,
+navegação, seleção persistente e Sobre. Os hashes testados conferem com os
+exports finais; as capturas de referência continuam pixel a pixel iguais.
+
+- Geral: `03d83a8f0c15ad385ed7cd5ff319a89c31a8bf09e96bdfd08fbfef4d814c050f`.
+- DE/AT: `4df30ea768ba20162e46a111d0cf8bd5e06ef477880ece9e692bcaab18bc0768`.
+- Builds: `outputs/legacy-ctr-global-store-build.log` e
+  `outputs/legacy-ctr-global-deat-store-build.log`.
+- Releases em execução: `outputs/legacy-ctr-store-smoke/report.json` e
+  `outputs/legacy-ctr-deat-store-smoke/report.json`.
+- PIN/SRP dentro do app, com cliente criptográfico independente, entradas
+  inválidas, UI, anúncio, segundo plano e parada:
+  `outputs/legacy-ctr-pin/report.json`, aprovado.
+
+Auditoria pública de arquivos/histórico sem achados e 12 artes preservadas.
+Nenhuma TV física foi usada. As instalações de teste foram removidas.
+Ainda faltam licença concedida pela Appstore/LAT, execução ARM/Stick físico,
+coordenação dos códigos/dispositivos com os APKs moderno/compatível e os
+demais itens de paridade. Os candidatos continuam `submissionReady=false`
+e não foram enviados; estes ensaios não certificam negociação FairPlay.
+
 ## API17 — candidatos de produção assinados e SDK Appstore
 
 `Build-FireOs.ps1 -Target legacy -Release` agora produz os pacotes reais

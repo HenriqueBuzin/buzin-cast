@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -49,4 +50,5 @@ int main() {
     // Re-key after a partial final block, on the same native object.
     partition(receiver.get(),0x0102030405060708+chunk,chunk,inplace);
   }
+  std::puts("Mirror AES-CTR: 66 partition/re-key cases passed");
 }
