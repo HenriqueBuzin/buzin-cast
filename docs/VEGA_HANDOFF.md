@@ -1,5 +1,31 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Áudio AAC-LC na sessão de espelhamento — 19 de novembro de 2026
+
+A sessão AirPlay encaminha os callbacks AAC-LC (codec 4, 960 ou 1024
+amostras por pacote) ao mesmo worker de H.264. As duas trilhas usam uma
+origem NTP comum. O worker aguarda áudio, IDR e o próximo quadro de vídeo
+para calcular a duração inicial antes de anunciar o fMP4 ao player. Calcula
+as durações seguintes pelo próximo timestamp, preserva lacunas e descarta
+sobreposição de áudio acima da margem de arredondamento de um tick. Filas
+de entrada, amostras retidas e amostra em processamento compartilham o limite
+existente de 8 MiB e 256 eventos. A espera inicial com amostras retidas tem
+prazo de três segundos. Flush invalida as duas trilhas e abre nova época.
+
+Os testes com sanitizadores cobrem início em ambas as ordens, atraso de 80 ms,
+cadência variável de vídeo, perda de pacote atrasado, flush e espera sem áudio.
+O probe `--av-mux` passou a usar os mesmos helpers de callback e o worker
+do app. Em dois ciclos no VVD, o arquivo gerado preservou 120 quadros, 346
+pacotes AAC e 80 ms de atraso. O probe escreve em arquivo para conferência
+independente no host. A tela manual também passou em dois ciclos de
+abertura, Voltar/background e fechamento do socket e worker.
+Relatórios em `build/vega-av-worker-final` e `build/vega-av-worker-ui`.
+
+O modo sem AAC-LC negociado continua com vídeo apenas. Faltam AAC-ELD/ALAC
+nesta saída, validação com emissor Apple e verificação de imagem, som e
+sincronização durante reprodução no aparelho. O ensaio de arquivo mede a
+linha do tempo do contêiner. O ensaio da tela mede o ciclo de vida do receptor.
+
 ## Linha do tempo comum no MP4 de espelhamento — 19 de novembro de 2026
 
 O muxer nativo e a saída HTTP local aceitam uma trilha opcional AAC-LC estéreo

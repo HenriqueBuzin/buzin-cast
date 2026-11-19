@@ -10,11 +10,10 @@ public:
   ~Fmp4VideoOutput() override;
   Fmp4VideoOutput(const Fmp4VideoOutput&) = delete;
   Fmp4VideoOutput& operator=(const Fmp4VideoOutput&) = delete;
-  std::string start(int width, int height, const std::vector<uint8_t>& parameterSets) override;
   std::string start(int width, int height, const std::vector<uint8_t>& parameterSets,
-                    int aacSamplesPerFrame);
+                    int aacSamplesPerFrame = 0) override;
   void append(const std::vector<uint8_t>& sample, int64_t ptsUs, int64_t dtsUs, int64_t durationUs) override;
-  void appendAac(const std::vector<uint8_t>& sample, int64_t ptsUs);
+  void appendAac(const std::vector<uint8_t>& sample, int64_t ptsUs) override;
   void finish() override;
   void waitFinished(std::chrono::milliseconds timeout = std::chrono::seconds(15)) override;
   void cancel() noexcept override;

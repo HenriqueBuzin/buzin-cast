@@ -23,9 +23,6 @@ struct Fmp4VideoOutput::Impl {
 };
 Fmp4VideoOutput::Fmp4VideoOutput() : impl(std::make_unique<Impl>()) {}
 Fmp4VideoOutput::~Fmp4VideoOutput() {stop();}
-std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint8_t>& parameters) {
-  return start(width, height, parameters, 0);
-}
 std::string Fmp4VideoOutput::start(int width, int height, const std::vector<uint8_t>& parameters,
                                  int aacSamplesPerFrame) {
   stop();

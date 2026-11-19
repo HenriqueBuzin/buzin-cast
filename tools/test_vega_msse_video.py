@@ -168,6 +168,8 @@ def main():
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
         if len(cycles) != 2 or any(c.get('released') is not True or (not remuxing and c.get('seconds', 0) < 7.8) for c in cycles):
             raise RuntimeError('Two native video playback cycles were not observed')
+        if args.av_mux and any(c.get('workerOwned') is not True or c.get('audioPackets') != len(audio_packets) for c in cycles):
+            raise RuntimeError('Expected both tracks to pass through the native callback worker')
         if not remuxing and any(c.get('totalFrames', 0) <= 0 for c in cycles):
             raise RuntimeError('No native video frames were observed; clock alone does not prove decoding')
         if remuxing:

@@ -11,7 +11,7 @@
 #include <thread>
 
 struct AirPlayVideoWorker::Impl {
-  enum class Kind {Sample, Reset, End};
+  enum class Kind {Sample, Audio, Reset, End};
   struct Event {
     Kind kind = Kind::Reset;
     uint64_t generation = 0, ntp = 0;
@@ -27,12 +27,25 @@ struct AirPlayVideoWorker::Impl {
   std::thread worker;
   AirPlayVideoState observation;
   bool closing = true, processing = false, inputEnded = false;
-  size_t inFlightBytes = 0;
+  size_t inFlightBytes = 0, heldBytes = 0, heldCount = 0;
+  int aacSamples = 0;
 
   // Called with mutex held; cancel never joins the media worker. Keep this
   // ordering so a late cancellation cannot stop the next generation's output.
   void cancelLocked() noexcept {if (active) active->cancel();}
-  void clearLocked() {queue.clear(); observation.queuedBytes = inFlightBytes;}
+  void clearLocked() {queue.clear(); observation.queuedBytes = inFlightBytes + heldBytes;}
+  bool fullLocked(size_t bytes) const {
+    return queue.size() + heldCount + (processing ? 1 : 0) >= 256 ||
+      observation.queuedBytes + bytes > 8 * 1024 * 1024;
+  }
+  void enqueueSampleLocked(Kind kind, const uint8_t* bytes, size_t size, uint64_t ntp) {
+    if (fullLocked(size)) {errorLocked("videoQueueOverflow"); return;}
+    Event event{kind,observation.generation,ntp,{}};
+    event.bytes.assign(bytes,bytes+size);
+    queue.push_back(std::move(event));
+    observation.queuedBytes += size;
+    changed.notify_one();
+  }
   void stopCommandLocked() {command = AirPlayVideoCommand{AirPlayVideoCommand::Kind::Stop,observation.generation,{}};}
   void errorLocked(const char* reason) {
     if (observation.error.empty()) observation.error = reason;
@@ -51,10 +64,22 @@ struct AirPlayVideoWorker::Impl {
     std::shared_ptr<VideoSampleSink> sink;
     uint64_t outputGeneration = 0, epoch = 0;
     int64_t lastPts = -1;
+    int outputAacSamples = 0;
+    int64_t lastAudioTicks = -1;
     bool prepared = false, draining = false;
     std::vector<uint8_t> sps, pps;
+    std::deque<Event> pendingVideo, pendingAudio;
     auto connectionDeadline = std::chrono::steady_clock::now();
+    auto avDeadline = connectionDeadline;
+    auto clearPending = [&] {
+      pendingVideo.clear();
+      pendingAudio.clear();
+      std::lock_guard lock(mutex);
+      observation.queuedBytes -= heldBytes;
+      heldBytes = heldCount = 0;
+    };
     auto release = [&] {
+      clearPending();
       if (sink) {
         sink->stop();
         const auto state = sink->state();
@@ -62,6 +87,112 @@ struct AirPlayVideoWorker::Impl {
         if (!state.released) throw std::runtime_error("Video output release was not confirmed");
       }
       prepared = draining = false; epoch = 0; lastPts = -1;
+      outputAacSamples = 0;
+      lastAudioTicks = -1;
+    };
+    auto stage = [&](std::deque<Event>& pending, Event& event) {
+      const auto size = event.bytes.size();
+      if (pendingAudio.empty() && pendingVideo.empty()) {
+        avDeadline = std::chrono::steady_clock::now()+std::chrono::seconds(3);
+      }
+      pending.push_back(std::move(event));
+      std::lock_guard lock(mutex);
+      heldBytes += size;
+      ++heldCount;
+      inFlightBytes = 0;
+      processing = false;
+    };
+    auto discardFront = [&](std::deque<Event>& pending) {
+      const auto bytes = pending.front().bytes.size();
+      pending.pop_front();
+      std::lock_guard lock(mutex);
+      heldBytes -= bytes;
+      --heldCount;
+      observation.queuedBytes -= bytes;
+    };
+    auto prepare = [&](uint64_t generation, uint64_t firstNtp, int aac) {
+      int width, height;
+      {
+        std::lock_guard lock(mutex);
+        if (closing || generation != observation.generation || aac != aacSamples ||
+            !observation.error.empty()) return std::string{};
+        width = observation.width;
+        height = observation.height;
+        observation.phase = "preparing";
+        observation.released = false;
+      }
+      std::vector<uint8_t> parameters{0,0,0,1};
+      parameters.insert(parameters.end(),sps.begin(),sps.end());
+      parameters.insert(parameters.end(),{0,0,0,1});
+      parameters.insert(parameters.end(),pps.begin(),pps.end());
+      auto url = sink->start(width,height,parameters,aac);
+      prepared = true;
+      outputAacSamples = aac;
+      epoch = firstNtp;
+      outputGeneration = generation;
+      connectionDeadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
+      return url;
+    };
+    auto publish = [&](uint64_t generation, std::string url) {
+      std::lock_guard lock(mutex);
+      if (closing || generation != observation.generation || !observation.error.empty()) sink->cancel();
+      else command = AirPlayVideoCommand{AirPlayVideoCommand::Kind::Play,generation,std::move(url)};
+    };
+    auto ptsUs = [&](const Event& sample) {
+      return static_cast<int64_t>((sample.ntp-epoch)/1000);
+    };
+    auto writeVideo = [&](const Event& frame, int64_t pts, int64_t duration) {
+      sink->append(frame.bytes,pts,pts,duration);
+      lastPts = pts;
+      std::lock_guard lock(mutex);
+      ++observation.accepted;
+    };
+    auto writeAudio = [&](const Event& sample) {
+      if (sample.ntp >= epoch) {
+        // Quantize to the AAC track's 44.1 kHz timescale. Allow a one-tick
+        // rounding discrepancy, but preserve real gaps and discard overlap.
+        const auto pts = ptsUs(sample);
+        auto ticks = pts/1000000*44100 + (pts%1000000*44100+500000)/1000000;
+        const auto expected = lastAudioTicks+outputAacSamples;
+        if (lastAudioTicks < 0 || (ticks > lastAudioTicks && ticks >= expected-1)) {
+          if (lastAudioTicks >= 0) ticks = std::max(ticks,expected);
+          const auto timeUs = ticks/44100*1000000 + (ticks%44100*1000000+22050)/44100;
+          sink->appendAac(sample.bytes,timeUs);
+          lastAudioTicks = ticks;
+          std::lock_guard lock(mutex);
+          ++observation.audioAccepted;
+          return;
+        }
+      }
+      std::lock_guard lock(mutex);
+      ++observation.audioDropped;
+    };
+    auto drainAv = [&](uint64_t generation, int samples, bool final) {
+      std::string newUrl;
+      if (!prepared) {
+        if (pendingAudio.empty() || pendingVideo.size() < (final ? 1u : 2u)) return;
+        newUrl = prepare(generation,std::min(pendingAudio.front().ntp,pendingVideo.front().ntp),samples);
+        if (newUrl.empty()) return;
+      }
+      while (!cancelled(generation) &&
+             ((!pendingVideo.empty() && (final || pendingVideo.size() >= 2)) || !pendingAudio.empty())) {
+        const bool videoReady = !pendingVideo.empty() && (final || pendingVideo.size() >= 2);
+        if (videoReady && (lastPts < 0 || pendingAudio.empty() ||
+                           (lastAudioTicks >= 0 && pendingVideo.front().ntp <= pendingAudio.front().ntp))) {
+          const auto pts = ptsUs(pendingVideo.front());
+          const auto duration = pendingVideo.size() >= 2
+            ? std::min<int64_t>(ptsUs(pendingVideo[1])-pts,1000000) : 33333;
+          writeVideo(pendingVideo.front(),pts,duration);
+          discardFront(pendingVideo);
+        } else {
+          writeAudio(pendingAudio.front());
+          discardFront(pendingAudio);
+        }
+        if (!newUrl.empty() && lastPts >= 0 && lastAudioTicks >= 0) {
+          publish(generation,std::move(newUrl));
+          newUrl.clear();
+        }
+      }
     };
     try {
       sink = factory();
@@ -70,10 +201,12 @@ struct AirPlayVideoWorker::Impl {
       for (;;) {
         Event event;
         bool haveEvent = false;
+        int samples = 0;
         {
           std::unique_lock lock(mutex);
           changed.wait_for(lock,std::chrono::milliseconds(25),[&] {return closing || !observation.error.empty() || !queue.empty();});
           if (closing || !observation.error.empty()) break;
+          samples = aacSamples;
           if (!queue.empty()) {
             event = std::move(queue.front()); queue.pop_front();
             processing = haveEvent = true; inFlightBytes = event.bytes.size();
@@ -88,8 +221,20 @@ struct AirPlayVideoWorker::Impl {
                 std::lock_guard lock(mutex);
                 if (event.generation == observation.generation && !closing) observation.phase = "waiting";
               } else if (event.kind == Kind::End) {
-                if (prepared) {sink->finish(); draining = true;}
-                else {std::lock_guard lock(mutex); observation.phase = "ended";}
+                if (samples) drainAv(event.generation,samples,true);
+                if (!cancelled(event.generation)) {
+                  if (prepared) {sink->finish(); draining = true;}
+                  else {
+                    clearPending();
+                    std::lock_guard lock(mutex);
+                    observation.phase = "ended";
+                  }
+                }
+              } else if (event.kind == Kind::Audio) {
+                if (samples) {
+                  stage(pendingAudio,event);
+                  drainAv(event.generation,samples,false);
+                }
               } else {
                 const auto units = BuzinH264::split(event.bytes);
                 bool idr = false, vcl = false, changedParameters = false;
@@ -105,7 +250,7 @@ struct AirPlayVideoWorker::Impl {
                   idr = idr || nal.type == 5; vcl = vcl || nal.type == 1 || nal.type == 5;
                 }
                 if (nextSps.size()+nextPps.size()+8 > 65536) throw std::invalid_argument("Unbounded H.264 configuration");
-                if (changedParameters && prepared) {
+                if (changedParameters && (prepared || !pendingVideo.empty())) {
                   release();
                   std::lock_guard lock(mutex);
                   if (event.generation == observation.generation) {observation.phase = "waiting"; stopCommandLocked();}
@@ -114,24 +259,24 @@ struct AirPlayVideoWorker::Impl {
                 if (vcl) {
                   int width, height;
                   {std::lock_guard lock(mutex); width = observation.width; height = observation.height;}
-                  if (!prepared && (!idr || sps.empty() || pps.empty() || !width || !height)) {
+                  if (!prepared && pendingVideo.empty() && (!idr || sps.empty() || pps.empty() || !width || !height)) {
                     std::lock_guard lock(mutex); ++observation.dropped;
+                  } else if (samples) {
+                    if (!event.ntp || (!pendingVideo.empty() &&
+                        event.ntp/1000 <= pendingVideo.back().ntp/1000+1)) {
+                      std::lock_guard lock(mutex);
+                      ++observation.dropped;
+                    } else {
+                      stage(pendingVideo,event);
+                      drainAv(event.generation,samples,false);
+                    }
                   } else {
                     if (!event.ntp) throw std::invalid_argument("Missing local video timestamp");
                     if (!prepared) {
-                      {std::lock_guard lock(mutex); observation.phase = "preparing"; observation.released = false;}
-                      std::vector<uint8_t> parameters{0,0,0,1};
-                      parameters.insert(parameters.end(),sps.begin(),sps.end());
-                      parameters.insert(parameters.end(),{0,0,0,1}); parameters.insert(parameters.end(),pps.begin(),pps.end());
-                      const auto url = sink->start(width,height,parameters);
-                      prepared = true; draining = false; epoch = event.ntp; lastPts = -1;
-                      outputGeneration = event.generation;
-                      connectionDeadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
-                      std::lock_guard lock(mutex);
-                      if (closing || event.generation != observation.generation || !observation.error.empty()) sink->cancel();
-                      else command = AirPlayVideoCommand{AirPlayVideoCommand::Kind::Play,event.generation,url};
+                      auto url = prepare(event.generation,event.ntp,0);
+                      if (!url.empty()) publish(event.generation,std::move(url));
                     }
-                    if (!cancelled(event.generation)) {
+                    if (prepared && !cancelled(event.generation)) {
                       const auto delta = event.ntp >= epoch ? (event.ntp-epoch)/1000 : std::numeric_limits<uint64_t>::max();
                       if (delta > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) || static_cast<int64_t>(delta) <= lastPts) {
                         std::lock_guard lock(mutex); ++observation.dropped;
@@ -141,8 +286,7 @@ struct AirPlayVideoWorker::Impl {
                         // Low-delay frames use DTS=PTS and observed cadence; the
                         // initial frame uses 30 Hz until a second PTS arrives.
                         const auto duration = lastPts < 0 ? int64_t(33333) : std::min<int64_t>(pts-lastPts,1000000);
-                        sink->append(event.bytes,pts,pts,duration); lastPts = pts;
-                        std::lock_guard lock(mutex); ++observation.accepted;
+                        writeVideo(event,pts,duration);
                       }
                     }
                   }
@@ -159,6 +303,12 @@ struct AirPlayVideoWorker::Impl {
           // to the next transport callback, including while output state waits.
           std::vector<uint8_t>().swap(event.bytes);
           {std::lock_guard lock(mutex); observation.queuedBytes -= inFlightBytes; inFlightBytes = 0; processing = false;}
+        }
+        if (!prepared && (!pendingVideo.empty() || !pendingAudio.empty()) &&
+            std::chrono::steady_clock::now() >= avDeadline) {
+          std::lock_guard lock(mutex);
+          const auto generation = pendingVideo.empty() ? pendingAudio.front().generation : pendingVideo.front().generation;
+          if (!closing && generation == observation.generation) errorLocked("mirrorTrackTimeout");
         }
         if (prepared && !cancelled(outputGeneration)) {
           const auto state = sink->state();
@@ -195,7 +345,7 @@ void AirPlayVideoWorker::start() {
   if (!impl->observation.released) throw std::runtime_error("Previous native video release was not confirmed");
   const auto generation = impl->observation.generation+1;
   impl->observation = {}; impl->observation.generation = generation; impl->observation.phase = "waiting";
-  impl->command.reset(); impl->inputEnded = false; impl->closing = false;
+  impl->command.reset(); impl->inputEnded = false; impl->closing = false; impl->aacSamples = 0;
   try {impl->worker = std::thread([this] {impl->run();});}
   catch (...) {impl->closing = true; impl->observation.phase = "error"; impl->observation.error = "videoWorkerStartFailure"; throw;}
 }
@@ -212,7 +362,10 @@ void AirPlayVideoWorker::format(int width, int height) noexcept {
     if (impl->closing || !impl->observation.error.empty()) return;
     if (width < 16 || width > 3840 || height < 16 || height > 2160) {impl->errorLocked("invalidVideoSize"); return;}
     if (width == impl->observation.width && height == impl->observation.height) return;
-    impl->observation.width = width; impl->observation.height = height; impl->resetLocked(true);
+    const bool resizing = impl->observation.width != 0;
+    impl->observation.width = width;
+    impl->observation.height = height;
+    if (resizing) impl->resetLocked(true);
   } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
 }
 void AirPlayVideoWorker::sample(const uint8_t* bytes, size_t size, bool h265, uint64_t ntp) noexcept {
@@ -222,12 +375,32 @@ void AirPlayVideoWorker::sample(const uint8_t* bytes, size_t size, bool h265, ui
     if (h265) {impl->errorLocked("unsupportedVideoCodec"); return;}
     if (!bytes || !size || size > 2*1024*1024) {impl->errorLocked("invalidVideoSample"); return;}
     if (impl->inputEnded) {++impl->observation.dropped; return;}
-    if (impl->queue.size()+(impl->processing ? 1 : 0) >= 256 || impl->observation.queuedBytes+size > 8*1024*1024) {
-      impl->errorLocked("videoQueueOverflow"); return;
+    impl->enqueueSampleLocked(Impl::Kind::Sample,bytes,size,ntp);
+  } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
+}
+void AirPlayVideoWorker::audioFormat(int codec, int samplesPerFrame) noexcept {
+  try {
+    std::lock_guard lock(impl->mutex);
+    if (impl->closing || !impl->observation.error.empty()) return;
+    const int samples = codec == 4 && (samplesPerFrame == 960 || samplesPerFrame == 1024) ? samplesPerFrame : 0;
+    if (samples == impl->aacSamples) return;
+    // The RTSP audio and video setups can arrive in either order. Keep
+    // already queued H.264 configuration when AAC is negotiated before
+    // the first output opens. Reconfiguration of a running output resets it.
+    const bool initial = impl->aacSamples == 0 && impl->observation.phase == "waiting" && !impl->heldCount;
+    impl->aacSamples = samples;
+    if (!initial) impl->resetLocked(false);
+  } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
+}
+void AirPlayVideoWorker::audioSample(const uint8_t* bytes, size_t size, int codec, uint64_t ntp) noexcept {
+  try {
+    std::lock_guard lock(impl->mutex);
+    if (impl->closing || !impl->observation.error.empty() || !impl->aacSamples || codec != 4) return;
+    if (impl->inputEnded || !ntp || !bytes || !size || size > 65536) {
+      ++impl->observation.audioDropped;
+      return;
     }
-    Impl::Event event{Impl::Kind::Sample,impl->observation.generation,ntp,{}};
-    event.bytes.assign(bytes,bytes+size); impl->queue.push_back(std::move(event));
-    impl->observation.queuedBytes += size; impl->changed.notify_all();
+    impl->enqueueSampleLocked(Impl::Kind::Audio,bytes,size,ntp);
   } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
 }
 void AirPlayVideoWorker::flush() noexcept {
@@ -238,7 +411,7 @@ void AirPlayVideoWorker::end() noexcept {
   try {
     std::lock_guard lock(impl->mutex);
     if (impl->closing || impl->inputEnded || !impl->observation.error.empty()) return;
-    if (impl->queue.size()+(impl->processing ? 1 : 0) >= 256) {impl->errorLocked("videoQueueOverflow"); return;}
+    if (impl->fullLocked(0)) {impl->errorLocked("videoQueueOverflow"); return;}
     impl->queue.push_back({Impl::Kind::End,impl->observation.generation,0,{}});
     impl->inputEnded = true; impl->changed.notify_all();
   } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}

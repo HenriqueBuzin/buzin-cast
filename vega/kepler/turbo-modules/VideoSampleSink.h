@@ -10,8 +10,10 @@
 class VideoSampleSink {
 public:
   virtual ~VideoSampleSink() = default;
-  virtual std::string start(int width, int height, const std::vector<uint8_t>& parameterSets) = 0;
+  virtual std::string start(int width, int height, const std::vector<uint8_t>& parameterSets,
+                            int aacSamplesPerFrame = 0) = 0;
   virtual void append(const std::vector<uint8_t>& sample, int64_t ptsUs, int64_t dtsUs, int64_t durationUs) = 0;
+  virtual void appendAac(const std::vector<uint8_t>& sample, int64_t ptsUs) = 0;
   virtual void finish() = 0;
   virtual void waitFinished(std::chrono::milliseconds timeout = std::chrono::seconds(15)) = 0;
   virtual void cancel() noexcept = 0;
