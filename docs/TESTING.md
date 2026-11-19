@@ -1945,3 +1945,27 @@ quadros e 500/1003 pacotes. Player, produtor e superfície foram liberados.
 O contador de vídeo permaneceu zero. Relatório em
 `build/vega-alac-aac-stream`. Builds das três arquiteturas, lint, TypeScript
 e 62 testes Jest passaram.
+
+
+## Volume RTSP na sessão de espelhamento — 19 de novembro de 2026
+
+O controle de volume AirPlay aceita de -30 a 0 dB e -144 dB para mute.
+A sessão mantém só o último comando pendente e devolve o nível atual
+em GET_PARAMETER. O player converte o nível para ganho linear e conserva
+o valor na troca de fonte. Reaplica o ganho quando começa a reprodução,
+pois o pipeline Vega pode aceitar a chamada inicial antes de estar pronto.
+
+No VVD, `test_vega_airplay_audio.py --video` verifica ganho, mute, rejeição
+do nível inválido, leitura RTSP e reinício da sessão sem volume herdado.
+O teste de áudio isolado também passou. Os 63 testes Jest cobrem a entrega
+do comando e a troca assíncrona de fonte. Lint, TypeScript, build e ABI
+das três arquiteturas passaram. A validação em aparelho e emissor real
+continua pendente.
+
+Com `test_vega_airplay_url.py --live --volume --media-file ...`, o
+player em reprodução registrou ganho linear 0,125893 para -18 dB e
+zero para o mute. Voltar liberou o player. O ensaio usa o arquivo
+produzido pela conversão ALAC e a sessão por URL que compartilha o
+controle de volume com o espelhamento. Resultado em
+`build/vega-mirror-volume-player-final`. A observação vem da API do
+player. Ainda falta medir o áudio nos alto-falantes.

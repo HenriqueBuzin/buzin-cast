@@ -9,6 +9,7 @@ from pathlib import Path
 import plistlib
 import re
 import shutil
+import socket
 import subprocess
 import threading
 import time
@@ -23,6 +24,7 @@ def main():
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--media-file', type=Path, default=ROOT / 'vega/assets/raw/media/playback-sample.mp4')
     parser.add_argument('--live', action='store_true', help='Check startup and release without seeking in an unindexed MP4')
+    parser.add_argument('--volume', action='store_true', help='Verify RTSP gain and mute reach the active Vega player')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-airplay-url')
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -33,6 +35,7 @@ def main():
     result = {'physicalValidation': False, 'liveStartupOnly': args.live, 'checks': {}}
     forwards = []
     client = None
+    volume_client = None
     log_stream = None
     log_output = None
     media_requests = []
@@ -110,6 +113,33 @@ def main():
             time.sleep(0.25)
         raise RuntimeError(f'Playback did not reach expected state: {last}')
 
+    def set_volume(sequence, db, gain):
+        log_path = args.output / 'receiver-stream.log'
+        offset = log_path.stat().st_size
+        payload = f'volume: {db}\r\n'.encode()
+        header = (
+            f'SET_PARAMETER rtsp://127.0.0.1/video RTSP/1.0\r\nCSeq: {sequence}\r\n'
+            f'Content-Type: text/parameters\r\nContent-Length: {len(payload)}\r\n\r\n'
+        ).encode()
+        volume_client.sendall(header + payload)
+        response = b''
+        while b'\r\n\r\n' not in response:
+            chunk = volume_client.recv(4096)
+            if not chunk or len(response) + len(chunk) > 16384:
+                raise RuntimeError('Invalid RTSP volume response')
+            response += chunk
+        if not response.startswith(b'RTSP/1.0 200 '):
+            raise RuntimeError('RTSP volume command was rejected')
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            with log_path.open('rb') as log:
+                log.seek(offset)
+                levels = re.findall(rb'(?:HtmlMediaElement::setVolumeLevel:|MediaPlayer: set volume)\s*([0-9.]+)', log.read())
+            if any(abs(float(level) - gain) < 0.000001 for level in levels):
+                return gain
+            time.sleep(0.15)
+        raise RuntimeError(f'Player did not report the requested volume level {gain}')
+
     try:
         devices = run('exec', 'vda', 'devices')
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
@@ -151,6 +181,10 @@ def main():
         # A currentTime setter can expose its target before native seeking
         # finishes. Require an advancing clock before issuing pause.
         result['checks']['playing'] = wait(lambda value: value.get('rate', 0) > 0 and value.get('position', 0) > start + 0.3)
+        if args.volume:
+            volume_client = socket.create_connection(('127.0.0.1', port), timeout=3)
+            result['checks']['volume'] = set_volume(1, -18, 10 ** (-18 / 20))
+            result['checks']['muted'] = set_volume(2, -144, 0)
         try:
             result['videoQuality'] = json.loads(shell('-c', COMPONENT, 'cat', '/data/video-quality.json'))
         except (RuntimeError, json.JSONDecodeError):
@@ -207,6 +241,8 @@ def main():
             log_output.close()
         if client:
             client.close()
+        if volume_client:
+            volume_client.close()
         for number, direction in reversed(forwards):
             try:
                 run('device', 'stop-port-forwarding', '--device', args.serial, '--port', str(number), '--forward', direction)

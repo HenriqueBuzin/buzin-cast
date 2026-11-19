@@ -79,6 +79,29 @@ test('aguarda a superfície, controla pausa e libera o player uma única vez', a
   expect(player.play).toHaveBeenCalledTimes(2);
 });
 
+test('preserva o volume do AirPlay durante a troca assíncrona de fonte', async () => {
+  const player = fakePlayer();
+  jest.mocked(VideoPlayer).mockImplementation(() => player as unknown as VideoPlayer);
+  let ready!: () => void;
+  const opened = new Promise<void>(resolve => {ready = resolve;});
+  const session = createPlaybackSession(ready, jest.fn(), null);
+  await opened;
+  session.setVolume(0.125);
+  const source = {url: 'https://example.com/test.mp4', headers: {}, position: 0, speed: 1};
+  const loading = session.load(source);
+  session.setVolume(0);
+  await loading;
+  expect(player.volume).toBe(0);
+  await session.load({...source, url: 'https://example.com/other.mp4'});
+  expect(player.volume).toBe(0);
+  player.volume = 1;
+  player.listeners.get('playing')?.();
+  expect(player.volume).toBe(0);
+  session.setVolume(1);
+  expect(player.volume).toBe(1);
+  await session.stop();
+});
+
 test('Voltar durante initialize aguarda a liberação antes de uma nova sessão', async () => {
   const first = fakePlayer();
   const second = fakePlayer();

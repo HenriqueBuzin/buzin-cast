@@ -12,6 +12,7 @@ jest.mock('../src/playbackSession', () => ({createPlaybackSession: jest.fn()}));
 test('controle pausa a amostra e segundo plano sai da tela liberando a sessão', () => {
   const session = {
     load: jest.fn(),
+    setVolume: jest.fn(),
     attachSurface: jest.fn(),
     detachSurface: jest.fn(),
     togglePause: jest.fn(),

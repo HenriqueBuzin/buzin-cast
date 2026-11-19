@@ -20,6 +20,8 @@ struct AirPlaySession::Impl {
   std::deque<AirPlayEvent> events;
   size_t queuedBytes = 0;
   playback_info_t playback{};
+  double requestedVolumeDb = 0;
+  bool volumePending = false;
   std::atomic<bool> failed{false};
   bool loopbackOnly = true;
   AirPlayAudioWorker* audio = nullptr;
@@ -42,6 +44,14 @@ struct AirPlaySession::Impl {
   void simple(AirPlayEvent::Kind kind, double value = 0) noexcept {
     if (!std::isfinite(value)) {failed = true; return;}
     AirPlayEvent event; event.kind = kind; event.value = value; push(std::move(event));
+  }
+  void setVolume(double value) {
+    // A burst from the sender replaces the pending gain without occupying
+    // the playback command queue. Ignore invalid updates to keep playing.
+    if (!std::isfinite(value) || (value != -144 && (value < -30 || value > 0))) return;
+    std::lock_guard lock(mutex);
+    requestedVolumeDb = value;
+    volumePending = true;
   }
   void sample(AirPlayEvent::Kind kind, const unsigned char* data, int length,
               int codec, uint64_t local, uint64_t remote) noexcept {
@@ -119,7 +129,9 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
     else if (state.video) state.video->audioFormat(codec ? *codec : 0, spf ? *spf : 0);
   };
   callbacks.audio_set_volume = [](void* cls, float value) {
-    if (auto* audio = Impl::self(cls).audio) audio->volume(value);
+    auto& state = Impl::self(cls);
+    if (state.audio) state.audio->volume(value);
+    else state.setVolume(value);
   };
   callbacks.video_reset = [](void* cls, reset_type_t reason) {
     auto& state = Impl::self(cls);
@@ -127,8 +139,10 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   };
   callbacks.conn_feedback = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Feedback);};
   callbacks.audio_set_client_volume = [](void* cls) {
-    const auto* audio = Impl::self(cls).audio;
-    return audio ? audio->state().volumeDb : 0.0;
+    auto& state = Impl::self(cls);
+    if (state.audio) return state.audio->state().volumeDb;
+    std::lock_guard lock(state.mutex);
+    return state.requestedVolumeDb;
   };
   callbacks.on_video_play = [](void* cls, const char* url, float position) {
     auto& state = Impl::self(cls);
@@ -178,6 +192,7 @@ void AirPlaySession::stop() noexcept {
   if (impl->video) {impl->video->stop(); impl->video = nullptr;}
   std::lock_guard lock(impl->mutex);
   impl->events.clear(); impl->queuedBytes = 0; impl->playback = {};
+  impl->requestedVolumeDb = 0; impl->volumePending = false;
 }
 bool AirPlaySession::poll(AirPlayEvent& event) {
   if (impl->video) {
@@ -188,9 +203,20 @@ bool AirPlaySession::poll(AirPlayEvent& event) {
     }
   }
   std::lock_guard lock(impl->mutex);
+  if (impl->volumePending) {
+    impl->volumePending = false;
+    event = {};
+    event.kind = AirPlayEvent::Kind::Volume;
+    event.value = impl->requestedVolumeDb == -144 ? 0 : std::pow(10.0, impl->requestedVolumeDb / 20.0);
+    return true;
+  }
   if (impl->events.empty()) return false;
   event = std::move(impl->events.front()); impl->events.pop_front();
   impl->queuedBytes -= event.bytes.size(); return true;
+}
+double AirPlaySession::volumeDb() const {
+  std::lock_guard lock(impl->mutex);
+  return impl->requestedVolumeDb;
 }
 bool AirPlaySession::healthy() const {
   std::lock_guard lock(impl->mutex);
