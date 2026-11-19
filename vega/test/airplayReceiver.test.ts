@@ -10,12 +10,14 @@ jest.mock('../src/turbo-modules/BuzinNetwork', () => ({__esModule: true, default
   startAirPlayUrl: jest.fn(() => 7001), stopAirPlayUrl: jest.fn(),
   startAirPlayVideo: jest.fn(() => 7002),
   pollAirPlayCommand: jest.fn(), updateAirPlayState: jest.fn(),
+  startRelayReceiver: jest.fn(() => '{"address":"192.0.2.10:7003","code":"ABCDEFGH2345"}'),
+  getRelayReceiverState: jest.fn(() => 'waiting'), pollRelayCommand: jest.fn(), stopRelayReceiver: jest.fn(),
 }}));
 const originalURL = globalThis.URL;
 beforeEach(() => {jest.useFakeTimers(); globalThis.URL = StandardURL as unknown as typeof URL;});
 afterEach(() => {jest.useRealTimers(); jest.clearAllMocks(); globalThis.URL = originalURL;});
 
-function setup(mode: 'url' | 'mirror' = 'url') {
+function setup(mode: 'url' | 'mirror' | 'relay' = 'url') {
   const packets: string[] = [];
   const player = {duration: 8, playbackRate: 1, currentTime: 0, pause: jest.fn(), play: jest.fn(() => Promise.resolve())};
   const media = {load: jest.fn(() => Promise.resolve()), setVolume: jest.fn(), attachSurface: jest.fn(), detachSurface: jest.fn(), setPlaying: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
@@ -23,15 +25,17 @@ function setup(mode: 'url' | 'mirror' = 'url') {
   let change!: Parameters<typeof createPlaybackSession>[1];
   jest.mocked(createPlaybackSession).mockImplementation((onReady, onChange) => {ready = onReady; change = onChange; return media;});
   jest.mocked(Network.pollAirPlayCommand).mockImplementation(() => packets.shift() || '');
+  jest.mocked(Network.pollRelayCommand).mockImplementation(() => packets.shift() || '');
   const failed = jest.fn();
   const active = jest.fn();
   const onPin = jest.fn();
+  const onRelay = jest.fn();
   const starts = jest.mocked(Network.startAirPlayUrl).mock.calls.length;
-  const receiver = createAirPlayReceiver(active, jest.fn(), failed, undefined, mode, onPin);
+  const receiver = createAirPlayReceiver(active, jest.fn(), failed, undefined, mode, onPin, undefined, onRelay);
   expect(Network.startAirPlayUrl).toHaveBeenCalledTimes(starts);
   ready(player as unknown as VideoPlayer);
   const send = (kind: string, value = 0, url = '') => {packets.push(JSON.stringify({kind, value, url})); jest.advanceTimersByTime(50);};
-  return {receiver, send, change, failed, active, player, media, onPin};
+  return {receiver, send, change, failed, active, player, media, onPin, onRelay};
 }
 
 test('encaminha URL e controles ao player e devolve observação real', () => {
@@ -100,4 +104,20 @@ test('modos de URL e vídeo recusam comandos de carga do outro modo', () => {
   expect(plain.failed).toHaveBeenCalledTimes(1);
   const native = setup('mirror'); native.send('play', 0, 'https://example.com/clip.mp4');
   expect(native.failed).toHaveBeenCalledTimes(1);
+});
+
+test('retransmissão apresenta o pareamento e toca apenas o fluxo local nativo', () => {
+  const {receiver, send, media, onRelay} = setup('relay');
+  expect(onRelay).toHaveBeenCalledWith({address: '192.0.2.10:7003', code: 'ABCDEFGH2345', phase: 'waiting'});
+  expect(Network.startAirPlayUrl).not.toHaveBeenCalled();
+  expect(Network.startAirPlayVideo).not.toHaveBeenCalled();
+  jest.mocked(Network.getRelayReceiverState).mockReturnValueOnce('receiving');
+  const url = `http://127.0.0.1:43210/${'b'.repeat(64)}.mp4`;
+  send('mirror', 0, url);
+  expect(onRelay).toHaveBeenLastCalledWith(expect.objectContaining({phase: 'receiving'}));
+  expect(media.load).toHaveBeenCalledWith(expect.objectContaining({url}));
+  expect(Network.updateAirPlayState).not.toHaveBeenCalled();
+  receiver.stop();
+  expect(Network.stopRelayReceiver).toHaveBeenCalledTimes(1);
+  expect(media.stop).toHaveBeenCalledTimes(1);
 });

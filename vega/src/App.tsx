@@ -17,7 +17,7 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording' | 'relay'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const goLibrary = useCallback(() => setPage('recordings'), []);
@@ -55,6 +55,9 @@ export default function App() {
 
   if (page === 'fcast') {
     return <FCastScreen onBack={goHome} />;
+  }
+  if (page === 'relay') {
+    return <FCastScreen onBack={goHome} protocol="relay" />;
   }
   if (page === 'castv2') {
     return <FCastScreen onBack={goHome} protocol="castv2" />;
@@ -233,6 +236,7 @@ export default function App() {
           {page === 'status' && action('airplayVideo', 'Testar vídeo AirPlay', () => setPage('airplayVideo'), false)}
           {page === 'status' && action('dlna', 'Ativar DLNA', () => setPage('dlna'), false)}
           {page === 'status' && action('castv2', 'Testar Cast V2', () => setPage('castv2'), false)}
+          {page === 'status' && action('relay', 'Receber retransmissão Buzin', () => setPage('relay'), false)}
           {page === 'media' && (
             <Text style={styles.details}>{mediaReport}</Text>
           )}

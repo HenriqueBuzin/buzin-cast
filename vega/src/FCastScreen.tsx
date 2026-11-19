@@ -7,7 +7,7 @@ import {AppState, Image, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createCastV2Receiver} from './castV2Receiver';
 import {createFCastReceiver} from './fcastReceiver';
-import {createAirPlayReceiver} from './airplayReceiver';
+import {createAirPlayReceiver, RelayView} from './airplayReceiver';
 import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
 import type {ConnectionApprovalRequest} from './connectionApproval';
 import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
@@ -18,6 +18,7 @@ const titles = {
   castv2: 'Cast V2 experimental',
   airplay: 'AirPlay por URL experimental',
   mirror: 'Vídeo AirPlay experimental',
+  relay: 'Receber retransmissão Buzin',
   dlna: 'DLNA experimental',
 };
 
@@ -32,8 +33,9 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pin, setPin] = useState('');
+  const [relay, setRelay] = useState<RelayView | null>(null);
   const [focus, setFocus] = useState('back');
-  const subtitleMedia = protocol !== 'mirror' && !photo && snapshot && ['playing', 'paused'].includes(snapshot.state) ? token : null;
+  const subtitleMedia = protocol !== 'mirror' && protocol !== 'relay' && !photo && snapshot && ['playing', 'paused'].includes(snapshot.state) ? token : null;
   const subtitles = usePlaybackSubtitles(subtitleMedia);
   useEffect(() => {
     try {
@@ -45,7 +47,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
         ? createCastV2Receiver(setToken, setSnapshot, onFailure, onListening, setApproval)
         : protocol === 'dlna'
         ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto, setApproval)
-        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin, setApproval);
+        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'relay' || protocol === 'mirror' ? protocol : 'url', setPin, setApproval, setRelay);
     } catch {
       setFailed(true);
     }
@@ -79,14 +81,29 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
         </View>
       ) : token === null ? (
         <View style={styles.waiting}>
-          <Text style={styles.details}>
-            {failed
-              ? 'Não foi possível iniciar o receptor.'
-              : listening
-              ? `Aguardando mídia na porta TCP ${port}.`
-              : 'Preparando reprodução…'}
-          </Text>
-          <Text style={styles.details}>
+          {(protocol !== 'relay' || !listening || failed) && (
+            <Text style={styles.details}>
+              {failed
+                ? 'Não foi possível iniciar o receptor.'
+                : listening
+                ? `Aguardando mídia na porta TCP ${port}.`
+                : 'Preparando reprodução…'}
+            </Text>
+          )}
+          {protocol === 'relay' && relay ? (
+            relay.phase === 'waiting' ? <>
+              <Text style={styles.details}>No Buzin Cast emissor, abra a retransmissão e informe o endereço e o código.</Text>
+              <Text style={styles.pin}>{relay.address}</Text>
+              <Text style={styles.pin}>{relay.code.match(/.{1,4}/g)?.join('-')}</Text>
+            </> : (
+              <Text style={styles.details}>
+                {relay.phase === 'expired' ? 'Código expirado. Volte e abra o receptor novamente.'
+                  : relay.phase === 'error' ? 'A retransmissão foi interrompida.'
+                  : relay.phase === 'ended' ? 'Retransmissão concluída.'
+                  : 'Aguardando vídeo do emissor.'}
+              </Text>
+            )
+          ) : protocol !== 'relay' && <Text style={styles.details}>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
               : protocol === 'castv2'
@@ -96,7 +113,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
               : protocol === 'dlna'
               ? 'Selecione o receptor DLNA no emissor conectado à mesma rede.'
               : 'Somente URLs por conexão manual na rede local. Sem descoberta, PIN ou espelhamento de tela/áudio nesta etapa.'}
-          </Text>
+          </Text>}
           {protocol === 'mirror' && listening && !failed && pin !== '' && (
             <Text style={styles.pin}>PIN {pin}</Text>
           )}
@@ -146,7 +163,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       <View style={styles.actions}>
         {protocol === 'mirror' && listening && !failed && <RecordingButton disabled={!!approval} />}
         {subtitleMedia !== null && <SubtitleButton label={subtitles.label} onPress={subtitles.select} />}
-        {(token === null || protocol === 'mirror' ? ['back'] : ['pause', 'back']).map((id) => (
+        {(token === null || protocol === 'mirror' || protocol === 'relay' ? ['back'] : ['pause', 'back']).map((id) => (
           <TvButton
             key={id}
             role="button"

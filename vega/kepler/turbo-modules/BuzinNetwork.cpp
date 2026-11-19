@@ -50,6 +50,19 @@ std::string BuzinNetwork::startRecordingExport(std::string name) {
 std::string BuzinNetwork::getRecordingExportState() {return recordingExport.state();}
 void BuzinNetwork::stopRecordingExport() {recordingExport.stop();}
 
+std::string BuzinNetwork::startRelayReceiver() {
+  const auto endpoint = relayReceiver.start();
+  return "{\"address\":\"" + endpoint.address + "\",\"code\":\"" + endpoint.code + "\"}";
+}
+std::string BuzinNetwork::getRelayReceiverState() {return relayReceiver.state();}
+std::string BuzinNetwork::pollRelayCommand() {
+  AirPlayVideoCommand command;
+  if (!relayReceiver.poll(command)) return {};
+  if (command.kind == AirPlayVideoCommand::Kind::Stop) return "{\"kind\":\"stop\"}";
+  return "{\"kind\":\"mirror\",\"value\":0,\"url\":\"" + command.url + "\"}";
+}
+void BuzinNetwork::stopRelayReceiver() {relayReceiver.stop();}
+
 std::string BuzinNetwork::getAirPlayVideoState() {
   const auto state = video.state();
   std::ostringstream output; output.imbue(std::locale::classic());

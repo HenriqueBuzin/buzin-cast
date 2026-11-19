@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Recepção da retransmissão Buzin no Vega
+
+O menu Estado do port abre o receptor autenticado BZCAST02 para
+vídeo H.264 e PCM estéreo. O canal Kotlin do Fire OS interoperou
+com o canal do Vega em loopback. No VVD ARM64, o fluxo sintético
+gerou H.264/AAC decodificável. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Exportação da biblioteca no Vega
 
 A Biblioteca exporta um MP4 por link de uso único para um navegador na

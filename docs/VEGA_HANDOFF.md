@@ -1,5 +1,24 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Recepção da retransmissão Buzin no Vega
+
+**Estado do port → Receber retransmissão Buzin** abre o receptor
+`BZCAST02` com código temporário. Ele autentica cada mensagem e
+entrega vídeo H.264 e PCM estéreo de 44,1 kHz ao pipeline nativo.
+O PCM passa por AAC-LC no mux MP4 local. A tela fecha o receptor
+ao voltar ou quando o app vai para segundo plano.
+
+O canal Kotlin compartilhado pelo Fire OS pareou com a implementação
+nativa do Vega em loopback e trocou vídeo, PCM, keepalive e fim de sessão.
+`tools/test_vega_relay.py` rejeitou o código incorreto no VVD ARM64,
+enviou mídia sintética, decodificou o MP4 H.264/AAC com FFmpeg e
+observou o player do Vega avançar a partir da saída do receptor.
+Verificou também a abertura e o fechamento do modo pelo controle.
+A gravação AirPlay com conversão ALAC → AAC foi revalidada.
+Lint, TypeScript, 80 testes Jest e os VPKGs Release ARM64, ARMv7
+e x86_64 passaram. Envio a partir do Vega e ensaios com aparelhos
+físicos ainda estão pendentes.
+
 ## Exportação da biblioteca no Vega
 
 **Mídia → Biblioteca de gravações → Exportar** abre um endereço HTTP

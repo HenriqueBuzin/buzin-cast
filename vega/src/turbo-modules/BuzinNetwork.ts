@@ -8,6 +8,10 @@ export interface BuzinNetwork extends KeplerTurboModule {
   startAirPlayUrl: () => number;
   startAirPlayAudio: () => number;
   startAirPlayVideo: () => number;
+  startRelayReceiver: () => string;
+  getRelayReceiverState: () => string;
+  pollRelayCommand: () => string;
+  stopRelayReceiver: () => void;
   getMirrorRecordingState: () => string;
   startMirrorRecording: () => void;
   stopMirrorRecording: () => void;

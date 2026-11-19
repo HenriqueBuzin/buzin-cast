@@ -1,16 +1,13 @@
 #pragma once
 
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <vector>
+#include "PcmAacEncoder.h"
 
 // Repackages the AirPlay ALAC stereo profile as AAC-LC. PTS values are
 // expressed in samples at 44.1 kHz, relative to the mirror session.
 class AlacAacTranscoder {
 public:
-  static constexpr int FrameSamples = 1024;
-  using Output = std::function<void(const std::vector<uint8_t>&, int64_t)>;
+  static constexpr int FrameSamples = PcmAacEncoder::FrameSamples;
+  using Output = PcmAacEncoder::Output;
 
   explicit AlacAacTranscoder(Output output);
   ~AlacAacTranscoder();

@@ -5,14 +5,17 @@ import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 import {number, object, playRequest} from './fcastProtocol';
 import type {ConnectionApprovalRequest} from './connectionApproval';
 
+export type RelayView = {address: string; code: string; phase: string};
+
 export function createAirPlayReceiver(
   onReady: (token: number | null) => void,
   onChange: (snapshot: PlaybackSnapshot | null) => void,
   onFailure: () => void,
   onListening?: (port: number) => void,
-  mode: 'url' | 'mirror' = 'url',
+  mode: 'url' | 'mirror' | 'relay' = 'url',
   onPin?: (pin: string) => void,
   onApproval?: (request: ConnectionApprovalRequest | null) => void,
+  onRelay?: (status: RelayView) => void,
 ) {
   let player: VideoPlayer | undefined;
   let session: ReturnType<typeof createPlaybackSession> | undefined;
@@ -22,6 +25,7 @@ export function createAirPlayReceiver(
   let ownsMedia = false;
   let snapshot: PlaybackSnapshot | null = null;
   let lastPlay = -Infinity;
+  let relay: RelayView | undefined;
   let poll: ReturnType<typeof setInterval> | undefined;
   let tick: ReturnType<typeof setInterval> | undefined;
   const deadline = setTimeout(fail, 20000);
@@ -34,6 +38,7 @@ export function createAirPlayReceiver(
     if (!closed) {onReady(null); onChange(null);}
   }
   function publish() {
+    if (mode === 'relay') {return;}
     const active = ownsMedia && snapshot && !['error', 'ended'].includes(snapshot.state);
     const duration = active && player ? player.duration : 0;
     Network.updateAirPlayState(
@@ -49,7 +54,12 @@ export function createAirPlayReceiver(
     clearTimeout(deadline);
     if (poll) {clearInterval(poll);}
     if (tick) {clearInterval(tick);}
-    try {if (port) {Network.stopAirPlayUrl();}} finally {
+    try {
+      if (port) {
+        if (mode === 'relay') {Network.stopRelayReceiver();}
+        else {Network.stopAirPlayUrl();}
+      }
+    } finally {
       port = 0;
       endMedia();
       session?.stop();
@@ -65,7 +75,22 @@ export function createAirPlayReceiver(
     if (closed) {return;}
     player = ready;
     try {
-      port = mode === 'mirror' ? Network.startAirPlayVideo() : Network.startAirPlayUrl();
+      if (mode === 'relay') {
+        const endpoint = object(JSON.parse(Network.startRelayReceiver()));
+        const address = String(endpoint.address);
+        const code = String(endpoint.code);
+        port = Number(address.split(':')[1]);
+        if (!/^\d{1,3}(?:\.\d{1,3}){3}:\d{1,5}$/.test(address) ||
+            !/^[A-HJ-NP-Z2-9]{12}$/.test(code) || port < 1 || port > 65535) {
+          Network.stopRelayReceiver();
+          port = 0;
+          throw new Error('Invalid relay listener');
+        }
+        relay = {address, code, phase: 'waiting'};
+        onRelay?.(relay);
+      } else {
+        port = mode === 'mirror' ? Network.startAirPlayVideo() : Network.startAirPlayUrl();
+      }
       clearTimeout(deadline);
       publish();
       onListening?.(port);
@@ -78,17 +103,23 @@ export function createAirPlayReceiver(
   poll = setInterval(() => {
     if (!port) {return;}
     try {
-      if (onApproval) {
+      if (mode === 'relay' && relay) {
+        const phase = Network.getRelayReceiverState();
+        if (phase !== relay.phase) {
+          relay = {...relay, phase};
+          onRelay?.(relay);
+        }
+      } else if (onApproval) {
         const approval = Network.pollAirPlayApproval();
         if (approval) {onApproval(JSON.parse(approval).approval as ConnectionApprovalRequest | null);}
       }
       for (let n = 0; n < 8; ++n) {
-        const packet = Network.pollAirPlayCommand();
+        const packet = mode === 'relay' ? Network.pollRelayCommand() : Network.pollAirPlayCommand();
         if (!packet) {break;}
         const event = object(JSON.parse(packet));
         if (event.kind === 'play' || event.kind === 'mirror') {
           const url = String(event.url);
-          if (mode === 'mirror') {
+          if (mode !== 'url') {
             if (event.kind !== 'mirror' || !/^http:\/\/127\.0\.0\.1:\d{1,5}\/[0-9a-f]{64}\.mp4$/.test(url)) {
               throw new Error('Invalid native mirror output');
             }
@@ -127,9 +158,9 @@ export function createAirPlayReceiver(
     get port() {return port;},
     attachSurface(current: number, handle: string) {if (current === token && ownsMedia) {session?.attachSurface(handle);}},
     detachSurface(current: number, handle: string) {if (current === token) {session?.detachSurface(handle);}},
-    togglePause() {if (ownsMedia && mode !== 'mirror') {session?.togglePause();}},
+    togglePause() {if (ownsMedia && mode === 'url') {session?.togglePause();}},
     answerApproval(requestId: number, allow: boolean) {
-      if (!port || closed) {return;}
+      if (!port || closed || mode === 'relay') {return;}
       try {Network.answerAirPlayApproval(requestId, allow);} catch {fail();}
     },
     stop,

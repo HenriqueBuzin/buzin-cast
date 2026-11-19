@@ -17,6 +17,7 @@
 #include "AirPlayVideoWorker.h"
 #include "MirrorRecording.h"
 #include "RecordingExport.h"
+#include "RelayReceiver.h"
 
 namespace BuzinNetworkTurboModule {
 
@@ -40,6 +41,10 @@ public:
   std::string getRecordingExportState() override;
   void stopRecordingExport() override;
   std::string getAirPlayVideoState() override;
+  std::string startRelayReceiver() override;
+  std::string getRelayReceiverState() override;
+  std::string pollRelayCommand() override;
+  void stopRelayReceiver() override;
   void stopAirPlayAudio() override;
   std::string getAirPlayAudioState() override;
   void stopAirPlayUrl() override;
@@ -81,6 +86,7 @@ private:
   AirPlayAudioWorker audio;
   MirrorRecording recording;
   RecordingExport recordingExport;
+  RelayReceiver relayReceiver;
   AirPlayVideoWorker video;
   AirPlaySession airplay;
   bool videoModeActive = false;

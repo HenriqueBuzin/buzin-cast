@@ -82,7 +82,10 @@ bool waitFor(const std::atomic<bool>& active, int fd, short event, Clock::time_p
   while (active && Clock::now() < end) {
     pollfd ready{fd, event, 0};
     const int result = ::poll(&ready, 1, 50);
-    if (result > 0) return (ready.revents & event) != 0;
+    if (result > 0) {
+      const int readyEvents = event | (event == POLLIN ? POLLHUP : 0);
+      return (ready.revents & readyEvents) != 0;
+    }
     if (result < 0 && errno != EINTR) break;
   }
   return false;

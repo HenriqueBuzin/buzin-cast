@@ -38,6 +38,10 @@ public:
   virtual double startAirPlayUrl() = 0;
   virtual double startAirPlayAudio() = 0;
   virtual double startAirPlayVideo() = 0;
+  virtual std::string startRelayReceiver() = 0;
+  virtual std::string getRelayReceiverState() = 0;
+  virtual std::string pollRelayCommand() = 0;
+  virtual void stopRelayReceiver() = 0;
   virtual std::string getMirrorRecordingState() = 0;
   virtual void startMirrorRecording() = 0;
   virtual void stopMirrorRecording() = 0;

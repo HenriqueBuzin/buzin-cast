@@ -12,6 +12,8 @@ kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/FCastTransport.cpp
   kepler/turbo-modules/CastV2Transport.cpp
   kepler/turbo-modules/LocalTransfer.cpp
+  kepler/turbo-modules/BuzinRelayWire.cpp
+  kepler/turbo-modules/RelayReceiver.cpp
   kepler/turbo-modules/RecordingExport.cpp
   kepler/turbo-modules/SubtitleUpload.cpp
   kepler/turbo-modules/DlnaTransport.cpp
@@ -58,3 +60,10 @@ add_executable(buzin-msse-video-probe kepler/msse_video_probe_main.cpp
   kepler/probes/MsseVideoPlayer.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp kepler/AirPlayMirrorProbe.cpp)
 target_link_libraries(buzin-msse-video-probe PRIVATE BuzinMediaIdl BuzinVideoOutput BuzinAirPlayCore)
 install(TARGETS buzin-msse-video-probe RUNTIME DESTINATION bin)
+
+# Development-only BZCAST02 receiver with the production media pipeline.
+add_executable(buzin-relay-receiver-probe test/RelayReceiverProbe.cpp
+  kepler/turbo-modules/RelayReceiver.cpp kepler/turbo-modules/BuzinRelayWire.cpp
+  kepler/turbo-modules/LocalTransfer.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp)
+target_link_libraries(buzin-relay-receiver-probe PRIVATE BuzinVideoOutput buzin_crypto)
+install(TARGETS buzin-relay-receiver-probe RUNTIME DESTINATION bin)
