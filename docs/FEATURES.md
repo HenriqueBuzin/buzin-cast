@@ -42,9 +42,17 @@ O cliente HTTP da prévia ativa TLS 1.2/AES no Android antigo, preservando
 as raízes e a verificação de domínio do sistema para player, downloads e fotos.
 Os testes usam emulador, mídia sintética e amostras HTTPS públicas, como detalhado em
 [TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
-compatíveis com o muxer MP4,
+compatíveis com os codecs/layouts de conversão disponíveis,
 licença/produção e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
+
+O exportador antigo preserva as faixas já aceitas pelo MP4 e pode converter
+as demais com MediaCodec em buffers API16: AVC Baseline e AAC-LC, sem saída
+de vídeo/áudio durante o download. VP8/Vorbis e combinações com uma faixa
+preservada são verificados no emulador. O recorte AVC mantém a imagem visível
+quando o encoder exige padding. A conversão depende dos codecs do aparelho,
+YUV420 planar/NV12 e PCM 16-bit mono/estéreo de 8–48 kHz; reamostragem,
+downmix e layouts proprietários continuam pendentes.
 
 A prévia também integra a retransmissão Buzin-a-Buzin em Ferramentas, com
 recepção por código, conexão manual à outra TV e parada. Reaproveita o

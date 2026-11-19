@@ -71,7 +71,7 @@ def main():
     if args.dlna:report['scope']='Shared DLNA SOAP transport, synthetic HTTP playback, photo controls and lifecycle on API17; not physical sender interoperability'
     if args.native_url:report['scope']='Native UxPlay HTTP URL callbacks through JNI/service/Media3 on API17; synthetic direct MP4/HLS/AAC and FCUP reverse-channel HLS, not a physical Apple sender test'
     if args.recording:report['scope']='Synthetic native H.264/ALAC through bounded capture/shared Matroska writer, actual local playback/export/delete; DE/AT negative gate; not physical mirroring'
-    if args.download:report['scope']='Synthetic AVC/AAC MP4/HLS/DASH, repeated DASH periods and B-frame AVC -> MP4 export/local playback/library/cancellation; DE/AT disabled; not transcoding, physical or real HTTPS validation'
+    if args.download:report['scope']='Synthetic MP4/HLS/DASH remux, repeated periods/B frames, VP8/Vorbis and mixed-track codec conversion -> MP4 export/local playback/library/cancellation; DE/AT disabled; not physical or real HTTPS validation'
     if args.approval:report['scope']='Actual API17 native RTSP, FCast and DLNA admission and remote-focus UI; grants, refusal, timeout, lifecycle and background prompt; not PIN pairing or a physical sender test'
     if args.pin:report['scope']='Actual API17 native PIN/SRP, independent SHA1/SRP/AES-GCM/Ed25519/X25519 client, malformed input rejection, native UI, DNS-SD flags, background and stop; not a physical Apple sender or universal access-control certification'
     if args.castv2:report['scope']='Actual API17 TLS1.2 with the owned experimental identity, shared Cast V2 discovery/protobuf/media/approval and key persistence/recovery; synthetic sender, no Google certification or protected services'
@@ -185,8 +185,10 @@ def main():
         if args.approval:capture_native_view('legacy-approval.b64','approval-ui.png')
         if args.pin:capture_native_view('legacy-pin.b64','pin-ui.png')
         if args.download and not args.package.endswith('deat.legacy.preview'):
+            if 'INSTRUMENTATION_RESULT: download_conversion=codec_buffers_cropped_avc_aac_cancel_restart' not in result:raise AssertionError('Test APK did not exercise conversion cancellation/restart')
+            report['download_conversion_cancel_restart']='pass'
             artifacts=[]
-            for index in range(6):
+            for index in range(9):
                 payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
                 if payload[4:8]!=b'ftyp':raise AssertionError('Download artifact was not MP4')
                 path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload)
@@ -195,7 +197,7 @@ def main():
                     decoded=subprocess.run([str(args.ffmpeg),'-hide_banner','-loglevel','error','-xerror','-i',str(path),'-map','0:v:0','-map','0:a:0','-f','null','-'],check=True,timeout=30,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
                     if decoded.stderr.strip():raise AssertionError('Independent decode/timestamp errors in '+path.name+': '+decoded.stderr.decode('utf-8','replace')[:1200])
                     record['independent_decode']='pass'
-                    if index>=4:
+                    if index in (4,5):
                         original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats/bframes.mp4'
                         def frames(media):
                             result=subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-f','framemd5','-'],timeout=30)
@@ -203,6 +205,23 @@ def main():
                         expected_frames=frames(original);actual_frames=frames(path)
                         if actual_frames!=expected_frames or len(actual_frames)!=120:raise AssertionError('B-frame export changed decoded video frames')
                         record['decoded_frame_hashes']='120 identical to the source'
+                    if index>=6:
+                        name={6:'vp8-vorbis.webm',7:'avc-vorbis.mkv',8:'vp8-aac.mkv'}[index]
+                        original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats'/name
+                        def rgb(media):
+                            return subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-pix_fmt','rgb24','-f','rawvideo','-'],timeout=30)
+                        source_frames=rgb(original);exported_frames=rgb(path)
+                        if len(source_frames)!=160*90*120*3 or len(exported_frames)!=len(source_frames):raise AssertionError('Converted download changed its frame count/dimensions')
+                        error=sum(abs(a-b) for a,b in zip(source_frames,exported_frames))/len(source_frames)
+                        if error>10:raise AssertionError('Converted download has excessive pixel error: '+str(error))
+                        record['converted_video_mean_absolute_error']=round(error,4)
+                        if index in (6,7):
+                            import array
+                            pcm=array.array('h',subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(path),'-map','0:a:0','-ar','44100','-ac','2','-f','s16le','-'],timeout=30))
+                            if not 7.8*44100*2<=len(pcm)<=8.3*44100*2 or max(map(abs,pcm),default=0)<1500:raise AssertionError('Converted Vorbis lost its tone/duration')
+                            channel=pcm[4410:-4410:2];frequency=sum(a<=0<b for a,b in zip(channel,channel[1:]))*44100/len(channel)
+                            if not 860<=frequency<=900:raise AssertionError('Converted audio changed its pitch: '+str(frequency))
+                            record['converted_audio_tone_hz']=round(frequency,2)
                 if args.ffprobe:
                     probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-show_format','-of','json',str(path)],timeout=30))
                     video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
@@ -313,7 +332,7 @@ def main():
                 try:
                     available=adb('shell','run-as',args.package,'ls','files',timeout=30).split()
                     artifacts=[]
-                    for index in range(6):
+                    for index in range(9):
                         if f'legacy-download-{index}.b64' not in available:continue
                         payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
                         if payload[4:8]==b'ftyp':

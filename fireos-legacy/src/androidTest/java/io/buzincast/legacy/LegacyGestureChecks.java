@@ -77,6 +77,7 @@ public final class LegacyGestureChecks extends Instrumentation {
             } else if(download) {
                 LegacyDownloadScenario.check(this,activity);
                 result.putString("download",BuildConfig.VIDEO_DOWNLOAD_ENABLED?"mp4_hls_dash_multiperiod_bframes_cancel_local_library":"restricted_disabled");
+                if(BuildConfig.VIDEO_DOWNLOAD_ENABLED)result.putString("download_conversion","codec_buffers_cropped_avc_aac_cancel_restart");
             } else if(recording) {
                 LegacyRecordingScenario.check(this,activity);
                 result.putString("recording",BuildConfig.RECORDING_ENABLED?"native_h264_pcm_mkv_local_play_export_delete":"restricted_disabled");

@@ -45,7 +45,7 @@ final class LegacyDownloadScenario {
         try(Fixture fixture=new Fixture(runner)) {
             Map<String,String> headers=Collections.singletonMap("X-Download-Fixture","active");
             String base="http://127.0.0.1:"+fixture.server.getLocalPort();
-            String[] names={"movie.mp4","movie.m3u8","movie.mpd","two-periods.mpd","bframes.mp4","repaired-bframes.mp4"};
+            String[] names={"movie.mp4","movie.m3u8","movie.mpd","two-periods.mpd","bframes.mp4","repaired-bframes.mp4","vp8-vorbis.webm","avc-vorbis.mkv","vp8-aac.mkv"};
             for(int index=0;index<names.length;index++) {
                 String name=names[index];LegacyUrlRequest request=new LegacyUrlRequest(base+"/"+name,2000,headers);
                 android.util.Log.i("LegacyDownloadScenario","Checking "+name);
@@ -75,12 +75,12 @@ final class LegacyDownloadScenario {
                 // Stagefright on Android 4.2 omits tracks using signed CTTS.
                 // Media3 parses this standard metadata on the round trip above;
                 // FFmpeg independently validates and decodes both B-frame exports.
-                if(index<4)verify(saved,index==3?15900:7900);
+                if(index<4 || index>=6)verify(saved,index==3?15900:7800);
                 android.net.Uri uri=androidx.core.content.FileProvider.getUriForFile(activity,activity.getPackageName()+".recordings",downloads.file(saved.getName()));
                 try(InputStream input=activity.getContentResolver().openInputStream(uri)) {
                     byte[] prefix=new byte[8];if(input.read(prefix)!=8 || !"ftyp".equals(new String(prefix,4,4,"US-ASCII")))throw new AssertionError("Export URI did not open an MP4");
                 }
-                if(index>=4)continue; // Independently decode this artifact on the host.
+                if(index==4 || index==5)continue; // Independently decode B-frame artifacts on the host.
                 ui(runner,()-> {try {service.playDownload(saved.getName());}catch(IOException e) {throw new AssertionError(e);}});
                 await(()-> {LegacyUrlPlayer.State value=player(runner,service);return value!=null && value.playing && value.width==160 && value.durationMs>=(name.equals("two-periods.mpd")?15900:7900);});
                 AtomicReference<Boolean> allowed=new AtomicReference<>();ui(runner,()->allowed.set(service.canDownload()));
@@ -100,6 +100,7 @@ final class LegacyDownloadScenario {
             ui(runner,()-> {click(activity,"download-refresh");click(activity,"download-delete:"+first.getName());click(activity,"download-delete-confirm");});
             if(downloads.files().length!=complete-1)throw new AssertionError("Confirmed download deletion failed");
             preserveExisting(runner,activity,new LegacyUrlRequest(base+"/movie.mp4",0,headers));
+            conversionCancellation(activity,new LegacyUrlRequest(base+"/vp8-vorbis.webm",0,headers));
         }
     }
     static int parts(LegacyDownloads downloads) {String[] parts=downloads.directory().list((dir,name)->name.endsWith(".part"));return parts==null?0:parts.length;}
@@ -129,6 +130,38 @@ final class LegacyDownloadScenario {
             if(part.length()!=marker.length)throw new AssertionError("Existing partial file was removed");
         }finally {engine.close();existing.delete();part.delete();}
         Thread worker=(Thread)field(engine,"thread");await(()->!worker.isAlive());
+    }
+    static void conversionCancellation(Activity activity,LegacyUrlRequest request) throws Exception {
+        AtomicReference<LegacyUrlDownload.State> state=new AtomicReference<>();LegacyUrlDownload engine=new LegacyUrlDownload(activity,state::set);
+        android.os.Handler worker=(android.os.Handler)field(engine,"worker");
+        List<android.media.MediaCodec> codecs=new ArrayList<>();AtomicReference<Throwable> failure=new AtomicReference<>();
+        File output=new File(activity.getCacheDir(),"cancel-conversion.mp4"),part=new File(output.getPath()+".part");
+        Runnable probe=new Runnable() {public void run() {
+            try {
+                Object job=field(engine,"job");
+                if(job!=null && ((Number)field(job,"samples")).longValue()>0) {
+                    for(Object binding:(List<?>)field(job,"bindings")) {
+                        Object converter=field(binding,"transcoder");if(converter==null)continue;
+                        codecs.add((android.media.MediaCodec)field(converter,"decoder"));codecs.add((android.media.MediaCodec)field(converter,"encoder"));
+                    }
+                    if(codecs.size()!=4)throw new AssertionError("Cancellation did not reach both active conversion tracks");
+                    engine.cancel();return;
+                }
+                worker.postDelayed(this,10);
+            }catch(Throwable error) {failure.set(error);}
+        }};
+        try {
+            output.delete();part.delete();engine.start(request,output);worker.post(probe);
+            await(()-> {if(failure.get()!=null)throw new AssertionError("Conversion cancellation probe failed",failure.get());return state.get()!=null && state.get().phase==LegacyUrlDownload.Phase.CANCELLED;});
+            if(output.exists() || part.exists())throw new AssertionError("Cancelled conversion left an output file");
+            for(android.media.MediaCodec codec:codecs) {
+                try {codec.getInputBuffers();throw new AssertionError("Cancelled conversion retained a usable codec");}catch(IllegalStateException released) { }
+            }
+            LegacyUrlDownload.State previous=state.get();engine.start(request,output);
+            await(()-> {LegacyUrlDownload.State current=state.get();if(current==previous || current.busy())return false;if(current.phase!=LegacyUrlDownload.Phase.SAVED)throw new AssertionError("Conversion did not restart: "+current.phase+" "+current.failure);return true;});
+            verify(output,7800);
+        }finally {worker.removeCallbacks(probe);engine.close();}
+        await(()->!((Thread)field(engine,"thread")).isAlive());output.delete();part.delete();
     }
     static final class Fixture implements Closeable {
         final ServerSocket server=new ServerSocket(0,12,InetAddress.getByName("127.0.0.1"));

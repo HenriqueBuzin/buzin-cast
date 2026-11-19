@@ -1,5 +1,49 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — conversão de download com codecs do sistema
+
+`LegacyUrlDownload` mantém a cópia direta de faixas aceitas pelo muxer e
+liga `LegacyDownloadTranscoder` nas outras faixas decodificáveis. O caminho
+novo usa buffers MediaCodec API16, sem Surface/AudioTrack; converte para
+AVC Baseline/AAC-LC e preserva as faixas que dispensam conversão. Fica no
+mesmo worker do exportador, com entrada/saída limitada e contrapressão,
+sem carregar o arquivo inteiro nem executar um processo FFmpeg no aparelho.
+
+O teste revelou o aborto do SoftAVC do Android 4.2 quando o buffer calculado
+é menor que seu padrão QCIF, além da exigência de dimensões múltiplas de 16.
+A entrada agora recebe padding, retirado da imagem visível por recorte SPS
+padrão, preservando pixels e proporção. O nível AVC é escolhido entre os
+anunciados para comportar blocos/fps/bitrate. Também são tratados CSD em
+buffers separados, NALs crus do encoder antigo, PCM maior que a entrada do
+AAC e liberação independente de todos os recursos em falhas/cancelamento.
+
+As três amostras novas são padrões sintéticos e tom de 880 Hz: VP8/Vorbis
+em WebM, AVC/Vorbis e VP8/AAC em Matroska. O teste no emulador exige nove
+exports, reprodução local e decodificação independente com FFmpeg/ffprobe;
+as conversões preservam os 120 quadros e dimensões de 160×90, cores e tom.
+Cancelamento com quatro codecs ativos, liberação, ausência de arquivo
+parcial e reinício no mesmo exportador também passaram em
+`outputs/legacy-transcode-cancel-download`. Os nove testes JVM de SPS passaram.
+A rodada final `outputs/legacy-transcode-final-download` passou com erro RGB
+médio de 0,2649/255 na conversão de vídeo e tom de 879,93 Hz no áudio.
+Os dois builds com `-Check` passaram; download e gravação bloqueados na
+edição regional passaram em `outputs/legacy-transcode-final-deat-*`.
+SHA-256 dos APKs debug finais:
+
+- Geral: `33ead798d140ab7054c067c9108cdc4a1e81ea1e139d4fd8b19cb13ca1f80c87`.
+- DE/AT: `1e92ac16e940a7ba927a91714806b7539ac45dc9df2eaa6fe76fbf44ecc5a72d`.
+
+As falhas anteriores e logs estão em `outputs/legacy-transcode-*`.
+Auditoria de arquivos/histórico público sem achados e 12 artes aprovadas
+preservadas. Todos os APKs de teste foram desinstalados na limpeza.
+
+Ainda falta ampliar a conversão para reamostragem/downmix e layouts YUV
+proprietários ou outros limites fora dos codecs disponíveis. O caminho
+atual aceita PCM 16-bit mono/estéreo de 8–48 kHz e YUV420 planar/NV12;
+falhas não publicam um MP4 parcial. Permanecem produção/licença/assinatura,
+validação ARM/real com emissores e Sticks antigos e demais itens de paridade.
+Nenhuma TV física foi usada; os APKs continuam prévias debug isoladas.
+
 ## API17 — retransmissão integrada ao serviço e à interface
 
 `LegacyRelay` liga o transporte compartilhado a `LegacyRelayPlayback` e ao

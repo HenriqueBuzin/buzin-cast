@@ -13,11 +13,23 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ffmpeg',default=shutil.which('ffmpeg'))
     parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats')
+    parser.add_argument('--transcode-only',action='store_true',help='Add conversion fixtures without regenerating the established remux fixtures.')
     args=parser.parse_args()
     if not args.ffmpeg:parser.error('Install FFmpeg or pass --ffmpeg.')
     args.output.mkdir(parents=True,exist_ok=True)
     def run(*options):
         subprocess.run([args.ffmpeg,'-hide_banner','-loglevel','error','-y',*options],cwd=args.output,check=True)
+    def conversion_fixtures():
+        run('-f','lavfi','-i','testsrc=size=160x90:rate=15','-f','lavfi','-i','sine=frequency=880:sample_rate=44100',
+            '-t','8','-ac','2','-c:v','libvpx','-b:v','256k','-g','30','-pix_fmt','yuv420p','-c:a','libvorbis','-q:a','4','vp8-vorbis.webm')
+        run('-i','movie.mp4','-i','vp8-vorbis.webm','-map','0:v:0','-map','1:a:0','-c','copy','avc-vorbis.mkv')
+        run('-i','vp8-vorbis.webm','-i','movie.mp4','-map','0:v:0','-map','1:a:0','-c','copy','vp8-aac.mkv')
+        return ['vp8-vorbis.webm','avc-vorbis.mkv','vp8-aac.mkv']
+    if args.transcode_only:
+        names=conversion_fixtures();path=args.output/'fixtures.json';manifest=json.loads(path.read_text(encoding='utf-8'))
+        manifest['conversion_scope']='Eight-second synthetic VP8/Vorbis pattern and 880 Hz tone, plus mixed passthrough/conversion tracks'
+        manifest['sha256'].update({name:hashlib.sha256((args.output/name).read_bytes()).hexdigest() for name in names})
+        path.write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8');print('Generated conversion fixtures.');return
     run('-f','lavfi','-i','testsrc=size=160x90:rate=15','-f','lavfi','-i','anullsrc=r=44100:cl=stereo',
         '-t','8','-c:v','libx264','-pix_fmt','yuv420p','-profile:v','baseline','-g','30','-keyint_min','30',
         '-sc_threshold','0','-bf','0','-c:a','aac','-b:a','64k','-movflags','+faststart','movie.mp4')
@@ -39,6 +51,7 @@ def main():
     names += [f'hls-{i:02d}.ts' for i in range(4)]
     names += [f'init-{track}.mp4' for track in range(2)]
     names += sorted(p.name for p in args.output.glob('chunk-*.m4s'))
+    names += conversion_fixtures()
     # ElementTree preserves the CRLF found in FFmpeg's MPD text nodes. Git's
     # LF policy normalizes those bytes on commit, so hash the canonical form.
     for name in names:

@@ -49,6 +49,23 @@ public class AvcConfigTest {
         byte[] oversized = new byte[5000]; oversized[3]=1;oversized[4]=0x67;
         assertThrows(IllegalArgumentException.class, () -> AvcConfig.fromAnnexB(oversized));
     }
+    @Test public void encoderPaddingUsesSpsCroppingWithoutChangingPpsOrSlices() throws Exception {
+        byte[] encoded=parameterSets(66,11,9,0);
+        ByteArrayOutputStream out=new ByteArrayOutputStream();out.write(encoded);out.write(hex("000000016512345678"));encoded=out.toByteArray();
+        byte[] cropped=AvcEncoderCrop.annexB(encoded,160,90,176,144);
+        AvcConfig actual=AvcConfig.fromAnnexB(cropped),before=AvcConfig.fromAnnexB(encoded);
+        assertEquals(160,actual.width);assertEquals(90,actual.height);assertArrayEquals(before.pps,actual.pps);
+        assertArrayEquals(hex("000000016512345678"),java.util.Arrays.copyOfRange(cropped,cropped.length-9,cropped.length));
+        assertArrayEquals(cropped,AvcEncoderCrop.annexB(cropped,160,90,176,144));
+        assertArrayEquals(hex("000000016512345678"),AvcEncoderCrop.annexB(hex("6512345678"),160,90,176,144));
+        assertEquals(1080,AvcConfig.fromAnnexB(AvcEncoderCrop.annexB(parameterSets(66,120,68,4),1920,1080,1920,1088)).height);
+    }
+    @Test public void encoderCropRejectsMismatchedDimensionsAndTruncation() throws Exception {
+        assertThrows(java.io.IOException.class,()->AvcEncoderCrop.annexB(parameterSets(66,11,9,0),160,90,192,144));
+        assertThrows(java.io.IOException.class,()->AvcEncoderCrop.annexB(parameterSets(66,11,9,0),161,90,176,144));
+        assertThrows(java.io.IOException.class,()->AvcEncoderCrop.annexB(parameterSets(100,11,9,0),160,90,176,144));
+        assertThrows(java.io.IOException.class,()->AvcEncoderCrop.annexB(hex("000000016742"),160,90,176,144));
+    }
     private static byte[] parameterSets(int profile,int columns,int rows,int bottomCrop) throws Exception {
         StringBuilder bits = new StringBuilder();
         append(bits,0x67,8);append(bits,profile,8);append(bits,0,8);append(bits,30,8);ue(bits,0);

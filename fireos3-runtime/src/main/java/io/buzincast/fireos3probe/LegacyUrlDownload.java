@@ -38,7 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** API17 encoded-sample export. No MediaMuxer, decoder, surface or audio output. */
+/** API17 MP4 export with direct samples or codec-buffer conversion, without a Surface/audio output. */
 @androidx.annotation.OptIn(markerClass=UnstableApi.class)
 public final class LegacyUrlDownload implements java.io.Closeable {
     public enum Phase {IDLE,LOADING,WRITING,SAVED,CANCELLED,FAILED,CLOSED}
@@ -142,12 +142,12 @@ public final class LegacyUrlDownload implements java.io.Closeable {
                     for(int group=0;group<groups.length;group++) {
                         TrackGroup candidate=groups.get(group);if(candidate.type!=kind)continue;present=true;
                         for(int index=0;index<candidate.length;index++) {
-                            Format format=candidate.getFormat(index);if(!supported(format) || format.drmInitData!=null)continue;
+                            Format format=candidate.getFormat(index);if((!supported(format) && !LegacyDownloadTranscoder.available(format)) || format.drmInitData!=null)continue;
                             long rank=kind==C.TRACK_TYPE_VIDEO?(long)Math.max(0,format.width)*Math.max(0,format.height)*1000000L+Math.max(0,format.bitrate):Math.max(0,format.bitrate);
                             if(rank>score) {score=rank;bestGroup=candidate;bestIndex=index;}
                         }
                     }
-                    if(bestGroup==null) {if(present)throw new IOException("Media requires transcoding or is protected");continue;}
+                    if(bestGroup==null) {if(present)throw new IOException("No compatible export codec or media is protected");continue;}
                     selections.add(new FixedTrackSelection(bestGroup,bestIndex));
                 }
                 if(selections.isEmpty())throw new IOException("No supported media tracks");
@@ -199,8 +199,16 @@ public final class LegacyUrlDownload implements java.io.Closeable {
             period.continueLoading(new LoadingInfo.Builder().setPlaybackPositionUs(positionInPeriod()).setPlaybackSpeed(1).build());
         }
         void nextPeriod() throws IOException {
-            for(Binding binding:bindings)binding.selection.disable();
+            closeBindings();
             source.releasePeriod(period);period=null;bindings.clear();periodIndex++;openPeriod();
+        }
+        void closeBindings() throws IOException {
+            IOException failure=null;
+            for(Binding binding:bindings) {
+                try {binding.selection.disable();}catch(RuntimeException error) {if(failure==null)failure=new IOException("Track selection cleanup failed",error);}
+                try {binding.close();}catch(RuntimeException error) {if(failure==null)failure=new IOException("Download codec cleanup failed",error);}
+            }
+            if(failure!=null)throw failure;
         }
         void publish(Phase phase,Exception failure) {
             int progress=durationUs>0?(int)Math.min(99,positionUs*100/durationUs):-1;
@@ -209,11 +217,9 @@ public final class LegacyUrlDownload implements java.io.Closeable {
         }
         void finish(Phase phase,Exception failure) {
             if(finished)return;finished=true;worker.removeCallbacks(pump);
-            try {
-                for(Binding binding:bindings)binding.selection.disable();
-                if(period!=null)source.releasePeriod(period);
-                if(source!=null)source.releaseSource(this);
-            }catch(Exception error) {if(failure==null)failure=error;phase=Phase.FAILED;}
+            try {closeBindings();}catch(Exception error) {if(failure==null)failure=error;phase=Phase.FAILED;}
+            try {if(period!=null)source.releasePeriod(period);}catch(Exception error) {if(failure==null)failure=error;phase=Phase.FAILED;}
+            try {if(source!=null)source.releaseSource(this);}catch(Exception error) {if(failure==null)failure=error;phase=Phase.FAILED;}
             try {if(muxer!=null)muxer.close();}catch(Exception error) {if(failure==null)failure=error;phase=Phase.FAILED;}
             try {if(output!=null)output.close();}catch(IOException error) {if(failure==null)failure=error;phase=Phase.FAILED;}
             if(phase==Phase.SAVED)try {
@@ -230,15 +236,31 @@ public final class LegacyUrlDownload implements java.io.Closeable {
             final SampleStream stream;final ExoTrackSelection selection;final int index;
             final DecoderInputBuffer buffer=new DecoderInputBuffer(DecoderInputBuffer.BUFFER_REPLACEMENT_MODE_NORMAL);
             final FormatHolder holder=new FormatHolder();
-            boolean ended,key;long ptsUs;ByteBuffer sample;Format format;
+            boolean ended,key,sourceEnded,pendingInput;long ptsUs;ByteBuffer sample;Format format;
+            LegacyDownloadTranscoder transcoder;
             Binding(SampleStream stream,ExoTrackSelection selection,int index) {this.stream=stream;this.selection=selection;this.index=index;}
             void read() throws IOException {
                 if(ended || sample!=null)return;stream.maybeThrowError();
-                for(int attempt=0;attempt<4;attempt++) {
+                for(int attempt=0;attempt<12;attempt++) {
+                    if(transcoder!=null) {
+                        LegacyDownloadTranscoder.Sample converted=transcoder.poll();
+                        if(converted!=null) {
+                            track(converted.format);sample=converted.bytes;ptsUs=converted.ptsUs;key=converted.key;return;
+                        }
+                        if(transcoder.ended()) {ended=true;return;}
+                        if(sourceEnded) {transcoder.endInput();return;}
+                        if(pendingInput) {
+                            if(!transcoder.offer(buffer.data,buffer.timeUs,buffer.isKeyFrame()))return;
+                            pendingInput=false;
+                        }
+                    }
                     buffer.clear();holder.clear();int result=stream.readData(holder,buffer,0);
                     if(result==C.RESULT_FORMAT_READ) {
-                        format=holder.format;
-                        if(format==null || !supported(format) || format.drmInitData!=null)throw new IOException("Unsupported or protected media format");
+                        Format next=holder.format;
+                        if(next==null || next.drmInitData!=null)throw new IOException("Unsupported or protected media format");
+                        if(transcoder!=null) {if(!compatible(format,next))throw new IOException("Media format changed during conversion");continue;}
+                        format=next;
+                        if(!supported(format)) {transcoder=new LegacyDownloadTranscoder(format);continue;}
                         format=format.buildUpon().setLanguage(IsoMediaLanguage.normalize(format.language)).build();
                         if(nalVideo(format)) {
                             List<byte[]> data=new ArrayList<>();
@@ -246,22 +268,27 @@ public final class LegacyUrlDownload implements java.io.Closeable {
                             format=format.buildUpon().setInitializationData(data).build();
                         }
                     } else if(result==C.RESULT_BUFFER_READ) {
-                        if(buffer.isEndOfStream()) {ended=true;return;}
+                        if(buffer.isEndOfStream()) {if(transcoder!=null) {sourceEnded=true;transcoder.endInput();}else ended=true;return;}
                         if(buffer.isEncrypted())throw new IOException("Encrypted sample export is unavailable");
                         if(buffer.isDecodeOnly())continue;
                         if(buffer.data==null || buffer.data.position()==0)continue;
                         if(format==null)throw new IOException("Media sample preceded its format");
-                        if(tracks.get(index)==null) {
-                            tracks.set(index,new Track(format,muxer.addTrack(index,format)));
-                            if(MimeTypes.isVideo(format.sampleMimeType))muxer.setOrientation(Math.max(0,format.rotationDegrees));
-                        } else if(!compatible(tracks.get(index).format,format))throw new IOException("Media format changed during export");
                         buffer.flip();int size=buffer.data.remaining();if(size>SAMPLE_LIMIT)throw new IOException("Media sample exceeded its budget");
+                        if(transcoder!=null) {pendingInput=true;continue;}
+                        track(format);
                         if(nalVideo(format))sample=AnnexBNormalization.normalize(buffer.data,SAMPLE_LIMIT);
                         else {sample=ByteBuffer.allocateDirect(size);sample.put(buffer.data);sample.flip();}
                         ptsUs=buffer.timeUs;key=buffer.isKeyFrame();return;
                     } else return;
                 }
             }
+            void track(Format value) throws IOException {
+                if(tracks.get(index)==null) {
+                    tracks.set(index,new Track(value,muxer.addTrack(index,value)));
+                    if(MimeTypes.isVideo(value.sampleMimeType))muxer.setOrientation(Math.max(0,value.rotationDegrees));
+                }else if(!compatible(tracks.get(index).format,value))throw new IOException("Media format changed during export");
+            }
+            void close() {if(transcoder!=null) {transcoder.close();transcoder=null;}}
         }
     }
     private static final class Track {

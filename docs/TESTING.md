@@ -223,11 +223,38 @@ filha local, limpeza de `.part` e preservação de arquivos preexistentes.
 Com `--package com.buzincast.tv.deat.legacy.preview`, exige ausência do
 botão e bloqueio de início/listagem/worker na edição restrita.
 
-`--ffprobe <executável>` verifica as faixas e contagens dos seis MP4s
+`--ffprobe <executável>` verifica as faixas e contagens dos nove MP4s
 sintéticos. `--ffmpeg <executável>` exige decodificação sem mensagens de
 erro, inclusive erros de timestamp que retornam status zero. Os dois
 arquivos com quadros B (exportação e reexportação pelo leitor Media3)
 precisam produzir os mesmos 120 hashes de quadros da origem.
+
+Os três casos adicionais são VP8/Vorbis em WebM, AVC/Vorbis e VP8/AAC em
+Matroska. Exercitam conversão simultânea, só áudio e só vídeo; o resultado
+precisa reproduzir localmente como AVC/AAC. A comparação RGB independente
+exige os mesmos 120 quadros de 160×90 e erro absoluto médio até 10/255.
+O áudio convertido precisa manter duração, amplitude e o tom de 880 Hz
+(tolerância de 20 Hz). Um caso separado cancela depois de escrever amostras
+com os quatro codecs ativos, exige que todos tenham sido liberados e que
+nenhum arquivo final/parcial reste; depois reinicia a conversão no mesmo
+exportador. O marcador `download_conversion` impede usar um APK de teste antigo.
+
+`LegacyDownloadTranscoder` usa os buffers síncronos do MediaCodec API16,
+sem Surface ou AudioTrack. PCM 16-bit mono/estéreo de 8 a 48 kHz é dividido
+entre os buffers do AAC-LC; vídeo YUV420 planar/NV12 é copiado para o encoder
+AVC Baseline com um nível anunciado que comporte resolução/fps/bitrate.
+A entrada do AVC é alinhada e tem o mínimo QCIF exigido pelo encoder do
+Android 4.2. A área visível original é preservada por recorte padrão no SPS,
+sem redimensionar pixels. A instrumentação e a comparação externa cobrem
+esse recorte; testes JVM verificam SPS, PPS/slices preservados, normalização
+de NALs crus, idempotência e rejeição de metadados truncados/incompatíveis.
+Configuração do codec pode vir no evento de formato ou em buffers separados.
+Formatos MP4 já aceitos pelo muxer seguem por cópia direta.
+
+Esses resultados não provam codecs/cores proprietários de Sticks físicos.
+Ainda não há reamostragem/downmix de PCM nem conversão de layouts YUV
+proprietários; um formato sem os codecs/limites necessários falha sem publicar
+o arquivo parcial. Conteúdo protegido continua sendo recusado.
 
 O OMX do emulador API17 não decodifica AVC Main e seu extrator do sistema
 omite faixas com CTTS assinado. Esses dois casos não são usados como

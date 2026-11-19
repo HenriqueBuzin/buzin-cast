@@ -19,6 +19,10 @@
     "chunk-1-1.m4s": "c57c3c250a179795dc5c5fea227b89f3db770208e3cb93336eaad1c2d023ab76",
     "chunk-1-2.m4s": "2c8db6fb3691a91b65f3af363d4044cc0c1f9da60d89754a3f7c7d9cd69eca8a",
     "chunk-1-3.m4s": "bf79ec4ae6b30807748abde217ab9096e96fb544058d5058ec444355e38f6056",
-    "chunk-1-4.m4s": "c9e57959e8d40f817281707ae2c1aa30f802cfc8500b45c204d5cbe18a2fec10"
-  }
+    "chunk-1-4.m4s": "c9e57959e8d40f817281707ae2c1aa30f802cfc8500b45c204d5cbe18a2fec10",
+    "vp8-vorbis.webm": "f5e94436f3b32ecace060ed40663ae8d9f05af5fb84624475aaaab35dc5d9bd8",
+    "avc-vorbis.mkv": "8c4eed9194b6c65e47ad9a449720152c8fd52aba421b7acf5d5563c1cef23c0e",
+    "vp8-aac.mkv": "59ab60b4b04a737f0d1ca4d08b71bc821754d79e1083e334571491d2be31598a"
+  },
+  "conversion_scope": "Eight-second synthetic VP8/Vorbis pattern and 880 Hz tone, plus mixed passthrough/conversion tracks"
 }
