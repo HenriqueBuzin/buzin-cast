@@ -1,5 +1,20 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Exportação da biblioteca no Vega
+
+**Mídia → Biblioteca de gravações → Exportar** abre um endereço HTTP
+para baixar o MP4 selecionado da TV pelo navegador. O endereço aceita o
+início da transferência por até dois minutos. A tela fecha o acesso ao
+cancelar, voltar ou ir para segundo plano. Um envio completo encerra o
+link, e uma conexão interrompida pode tentar de novo dentro do prazo.
+
+O teste nativo comparou o arquivo baixado byte por byte, verificou HEAD,
+rejeição de endereço ou método incorreto, tentativa após desconexão e
+cancelamento com a conexão bloqueada. No VVD ARM64, o controle abriu e
+cancelou o envio pela Biblioteca. Lint, TypeScript, 79 testes Jest e ABI
+das três arquiteturas passaram. O download por um navegador na rede
+de uma TV física ainda aguarda validação.
+
 ## Gravação e biblioteca no Vega
 
 A tela **Estado do port → Testar vídeo AirPlay** permite armar e parar
@@ -15,9 +30,7 @@ pelo worker nativo durante a reprodução. A gravação começou depois do
 primeiro IDR e salvou H.264/AAC tanto no encerramento normal quanto
 ao voltar durante a transmissão. FFmpeg decodificou ambos os arquivos
 e o player do Vega abriu uma gravação pela Biblioteca. Lint, TypeScript,
-78 testes Jest e ABI das três arquiteturas passaram. O teste ainda
-deixa pendentes a captura de um emissor Apple em aparelho físico e
-a exportação de gravações.
+78 testes Jest e ABI das três arquiteturas passaram. A captura de um emissor Apple em aparelho físico ainda aguarda validação.
 
 ## Legendas externas no Vega
 

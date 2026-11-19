@@ -44,6 +44,11 @@ std::string BuzinNetwork::listMirrorRecordings() {
 }
 std::string BuzinNetwork::getMirrorRecordingUrl(std::string name) {return recording.url(name);}
 void BuzinNetwork::removeMirrorRecording(std::string name) {recording.remove(name);}
+std::string BuzinNetwork::startRecordingExport(std::string name) {
+  return recordingExport.start(name, recording.path(name));
+}
+std::string BuzinNetwork::getRecordingExportState() {return recordingExport.state();}
+void BuzinNetwork::stopRecordingExport() {recordingExport.stop();}
 
 std::string BuzinNetwork::getAirPlayVideoState() {
   const auto state = video.state();

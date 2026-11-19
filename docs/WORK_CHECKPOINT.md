@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Exportação da biblioteca no Vega
+
+A Biblioteca exporta um MP4 por link de uso único para um navegador na
+rede local. O teste nativo comparou o download byte por byte. No VVD
+ARM64, o controle abriu e fechou o link pela Biblioteca.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Gravação e biblioteca no Vega
 
 O espelhamento AirPlay agora pode salvar MP4 no sandbox. A Biblioteca

@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import TvButton from './TvButton';
+import RecordingExportScreen from './RecordingExportScreen';
 import Network from './turbo-modules/BuzinNetwork';
 
 type Entry = {name: string; bytes: number};
@@ -13,6 +14,7 @@ export default function RecordingLibrary({onBack, onPlay}: {
   const [message, setMessage] = useState('');
   const [focused, setFocused] = useState('back');
   const [confirm, setConfirm] = useState('');
+  const [exportName, setExportName] = useState('');
   function refresh() {
     try {
       const parsed: Entry[] = JSON.parse(Network.listMirrorRecordings());
@@ -31,6 +33,9 @@ export default function RecordingLibrary({onBack, onPlay}: {
         <Text style={styles.label}>{label}</Text>
       </TvButton>
     );
+  }
+  if (exportName) {
+    return <RecordingExportScreen name={exportName} onBack={() => setExportName('')} />;
   }
   return (
     <View style={styles.screen}>
@@ -57,6 +62,7 @@ export default function RecordingLibrary({onBack, onPlay}: {
                     try {onPlay(name, Network.getMirrorRecordingUrl(name));}
                     catch {setMessage('Não foi possível abrir a gravação.');}
                   }, !confirm && name === entries[0].name)}
+                  {button(name + 'export', 'Exportar', () => setExportName(name))}
                   {button(name + 'remove', 'Excluir', () => setConfirm(name))}
                 </>
               )}

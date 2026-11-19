@@ -1,16 +1,12 @@
 #include "SubtitleUpload.h"
+#include "LocalTransfer.h"
 #include "llhttp.h"
 
 #include <algorithm>
-#include <arpa/inet.h>
 #include <cerrno>
 #include <chrono>
 #include <cctype>
-#include <fcntl.h>
-#include <ifaddrs.h>
-#include <net/if.h>
 #include <openssl/evp.h>
-#include <openssl/rand.h>
 #include <poll.h>
 #include <stdexcept>
 #include <string_view>
@@ -19,7 +15,7 @@
 #include <utility>
 
 namespace {
-using Clock = std::chrono::steady_clock;
+using namespace LocalTransfer;
 using namespace std::chrono_literals;
 constexpr size_t MaxSubtitle = 2 * 1024 * 1024;
 constexpr size_t MaxHeaders = 8192;
@@ -55,41 +51,6 @@ button.onclick = async () => {
 };
 </script></html>)HTML";
 
-struct Socket {
-  int fd;
-  ~Socket() { if (fd >= 0) close(fd); }
-};
-
-bool privateAddress(uint32_t address) {
-  const auto ip = ntohl(address);
-  return (ip >> 24) == 10 || (ip >> 20) == 0xac1 || (ip >> 16) == 0xc0a8 || (ip >> 16) == 0xa9fe;
-}
-
-std::string lanAddress() {
-  ifaddrs* list = nullptr;
-  if (getifaddrs(&list) != 0) throw std::runtime_error("Could not inspect network interfaces");
-  char address[INET_ADDRSTRLEN]{};
-  for (auto* item = list; item; item = item->ifa_next) {
-    if (!item->ifa_addr || item->ifa_addr->sa_family != AF_INET ||
-        (item->ifa_flags & IFF_LOOPBACK) || !(item->ifa_flags & IFF_UP)) continue;
-    const auto ip = reinterpret_cast<sockaddr_in*>(item->ifa_addr)->sin_addr;
-    if (privateAddress(ip.s_addr) && inet_ntop(AF_INET, &ip, address, sizeof(address))) break;
-  }
-  freeifaddrs(list);
-  if (!*address) throw std::runtime_error("No private IPv4 interface for subtitle import");
-  return address;
-}
-
-bool waitFor(const std::atomic<bool>& active, int fd, short event, Clock::time_point end) {
-  while (active && Clock::now() < end) {
-    pollfd ready{fd, event, 0};
-    const int result = ::poll(&ready, 1, 50);
-    if (result > 0) return (ready.revents & event) != 0;
-    if (result < 0 && errno != EINTR) break;
-  }
-  return false;
-}
-
 void reply(const std::atomic<bool>& active, int fd, std::string_view status, std::string_view body = {}) {
   auto packet = "HTTP/1.1 " + std::string(status) +
       "\r\nConnection: close\r\nContent-Type: text/html; charset=utf-8"
@@ -98,17 +59,7 @@ void reply(const std::atomic<bool>& active, int fd, std::string_view status, std
       "\r\nContent-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
       "\r\nContent-Length: " + std::to_string(body.size()) + "\r\n\r\n";
   packet += body;
-  const auto end = Clock::now() + 1s;
-  for (size_t offset = 0; offset < packet.size() && waitFor(active, fd, POLLOUT, end);) {
-#ifdef MSG_NOSIGNAL
-    const auto sent = send(fd, packet.data() + offset, packet.size() - offset, MSG_NOSIGNAL);
-#else
-    const auto sent = send(fd, packet.data() + offset, packet.size() - offset, 0);
-#endif
-    if (sent < 0 && (errno == EINTR || errno == EAGAIN)) continue;
-    if (sent <= 0) break;
-    offset += static_cast<size_t>(sent);
-  }
+  sendAll(active, fd, packet, Clock::now() + 1s);
 }
 
 struct Request {
@@ -202,24 +153,9 @@ SubtitleUpload::~SubtitleUpload() { stop(); }
 
 std::string SubtitleUpload::start() {
   stop();
-  const auto ip = lanAddress();
-  unsigned char random[5];
-  if (RAND_bytes(random, sizeof(random)) != 1) throw std::runtime_error("Could not generate an import link");
-  std::string path = "/";
-  constexpr char hex[] = "0123456789abcdef";
-  for (const auto byte : random) {
-    path += hex[byte >> 4];
-    path += hex[byte & 15];
-  }
-  Socket socket{::socket(AF_INET, SOCK_STREAM, 0)};
-  sockaddr_in address{};
-  address.sin_family = AF_INET;
-  socklen_t size = sizeof(address);
-  if (socket.fd < 0 || fcntl(socket.fd, F_SETFL, O_NONBLOCK) < 0 || bind(socket.fd, reinterpret_cast<sockaddr*>(&address), size) != 0 ||
-      listen(socket.fd, 4) != 0 || getsockname(socket.fd, reinterpret_cast<sockaddr*>(&address), &size) != 0)
-    throw std::runtime_error("Could not start subtitle import");
-  const auto host = ip + ":" + std::to_string(ntohs(address.sin_port));
-  listener = std::exchange(socket.fd, -1);
+  const auto path = randomPath(5);
+  std::string host;
+  listener = LocalTransfer::listen(host);
   active = true;
   try {
     worker = std::thread([this, path, host] {
@@ -233,16 +169,8 @@ std::string SubtitleUpload::start() {
 void SubtitleUpload::serve(const std::string& path, const std::string& host) {
   const auto end = Clock::now() + 120s;
   while (waitFor(active, listener, POLLIN, end)) {
-    sockaddr_in peer{};
-    socklen_t size = sizeof(peer);
-    Socket client{accept(listener, reinterpret_cast<sockaddr*>(&peer), &size)};
-    if (client.fd < 0 || fcntl(client.fd, F_SETFL, O_NONBLOCK) < 0) continue;
-#ifdef SO_NOSIGPIPE
-    constexpr int enabled = 1;
-    if (setsockopt(client.fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0) continue;
-#endif
-    const auto ip = ntohl(peer.sin_addr.s_addr);
-    if (!privateAddress(peer.sin_addr.s_addr) && (ip >> 24) != 127) continue;
+    Socket client{LocalTransfer::accept(listener)};
+    if (client.fd < 0) continue;
     Request request(path, host);
     const auto deadline = std::min(end, Clock::now() + 6s);
     size_t received = 0;

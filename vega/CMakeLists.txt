@@ -11,6 +11,8 @@ kepler_add_turbo_module_library(BuzinNetwork SHARED
   kepler/turbo-modules/ReceiverSettings.cpp
   kepler/turbo-modules/FCastTransport.cpp
   kepler/turbo-modules/CastV2Transport.cpp
+  kepler/turbo-modules/LocalTransfer.cpp
+  kepler/turbo-modules/RecordingExport.cpp
   kepler/turbo-modules/SubtitleUpload.cpp
   kepler/turbo-modules/DlnaTransport.cpp
   kepler/turbo-modules/MdnsDiscovery.cpp

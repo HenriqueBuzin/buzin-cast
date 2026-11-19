@@ -19,6 +19,7 @@ public:
              const std::vector<uint8_t>& bytes, int64_t pts, int64_t dts, int64_t duration) noexcept;
   void audio(const std::vector<uint8_t>& bytes, int64_t pts) noexcept;
   std::vector<Entry> list() const;
+  std::string path(const std::string& name) const;
   std::string url(const std::string& name) const;
   void remove(const std::string& name);
 

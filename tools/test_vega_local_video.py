@@ -180,6 +180,25 @@ def main():
             shell('inputd-cli', 'button_press', 'KEY_BACK')
             observe('/data/playback-state.json', lambda value: value.get('state') == 'released')
             result['recordingLibraryPlayback'] = True
+            def tcp_listeners():
+                return set(re.findall(r'^tcp\s+\d+\s+\d+\s+0\.0\.0\.0:(\d+)\s+\S+\s+LISTEN',
+                                      shell('netstat', '-ltn'), re.M))
+
+            def wait_export_listener(before, opened):
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    if bool(tcp_listeners() - before) == opened:
+                        return
+                    time.sleep(0.15)
+                raise RuntimeError('Recording export listener did not change state')
+
+            baseline = tcp_listeners()
+            shell('inputd-cli', 'button_press', 'KEY_RIGHT')
+            shell('inputd-cli', 'button_press', 'KEY_ENTER')
+            wait_export_listener(baseline, True)
+            shell('inputd-cli', 'button_press', 'KEY_ENTER')
+            wait_export_listener(baseline, False)
+            result['recordingExportListener'] = True
         result.update(passed=True, nativeCallbackWorker=True, profile=args.profile, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:

@@ -303,8 +303,11 @@ std::vector<MirrorRecording::Entry> MirrorRecording::list() const {
   std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {return a.name > b.name;});
   return entries;
 }
+std::string MirrorRecording::path(const std::string& name) const {
+  return impl->entry(name).string();
+}
 std::string MirrorRecording::url(const std::string& name) const {
-  return "file://" + impl->entry(name).string();
+  return "file://" + path(name);
 }
 void MirrorRecording::remove(const std::string& name) {
   if (!fs::remove(impl->entry(name))) throw std::runtime_error("Recording could not be deleted");
