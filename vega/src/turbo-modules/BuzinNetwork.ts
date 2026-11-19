@@ -22,6 +22,9 @@ export interface BuzinNetwork extends KeplerTurboModule {
   fcastError: (client: number, message: string) => void;
   updateFCastState: (playback: string, volume: string) => void;
   startDlna: () => string;
+  getDlnaApproval: () => boolean;
+  setDlnaApproval: (enabled: boolean) => void;
+  answerDlnaApproval: (requestId: number, allow: boolean) => void;
   stopDlna: () => void;
   pollDlnaRequest: () => string;
   respondDlna: (requestId: number, status: number, body: string) => void;

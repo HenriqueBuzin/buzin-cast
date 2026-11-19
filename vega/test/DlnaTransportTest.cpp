@@ -91,5 +91,49 @@ int main() {
     check(reply.starts_with("HTTP/1.1 200 "));
     check(reply.find("Content-Length: 5\r\n") != reply.npos && reply.ends_with("\r\n\r\n"));
   }
+  transport.stop();
+  const auto protectedPort = transport.start(identity, true, true);
+  const std::string_view control = "POST /ctl/avt HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n";
+  {
+    Client unapproved(protectedPort);
+    unapproved.write(control);
+    check(next(transport) == "{\"approval\":{\"id\":4,\"peer\":\"127.0.0.1\"}}");
+    transport.answerApproval(3, false);
+    transport.answerApproval(4, true);
+    check(next(transport) == "{\"approval\":null}");
+    check(next(transport).find("\"id\":5") != std::string::npos);
+    transport.respond(5, 200, "<ok/>");
+    check(unapproved.read().starts_with("HTTP/1.1 200 "));
+  }
+  {
+    Client granted(protectedPort);
+    granted.write(control);
+    check(next(transport).find("\"id\":6") != std::string::npos);
+    transport.respond(6, 200, "<ok/>");
+    check(granted.read().starts_with("HTTP/1.1 200 "));
+  }
+  transport.stop();
+  const auto reopened = transport.start(identity, true, true);
+  {
+    Client denied(reopened);
+    denied.write(control);
+    check(next(transport).find("\"id\":7") != std::string::npos);
+    transport.answerApproval(7, false);
+    check(denied.read().starts_with("HTTP/1.1 403 "));
+    check(next(transport) == "{\"approval\":null}");
+    Client repeated(reopened);
+    repeated.write(control);
+    check(repeated.read().starts_with("HTTP/1.1 403 "));
+    check(transport.poll().empty());
+  }
+  transport.stop();
+  {
+    Client pending(transport.start(identity, true, true));
+    pending.write(control);
+    check(next(transport).find("\"id\":8") != std::string::npos);
+    const auto before = std::chrono::steady_clock::now();
+    transport.stop();
+    check(std::chrono::steady_clock::now() - before < 500ms && pending.read().empty());
+  }
   std::cout << "DLNA control socket framing, cancellation and reopen passed\n";
 }

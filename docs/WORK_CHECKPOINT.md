@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Aprovação DLNA no Vega
+
+A opção **Aprovar conexões DLNA** pede confirmação na TV e guarda
+somente a preferência. O VVD confirmou Permitir e Recusar pelo
+controle, bloqueio de SOAP e GENA após a recusa e nova confirmação
+depois de fechar e reabrir o receptor. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Notificações DLNA no Vega
 
 GENA entrega o estado inicial e avisa os emissores de mudanças no

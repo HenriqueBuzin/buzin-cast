@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. Cast V2 está pendente.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 68 testes Jest passaram.
+- Lint sem avisos, TypeScript e 69 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -77,7 +77,9 @@ estado e posição, pausar, buscar, retomar, parar e ajustar volume ou mudo.
 A descoberta SSDP e os comandos passaram no VVD com um MP4. O receptor
 também abre JPEG e PNG de até 16 MiB e cerca de 25 megapixels. Emissores
 inscritos recebem notificações GENA de transporte, volume e mudo.
-Regras de acesso do app e validação em aparelho físico estão pendentes.
+**Configurações → Aprovar conexões DLNA** ativa a confirmação na TV
+para novos emissores. A aprovação vale por cinco minutos ou até
+fechar o receptor. A validação em aparelho físico está pendente.
 
 ## Ambiente e build
 

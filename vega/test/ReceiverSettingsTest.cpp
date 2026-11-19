@@ -30,6 +30,16 @@ int main() {
     check(corruptRejected);
     writeReceiverName(path, "Restored");
     check(readReceiverName(path) == "Restored");
+    const auto approval = std::string(folder) + "/approval";
+    check(!readApprovalSetting(approval));
+    writeApprovalSetting(approval, true);
+    check(readApprovalSetting(approval));
+    writeApprovalSetting(approval, false);
+    check(!readApprovalSetting(approval));
+    {std::ofstream corrupt(approval); corrupt << "10";}
+    bool approvalRejected = false;
+    try {readApprovalSetting(approval);} catch (const std::runtime_error&) {approvalRejected = true;}
+    check(approvalRejected);
     std::filesystem::remove_all(folder);
   } catch (...) {std::filesystem::remove_all(folder); throw;}
   std::cout << "Receiver name: default, persistence, UTF-8 validation, failed write and recovery passed\n";

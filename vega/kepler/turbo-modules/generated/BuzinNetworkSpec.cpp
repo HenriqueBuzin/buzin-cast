@@ -38,6 +38,9 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("fcastError", &BuzinNetworkSpec::fcastError);
   methodAggregator.addMethod("updateFCastState", &BuzinNetworkSpec::updateFCastState);
   methodAggregator.addMethod("startDlna", &BuzinNetworkSpec::startDlna);
+  methodAggregator.addMethod("getDlnaApproval", &BuzinNetworkSpec::getDlnaApproval);
+  methodAggregator.addMethod("setDlnaApproval", &BuzinNetworkSpec::setDlnaApproval);
+  methodAggregator.addMethod("answerDlnaApproval", &BuzinNetworkSpec::answerDlnaApproval);
   methodAggregator.addMethod("stopDlna", &BuzinNetworkSpec::stopDlna);
   methodAggregator.addMethod("pollDlnaRequest", &BuzinNetworkSpec::pollDlnaRequest);
   methodAggregator.addMethod("respondDlna", &BuzinNetworkSpec::respondDlna);

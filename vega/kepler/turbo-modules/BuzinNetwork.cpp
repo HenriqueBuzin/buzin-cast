@@ -141,8 +141,12 @@ bool BuzinNetwork::isFCastClient(double client) {return fcast.isClient(client);}
 void BuzinNetwork::disconnectFCastClient(double client) {fcast.disconnect(client);}
 void BuzinNetwork::fcastError(double client, std::string message) {fcast.error(client, message);}
 void BuzinNetwork::updateFCastState(std::string playback, std::string volume) {fcast.update(playback, volume);}
+bool BuzinNetwork::getDlnaApproval() {return readApprovalSetting("/data/dlna-approval");}
+void BuzinNetwork::setDlnaApproval(bool enabled) {writeApprovalSetting("/data/dlna-approval", enabled);}
+void BuzinNetwork::answerDlnaApproval(double requestId, bool allow) {dlna.answerApproval(requestId, allow);}
 std::string BuzinNetwork::startDlna() {
   const auto name = getReceiverName();
+  const auto requireApproval = getDlnaApproval();
   const std::string path = "/data/dlna-uuid";
   std::ifstream input(path);
   std::string uuid;
@@ -170,7 +174,7 @@ std::string BuzinNetwork::startDlna() {
       throw std::runtime_error("Could not save DLNA identity");
     }
   }
-  const auto port = dlna.start(uuid);
+  const auto port = dlna.start(uuid, false, requireApproval);
   try {
     std::ofstream report("/data/dlna-port.json", std::ios::trunc);
     report << "{\"port\":" << port << '}';

@@ -40,6 +40,9 @@ public:
   void fcastError(double client, std::string message) override;
   void updateFCastState(std::string playback, std::string volume) override;
   std::string startDlna() override;
+  bool getDlnaApproval() override;
+  void setDlnaApproval(bool enabled) override;
+  void answerDlnaApproval(double requestId, bool allow) override;
   void stopDlna() override;
   std::string pollDlnaRequest() override;
   void respondDlna(double requestId, double status, std::string body) override;

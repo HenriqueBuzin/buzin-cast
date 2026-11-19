@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the DLNA control plane and Vega player on an isolated VVD."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -24,6 +25,7 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--jpeg', type=Path, help='Optional JPEG fixture for the extensionless DIDL resource')
+    parser.add_argument('--approval', action='store_true', help='Verify approval via TV remote input')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-dlna')
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -44,6 +46,7 @@ def main():
     result = {'passed': False, 'physicalValidation': False}
     forwards = []
     client = None
+    saved_approval = None
 
     class Media(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -157,6 +160,8 @@ def main():
             ET.SubElement(request, key).text = str(value)
         response = request_http('POST', f'/ctl/{service}', ET.tostring(root),
                         {'Content-Type': 'text/xml', 'SOAPACTION': f'"{namespace}#{action}"'}, status)
+        if response is None:
+            return {}
         response_body = response.find(f'{{{SOAP}}}Body')
         return {node.tag: node.text for node in response_body[0]}
 
@@ -195,12 +200,28 @@ def main():
     def last_change(field, value):
         return lambda event: any(node.tag.endswith('}' + field) and node.get('val') == value for node in event.iter())
 
+    def answer_on_tv(action, allow):
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            result = pool.submit(action)
+            time.sleep(0.7)
+            assert not result.done(), 'The command did not wait for approval'
+            if allow:
+                shell('inputd-cli', 'button_press', 'KEY_RIGHT')
+            shell('inputd-cli', 'button_press', 'KEY_ENTER')
+            return result.result(timeout=6)
+
     try:
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', run('exec', 'vda', 'devices'), re.M):
             raise RuntimeError('The VVD is not connected')
         if COMPONENT in shell('vlcm', 'list', '--app-id', COMPONENT):
             shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         run('run-app', str(args.vpkg.resolve()), COMPONENT, '-d', args.serial, timeout=120)
+        if args.approval:
+            saved = shell('-c', COMPONENT, 'if test -f /data/dlna-approval; then cat /data/dlna-approval; fi')
+            if saved not in ('', '0', '1'):
+                raise RuntimeError('Unexpected saved approval setting')
+            saved_approval = saved
+            shell('-c', COMPONENT, 'printf 1 > /data/dlna-approval')
         shell('-c', COMPONENT, 'rm', '-f', '/data/dlna-port.json')
         port = open_receiver()
         probe = args.vpkg.parent / 'bin/buzin-dlna-discovery-probe'
@@ -216,6 +237,20 @@ def main():
         forward(port, 'true')
         forward(MEDIA_PORT, 'false')
         client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+        if args.approval:
+            answer_on_tv(lambda: subscription('SUBSCRIBE', 'avt',
+                         {'CALLBACK': f'<http://127.0.0.1:{MEDIA_PORT}/events>', 'NT': 'upnp:event'}, 403), False)
+            soap('cmn', 'GetProtocolInfo', status=403)
+            shell('inputd-cli', 'button_press', 'KEY_BACK')
+            wait(lambda: diagnostic('/data/playback-state.json').get('state') == 'released')
+            client.close()
+            approved_port = open_receiver()
+            if approved_port != port:
+                forward(approved_port, 'true')
+            port = approved_port
+            client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+            answer_on_tv(lambda: soap('cmn', 'GetProtocolInfo'), True)
+            result['remoteApprovalAndDenial'] = True
         desc = request_http('GET', '/desc.xml')
         ns = '{urn:schemas-upnp-org:device-1-0}'
         device = desc.find(f'{ns}device')
@@ -228,8 +263,14 @@ def main():
         assert transport('NO_MEDIA_PRESENT')
         callback = {'CALLBACK': f'<http://127.0.0.1:{MEDIA_PORT}/events>', 'NT': 'upnp:event'}
         subscription('SUBSCRIBE', 'avt', {**callback, 'CALLBACK': f'<http://127.0.0.2:{MEDIA_PORT}/events>'}, 412)
-        avt_sid, timeout = subscription('SUBSCRIBE', 'avt', {**callback, 'TIMEOUT': 'Second-120'})
-        assert avt_sid.startswith('uuid:') and timeout == 'Second-120'
+        requested_timeout = 'Second-infinite' if args.approval else 'Second-120'
+        avt_sid, timeout = subscription('SUBSCRIBE', 'avt', {**callback, 'TIMEOUT': requested_timeout})
+        assert avt_sid.startswith('uuid:')
+        if args.approval:
+            assert timeout.startswith('Second-') and 0 < int(timeout.split('-', 1)[1]) <= 300
+            result['genaCappedByApproval'] = True
+        else:
+            assert timeout == 'Second-120'
         assert notification(avt_sid, last_change('TransportState', 'NO_MEDIA_PRESENT')) == 0
         rcs_sid, _ = subscription('SUBSCRIBE', 'rcs', callback)
         assert notification(rcs_sid, last_change('Volume', '100')) == 0
@@ -303,6 +344,9 @@ def main():
             forward(new_port, 'true')
         client = http.client.HTTPConnection('127.0.0.1', new_port, timeout=5)
         reopened = request_http('GET', '/desc.xml').findtext(f'{ns}device/{ns}UDN')
+        if args.approval:
+            answer_on_tv(lambda: soap('cmn', 'GetProtocolInfo'), True)
+            result['approvalClearedOnExit'] = True
         assert reopened == identity and transport('NO_MEDIA_PRESENT')
         subscription('SUBSCRIBE', 'avt', {'SID': avt_sid}, 412)
         soap('avt', 'SetAVTransportURI', CurrentURI=photo_url, CurrentURIMetaData='')
@@ -330,6 +374,9 @@ def main():
         slow_release.set()
         if client:
             client.close()
+        if saved_approval is not None:
+            restore = f'printf {saved_approval} > /data/dlna-approval' if saved_approval else 'rm -f /data/dlna-approval'
+            shell('-c', COMPONENT, restore)
         for number, direction in forwards:
             try:
                 run('device', 'stop-port-forwarding', '-d', args.serial, '--port', str(number), '--forward', direction)
