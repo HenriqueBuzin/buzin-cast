@@ -35,6 +35,14 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy(JNIEnv *, jobjec
 extern "C" JNIEXPORT void JNICALL
 Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(JNIEnv *, jobject, jlong, jbyteArray, jlong);
 extern "C" ssize_t __real_AMediaCodec_dequeueInputBuffer(AMediaCodec *, int64_t);
+extern "C" const char *__real_android_dnssd_get_raop_txt_key(dnssd_t *, int);
+extern "C" const char *__real_android_dnssd_get_raop_txt_val(dnssd_t *, int);
+extern "C" const char *__real_android_dnssd_get_airplay_txt_key(dnssd_t *, int);
+extern "C" const char *__real_android_dnssd_get_airplay_txt_val(dnssd_t *, int);
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords(JNIEnv *, jobject, jlong);
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords(JNIEnv *, jobject, jlong);
 
 namespace {
 struct PinResultContract {
@@ -56,6 +64,63 @@ struct ScopedInputBuffer {
     explicit ScopedInputBuffer(int failures) : value{failures} { activeInputBuffer = &value; }
     ~ScopedInputBuffer() { activeInputBuffer = previous; }
 };
+struct TxtRecordContract { dnssd_t *owner; bool raop; int part; int hits = 0; };
+thread_local TxtRecordContract *activeTxtRecord = nullptr;
+struct ScopedTxtRecord {
+    TxtRecordContract value;
+    TxtRecordContract *previous = activeTxtRecord;
+    ScopedTxtRecord(dnssd_t *owner, bool raop, int part) : value{owner, raop, part} { activeTxtRecord = &value; }
+    ~ScopedTxtRecord() { activeTxtRecord = previous; }
+};
+bool missingTxtPart(dnssd_t *owner, int index, bool raop, int part) {
+    if (activeTxtRecord && activeTxtRecord->owner == owner && index == 0 &&
+        activeTxtRecord->raop == raop && activeTxtRecord->part == part) {
+        ++activeTxtRecord->hits;
+        return true;
+    }
+    return false;
+}
+}
+
+extern "C" const char *__wrap_android_dnssd_get_raop_txt_key(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, true, 1) ? nullptr : __real_android_dnssd_get_raop_txt_key(owner, index);
+}
+extern "C" const char *__wrap_android_dnssd_get_raop_txt_val(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, true, 2) ? nullptr : __real_android_dnssd_get_raop_txt_val(owner, index);
+}
+extern "C" const char *__wrap_android_dnssd_get_airplay_txt_key(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, false, 1) ? nullptr : __real_android_dnssd_get_airplay_txt_key(owner, index);
+}
+extern "C" const char *__wrap_android_dnssd_get_airplay_txt_val(dnssd_t *owner, int index) {
+    return missingTxtPart(owner, index, false, 2) ? nullptr : __real_android_dnssd_get_airplay_txt_val(owner, index);
+}
+
+// Registration in this shim only fills in-memory records. No NSD publication or
+// network listener is started. Build the map through the shipped JNI function.
+extern "C" JNIEXPORT jobject JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDiscoveryMapWithMissingPart(
+        JNIEnv *env, jobject, jobject bridge, jlong handle, jboolean raop, jint part) {
+    auto *ctx = reinterpret_cast<server_ctx_t *>(handle);
+    if (!ctx || !ctx->dnssd || part < 0 || part > 2) {
+        jclass error = env->FindClass("java/lang/IllegalArgumentException");
+        if (error) { env->ThrowNew(error, "Expected an owned discovery context and part0..2"); env->DeleteLocalRef(error); }
+        return nullptr;
+    }
+    if (dnssd_register_raop(ctx->dnssd, 7000) || dnssd_register_airplay(ctx->dnssd, 7000)) {
+        jclass error = env->FindClass("java/lang/AssertionError");
+        if (error) { env->ThrowNew(error, "Could not build in-memory discovery records"); env->DeleteLocalRef(error); }
+        return nullptr;
+    }
+    ScopedTxtRecord forced(ctx->dnssd, raop == JNI_TRUE, part);
+    jobject map = raop ? Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords(env, bridge, handle)
+                      : Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords(env, bridge, handle);
+    if (!env->ExceptionCheck() && forced.value.hits != (part ? 1 : 0)) {
+        if (map) env->DeleteLocalRef(map);
+        jclass error = env->FindClass("java/lang/AssertionError");
+        if (error) { env->ThrowNew(error, "Discovery contract did not reach the requested getter exactly once"); env->DeleteLocalRef(error); }
+        return nullptr;
+    }
+    return map;
 }
 
 extern "C" ssize_t __wrap_AMediaCodec_dequeueInputBuffer(AMediaCodec *codec, int64_t timeoutUs) {

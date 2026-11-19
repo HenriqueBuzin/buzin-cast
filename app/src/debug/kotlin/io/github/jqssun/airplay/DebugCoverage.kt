@@ -20,6 +20,8 @@ object DebugCoverage {
         name: String, keyFile: String, result: Int): Long
     external fun nativeFeedWithInputNotReady(bridge: DebugNativeBridge, handle: Long,
         data: ByteArray, ptsNs: Long, failures: Int): Int
+    external fun nativeDiscoveryMapWithMissingPart(bridge: io.github.jqssun.airplay.bridge.NativeBridge,
+        handle: Long, raop: Boolean, part: Int): Map<String, String>?
     fun dump(context: Context) {
         val dir = File(context.filesDir, "coverage").apply { mkdirs() }
         val runtime = Class.forName("org.jacoco.agent.rt.RT").getMethod("getAgent").invoke(null)
