@@ -1,5 +1,14 @@
 # Retomada — 19 de novembro de 2026
 
+## Descoberta AirPlay no Vega
+
+O espelhamento experimental publica AirPlay e RAOP via DNS-SD ao abrir a
+tela de teste. Usa a identidade local e a porta RTSP real. O receptor manual
+continua disponível quando o anúncio não sobe. O VVD confirmou dois ciclos
+de ativação e encerramento e a identidade dos TXT devolvidos por `/info`.
+Os três VPKGs passaram na validação de ABI. Falta a descoberta e reprodução
+com emissor Apple em aparelho físico. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Reconexão do espelhamento — 19 de novembro de 2026
 
 O worker encerra a saída quando o transporte de vídeo termina e descarta

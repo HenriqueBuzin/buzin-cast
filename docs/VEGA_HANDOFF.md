@@ -1,5 +1,22 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Descoberta do espelhamento AirPlay — 19 de novembro de 2026
+
+A opção **Testar vídeo AirPlay** anuncia `_airplay._tcp.local` e
+`_raop._tcp.local` enquanto o receptor está ativo. Os dois serviços
+publicam a porta RTSP da sessão e a mesma identidade persistida no
+sandbox. A resposta `/info` usa os mesmos registros TXT. Voltar ou
+colocar o app em segundo plano encerra o anúncio e o transporte.
+A porta TCP continua disponível para conexão manual se o multicast falhar.
+
+No VVD, dois ciclos passaram com anúncio ativo, leitura dos dois TXT por
+RTSP, identidade estável, ganho, mute, fechamento do socket e anúncio
+inativo ao sair. Resultado em `build/vega-airplay-discovery-vvd-final`.
+Os testes de pacotes com ASan/UBSan verificaram seleção por serviço e TTL
+zero no encerramento. Lint, TypeScript, 63 testes Jest e build/ABI em
+ARM64, ARMv7 e x86_64 passaram. Ainda falta confirmar que o receptor aparece
+e reproduz imagem e áudio com um emissor Apple em aparelho físico.
+
 ## Reconexão do espelhamento — 19 de novembro de 2026
 
 O worker encerra a saída quando o transporte de vídeo termina e descarta

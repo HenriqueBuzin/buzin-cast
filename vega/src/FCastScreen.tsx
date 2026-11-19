@@ -52,7 +52,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
               : protocol === 'mirror'
-              ? 'Teste manual de vídeo H.264 com áudio AAC ou ALAC convertido. Sem descoberta ou PIN. Reprodução e compatibilidade com emissores Apple ainda em validação.'
+              ? 'Teste de vídeo H.264 com áudio AAC ou ALAC convertido, sem PIN. Se o receptor não aparecer no emissor, conecte pela porta TCP.'
               : 'Somente URLs por conexão manual na rede local. Sem descoberta, PIN ou espelhamento de tela/áudio nesta etapa.'}
           </Text>
           <Text style={styles.details}>Voltar desativa este receptor.</Text>

@@ -1,4 +1,4 @@
-#include "FCastDiscovery.h"
+#include "MdnsDiscovery.h"
 #include "ReceiverSettings.h"
 
 #include <arpa/inet.h>
@@ -12,6 +12,8 @@
 #include <poll.h>
 #include <random>
 #include <stdexcept>
+#include <string_view>
+#include <utility>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
@@ -55,10 +57,6 @@ void record(std::vector<uint8_t>& out, const std::string& owner, uint16_t type,
   u16(out, static_cast<uint16_t>(data.size()));
   out.insert(out.end(), data.begin(), data.end());
 }
-void appendName(std::vector<uint8_t>& out, const std::string& value) {
-  name(out, value);
-}
-
 uint32_t lanAddress() {
   ifaddrs* interfaces = nullptr;
   if (getifaddrs(&interfaces) != 0) throw std::runtime_error("Could not inspect network interfaces");
@@ -71,13 +69,12 @@ uint32_t lanAddress() {
     if (candidate != htonl(INADDR_ANY)) { selected = candidate; break; }
   }
   freeifaddrs(interfaces);
-  if (!selected) throw std::runtime_error("No active LAN IPv4 address for FCast discovery");
+  if (!selected) throw std::runtime_error("No active LAN IPv4 address for mDNS discovery");
   return selected;
 }
 
-std::vector<uint8_t> announcement(const std::string& service,
-                                 const std::string& host,
-                                 uint16_t port, uint32_t address,
+std::vector<uint8_t> announcement(const MdnsDiscovery::Service& service,
+                                 const std::string& host, uint32_t address,
                                  uint32_t ttl) {
   std::vector<uint8_t> out(12, 0);
   out[2] = 0x84; // authoritative mDNS response
@@ -85,26 +82,21 @@ std::vector<uint8_t> announcement(const std::string& service,
   out[7] = 4; // PTR, SRV, TXT and A answers
 
   std::vector<uint8_t> ptr;
-  appendName(ptr, service);
-  record(out, "_fcast._tcp.local", 12, 1, ttl, ptr);
+  const auto instance = service.instance + "." + service.type;
+  name(ptr, instance);
+  record(out, service.type, 12, 1, ttl, ptr);
 
   std::vector<uint8_t> srv;
-  u16(srv, 0); u16(srv, 0); u16(srv, port);
-  appendName(srv, host);
-  record(out, service, 33, 0x8001, ttl, srv); // cache-flush SRV
+  u16(srv, 0); u16(srv, 0); u16(srv, service.port);
+  name(srv, host);
+  record(out, instance, 33, 0x8001, ttl, srv); // cache-flush SRV
 
-  std::vector<uint8_t> txt;
-  const std::string values[] = {"v=2", "appName=Buzin Cast"};
-  for (const auto& value : values) {
-    txt.push_back(static_cast<uint8_t>(value.size()));
-    txt.insert(txt.end(), value.begin(), value.end());
-  }
-  record(out, service, 16, 0x8001, ttl, txt); // cache-flush TXT
+  record(out, instance, 16, 0x8001, ttl, service.txt); // cache-flush TXT
 
   std::vector<uint8_t> ipv4(4);
   std::memcpy(ipv4.data(), &address, ipv4.size());
   record(out, host, 1, 0x8001, ttl, ipv4); // cache-flush A
-  if (out.size() > 9000) throw std::runtime_error("FCast DNS-SD packet too large");
+  if (out.size() > 1400) throw std::runtime_error("mDNS packet too large");
   return out;
 }
 
@@ -142,14 +134,14 @@ bool dnsName(const uint8_t* packet, size_t length, size_t& cursor, std::string& 
   return false;
 }
 
-bool asksForFCast(const uint8_t* packet, size_t length,
-                  const std::string& service, const std::string& host) {
+bool asksForService(const uint8_t* packet, size_t length,
+                  const MdnsDiscovery::Service& service, const std::string& host) {
   if (length < 12 || (packet[2] & 0xf8) || (packet[3] & 0x0f)) return false;
   const size_t count = (packet[4] << 8) | packet[5];
   if (count > 64) return false;
   size_t cursor = 12;
   bool matched = false;
-  std::string lowerService = service;
+  std::string lowerService = service.instance + "." + service.type;
   for (auto& c : lowerService) if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
   for (size_t q = 0; q < count; ++q) {
     std::string question;
@@ -158,7 +150,7 @@ bool asksForFCast(const uint8_t* packet, size_t length,
     const auto klass = ((packet[cursor + 2] << 8) | packet[cursor + 3]) & 0x7fff;
     cursor += 4;
     if (klass != 1 && klass != 255) continue;
-    matched |= (question == "_fcast._tcp.local" && (type == 12 || type == 255)) ||
+    matched |= (question == service.type && (type == 12 || type == 255)) ||
         (question == lowerService && (type == 16 || type == 33 || type == 255)) ||
         (question == host && (type == 1 || type == 255));
   }
@@ -166,23 +158,40 @@ bool asksForFCast(const uint8_t* packet, size_t length,
 }
 }
 
-FCastDiscovery::~FCastDiscovery() { stop(); }
+MdnsDiscovery::~MdnsDiscovery() { stop(); }
 
-void FCastDiscovery::start(uint16_t tcpPort, const std::string& receiverName) {
+void MdnsDiscovery::startFCast(uint16_t tcpPort, const std::string& receiverName) {
   validateReceiverName(receiverName);
-  if (worker.joinable() || active) throw std::runtime_error("FCast discovery already started");
-  if (!tcpPort) throw std::invalid_argument("Invalid FCast TCP port");
-  address = lanAddress();
-
   std::random_device random;
   char suffix[7];
   std::snprintf(suffix, sizeof(suffix), "%06x", random() & 0xffffff);
-  serviceName = receiverName + "-" + suffix + "._fcast._tcp.local";
-  hostName = std::string("buzincast-") + suffix + ".local";
-  port = tcpPort;
+  std::vector<uint8_t> txt;
+  for (const std::string_view value : {"v=2", "appName=Buzin Cast"}) {
+    txt.push_back(static_cast<uint8_t>(value.size()));
+    txt.insert(txt.end(), value.begin(), value.end());
+  }
+  start(std::string("buzincast-") + suffix + ".local", {{
+      receiverName + "-" + suffix, "_fcast._tcp.local", tcpPort, std::move(txt),
+  }});
+}
+
+void MdnsDiscovery::start(const std::string& host, std::vector<Service> definitions) {
+  if (worker.joinable() || active) throw std::runtime_error("mDNS discovery already started");
+  if (definitions.empty()) throw std::invalid_argument("Missing mDNS services");
+  const auto address = lanAddress();
+  std::vector<PublishedService> prepared;
+  for (auto& service : definitions) {
+    if (!service.port || service.instance.empty() || service.instance.find('.') != std::string::npos)
+      throw std::invalid_argument("Invalid mDNS service");
+    auto records = announcement(service, host, address, RecordTtl);
+    auto goodbye = announcement(service, host, address, 0);
+    prepared.push_back({std::move(service), std::move(records), std::move(goodbye)});
+  }
+  hostName = host;
+  services = std::move(prepared);
 
   const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
-  if (fd < 0) throw std::runtime_error("Could not create FCast mDNS socket");
+  if (fd < 0) throw std::runtime_error("Could not create mDNS socket");
   socketFd = fd;
   const int yes = 1;
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0 ||
@@ -212,40 +221,48 @@ void FCastDiscovery::start(uint16_t tcpPort, const std::string& receiverName) {
   multicast.sin_family = AF_INET;
   multicast.sin_port = htons(MdnsPort);
   multicast.sin_addr.s_addr = htonl(MdnsGroup);
-  const auto initial = announcement(serviceName, hostName, port, address, RecordTtl);
-  if (sendto(fd, initial.data(), initial.size(), 0,
-      reinterpret_cast<const sockaddr*>(&multicast), sizeof(multicast)) !=
-      static_cast<ssize_t>(initial.size())) {
-    setsockopt(fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership));
-    stop(); throw std::runtime_error("Could not announce FCast over mDNS");
+  try {
+    active = true;
+    worker = std::thread([this] { run(); });
+    for (const auto& service : services) {
+      const auto& initial = service.records;
+      if (sendto(fd, initial.data(), initial.size(), 0,
+          reinterpret_cast<const sockaddr*>(&multicast), sizeof(multicast)) !=
+          static_cast<ssize_t>(initial.size()))
+        throw std::runtime_error("Could not announce service over mDNS");
+    }
+  } catch (...) {
+    stop();
+    throw;
   }
-  active = true;
-  worker = std::thread([this] { run(); });
 }
 
-void FCastDiscovery::stop() noexcept {
+void MdnsDiscovery::stop() noexcept {
   active = false;
   if (worker.joinable()) worker.join();
   if (socketFd >= 0) { ::close(socketFd); socketFd = -1; }
+  services.clear();
 }
 
-void FCastDiscovery::run() noexcept {
+void MdnsDiscovery::run() noexcept {
   sockaddr_in multicast{};
   multicast.sin_family = AF_INET;
   multicast.sin_port = htons(MdnsPort);
   multicast.sin_addr.s_addr = htonl(MdnsGroup);
   auto lastAnnouncement = std::chrono::steady_clock::now();
-  auto sendRecords = [&](const sockaddr_in& destination, uint32_t ttl) {
-    const auto packet = announcement(serviceName, hostName, port, address, ttl);
+  auto sendRecords = [&](const std::vector<uint8_t>& packet) {
     const auto sent = sendto(socketFd, packet.data(), packet.size(), 0,
-        reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
+        reinterpret_cast<const sockaddr*>(&multicast), sizeof(multicast));
     return sent == static_cast<ssize_t>(packet.size());
   };
 
   while (active) {
     const auto now = std::chrono::steady_clock::now();
     if (now - lastAnnouncement >= AnnounceInterval) {
-      if (!sendRecords(multicast, RecordTtl)) break;
+      for (const auto& service : services) {
+        if (!sendRecords(service.records)) { active = false; break; }
+      }
+      if (!active) break;
       lastAnnouncement = now;
     }
     pollfd item{socketFd, POLLIN, 0};
@@ -257,14 +274,15 @@ void FCastDiscovery::run() noexcept {
     socklen_t peerLength = sizeof(peer);
     const auto size = recvfrom(socketFd, packet, sizeof(packet), 0,
         reinterpret_cast<sockaddr*>(&peer), &peerLength);
-    if (size > 0 && asksForFCast(packet, static_cast<size_t>(size), serviceName, hostName)) {
-      // Legacy unicast DNS is not implemented; answer mDNS clients only.
-      if (peer.sin_port != htons(MdnsPort)) continue;
-      const auto& destination = multicast;
-      if (!sendRecords(destination, RecordTtl)) break;
-      lastAnnouncement = std::chrono::steady_clock::now();
+    if (size <= 0 || peer.sin_port != htons(MdnsPort)) continue;
+    for (const auto& service : services) {
+      if (asksForService(packet, static_cast<size_t>(size), service.definition, hostName) &&
+          !sendRecords(service.records)) {
+        active = false;
+        break;
+      }
     }
   }
-  if (socketFd >= 0) sendRecords(multicast, 0); // goodbye; expire the cached service
+  for (const auto& service : services) sendRecords(service.goodbye);
   active = false;
 }

@@ -2,6 +2,7 @@
 #include "AirPlayAudioWorker.h"
 #include "AirPlayAudioCallbacks.h"
 #include "AirPlayVideoCallbacks.h"
+#include "MdnsDiscovery.h"
 #include "ReceiverSettings.h"
 #include <arpa/inet.h>
 #include <atomic>
@@ -13,6 +14,7 @@
 #include <stdexcept>
 extern "C" {
 #include "raop.h"
+#include "android_dnssd_shim.h"
 }
 
 struct AirPlaySession::Impl {
@@ -28,6 +30,7 @@ struct AirPlaySession::Impl {
   AirPlayVideoWorker* video = nullptr;
   raop_t* receiver = nullptr;
   dnssd_t* discovery = nullptr;
+  MdnsDiscovery mdns;
 
   void push(AirPlayEvent event) noexcept {
     try {
@@ -182,18 +185,45 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
     int error = 0;
     impl->discovery = dnssd_init(name.c_str(), static_cast<int>(name.size()), address, sizeof(address), &error, 0);
     if (!impl->discovery) throw std::runtime_error("Could not initialize AirPlay identity");
-    // No rendering capability is advertised before the Vega pipeline exists.
+    const bool advertise = video && !loopbackOnly;
     for (int bit = 0; bit < 64; ++bit) dnssd_set_airplay_features(impl->discovery, bit, 0);
+    if (advertise) {
+      // H.264 mirroring, audio, FairPlay, and legacy pairing.
+      for (int bit : {7, 9, 12, 14, 18, 19, 20, 21, 22, 27, 30})
+        dnssd_set_airplay_features(impl->discovery, bit, 1);
+      android_dnssd_set_compressed_audio_only(impl->discovery);
+    }
     raop_set_dnssd(impl->receiver, impl->discovery);
     raop_set_plist(impl->receiver, "hls", audio || video ? 0 : 1);
     unsigned short port = 0;
+    if (dnssd_register_airplay(impl->discovery, port) != 0 ||
+        dnssd_register_raop(impl->discovery, port) != 0)
+      throw std::runtime_error("Could not prepare AirPlay identity records");
     if (raop_start_httpd(impl->receiver, &port) < 0 || !port)
       throw std::runtime_error("Could not start AirPlay transport");
     raop_set_port(impl->receiver, port);
+    if (advertise) {
+      int airplayLength = 0;
+      int raopLength = 0;
+      const char* airplayTxt = dnssd_get_airplay_txt(impl->discovery, &airplayLength);
+      const char* raopTxt = dnssd_get_raop_txt(impl->discovery, &raopLength);
+      const std::string raopName = android_dnssd_get_raop_servname(impl->discovery);
+      std::string host = "buzincast-";
+      for (const char c : identity) if (c != ':') host += c;
+      try {
+        impl->mdns.start(host + ".local", {
+          {name, "_airplay._tcp.local", port, {airplayTxt, airplayTxt + airplayLength}},
+          {raopName, "_raop._tcp.local", port, {raopTxt, raopTxt + raopLength}},
+        });
+      } catch (const std::runtime_error& error) {
+        std::fprintf(stderr, "AirPlay discovery unavailable: %s\n", error.what());
+      }
+    }
     return port;
   } catch (...) {stop(); throw;}
 }
 void AirPlaySession::stop() noexcept {
+  impl->mdns.stop();
   if (impl->receiver) {raop_destroy(impl->receiver); impl->receiver = nullptr;}
   if (impl->discovery) {dnssd_destroy(impl->discovery); impl->discovery = nullptr;}
   if (impl->audio) {impl->audio->stop(); impl->audio = nullptr;}
@@ -230,6 +260,8 @@ bool AirPlaySession::healthy() const {
   std::lock_guard lock(impl->mutex);
   return !impl->failed && (!impl->audio || impl->audio->healthy()) && (!impl->video || impl->video->healthy());
 }
+
+bool AirPlaySession::advertising() const noexcept { return impl->mdns.running(); }
 
 void AirPlaySession::updatePlayback(double position, double duration, double rate, bool ready) {
   if (!std::isfinite(position) || !std::isfinite(duration) || !std::isfinite(rate) ||

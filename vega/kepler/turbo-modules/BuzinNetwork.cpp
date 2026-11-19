@@ -29,6 +29,7 @@ std::string BuzinNetwork::getAirPlayVideoState() {
     << ",\"accepted\":" << state.accepted << ",\"dropped\":" << state.dropped << ",\"flushes\":" << state.flushes
     << ",\"audioAccepted\":" << state.audioAccepted << ",\"audioDropped\":" << state.audioDropped
     << ",\"volumeDb\":" << airplay.volumeDb()
+    << ",\"advertising\":" << (airplay.advertising() ? "true" : "false")
     << ",\"queuedBytes\":" << state.queuedBytes << ",\"released\":" << (state.released ? "true" : "false")
     << ",\"error\":\"" << state.error << "\"}";
   const auto json = output.str();
@@ -124,7 +125,7 @@ std::string BuzinNetwork::pollAirPlayCommand() {
 double BuzinNetwork::startFCast() {
   const auto listeningPort = fcast.start();
   try {
-    discovery.start(static_cast<uint16_t>(listeningPort), getReceiverName());
+    discovery.startFCast(static_cast<uint16_t>(listeningPort), getReceiverName());
     return listeningPort;
   } catch (...) {
     fcast.stop();

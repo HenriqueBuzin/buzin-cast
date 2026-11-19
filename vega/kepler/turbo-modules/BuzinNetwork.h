@@ -8,7 +8,7 @@
 
 #include "generated/BuzinNetworkSpec.h"
 #include "FCastTransport.h"
-#include "FCastDiscovery.h"
+#include "MdnsDiscovery.h"
 #include "AirPlaySession.h"
 #include "AirPlayAudioWorker.h"
 #include "AirPlayVideoWorker.h"
@@ -49,7 +49,7 @@ private:
   AirPlaySession airplay;
   bool videoModeActive = false;
   FCastTransport fcast;
-  FCastDiscovery discovery;
+  MdnsDiscovery discovery;
 };
 
 } // namespace BuzinNetworkTurboModule
