@@ -143,7 +143,7 @@ class MainScreenStateContractTest {
     }
     private fun click(label: String) { await("No actionable control: $label") { control(label, click = true) } }
     private fun screen(block: () -> Unit) {
-        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java)
+        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target -> target.setContent { AirPlayTheme {
                 MainScreen(model, onSurfaceAvailable = { surfaces.incrementAndGet() }, onSurfaceDestroyed = {},

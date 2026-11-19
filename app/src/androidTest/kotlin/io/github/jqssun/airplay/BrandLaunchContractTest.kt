@@ -81,7 +81,7 @@ class BrandLaunchContractTest {
         fail(message)
     }
     private fun activity(block: (ActivityScenario<DebugTvPreviewActivity>) -> Unit) {
-        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java)
+        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use(block)
     }
     private fun shot(bounds: Rect): Bitmap {

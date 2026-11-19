@@ -140,7 +140,7 @@ class LogsScreenContractTest {
         assertTrue(accepted)
     }
     private fun screen(block: () -> Unit) {
-        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java)
+        ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { activity -> activity.setContent { AirPlayTheme { LogsScreen(model) } } }
             await("Log screen did not compose") { snapshot() != null }

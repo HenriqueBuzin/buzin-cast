@@ -8,7 +8,44 @@ The variants are `normal`, `compat`, `deat`, and `compat-deat`. The regional
 variants use the DE/AT package identity and must reject recording and download.
 Compatibility builds have API22 as their minimum; modern builds require API25.
 
-## Verification checkpoint — 2026-11-18
+## Verification checkpoint — 2026-11-19
+
+All 35 contracts in the affected preview-host classes passed together on API22
+(81.732 seconds, no skips). Assembly and lint passed in 1m1s. Evidence is
+`build/tools-contract-host-selection`, with immutable app/test APKs, hashes,
+the complete instrumentation transcript and continuous logcat. This is a
+selected regional compatibility build, not a complete four-edition report.
+
+Four new Tools contracts check relay receive availability, listening details
+and stop controls, receiver status in the diagnostic dialog with Close/Back,
+and recording controls according to the edition. Each independent blocker must
+first recover to an observably enabled idle control, then disable it again;
+consecutive disabled states cannot silently conflate. Restricted-edition
+absence checks also require the capture state to produce an observable change
+in the relay control. The recording-enabled branch still needs the full matrix.
+
+The initial Tools cohort had three passes and one failed locator assertion:
+it assumed every Compose action exposed the widget Button class. The fixture
+now reads actual click actions and enabled/disabled ancestors. The strengthened
+cohort then passed all three state cases but its first case failed before
+entering the screen: ActivityScenario could not launch the animated preview
+within 45 seconds. Both failed cohorts remain separate under
+`build/clean-tools-selection` and `build/clean-tools-strong-selection`.
+
+The debug preview now accepts `screen=contract_host`, an empty themed host for
+contracts that install their own real component or inspect the activity window.
+The eight affected classes opt in; ordinary preview screens retain their
+behavior. This removes unrelated preview composition from the initial idle wait.
+The real brand animation, gesture, logs, main-screen and Tools assertions remain
+in the 35-test cohort. This result does not establish the cause of every older
+timeout, including the incomplete API36 matrix described below.
+
+The attempt under `build/android-coverage-main-states-api36` lost its controller,
+emulator and Java processes during lint and produced no complete runtime report.
+The recorded OS boot predates that attempt, so a restart is not established.
+Its partial files contribute no accepted coverage. A fresh four-edition run is
+in progress under `build/android-coverage-tools-states-api36`; current whole-app
+100% remains unproven until every required report and metric passes.
 
 Five main-screen state contracts passed on API22 (14.67 seconds, no skips).
 They render the production MainScreen with an isolated, unbound ViewModel:
@@ -29,7 +66,7 @@ older Android formatter that rendered 1.2. The final fixture uses unambiguous
 1.4 ms input with a temporary US locale and keeps exact text assertions. The
 failed cohorts and semantics diagnostics are preserved separately.
 
-The current four-edition attempt under `build/android-coverage-init-guards-api36`
+An earlier four-edition attempt under `build/android-coverage-init-guards-api36`
 hit its 900-second instrumentation deadline while the single-tap surface contract
 was running. Its partial transcript includes all five initializer contracts
 passing on API36, but there is no completed normal snapshot or report from that
