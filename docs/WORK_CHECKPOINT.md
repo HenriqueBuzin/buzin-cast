@@ -8,6 +8,53 @@ a rejeição de imagem inválida e a troca de vídeo para foto e de volta
 para vídeo. Notificações GENA, regras de acesso e validação física
 continuam pendentes. Veja [Retomada Vega](VEGA_HANDOFF.md).
 
+## Integração posterior aos testes
+
+O merge incorporou também o patch compartilhado UxPlay 0019 de pareamento.
+Os APKs e resultados abaixo foram produzidos antes dessa integração; não
+validam o patch 0019. Reconstruir e testar o conjunto antes de qualquer LAT
+ou submissão. Os registros e alterações das duas frentes foram preservados.
+
+## API17 — transporte 0018 incorporado nos candidatos assinados
+
+Os APKs foram reconstruídos com o patch UxPlay 0018, após revisar o novo
+callback: o inicializador C do Android mantém `mirror_end_on_eof=false`,
+preservando reconexão dentro da mesma sessão. O teste nativo novo cobre esse
+modo e o encerramento no EOF usado pelo Vega, com sockets reais na API17.
+
+`MirrorTransportTest.cpp` passou 12 cenários de cabeçalho interrompido,
+payload interrompido e codec não suportado. Confere reinício do mesmo objeto,
+parada idempotente, liberação da porta e nenhuma acumulação de descritores.
+O proprietário coleta também a thread que terminou sozinha. O controle
+negativo com o C anterior ao patch falhou em `descriptors()==baseline`;
+o código corrigido completou todos os cenários com status zero. Evidências:
+
+- `outputs/legacy-eof-native-x86/mirror-transport-result.json` e `run.txt`.
+- `outputs/legacy-eof-negative/result.json`; diagnóstico do dispositivo
+  identificou a asserção de descritores (exit 139 no Bionic antigo).
+- `outputs/legacy-eof-native-arm/mirror-transport-result.json`: compilado,
+  não executado, com `passed=null`.
+
+A regressão de criptografia também foi repetida após a extensão do runner: os 66 casos passaram com status zero (`outputs/legacy-eof-crypto/mirror-crypto-result.json`).
+
+Os dois builds `-Check` passaram. Assinatura, chave por ficha, abertura,
+RTSP, navegação, seleção persistente e Sobre passaram novamente nos releases.
+Os hashes conferem com os arquivos exportados:
+
+- Geral: `b7826490e3fc1b30c1a92c2bb89beee890f1160b17e833ec22cc12fd01c642c0`.
+- DE/AT: `74b661d48adb09ab3d7f49957d86bb2aa36fbc67f04a11086b7806d4895c4818`.
+- Builds: `outputs/legacy-eof-store-build.log` e
+  `outputs/legacy-eof-deat-store-build.log`.
+- Execução: `outputs/legacy-eof-store-smoke/report.json` e
+  `outputs/legacy-eof-deat-store-smoke/report.json`.
+
+Nenhuma TV física foi usada e os runners removeram suas instalações.
+As 12 artes aprovadas permanecem intactas. Os candidatos seguem sem envio
+e com `submissionReady=false`: ainda faltam coordenação dos códigos e
+dispositivos com as edições moderno/compatível, licença pela Appstore/LAT,
+validação ARM/Stick físico e demais itens de paridade. Estes testes de
+transporte não constituem validação de reprodução ou negociação FairPlay.
+
 ## Receptor DLNA no Vega
 
 O modo DLNA anuncia um MediaRenderer por SSDP e toca mídia HTTP(S) no
@@ -348,6 +395,8 @@ conferem início dentro de 5 ms da origem, cauda, duração, frames de vídeo,
 cancelamento/liberação/reinício e reprodução local. O DASH de origem já tem
 cerca de 22,5 ms de lacuna entre períodos; a comparação usa os segmentos reais
 e limita o silêncio adicional a 10 ms. Os oito testes JVM novos passaram.
+A regressão de criptografia também foi repetida após a extensão do runner: os 66 casos passaram com status zero (`outputs/legacy-eof-crypto/mirror-crypto-result.json`).
+
 Os dois builds `-Check` passaram. Download e gravação permaneceram bloqueados
 na edição DE/AT, conforme `outputs/legacy-aac-color-deat-download/report.json`
 e `outputs/legacy-aac-color-deat-recording/report.json`. Os runners removeram
