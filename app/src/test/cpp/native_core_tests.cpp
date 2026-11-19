@@ -80,6 +80,25 @@ static void timestampGapsDropsAndCapture() {
     int16_t output[40]{}; timeline.read(output,40);
     for(int i=0;i<10;++i) CHECK(output[i]==1); for(int i=10;i<30;++i) CHECK(output[i]==0); for(int i=30;i<40;++i) CHECK(output[i]==2);
     auto debug=timeline.debugInfo(); CHECK(debug.metrics.silences==1 && debug.metrics.drops==1);
+
+    // Unsynchronized packets must remain audible without entering timestamped
+    // capture. Once the sender clock is ready, capture receives the original PCM.
+    TimelineBuffer syncing(1000,1,0,95);
+    int synchronizedCaptures=0;
+    syncing.capturePcm=[&](const int16_t *pcm,size_t samples,int64_t pts) {
+        CHECK(pcm==second.data() && samples==second.size() && pts==2000000000);
+        ++synchronizedCaptures;
+    };
+    syncing.write(first.data(),0,0);
+    syncing.write(first.data(),first.size(),0);
+    CHECK(synchronizedCaptures==0);
+    int16_t capturedOutput[10]{};
+    CHECK(syncing.read(capturedOutput,10).samples==10);
+    for(auto value:capturedOutput) CHECK(value==1);
+    syncing.write(second.data(),second.size(),2000000000);
+    CHECK(synchronizedCaptures==1);
+    CHECK(syncing.read(capturedOutput,10).samples==10);
+    for(auto value:capturedOutput) CHECK(value==2);
 }
 static void discontinuityAndMetrics() {
     TimelineBuffer timeline(1000,1,0,95); int16_t data[10]{};

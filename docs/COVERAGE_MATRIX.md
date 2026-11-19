@@ -793,3 +793,13 @@ each of the four editions passed 172 Android tests, 18 native cases and all 15
 required result labels; every archived snapshot validated independently. All
 four remained below the metric target. Those older sources and mappings remain
 reference evidence; the changed app still needs fresh complete edition reports.
+
+The native timestamp/capture contract also checks the transition from an
+unsynchronized sender clock to a synchronized clock. Empty and zero-timestamp
+packets must not enter timestamped capture; nonempty zero-timestamp PCM still
+plays unchanged, and the next synchronized packet is captured once and remains
+audible. All 19 modern native cases passed on API28 with undefined-behavior
+sanitizer traps enabled. Exporting that run against the matching application
+library, without the unit executable as a coverage object, covers both conditions
+of the capture/timestamp guard with no LLVM warnings. This is selected native
+evidence, not a complete edition report or a four-edition 100% result.
