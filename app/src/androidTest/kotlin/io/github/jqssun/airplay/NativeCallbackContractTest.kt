@@ -84,7 +84,7 @@ class NativeCallbackContractTest {
                 "play:https://example.invalid/movie:3.5", "scrub:8.5", "rate:0.5", "reset:7", "reset:-1", "teardown")) {
                 assertEquals("Expected exactly one $event", 1, sink.events.count { it == event })
             }
-            assertEquals(4, sink.events.count { it == "stop" })
+            assertEquals(6, sink.events.count { it == "stop" })
             assertEquals(2, sink.events.count { it == "poll" })
             assertEquals(4, sink.events.count { it == "init" })
             assertEquals(2, sink.events.count { it == "destroy" })

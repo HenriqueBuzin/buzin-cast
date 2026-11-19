@@ -697,3 +697,25 @@ and fresh profile confirms independent coverage of all three audio-input guard
 conditions. The callback file now has 42 of 46 MC/DC conditions covered in this
 selection. Four remain uncovered, and this selected evidence is still separate
 from complete reports for each APK edition.
+
+HLS reset contracts initialize a real RAOP/HTTP connection owner without starting
+listeners. They verify shutdown and end-of-stream with both absent and present
+owners, the stopped playback sentinel, six exact Java stop events and normal
+receiver destruction. The fixture uses an in-memory identity and no key file.
+
+A separate controlled VM fault reports success without an environment. This is
+a deliberately malformed dependency result, not behavior induced in ART. All
+22 delivery scenarios must avoid JNI calls, allocations and copies for that
+result, then deliver normally once the fixture restores a valid environment.
+The related API28 selection passed all 16 tests in 0.307 seconds without skips;
+debug assembly passed in 15 seconds. The exact library/profile export confirms
+independent coverage of the HLS-owner and null-environment guards. The callback
+file has 45 of 46 MC/DC conditions covered in this selection. TLS-key creation
+failure, other callback metrics and the full four-edition target remain pending.
+
+The frozen API36 compatibility baseline also completed its 172 Android tests,
+18 native cases and all 15 required result labels; archived snapshot validation
+passed. It remains below target, including Android/JVM line coverage 85.1486%,
+branches 64.793%, native lines 95.9654% and native MC/DC 67.0659%. As with the
+normal baseline above, its older compiled mappings cannot absorb profiles from
+the subsequent service fix or changed native fixtures.

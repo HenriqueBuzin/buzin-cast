@@ -306,6 +306,23 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackContracts(JNIEnv *env,
         android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
         cbs.video_reset(ctx, reset); CALLBACK_CONTRACT(ctx->playback_duration == -1);
     }
+    {
+        // Initialize the real HTTP connection owner, without raop_start/listeners.
+        // Empty keyfile uses an in-memory fixture identity and writes no key file.
+        using Receiver = std::unique_ptr<raop_t, decltype(&raop_destroy)>;
+        Receiver receiver(raop_init(&cbs), raop_destroy);
+        CALLBACK_CONTRACT(receiver);
+        CALLBACK_CONTRACT(raop_init2(receiver.get(), 0, "02:00:00:00:00:01", "") == 0);
+        CALLBACK_CONTRACT(!raop_is_running(receiver.get()));
+        ctx->raop = receiver.get();
+        for (auto reset : {RESET_TYPE_HLS_SHUTDOWN, RESET_TYPE_HLS_EOS}) {
+            android_callbacks_update_playback_info(ctx, 4, 90, 1, 1);
+            cbs.video_reset(ctx, reset);
+            CALLBACK_CONTRACT(ctx->playback_position == 0 && ctx->playback_duration == -1);
+            CALLBACK_CONTRACT(!ctx->playback_ready && !raop_is_running(receiver.get()));
+        }
+        ctx->raop = nullptr;
+    }
     cbs.video_pause(ctx); cbs.video_resume(ctx); cbs.conn_feedback(ctx);
     cbs.audio_flush(ctx); cbs.video_flush(ctx); cbs.audio_stop_coverart_rendering(ctx);
     cbs.conn_reset(ctx, 7); cbs.conn_destroy(ctx);
@@ -527,8 +544,8 @@ struct CallbackFaultFixture {
     inline static thread_local CallbackFaultFixture *active = nullptr;
     int allocation = 0, failAllocation = 0, live = 0, calls = 0, writes = 0;
     int illegal = 0, clears = 0, envStatus = JNI_OK;
-    bool pending = false, failCopy = false, callbackThrows = false;
-    void access() { if (pending || envStatus != JNI_OK) ++illegal; }
+    bool pending = false, failCopy = false, callbackThrows = false, missingEnv = false;
+    void access() { if (pending || missingEnv || envStatus != JNI_OK) ++illegal; }
     jobject allocate() {
         access();
         if (++allocation == failAllocation) { pending = true; return nullptr; }
@@ -573,8 +590,9 @@ struct CallbackFaultFixture {
         functions.ExceptionClear = [](JNIEnv *) { active->pending = false; ++active->clears; };
         invocation.GetEnv = [](JavaVM *, void **out, jint version) -> jint {
             if (version != JNI_VERSION_1_6) ++active->illegal;
-            // The output is deliberately non-null even for a failed query.
-            *out = &active->env;
+            // Failure queries have a non-null output; a separate malformed-VM
+            // case reports success without the environment required by JNI.
+            *out = active->missingEnv ? nullptr : &active->env;
             return active->envStatus;
         };
         invocation.AttachCurrentThread = [](JavaVM *, JNIEnv **out, void *) -> jint {
@@ -629,7 +647,7 @@ struct CallbackFaultFixture {
             }
             case 21: {
                 const auto volume = callbacks.audio_set_client_volume(&ctx);
-                if (volume != (envStatus == JNI_OK ? -6.25 : 0.0)) ++illegal;
+                if (volume != (envStatus == JNI_OK && !missingEnv ? -6.25 : 0.0)) ++illegal;
                 break;
             }
             default: ++illegal; break;
@@ -640,7 +658,7 @@ struct CallbackFaultFixture {
 extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv *env, jobject, jint scenario, jint failure) {
 #define FAULT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
-    FAULT_CONTRACT(scenario >= 0 && scenario <= 21 && failure >= 0 && failure <= 4);
+    FAULT_CONTRACT(scenario >= 0 && scenario <= 21 && failure >= 0 && failure <= 5);
     // Scalar/control callbacks allocate no JNI objects and copy no byte arrays.
     FAULT_CONTRACT(scenario <= 7 || failure >= 2);
     CallbackFaultFixture fixture;
@@ -649,15 +667,17 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
     if (failure == 2) fixture.envStatus = JNI_ERR;
     if (failure == 3) fixture.envStatus = JNI_EDETACHED;
     if (failure == 4) fixture.callbackThrows = true;
+    if (failure == 5) fixture.missingEnv = true;
     fixture.deliver(scenario);
     FAULT_CONTRACT(fixture.illegal == 0);
     FAULT_CONTRACT(fixture.live == 0);
     FAULT_CONTRACT(fixture.calls == (failure == 4 ? 1 : 0));
     if (failure == 0) FAULT_CONTRACT(fixture.allocation == (scenario == 6 ? 2 : 1));
     if (failure == 1) FAULT_CONTRACT(fixture.writes == 1);
+    if (failure == 5) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
     if (scenario >= 8) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
     fixture.failAllocation = 0; fixture.failCopy = false;
-    fixture.callbackThrows = false; fixture.envStatus = JNI_OK;
+    fixture.callbackThrows = false; fixture.missingEnv = false; fixture.envStatus = JNI_OK;
     // PCM clears its own exception; the other callbacks recover at _get_env.
     fixture.deliver(scenario);
     FAULT_CONTRACT(fixture.illegal == 0);

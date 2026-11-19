@@ -29,4 +29,5 @@ class NativeCallbackFaultContractTest {
     @Test fun throwingCallbacksReleaseReferencesAndRecover() = checkFailures(0..7, 4..4)
     @Test fun unavailableVmSkipsScalarAndControlCallbacks() = checkFailures(8..21, 2..3)
     @Test fun throwingScalarAndControlCallbacksRecoverForTheNextDelivery() = checkFailures(8..21, 4..4)
+    @Test fun missingEnvironmentFromMalformedVmResultBlocksDeliveryAndRecovers() = checkFailures(0..21, 5..5)
 }
