@@ -17,6 +17,13 @@ static_assert(std::numeric_limits<decltype(SpscRingTestAccess::position(std::dec
               "Audio positions must remain 64-bit on ARM32 as well as ARM64");
 #define CHECK(condition) do { if (!(condition)) throw std::runtime_error(std::string(#condition)+" at line "+std::to_string(__LINE__)); } while(false)
 #include "log_sink_contracts.h"
+#ifdef BUZIN_CALLBACK_KEY_CONTRACTS
+extern "C" int callbackThreadKeyCreationFailureStatus(void);
+static void callbackThreadKeyCreationFailureBlocksAttachment() {
+    const int status = callbackThreadKeyCreationFailureStatus();
+    if (status) throw std::runtime_error("TLS key contract failed at line " + std::to_string(status));
+}
+#endif
 
 static void ringBoundsAndWrap() {
     SpscRing ring(7);
@@ -171,7 +178,11 @@ int main() {
         {"JNI VM failures and thread attachment",logSinkVmFailuresAndAttachment},
         {"JNI callback binding failures",logSinkBindingFailures},
         {"JNI string allocation and callback failures",logSinkAllocationAndCallbackFailures},
-        {"JNI log rebinding reference ownership",logSinkRebindingReleasesReferences}};
+        {"JNI log rebinding reference ownership",logSinkRebindingReleasesReferences}
+#ifdef BUZIN_CALLBACK_KEY_CONTRACTS
+        ,{"TLS key creation failure blocks JVM attachment",callbackThreadKeyCreationFailureBlocksAttachment}
+#endif
+    };
     int failures=0;
     for(const auto &test:cases) { try {test.second(); std::cout<<"PASS "<<test.first<<std::endl;} catch(const std::exception &error) {++failures; std::cerr<<"FAIL "<<test.first<<": "<<error.what()<<std::endl;} }
     std::cout<<"Native tests: "<<std::size(cases)<<", failures: "<<failures<<std::endl;

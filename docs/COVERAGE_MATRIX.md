@@ -710,8 +710,8 @@ result, then deliver normally once the fixture restores a valid environment.
 The related API28 selection passed all 16 tests in 0.307 seconds without skips;
 debug assembly passed in 15 seconds. The exact library/profile export confirms
 independent coverage of the HLS-owner and null-environment guards. The callback
-file has 45 of 46 MC/DC conditions covered in this selection. TLS-key creation
-failure, other callback metrics and the full four-edition target remain pending.
+file has 45 of 46 MC/DC conditions covered in this selection. That selection
+does not cover TLS-key creation failure or establish the full four-edition target.
 
 The frozen API36 compatibility baseline also completed its 172 Android tests,
 18 native cases and all 15 required result labels; archived snapshot validation
@@ -719,3 +719,24 @@ passed. It remains below target, including Android/JVM line coverage 85.1486%,
 branches 64.793%, native lines 95.9654% and native MC/DC 67.0659%. As with the
 normal baseline above, its older compiled mappings cannot absorb profiles from
 the subsequent service fix or changed native fixtures.
+
+The modern standalone native unit suite now compiles the unchanged production
+C callbacks and a C dependency fixture. Its 19th case wraps `pthread_key_create`
+to return `EAGAIN`, then verifies that repeated progress deliveries neither
+attach a JVM thread without a detach key nor use the unavailable JNI environment.
+It runs after the worker tests have joined, using process-local test state that
+does not depend on TLS itself. No real key exhaustion or ART-state reset occurs.
+The legacy NDK/C++17 build retains its prior 18 cases and compilation path.
+
+All 19 cases passed under UBSan on API28. ARM32/API22, ARM64/API22 and the legacy
+x86/API17 unit executables also compiled. The first TLS-dependent mock timed out;
+a subsequent C++ JNI mock exposed a C/C++ indirect-call type mismatch under
+UBSan. The final C fixture fixes both test issues without disabling sanitizers.
+Those unsuccessful attempts contribute no coverage profiles.
+
+Merging the successful unit profile with the matching 16-test JNI selection,
+and exporting only the archived APK library as a coverage object, produced no
+LLVM warnings and verified all 46 callback-file MC/DC conditions. The inventory
+still contains all 42 functions and 252 branches; 41 functions and 244 branches
+are covered. This establishes 100% MC/DC for that file only. It does not establish
+100% for its other metrics, the full native code, Android/JVM or any APK edition.

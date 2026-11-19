@@ -23,9 +23,28 @@ triple={"x86":"i686-linux-android","x86_64":"x86_64-linux-android","armeabi-v7a"
 args.output.mkdir(parents=True,exist_ok=True)
 instrumentation=[] if args.legacy else ["-fprofile-instr-generate","-fcoverage-mapping","-fcoverage-mcdc","-fprofile-update=atomic",
          "-fsanitize=undefined","-fsanitize-trap=undefined","-fno-omit-frame-pointer"]
+callback_inputs=[]
+if not args.legacy:
+    # Compile the unchanged production C callbacks, with their normal dialect
+    # and coverage identifiers. Only the unit executable wraps the TLS syscall.
+    c_compiler=toolchain/"bin"/("clang.exe" if platform.system()=="Windows" else "clang")
+    includes=["-I"+str(root/"app/src/main/cpp"),
+              "-I"+str(root/"app/src/main/cpp/third_party/UxPlay/lib")]
+    callback_objects=[]
+    for source in (root/"app/src/main/cpp/android_raop_callbacks.c",
+                   root/"app/src/test/cpp/callback_thread_key_contracts.c"):
+        callback_object=args.output/(source.stem+".o")
+        subprocess.run([str(c_compiler),"--target="+triple+str(args.api),
+            "--sysroot="+str(toolchain/"sysroot"),"-std=c23","-O0","-g",*instrumentation,
+            "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.",*includes,
+            "-c",str(source),"-o",str(callback_object)],check=True)
+        callback_objects.append(str(callback_object))
+    callback_inputs=["-DBUZIN_CALLBACK_KEY_CONTRACTS",*includes,*callback_objects,
+                     "-Wl,--wrap=pthread_key_create"]
 command=[str(compiler),"--target="+triple+str(args.api),"--sysroot="+str(toolchain/"sysroot"),
          "-std=c++17" if args.legacy else "-std=c++23","-O1","-g","-static-libstdc++","-pthread",*instrumentation,
          "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.","-I"+str(root/"app/src/main/cpp"),
-         str(root/"app/src/test/cpp/native_core_tests.cpp"),"-latomic","-llog","-o",str(args.output/"native_core_tests")]
+         str(root/"app/src/test/cpp/native_core_tests.cpp"),*callback_inputs,
+         "-latomic","-llog","-o",str(args.output/"native_core_tests")]
 subprocess.run(command,check=True)
 print("Native unit executable: "+str(args.output/"native_core_tests"))
