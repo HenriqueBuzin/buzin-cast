@@ -12,8 +12,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -44,6 +46,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -955,11 +958,21 @@ private fun AudioMiniController(viewModel: MainViewModel, visible: Boolean, onCl
 @Composable
 @AndroidxOptIn(UnstableApi::class)
 private fun NowPlayingContent(viewModel: MainViewModel) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val coverSize = minOf(maxWidth * 0.7f, maxHeight / 3, 240.dp)
+        NowPlayingPanel(viewModel, coverSize)
+    }
+}
+
+@Composable
+@AndroidxOptIn(UnstableApi::class)
+private fun NowPlayingPanel(viewModel: MainViewModel, coverSize: Dp) {
     val track by viewModel.trackInfo.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -967,9 +980,7 @@ private fun NowPlayingContent(viewModel: MainViewModel) {
         // cover art
         Box(
             modifier = Modifier
-                .weight(1f, fill = false)
-                .aspectRatio(1f)
-                .fillMaxWidth(0.7f)
+                .size(coverSize)
                 .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest),
             contentAlignment = Alignment.Center

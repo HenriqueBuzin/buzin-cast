@@ -6,11 +6,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Rect
+import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.WindowManager
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
@@ -313,5 +319,114 @@ class MainActivityLifecycleContractTest {
         keepsScreenOn(activity, false)
         close(activity)
         main { assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value) }
+    }
+
+    @Test fun audioSessionExposesReceiverVolumeButKeepsUnavailableSenderVolumeDisabled() {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val originalVolume = audio.getStreamVolume(stream)
+        val maximum = audio.getStreamMaxVolume(stream)
+        assertTrue("Expected adjustable emulator media volume", maximum > 1 && !audio.isVolumeFixed)
+        val initial = maximum / 2
+        val activity = launch()
+        start(activity)
+        try {
+            main {
+                audio.setStreamVolume(stream, initial, 0)
+                service.onConnectionInit()
+                service.onAudioFormat(2, 352, false)
+                service.onProgress(0L, 44100L, 44100L * 90)
+            }
+            awaitVolumeControl(R.string.cd_rewind) { node ->
+                val bounds = Rect().also(node::getBoundsInScreen)
+                if (bounds.isEmpty) return@awaitVolumeControl false
+                // Swipe beside the playback buttons to reveal both sliders.
+                val x = (bounds.left - bounds.width() * 3).coerceAtLeast(1).toFloat()
+                pointerGesture(x, bounds.exactCenterY(), (bounds.exactCenterY() - bounds.height() * 5).coerceAtLeast(1f))
+                true
+            }
+            lateinit var receiverBounds: Rect
+            awaitVolumeControl(R.string.volume_server) { node ->
+                assertTrue(node.isEnabled)
+                receiverBounds = Rect().also(node::getBoundsInScreen)
+                !receiverBounds.isEmpty
+            }
+            val touchX = receiverBounds.left + receiverBounds.width() * 0.85f
+            val touchY = receiverBounds.exactCenterY()
+            pointerGesture(touchX, touchY, touchY)
+            await("Touch on receiver volume did not raise the media stream") { audio.getStreamVolume(stream) > initial + 1 }
+            val raised = audio.getStreamVolume(stream)
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
+            await("Left on receiver volume did not lower the media stream one step") { audio.getStreamVolume(stream) == raised - 1 }
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+            await("Right on receiver volume did not restore the media stream one step") { audio.getStreamVolume(stream) == raised }
+            pointerGesture(receiverBounds.left.toFloat() - 24, touchY, touchY - receiverBounds.height() * 2f)
+            activity.onActivity { assertFalse(model(it).clientVolumeAdjustable.value) }
+            awaitVolumeControl(R.string.volume_client) { node ->
+                if (Build.VERSION.SDK_INT >= 24) {
+                    assertFalse(node.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id })
+                }
+                true
+            }
+        } finally {
+            main {
+                if (service.connectionCount.value > 0) service.onConnectionDestroy()
+                audio.setStreamVolume(stream, originalVolume, 0)
+            }
+            close(activity)
+        }
+    }
+
+    private fun pointerGesture(x: Float, startY: Float, endY: Float) {
+        val time = SystemClock.uptimeMillis()
+        fun send(action: Int, y: Float) {
+            val event = MotionEvent.obtain(time, SystemClock.uptimeMillis(), action, x, y, 0)
+            try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+        }
+        send(MotionEvent.ACTION_DOWN, startY)
+        if (startY != endY) {
+            for (step in 1..5) {
+                Thread.sleep(16)
+                send(MotionEvent.ACTION_MOVE, startY + (endY - startY) * step / 5)
+            }
+        }
+        send(MotionEvent.ACTION_UP, endY)
+    }
+
+    private fun awaitVolumeControl(label: Int, action: (AccessibilityNodeInfo) -> Boolean) {
+        val description = context.getString(label)
+        val automation = instrumentation.uiAutomation
+        val visibleControls = linkedSetOf<String>()
+        fun visit(node: AccessibilityNodeInfo): Boolean {
+            val nodeDescription = node.contentDescription?.toString()
+            if (!nodeDescription.isNullOrBlank()) {
+                val bounds = Rect().also(node::getBoundsInScreen)
+                visibleControls += "$nodeDescription bounds=$bounds enabled=${node.isEnabled} " +
+                    "focusable=${node.isFocusable} focused=${node.isFocused} actions=${node.actionList.map { it.id }}"
+            }
+            if (nodeDescription == description && action(node)) return true
+            for (index in 0 until node.childCount) {
+                val child = node.getChild(index) ?: continue
+                try { if (visit(child)) return true } finally { child.recycle() }
+            }
+            return false
+        }
+        val deadline = SystemClock.elapsedRealtime() + 15000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
+            val tree = automation.rootInActiveWindow
+            if (tree != null) {
+                try { if (tree.refresh() && visit(tree)) return } finally { tree.recycle() }
+            }
+            Thread.sleep(50)
+        }
+        automation.takeScreenshot()?.let { image ->
+            try {
+                File(context.filesDir, "main-contract-failure.png").outputStream().use {
+                    image.compress(Bitmap.CompressFormat.PNG, 100, it)
+                }
+            } finally { image.recycle() }
+        }
+        fail("Audio volume control did not expose its expected state: $description. Visible controls: $visibleControls")
     }
 }
