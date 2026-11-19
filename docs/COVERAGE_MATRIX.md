@@ -1057,3 +1057,10 @@ All 20 service, DACP request and DACP discovery tests passed on API28 in
 3.342 seconds. The matched report covers 17 of 22 branches in `_clientVolStep`,
 compared with zero in the frozen 192-case normal report, and all instructions
 in `onClientVolumeQuery`. The current source suite now has 208 Android cases.
+
+The same DACP contract now also verifies that retargeting while a command is
+pending sends no second command, missing feedback expires the target, late
+feedback does not continue an expired request and repeated identical feedback
+stops at the 32-command limit. The 20-test selection passed again on API28 in
+5.057 seconds. The matched report covers 4/4 branches in `_driveClientVol`
+and 18/22 in `_clientVolStep`. The Android case count stays at 208.
