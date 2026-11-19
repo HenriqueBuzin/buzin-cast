@@ -94,9 +94,12 @@ class SettingsScreenStateContractTest {
 
     @Suppress("DEPRECATION")
     private fun <T> tree(block: (AccessibilityNodeInfo) -> T): T? {
+        if (Build.VERSION.SDK_INT >= 34) check(instrumentation.uiAutomation.clearCache()) {
+            "Could not invalidate the accessibility cache"
+        }
         val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
         try {
-            if (root.packageName?.toString() != context.packageName || root.childCount == 0) return null
+            if (!root.refresh() || root.packageName?.toString() != context.packageName || root.childCount == 0) return null
             return block(root)
         } finally { root.recycle() }
     }

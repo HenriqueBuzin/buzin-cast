@@ -803,3 +803,14 @@ sanitizer traps enabled. Exporting that run against the matching application
 library, without the unit executable as a coverage object, covers both conditions
 of the capture/timestamp guard with no LLVM warnings. This is selected native
 evidence, not a complete edition report or a four-edition 100% result.
+
+The first fresh API36 run built successfully with lint and passed all 19 native
+cases, but its 187 Android tests had seven failures: four main-screen checks and
+three settings checks read old accessibility descendants. A failure screenshot
+showed the current Open settings button while the queried tree described the
+previous screen. Refreshing the root alone did not invalidate those descendants.
+The two screen fixtures now explicitly clear the instrumentation accessibility
+cache on API34+, where that SDK API is available, before reading current nodes.
+All 11 settings/main-screen cases then passed on API36 in 82.172 seconds without
+skips, with unchanged source and input fingerprints. The failed full-run profiles
+are not accepted; a complete fresh edition run is still required.

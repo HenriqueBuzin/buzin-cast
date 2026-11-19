@@ -7,6 +7,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
@@ -117,6 +118,11 @@ class MainScreenStateContractTest {
     }
     @Suppress("DEPRECATION")
     private fun appRoot(): AccessibilityNodeInfo? {
+        // API34+ can retain old descendant nodes even after refreshing the root.
+        // Read the current window after invalidating that instrumentation cache.
+        if (Build.VERSION.SDK_INT >= 34) check(instrumentation.uiAutomation.clearCache()) {
+            "Could not invalidate the accessibility cache"
+        }
         // API28 can briefly keep no active window after a dialog is removed.
         // Use an actual focused application window, never an empty/old tree.
         val windows = instrumentation.uiAutomation.windows
