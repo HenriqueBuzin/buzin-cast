@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--target', choices=('legacy', 'compat', 'modern'), default='legacy')
     parser.add_argument('--device-sdk', type=int, help='Require this emulator API explicitly (e.g. 22 for the legacy APK on updated firmware)')
+    parser.add_argument('--abi', choices=('armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'),
+                        help='Select and verify the installed native ABI on a compatible emulator')
     args=parser.parse_args()
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
     if not local or not 5555<=int(local[1])<=5683 or int(local[1])%2!=1:
@@ -46,6 +48,8 @@ def main():
     if (adb('shell','getprop','persist.sys.language').strip() not in ('','en')
             or adb('shell','getprop','persist.sys.locale').strip().split('-')[0] not in ('','en')):
         parser.error('Use an English emulator for the black-box text assertions.')
+    if args.abi and args.abi not in adb('shell','getprop','ro.product.cpu.abilist').strip().split(','):
+        parser.error('The emulator does not expose the selected ABI.')
     badging=subprocess.check_output([args.aapt,'dump','badging',str(args.apk)],timeout=30).decode()
     package=re.search(r"package: name='([^']+)'",badging).group(1)
     if package not in ('com.buzincast.tv','com.buzincast.tv.deat') or f"sdkVersion:'{min_sdk}'" not in badging or 'application-debuggable' in badging:
@@ -129,9 +133,17 @@ def main():
     try:
         if re.search(r'^package:'+re.escape(package)+r'\s*$',adb('shell','pm','list','packages',package),re.M):
             raise AssertionError('Store package already installed in this emulator; do not overwrite it implicitly.')
-        install=adb('install',args.apk,timeout=120)
+        install_abi = ('--abi', args.abi) if args.abi else ()
+        install=adb('install',*install_abi,args.apk,timeout=120)
         if 'Success' not in install:raise AssertionError('Release install failed: '+install)
-        installed=True;adb('shell','input','keyevent','82');adb('logcat','-c')
+        installed=True
+        if args.abi:
+            package_info = adb('shell','dumpsys','package',package)
+            if not re.search(r'^\s*primaryCpuAbi='+re.escape(args.abi)+r'\s*$', package_info, re.M):
+                raise AssertionError('Installed native ABI differs from the requested ABI')
+            report['installed_abi'] = args.abi
+            report['native_bridge'] = adb('shell','getprop','ro.dalvik.vm.native.bridge').strip()
+        adb('shell','input','keyevent','82');adb('logcat','-c')
         launch=adb('shell','am','start','-W',*launch_args)
         if 'Error:' in launch or 'Status: ok' not in launch:raise AssertionError('Release launch failed: '+launch)
         forward=adb('forward','tcp:0','tcp:7000').strip();deadline=time.monotonic()+30

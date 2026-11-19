@@ -140,3 +140,10 @@ e `modern.general-api30-retest`. Na API28, o primeiro teste capturou um
 erro do app de mensagens do emulador. Na API30, o redirecionamento fechou
 a conexão antes de o receptor responder. A repetição passou com o log
 filtrado pelo processo do BuzinCast e a espera pela primeira resposta RTSP.
+
+A imagem API30 também executou o mesmo APK com `--abi armeabi-v7a` e
+`--abi arm64-v8a`. O teste confirma a ABI instalada no gerenciador de
+pacotes antes de abrir o app. As duas execuções passaram com RTSP pela
+ponte `libndk_translation.so`. Os relatórios são
+`modern.general-api30-armeabi-v7a` e `modern.general-api30-arm64-v8a`.
+Esse teste exercita as bibliotecas ARM por tradução em um emulador x86-64.
