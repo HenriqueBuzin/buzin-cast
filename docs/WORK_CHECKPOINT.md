@@ -1,4 +1,55 @@
-# Retomada — 18 de novembro de 2026
+# Retomada — 19 de novembro de 2026
+
+## API17 — PIN experimental e validação do pareamento nativo
+
+`ReceiverOptions` repassa `requirePin` ao JNI sem alterar o padrão das
+assinaturas antigas. O receptor gera um PIN aleatório por execução com
+o CSPRNG existente e falha na inicialização se a geração falhar. Anuncia
+o sinal de senha nos dois serviços DNS-SD e entrega o callback nativo à
+janela/notificação. Mudar a opção reinicia o receptor. Fechar, parar,
+reconfigurar, iniciar mídia ou encerrar a sessão limpa a indicação.
+
+As chaves públicas registradas ficam limitadas a 16 na fila da sessão,
+sem arquivo de confiança persistente. Callbacks rejeitam tamanhos e
+formatos inválidos; fechar a fila elimina as chaves e ignora retornos
+tardios. O texto do log nativo que revelava o PIN foi filtrado.
+
+Os patches compartilhados 0013–0016 validam estado e tamanhos no SRP,
+recusam confirmação antes da prova e repetição depois de liberar o estado,
+e rejeitam verificadores/chaves de cliente inválidos antes de os usar.
+Isso evita acesso a contexto nulo e leitura de campos menores que os
+tamanhos copiados. A preparação isolada do núcleo Vega foi atualizada
+para o inventário de 16 patches e passou com proteção de edições locais.
+O app Vega não foi compilado nem testado neste PC.
+
+As integrações geral e DE/AT passaram com cliente independente: PIN errado,
+SRP correto, prova do servidor, tag GCM inválida, nova troca SRP após falha,
+confirmação AES-GCM/identidade do servidor, resposta X25519/Ed25519 e 18
+entradas malformadas. Janela/foco, notificação, segundo plano, modo
+desligado e parada também passaram. As capturas foram conferidas visualmente.
+Os relatórios são `outputs/legacy-pin-general/report.json` e
+`outputs/legacy-pin-deat-pin/report.json`.
+
+Passaram as duas compilações com `-Check`, os testes JVM e lint. A edição
+geral passou novamente por aprovação de conexões, URLs nativas/FCUP e
+gravação MKV com validação independente dos pacotes. Na edição DE/AT,
+download e gravação continuam bloqueados e passaram pelos testes negativos.
+Os 12 recursos de marca foram preservados. A auditoria direcionada de
+arquivos/histórico público não encontrou ocorrências.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `696bf00082118d8a293df9c7a451d597cb209ed94fb16456bb313c277ce65200`.
+- DE/AT: `5cf849fabb4ce7934741a90d712cf4426072b1db00446ee0f00c2160d5ec6dd2`.
+
+As mudanças compartilhadas de pareamento ainda precisam ser incorporadas
+e verificadas nos próximos builds moderno/compat antes de publicá-los.
+
+A implementação continua experimental, como no app moderno. Não comprova
+interoperabilidade/retomada de emissores Apple físicos nem autenticação
+universal de todos os caminhos do protocolo. Os APKs são previews debug;
+licença/SDK, assinatura de produção, Cast V2, retransmissão, outros formatos
+de download e testes em Sticks antigos reais continuam pendentes.
 
 ## API17 — aprovação de conexões
 

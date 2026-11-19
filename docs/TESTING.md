@@ -1,5 +1,35 @@
 # Testes automatizados
 
+## PIN experimental na prévia API17
+
+`tools/test_legacy_gestures.py --pin` usa `cryptography` no Python do host
+e um cliente de teste independente em `tools/legacy_pin_client.py`.
+Os pedidos reais usam RTSP, não HTTP: o núcleo tem despacho distinto para
+os dois protocolos. O cliente calcula SRP-6a/SHA1, verifica a prova do
+servidor e a confirmação AES-GCM da chave Ed25519, verifica a assinatura
+do servidor na troca X25519 e envia a resposta de pair-verify.
+
+Um PIN incorreto precisa receber 470. Uma tag GCM adulterada também é
+recusada; a tentativa seguinte refaz SRP, pois o núcleo consome o estado
+após cada confirmação. Uma confirmação repetida é recusada. Há 18 casos
+adicionais de tipos/estado/tamanhos inválidos e chaves SRP inseguras.
+
+A parte Android exige a opção desligada por padrão, repasse ao JNI,
+`pw` correto nos registros DNS-SD nativos, quatro dígitos na janela real,
+foco em OK, notificação atualizada, abertura em segundo plano e limpeza
+ao fechar/desligar/parar. Salva `pin-ui.png` a partir das Views reais.
+Os testes JVM verificam preservação de zeros à esquerda, descarte de
+códigos inválidos, registro limitado a 16 chaves e invalidação ao fechar
+a sessão. Nenhum PIN ou chave privada entra no relatório JSON.
+
+Esse teste comprova o fluxo sintético de pareamento, não interoperabilidade
+com um dispositivo Apple físico, retomada de um emissor real já registrado
+nem bloqueio universal de todos os caminhos legados do protocolo. O PIN
+mantém a indicação experimental do app atual; a aprovação opcional por
+controle é um recurso separado.
+
+![Janela nativa de PIN com OK focado; código de teste já encerrado](images/fireos3-native-pin.png)
+
 ## Aprovação de conexões na prévia API17
 
 `tools/test_legacy_gestures.py --approval` percorre os caminhos de admissão

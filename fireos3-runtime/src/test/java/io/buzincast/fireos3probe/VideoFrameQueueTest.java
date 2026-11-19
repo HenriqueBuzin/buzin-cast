@@ -6,6 +6,18 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.*;
 
 public class VideoFrameQueueTest {
+    @Test public void pinDisplayAndTrustAreBoundedAndOwnedByOneSession() {
+        VideoFrameQueue queue=new VideoFrameQueue();java.util.List<String> shown=new java.util.ArrayList<>();
+        String key="A".repeat(43)+"=";
+        queue.onDisplayPin("0007");queue.onRegisterClient(key);assertFalse(queue.onCheckRegister(key));
+        queue.pin(shown::add);queue.onDisplayPin("0007");queue.onDisplayPin("12345");queue.onDisplayPin(null);queue.onDisplayPin("abcd");
+        assertEquals(java.util.Arrays.asList("0007"),shown);
+        queue.onRegisterClient("invalid");assertFalse(queue.onCheckRegister("invalid"));
+        for(int i=0;i<17;i++)queue.onRegisterClient((char)('A'+i)+"A".repeat(42)+"=");
+        assertTrue(queue.onCheckRegister(key));assertFalse(queue.onCheckRegister("Q"+"A".repeat(42)+"="));
+        assertEquals(17,shown.size()); // One display and sixteen accepted registration callbacks.
+        queue.close();assertFalse(queue.onCheckRegister(key));queue.onDisplayPin("1234");assertEquals(17,shown.size());
+    }
     @Test public void admissionRunsWithoutHoldingDecoderLockAndRejectsClosedQueue() throws Exception {
         VideoFrameQueue queue=new VideoFrameQueue();
         java.util.concurrent.CountDownLatch entered=new java.util.concurrent.CountDownLatch(1),release=new java.util.concurrent.CountDownLatch(1);

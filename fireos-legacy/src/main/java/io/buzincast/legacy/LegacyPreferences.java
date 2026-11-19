@@ -35,6 +35,7 @@ final class LegacyPreferences {
     boolean fcast() {return preferences.getBoolean("fcast_enabled",false);}
     boolean dlna() {return preferences.getBoolean("dlna_enabled",false);}
     boolean approveConnections() {return preferences.getBoolean("approve_connections",false);}
+    boolean requirePin() {return preferences.getBoolean("require_pin",false);}
     boolean networkRecovery() {return preferences.getBoolean("network_recovery",true);}
     boolean bootAutoStart() {return preferences.getBoolean("boot_auto_start",false);}
     boolean serviceRequested() {return preferences.getBoolean("legacy_service_requested",false);}
@@ -54,7 +55,7 @@ final class LegacyPreferences {
             String[] size=preferences.getString("resolution","1280x720").split("x");
             int step=preferences.getInt("audio_adaptive_step",3);
             return new ReceiverOptions(name(),port(),Integer.parseInt(size[0]),Integer.parseInt(size[1]),preferences.getInt("max_fps",30),
-                preferences.getBoolean("low_latency",false),preferences.getBoolean("audio_auto_buffer",true)?0:preferences.getInt("audio_cushion_ms",40),LegacyProfiles.PERCENTILES[step]);
+                preferences.getBoolean("low_latency",false),preferences.getBoolean("audio_auto_buffer",true)?0:preferences.getInt("audio_cushion_ms",40),LegacyProfiles.PERCENTILES[step],requirePin());
         } catch(IllegalArgumentException | IndexOutOfBoundsException invalid) {
             profile(LegacyProfiles.KEYS[0]);return options();
         }

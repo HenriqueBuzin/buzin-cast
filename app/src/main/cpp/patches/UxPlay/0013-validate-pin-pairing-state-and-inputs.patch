@@ -1,0 +1,126 @@
+--- a/lib/pairing.c
++++ b/lib/pairing.c
+@@ -29,8 +29,9 @@
+ #define SALT_KEY "Pair-Verify-AES-Key"
+ #define SALT_IV "Pair-Verify-AES-IV"
+ 
+ typedef struct srp_s {
++    bool authenticated;
+     unsigned char salt[SRP_SALT_SIZE];
+     unsigned char verifier[SRP_VERIFIER_SIZE];
+     unsigned char session_key[SRP_SESSION_KEY_SIZE];
+     unsigned char private_key[SRP_PRIVATE_KEY_SIZE];
+@@ -503,8 +504,9 @@
+     if (strlen(device_id) > SRP_USERNAME_SIZE) {
+         return -1;
+     }
+ 
++    if (!device_id || !*device_id || strlen(device_id) > SRP_USERNAME_SIZE) return -1;
+     strncpy(session->username, device_id, SRP_USERNAME_SIZE);
+     
+     if (session->srp) {
+         free (session->srp);
+@@ -554,8 +556,10 @@
+ 
+ int
+ srp_validate_proof(pairing_session_t *session, pairing_t *pairing, const unsigned char *A,
+                     int len_A, unsigned char *proof, int client_proof_len, int proof_len) {
++    if (!session || !session->srp || !A || len_A < 1 || len_A > SRP_VERIFIER_SIZE ||
++        !proof || client_proof_len != SHA_DIGEST_LENGTH || proof_len < SHA_DIGEST_LENGTH || proof_len > SHA512_DIGEST_LENGTH) return -1;
+     int authenticated  = 0;
+     const unsigned char *B =  NULL;
+     const unsigned char *b = session->srp->private_key;
+     int len_b = SRP_PRIVATE_KEY_SIZE;
+@@ -584,15 +588,17 @@
+     if (len_K != SRP_SESSION_KEY_SIZE) {
+         return -2;
+     }
+     memcpy(session->srp->session_key, session_key, len_K);
++    session->srp->authenticated = true;
+     memcpy(proof, M2, proof_len);
+     srp_verifier_delete(verifier);
+     return 0;
+ }
+ int
+ srp_confirm_pair_setup(pairing_session_t *session, pairing_t *pairing,
+                        unsigned char *epk, unsigned char *auth_tag) {
++    if (!session || !session->srp || !session->srp->authenticated || !epk || !auth_tag) return -1;
+     unsigned char aesKey[16] = {0}, aesIV[16] = {0};
+     unsigned char hash[SHA512_DIGEST_LENGTH] = {0};
+     unsigned char pk[ED25519_KEY_SIZE] = {0};
+     /* decrypt client epk to get client pk, authenticate with auth_tag*/ 
+@@ -624,8 +630,9 @@
+        /* authentication failed */
+          return pk_len_client;
+     }
+ 
++    session->srp->authenticated = false;
+     /* success, from server viewpoint */
+     memcpy(session->client_pk, pk, ED25519_KEY_SIZE);
+     session->pair_setup = true;
+ 
+--- a/lib/raop_handlers.h
++++ b/lib/raop_handlers.h
+@@ -299,8 +299,12 @@
+ 
+     /* process the pair-setup-pin request */
+     plist_t req_root_node = NULL;
+     plist_from_bin(request_data, request_datalen, &req_root_node);
++    if (!PLIST_IS_DICT(req_root_node)) {
++        if (req_root_node) plist_free(req_root_node);
++        goto authentication_failed;
++    }
+     plist_t req_method_node = plist_dict_get_item(req_root_node, "method");
+     plist_t req_user_node = plist_dict_get_item(req_root_node, "user");
+     plist_t req_pk_node = plist_dict_get_item(req_root_node, "pk");
+     plist_t req_proof_node = plist_dict_get_item(req_root_node, "proof");
+@@ -315,13 +319,13 @@
+         int len_pk = 0, len_salt = 0;
+         char *method = NULL;
+         char *user = NULL;
+         plist_get_string_val(req_method_node, &method);
+-        if (strncmp(method, "pin", strlen (method))) {
++        if (!method || strcmp(method, "pin")) {
+             logger_log(raop->logger, LOGGER_ERR, "error, required method is \"pin\", client requested \"%s\"", method);
+             free (method);
+             plist_free (req_root_node);
+-            return;
++            goto authentication_failed;
+         }
+         plist_mem_free(method);
+         method = NULL;
+         plist_get_string_val(req_user_node, &user);
+@@ -357,9 +361,9 @@
+         uint64_t client_pk_len = 0;
+         uint64_t client_proof_len = 0;
+         plist_get_data_val(req_pk_node, &client_pk, &client_pk_len); 
+         plist_get_data_val(req_proof_node, &client_proof, &client_proof_len);
+-        if (client_proof_len > sizeof(proof)) {
++        if (!client_pk || client_pk_len < 1 || client_pk_len > SRP_VERIFIER_SIZE || !client_proof || client_proof_len != SHA_DIGEST_LENGTH) {
+             logger_log(raop->logger, LOGGER_ERR, "Client Authentication Failure (client_proof_len %d invalid)", (int) client_proof_len);
+             free (client_proof);
+             free (client_pk);
+             plist_free(req_root_node);
+@@ -411,8 +415,12 @@
+             logger_log(raop->logger, LOGGER_DEBUG, "client_authtag  %d:\n%s\n", (int) client_authtag_len, str);
+             free (str);
+         }
+ 
++        if (!client_epk || client_epk_len != ED25519_KEY_SIZE || !client_authtag || client_authtag_len != GCM_AUTHTAG_SIZE) {
++            free(client_authtag); free(client_epk); plist_free(req_root_node);
++            goto authentication_failed;
++        }
+         memcpy(epk, client_epk, ED25519_KEY_SIZE);
+         memcpy(authtag, client_authtag, GCM_AUTHTAG_SIZE);
+         free (client_authtag);
+         free (client_epk);
+@@ -434,8 +442,9 @@
+         plist_free(res_root_node);
+         http_response_add_header(response, "Content-Type", "application/x-apple-binary-plist");
+         return;
+     }
++    plist_free(req_root_node);
+  authentication_failed:;
+     http_response_init(response, "RTSP/1.0", 470, "Client Authentication Failure");
+ }
+ 

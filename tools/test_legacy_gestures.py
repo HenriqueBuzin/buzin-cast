@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--recording',action='store_true',help='Verify native H.264/PCM recording, real MKV/local playback/export/delete, or DE/AT recording disabled.')
     parser.add_argument('--download',action='store_true',help='Verify API17 MP4/HLS/DASH export, local playback, library, cancellation and restricted gate.')
     parser.add_argument('--approval',action='store_true',help='Verify real native/FCast/DLNA admission, modal focus, denial, protocol grants, timeout, stop and background prompt.')
+    parser.add_argument('--pin',action='store_true',help='Verify real native SRP PIN proofs with an independent host client, focused UI, DNS-SD flags, background and lifecycle; requires cryptography.')
     parser.add_argument('--ffprobe',type=Path,help='Optional ffprobe executable for independent packet/track validation of the synthetic recording.')
     parser.add_argument('--ffmpeg',type=Path,help='Optional FFmpeg executable for independent decoding of exported download fixtures.')
     parser.add_argument('--package',default='com.buzincast.tv.legacy.preview',choices=[
@@ -38,7 +39,7 @@ def main():
         with ZipFile(path) as archive:
             if not {'AndroidManifest.xml','classes.dex'}.issubset(archive.namelist()) or archive.testzip() is not None:
                 parser.error('APK is incomplete or corrupt: '+str(path))
-    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
+    if sum((args.url_service,args.fcast,args.dlna,args.native_url,args.recording,args.download,args.approval,args.pin,bool(args.controls or args.metadata or args.system_media)))>1:parser.error('Transport and native-control scenarios must run separately.')
     if args.system_media:args.metadata=True
     if args.metadata:args.controls=True
     local=re.fullmatch(r'127\.0\.0\.1:(\d+)',args.serial)
@@ -66,6 +67,7 @@ def main():
     if args.recording:report['scope']='Synthetic native H.264/ALAC through bounded capture/shared Matroska writer, actual local playback/export/delete; DE/AT negative gate; not physical mirroring'
     if args.download:report['scope']='Synthetic AVC/AAC MP4/HLS/DASH, repeated DASH periods and B-frame AVC -> MP4 export/local playback/library/cancellation; DE/AT disabled; not transcoding, physical or real HTTPS validation'
     if args.approval:report['scope']='Actual API17 native RTSP, FCast and DLNA admission and remote-focus UI; grants, refusal, timeout, lifecycle and background prompt; not PIN pairing or a physical sender test'
+    if args.pin:report['scope']='Actual API17 native PIN/SRP, independent SHA1/SRP/AES-GCM/Ed25519/X25519 client, malformed input rejection, native UI, DNS-SD flags, background and stop; not a physical Apple sender or universal access-control certification'
     if display:report['display_init']=display
     def capture_native_view(source='legacy-metadata.b64',target='metadata-ui.png'):
         payload=base64.b64decode(adb('shell','run-as',args.package,'cat','files/'+source,timeout=30))
@@ -146,14 +148,19 @@ def main():
         adb('logcat','-c')
         options=['-e','checks','download' if args.download else 'recording' if args.recording else 'native_url' if args.native_url else 'dlna' if args.dlna else 'fcast' if args.fcast else 'url' if args.url_service else 'system' if args.system_media else 'metadata' if args.metadata else 'controls'] if args.controls or args.url_service or args.fcast or args.dlna or args.native_url or args.recording or args.download else []
         if args.approval:options=['-e','checks','approval']
-        result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
+        if args.pin:
+            from legacy_pin_client import run_instrument
+            result=run_instrument(args,adb)
+        else:result=system_instrument(options) if args.system_media else adb('shell','am','instrument','-w',*options,args.package+'.test/io.buzincast.legacy.LegacyGestureChecks',timeout=180)
         (args.output/'instrumentation.txt').write_text(result,encoding='utf-8')
         if 'INSTRUMENTATION_RESULT: status=pass' not in result or 'INSTRUMENTATION_CODE: -1' not in result:
             raise AssertionError('Instrumentation did not pass; inspect instrumentation.txt')
         expected=('download=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'download=mp4_hls_dash_multiperiod_bframes_cancel_local_library') if args.download else ('recording=restricted_disabled' if args.package.endswith('deat.legacy.preview') else 'recording=native_h264_pcm_mkv_local_play_export_delete') if args.recording else 'native_url=native_http_play_info_rate_seek_stop_and_lifecycle' if args.native_url else 'dlna=shared_soap_playback_photos_and_lifecycle' if args.dlna else 'fcast=shared_transport_dns_txt_tcp_http_controls_and_lifecycle' if args.fcast else 'url_service=native_handoff_http_controls_error_recovery_and_cleanup' if args.url_service else 'controls=native_rtsp_mdns_http_touch_media_keys_and_sender_replacement' if args.controls else 'gestures=touch_and_dpad_across_receiver_restart'
         if args.approval:expected='approval=native_fcast_dlna_allow_deny_timeout_stop_background_and_protocol_grants'
+        if args.pin:expected='pin=native_srp_proofs_ui_txt_background_disabled_and_stop'
         if 'INSTRUMENTATION_RESULT: '+expected not in result:raise AssertionError('Test APK did not run the requested scenario')
         if args.approval:capture_native_view('legacy-approval.b64','approval-ui.png')
+        if args.pin:capture_native_view('legacy-pin.b64','pin-ui.png')
         if args.download and not args.package.endswith('deat.legacy.preview'):
             artifacts=[]
             for index in range(6):
@@ -229,6 +236,9 @@ def main():
         if args.approval:
             report.pop('touch_and_dpad_across_receiver_restart',None)
             report['connection_approval_transports_ui_lifecycle']='pass'
+        if args.pin:
+            report.pop('touch_and_dpad_across_receiver_restart',None)
+            report['pin_srp_crypto_ui_lifecycle']='pass'
     except Exception as error:
         report['status']='failed';report['error']=str(error)
         try:

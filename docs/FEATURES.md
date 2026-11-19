@@ -33,10 +33,12 @@ transcodificação, com progresso, cancelamento e biblioteca local, validado
 com AVC/AAC em MP4, HLS e DASH. Download e gravação ficam indisponíveis na
 edição DE/AT. Essa prévia também oferece aprovação opcional de conexões por controle,
 com autorização temporária por protocolo/IP e recusa por tempo limite.
+Oferece o mesmo PIN experimental de quatro dígitos do receptor nativo,
+com janela, notificação e registro temporário de dispositivos na sessão.
 Os testes usam emulador e mídia sintética, como detalhado em
 [TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
 compatíveis com o muxer MP4, Cast V2,
-retransmissão, PIN de pareamento, licença/produção e demais itens do plano,
+retransmissão, licença/produção e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.

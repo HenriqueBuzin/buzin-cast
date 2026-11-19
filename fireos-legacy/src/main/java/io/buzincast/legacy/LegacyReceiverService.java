@@ -45,7 +45,7 @@ public final class LegacyReceiverService extends Service {
     interface Observer { void changed(State state); }
     static final class State {
         final boolean desired,running,busy,video,networkWaiting,audioSuppressed;
-        final String name,address;
+        final String name,address,pin;
         final int port,width,height;
         final Exception failure;
         final List<String> events;
@@ -56,6 +56,7 @@ public final class LegacyReceiverService extends Service {
         final ConnectionApproval.Request approval;
         State(LegacyReceiverService service) {
             approval=service.approval.getRequest().getValue();
+            pin=service.pinCode;
             url=service.urlState();urlError=service.urlFailure!=null;
             desired=service.desired;running=service.running;busy=service.busy;
             video=url==null?service.video:url.width>0 && url.height>0;
@@ -92,7 +93,9 @@ public final class LegacyReceiverService extends Service {
     }
     private final ArrayDeque<String> events=new ArrayDeque<>();
     private LegacyPreferences prefs;
-    private boolean approvalConfigured;
+    private boolean approvalConfigured,pinConfigured;
+    private String pinCode;
+    void dismissPin() {pinCode=null;publish();}
     private volatile LegacyReceiverSession session;
     private Object client;
     private Observer observer;
@@ -200,6 +203,7 @@ public final class LegacyReceiverService extends Service {
     @Override public void onCreate() {
         super.onCreate();prefs=new LegacyPreferences(this);name=prefs.name();
         approvalConfigured=prefs.approveConnections();
+        pinConfigured=prefs.requirePin();
         capture=new LegacyMirrorCapture(this,()->main.post(()-> {if(!destroyed)publish();}),BuildConfig.RECORDING_ENABLED);
         downloads=new LegacyDownloads(this,()->main.post(()-> {
             if(destroyed)return;
@@ -235,13 +239,14 @@ public final class LegacyReceiverService extends Service {
         if(action==null) {if(!opened) {desired=prefs.serviceRequested();bootSession=prefs.bootAutoStart();opened=true;}}
         else if(OPEN.equals(action)) {if(!opened) {desired=prefs.autoStart();opened=true;}}
         else if(START.equals(action)) {desired=true;opened=true;failure=null;urlFailure=null;resetRetries();}
-        else if(STOP.equals(action)) {approval.close();desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();stopUrl();}
+        else if(STOP.equals(action)) {pinCode=null;approval.close();desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();stopUrl();}
         else if(BOOT.equals(action)) {desired=prefs.bootAutoStart();bootSession=desired;opened=true;}
         else if(RESTART.equals(action)) {name=prefs.name();resetRetries();if(session!=null)stopNative();}
         else if(CONFIGURE.equals(action)) {
             approval.close();
-            if(approvalConfigured!=prefs.approveConnections()) {
+            if(approvalConfigured!=prefs.approveConnections() || pinConfigured!=prefs.requirePin()) {
                 approvalConfigured=prefs.approveConnections();
+                pinConfigured=prefs.requirePin();pinCode=null;
                 if(session!=null)stopNative();
             } else if(wanted())approval.open();
         }
@@ -543,6 +548,12 @@ public final class LegacyReceiverService extends Service {
         busy=true;stopping=false;failure=null;name=prefs.name();final int owner=++generation;
         acquireWakeLock();
         session=new LegacyReceiverSession(this,null,prefs.identity(),new LegacyReceiverSession.Listener() {
+            @Override public void pin(String code) {post(()-> {
+                if(stopping || !prefs.requirePin())return;
+                pinCode=code;publish();
+                if(code!=null && !visible)startActivity(new Intent(LegacyReceiverService.this,LegacyActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            });}
             @Override public boolean authorize(String peer) {
                 return owner==generation && !stopping && !destroyed && authorizeConnection("AirPlay",peer)
                     && owner==generation && !stopping && !destroyed;
@@ -555,6 +566,7 @@ public final class LegacyReceiverService extends Service {
             });}
             @Override public void failed(Exception error) {post(()-> {
                 if(stopping)return;
+                pinCode=null;
                 if(nativeUrlSession==session && urlOwner==Protocol.AIRPLAY)stopUrl();
                 main.removeCallbacks(stable);failure=error;record(error.getClass().getSimpleName()+": "+error.getMessage());
                 if(!prefs.networkRecovery() || error.getCause() instanceof LinkageError) {
@@ -566,6 +578,7 @@ public final class LegacyReceiverService extends Service {
                 publish();
             });}
             @Override public void stopped() {post(()-> {
+                pinCode=null;
                 if(nativeUrlSession==session && urlOwner==Protocol.AIRPLAY)stopUrl();
                 session=null;parkedNative=detachingNative=null;++outputEpoch;
                 running=busy=video=stopping=false;width=height=0;if(!urlRequested)releaseWakeLock();
@@ -575,6 +588,7 @@ public final class LegacyReceiverService extends Service {
             @Override public void videoStopped() {post(()-> {video=false;publish();});}
             @Override public void streamChanged() {post(()-> {
                 if(stopping)return;
+                if(session!=null && (session.mirroring() || session.audioActive()))pinCode=null;
                 if(urlRequested && session!=null && (session!=urlStreamSession || session.streamEpoch()>urlStreamEpoch) &&
                     (session.mirroring() || session.audioActive()))stopUrl();
                 publish();
@@ -583,6 +597,7 @@ public final class LegacyReceiverService extends Service {
             @Override public void urlPlay(long token,LegacyUrlRequest request) {post(()-> {
                 if(stopping || session==null || failure!=null || session.isClosed()) {if(session!=null)session.finishUrl(token);return;}
                 nativeUrlSession=session;nativeUrlToken=token;
+                pinCode=null;
                 try {PhotoActivity.Companion.closePhoto();loadUrl(request,Protocol.AIRPLAY);}
                 catch(RuntimeException error) {
                     session.finishUrl(token);nativeUrlToken=0;nativeUrlSession=null;
@@ -618,7 +633,7 @@ public final class LegacyReceiverService extends Service {
         },prefs.options(),selectedNetwork);
         session.capture(capture);session.audioFocusGain(0);bindSurface();session.start();
     }
-    private void stopNative() {approval.close();main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
+    private void stopNative() {pinCode=null;approval.close();main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
         LegacyUrlPlayer.State url=urlState();
@@ -653,6 +668,7 @@ public final class LegacyReceiverService extends Service {
         if(!wakeLock.isHeld())wakeLock.acquire();
     }
     private String notificationBody() {
+        if(pinCode!=null)return getString(R.string.notification_pin_text,pinCode);
         if(wanted() && reconnect.initialized() && !reconnect.online())return getString(R.string.network_waiting);
         if(failure!=null)return getString(R.string.error_starting_server);
         if(urlFailure!=null)return getString(R.string.error_label);
@@ -670,7 +686,7 @@ public final class LegacyReceiverService extends Service {
         PendingIntent content=PendingIntent.getActivity(this,0,open,flags);
         Notification.Builder builder=Build.VERSION.SDK_INT>=26?Api26.builder(this):new Notification.Builder(this);
         notificationText=notificationBody();
-        return builder.setSmallIcon(R.mipmap.buzin_launcher).setContentTitle(getString(R.string.notification_title))
+        return builder.setSmallIcon(R.mipmap.buzin_launcher).setContentTitle(getString(pinCode==null?R.string.notification_title:R.string.notification_pin_title))
             .setContentText(notificationText).setContentIntent(content).setOngoing(true).build();
     }
     private void promote() {
@@ -681,6 +697,7 @@ public final class LegacyReceiverService extends Service {
     private void demote() {if(promoted) {stopForeground(true);promoted=false;}}
     @Override public void onDestroy() {
         destroyed=true;++outputEpoch;client=null;observer=null;target=null;closeWatcher();
+        pinCode=null;
         approval.close();
         if(capture!=null)capture.close();
         if(downloads!=null)downloads.close();

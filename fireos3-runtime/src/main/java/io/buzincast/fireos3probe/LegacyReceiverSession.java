@@ -32,6 +32,7 @@ public final class LegacyReceiverSession {
         default void streamChanged() {}
         /** Runs on the native admission worker, never on the UI or decoder thread. */
         default boolean authorize(String peer) {return true;}
+        default void pin(String code) {}
         default boolean acceptsUrl() {return false;}
         default void urlPlay(long token,LegacyUrlRequest request) {}
         default void urlSeek(long token,float seconds) {}
@@ -95,6 +96,7 @@ public final class LegacyReceiverSession {
         });
         queue.connections(listener::streamChanged);
         queue.admission(peer->!stopping.get() && listener.authorize(peer) && !stopping.get());
+        if(options!=null && options.requirePin)queue.pin(listener::pin);
         queue.media(new VideoFrameQueue.Media() {
             @Override public void metadata(byte[] bytes) {media.metadata(bytes);}
             @Override public void artwork(byte[] bytes) {media.artwork(bytes);}
@@ -167,7 +169,7 @@ public final class LegacyReceiverSession {
                 handle = NativeReceiver.startNetworkReceiver(new File(context.getFilesDir(), "receiver.key").getAbsolutePath(),
                         queue, identity, network.address.getHostAddress(), network.prefix,
                         options == null ? null : options.name, options == null ? 0 : options.port,
-                        options == null ? 1280 : options.width,options == null ? 720 : options.height,options == null ? 30 : options.fps);
+                        options == null ? 1280 : options.width,options == null ? 720 : options.height,options == null ? 30 : options.fps,options!=null && options.requirePin);
                 if (handle == 0) throw new IOException("Native video receiver could not start");
                 port = NativeReceiver.receiverPort(handle);
                 video = NativeReceiver.receiverTxt(handle, true);

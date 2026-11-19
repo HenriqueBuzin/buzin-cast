@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -30,6 +30,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         recording=arguments!=null && "recording".equals(arguments.getString("checks"));
         download=arguments!=null && "download".equals(arguments.getString("checks"));
         approval=arguments!=null && "approval".equals(arguments.getString("checks"));
+        pin=arguments!=null && "pin".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -50,7 +51,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(approval) {
+            if(pin) {
+                LegacyPinScenario.check(this,activity);
+                result.putString("pin","native_srp_proofs_ui_txt_background_disabled_and_stop");
+            } else if(approval) {
                 LegacyApprovalScenario.check(this,activity);
                 result.putString("approval","native_fcast_dlna_allow_deny_timeout_stop_background_and_protocol_grants");
             } else if(download) {

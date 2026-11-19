@@ -12,6 +12,24 @@ final class VideoFrameQueue {
     private int bytes;
     private volatile boolean closed;
     private volatile int activeConnections;
+    interface Pin {void display(String code);}
+    private volatile Pin pin;
+    private final java.util.Set<String> trustedKeys=new java.util.HashSet<>();
+    void pin(Pin value) {pin=value;}
+    @SuppressWarnings("unused") public void onDisplayPin(String code) {
+        Pin listener=pin;
+        if(!closed && listener!=null && code!=null && code.matches("[0-9]{4}"))listener.display(code);
+    }
+    @SuppressWarnings("unused") public void onRegisterClient(String key) {
+        synchronized(this) {
+            if(closed || pin==null || key==null || !key.matches("[A-Za-z0-9+/]{43}=") || trustedKeys.size()>=16 && !trustedKeys.contains(key))return;
+            trustedKeys.add(key);
+        }
+        Pin listener=pin;if(listener!=null && !closed)listener.display(null);
+    }
+    @SuppressWarnings("unused") public synchronized boolean onCheckRegister(String key) {
+        return !closed && pin!=null && trustedKeys.contains(key);
+    }
     interface Admission {boolean allow(String peer);}
     private volatile Admission admission;
     void admission(Admission value) {admission=value;}
@@ -146,6 +164,7 @@ final class VideoFrameQueue {
 
     synchronized void close() {
         closed = true;
+        trustedKeys.clear();pin=null;
         url.close();
         activeConnections=0;connectionsChanged=null;
         mirrorMode(false);

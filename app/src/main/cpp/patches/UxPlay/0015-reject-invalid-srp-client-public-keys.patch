@@ -1,0 +1,16 @@
+diff --git a/lib/pairing.c b/lib/pairing.c
+--- a/lib/pairing.c
++++ b/lib/pairing.c
+@@ -575,6 +575,12 @@ srp_validate_proof(pairing_session_t *session, pairing_t *pairing, const unsigned ch
+                                                     b, len_b,
+                                                     &B, &len_B, NULL, NULL, 1);
+ 
++    if (!verifier || !B || len_B < 1 || len_B > SRP_VERIFIER_SIZE) {
++        if (verifier) srp_verifier_delete(verifier);
++        free(session->srp);
++        session->srp = NULL;
++        return -1;
++    }
+     srp_verifier_verify_session(verifier, proof, &M2);
+     authenticated = srp_verifier_is_authenticated(verifier);
+     if (authenticated == 0) {

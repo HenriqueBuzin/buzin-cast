@@ -1,0 +1,11 @@
+diff --git a/lib/pairing.c b/lib/pairing.c
+--- a/lib/pairing.c
++++ b/lib/pairing.c
+@@ -639,7 +639,6 @@ srp_confirm_pair_setup(pairing_session_t *session, pairing_t *pairing,
+          return pk_len_client;
+     }
+ 
+-    session->srp->authenticated = false;
+     /* success, from server viewpoint */
+     memcpy(session->client_pk, pk, ED25519_KEY_SIZE);
+     session->pair_setup = true;

@@ -10,6 +10,7 @@
 #include <android/log.h>
 #include "llhttp.h"
 #include "raop.h"
+#include "pairing.h"
 #include "android_dnssd_shim.h"
 
 static int message_complete(llhttp_t *parser) {
@@ -29,6 +30,8 @@ typedef struct {
     jmethodID on_dacp_id, on_sender_stopped;
     jmethodID on_metadata,on_artwork,on_progress;
     jmethodID on_connection,on_admission;
+    jmethodID on_pin,on_register,on_check_register;
+    bool require_pin;
     jmethodID on_url_play,on_url_wait,on_url_scrub,on_url_rate,on_url_stop,on_url_reset,get_url_info;
     bool url_enabled;
     atomic_bool wait_for_url;
@@ -118,12 +121,42 @@ static int allow_local_peer(void *context, const char *peer) {
     finish_callback(probe,env,attached);
     return allowed==JNI_TRUE;
 }
+static void display_pin(void *context,char *pin) {
+    receiver_probe_t *probe=context;
+    if(!probe->require_pin || !pin || strnlen(pin,5)!=4)return;
+    for(int i=0;i<4;i++)if(pin[i]<'0' || pin[i]>'9')return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jstring code=(*env)->NewStringUTF(env,pin);
+    if(code && !(*env)->ExceptionCheck(env))(*env)->CallVoidMethod(env,probe->video_callback,probe->on_pin,code);
+    if(code)(*env)->DeleteLocalRef(env,code);
+    finish_callback(probe,env,attached);
+}
+static void register_client(void *context,const char *device,const char *key,const char *name) {
+    receiver_probe_t *probe=context;
+    if(!probe->require_pin || !key || strnlen(key,45)!=44)return;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return;
+    jstring value=(*env)->NewStringUTF(env,key);
+    if(value && !(*env)->ExceptionCheck(env))(*env)->CallVoidMethod(env,probe->video_callback,probe->on_register,value);
+    if(value)(*env)->DeleteLocalRef(env,value);
+    finish_callback(probe,env,attached);
+}
+static bool check_register(void *context,const char *key) {
+    receiver_probe_t *probe=context;
+    if(!probe->require_pin || !key || strnlen(key,45)!=44)return false;
+    bool attached;JNIEnv *env=callback_env(probe,&attached);if(!env)return false;
+    jstring value=(*env)->NewStringUTF(env,key);jboolean allowed=JNI_FALSE;
+    if(value && !(*env)->ExceptionCheck(env))allowed=(*env)->CallBooleanMethod(env,probe->video_callback,probe->on_check_register,value);
+    if((*env)->ExceptionCheck(env))allowed=JNI_FALSE;
+    if(value)(*env)->DeleteLocalRef(env,value);
+    finish_callback(probe,env,attached);return allowed==JNI_TRUE;
+}
 
 static void noop(void *context) {}
 static void native_log(void *context, int level, const char *message) {
     // UxPlay's logger asserts when a warning/error has no configured sink.
     // Install this before init2(), which can also emit initialization errors.
-    __android_log_print(ANDROID_LOG_WARN,"BuzinLegacyNative","%s",message);
+    if(message && !strstr(message,"CLIENT MUST NOW ENTER PIN"))
+        __android_log_print(ANDROID_LOG_WARN,"BuzinLegacyNative","%s",message);
 }
 static void connection_changed(void *context, bool connected) {
     receiver_probe_t *probe=context;
@@ -300,11 +333,12 @@ static void destroy_receiver(receiver_probe_t *probe) {
 
 static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callback,
                              const char *device_id, const char *network_address, int prefix,
-                             const char *service_name, int requested_port, int width,int height,int fps) {
+                             const char *service_name, int requested_port, int width,int height,int fps,bool require_pin) {
     if (requested_port < 0 || requested_port > 65535 || width<16 || width>4096 || height<16 || height>4096 || fps<1 || fps>240) return 0;
     receiver_probe_t *probe = calloc(1, sizeof(*probe));
     if (!probe) return 0;
     atomic_init(&probe->wait_for_url,false);
+    probe->require_pin=require_pin;
     unsigned int octets[6];
     if (strlen(device_id) != 17 || sscanf(device_id, "%2x:%2x:%2x:%2x:%2x:%2x", &octets[0], &octets[1],
         &octets[2], &octets[3], &octets[4], &octets[5]) != 6) { free(probe); return 0; }
@@ -331,6 +365,9 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         probe->on_progress=(*env)->GetMethodID(env,callback_type,"onProgress","(JJJ)V");
         probe->on_connection=(*env)->GetMethodID(env,callback_type,"onConnectionChanged","(Z)V");
         probe->on_admission=(*env)->GetMethodID(env,callback_type,"onConnectionRequest","(Ljava/lang/String;)Z");
+        probe->on_pin=(*env)->GetMethodID(env,callback_type,"onDisplayPin","(Ljava/lang/String;)V");
+        probe->on_register=(*env)->GetMethodID(env,callback_type,"onRegisterClient","(Ljava/lang/String;)V");
+        probe->on_check_register=(*env)->GetMethodID(env,callback_type,"onCheckRegister","(Ljava/lang/String;)Z");
         probe->on_url_play=(*env)->GetMethodID(env,callback_type,"onVideoPlay","([BF)Z");
         probe->on_url_wait=(*env)->GetMethodID(env,callback_type,"onVideoWaitReady","()V");
         probe->on_url_scrub=(*env)->GetMethodID(env,callback_type,"onVideoScrub","(F)V");
@@ -345,7 +382,7 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         (*env)->DeleteLocalRef(env, callback_type);
         if (!probe->on_video_data || !probe->on_video_reset || !probe->on_audio_data || !probe->on_audio_format ||
             !probe->on_audio_flush || !probe->on_audio_volume || !probe->get_audio_volume || !probe->on_dacp_id || !probe->on_sender_stopped ||
-            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !probe->on_admission || !enabled || !url_enabled ||
+            !probe->on_metadata || !probe->on_artwork || !probe->on_progress || !probe->on_connection || !probe->on_admission || !probe->on_pin || !probe->on_register || !probe->on_check_register || !enabled || !url_enabled ||
             !probe->on_url_play || !probe->on_url_wait || !probe->on_url_scrub || !probe->on_url_rate || !probe->on_url_stop || !probe->on_url_reset || !probe->get_url_info ||
             (*env)->ExceptionCheck(env)) { free(probe); return 0; }
         probe->video_callback = (*env)->NewGlobalRef(env, video_callback);
@@ -386,7 +423,9 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         .audio_set_coverart = artwork,
         .audio_set_progress = progress,
         .conn_feedback = noop,
+        .display_pin = display_pin,
     };
+    if(require_pin) {callbacks.register_client=register_client;callbacks.check_register=check_register;}
     raop_t *receiver = raop_init(&callbacks);
     probe->receiver = receiver;
     if(receiver)raop_set_log_callback(receiver,native_log,NULL);
@@ -397,12 +436,17 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
         destroy_receiver(probe);
         return 0;
     }
+    if(require_pin) {
+        int pin=random_pin();
+        if(pin<0 || pin>9999) {destroy_receiver(probe);return 0;}
+        raop_set_plist(receiver,"pin",pin+10000);
+    }
     char name[64];
     if (service_name) snprintf(name,sizeof(name),"%s",service_name);
     else snprintf(name, sizeof(name), "Buzin Cast API17 %02X%02X", octets[4], octets[5]);
     const char address[] = { octets[0], octets[1], octets[2], octets[3], octets[4], octets[5] };
     int error = 0;
-    probe->discovery = dnssd_init(name, strlen(name), address, sizeof(address), &error, 0);
+    probe->discovery = dnssd_init(name, strlen(name), address, sizeof(address), &error, require_pin?1:0);
     if (!probe->discovery) {
         destroy_receiver(probe);
         return 0;
@@ -438,13 +482,13 @@ static jlong create_receiver(JNIEnv *env, jstring key_path, jobject video_callba
 
 JNIEXPORT jlong JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_startReceiver(JNIEnv *env, jclass type, jstring key_path, jobject callback) {
-    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0, 1280,720,30);
+    return create_receiver(env, key_path, callback, "02:00:00:00:00:17", NULL, 0, NULL, 0, 1280,720,30,false);
 }
 
 JNIEXPORT jlong JNICALL
 Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env, jclass type,
         jstring key_path, jobject callback, jstring identity, jstring network_address, jint prefix,
-        jbyteArray utf8_name, jint requested_port,jint width,jint height,jint fps) {
+        jbyteArray utf8_name, jint requested_port,jint width,jint height,jint fps,jboolean require_pin) {
     char name[64]={0};
     if (utf8_name) {
         jsize length=(*env)->GetArrayLength(env,utf8_name);
@@ -457,7 +501,7 @@ Java_io_buzincast_fireos3probe_NativeReceiver_createNetworkReceiver(JNIEnv *env,
     const char *address = (*env)->GetStringUTFChars(env, network_address, NULL);
     if (!address) { (*env)->ReleaseStringUTFChars(env, identity, id); return 0; }
     jlong result = create_receiver(env, key_path, callback, id, address, prefix,
-                                   utf8_name ? name : NULL, requested_port,width,height,fps);
+                                   utf8_name ? name : NULL, requested_port,width,height,fps,require_pin==JNI_TRUE);
     (*env)->ReleaseStringUTFChars(env, network_address, address);
     (*env)->ReleaseStringUTFChars(env, identity, id);
     return result;
