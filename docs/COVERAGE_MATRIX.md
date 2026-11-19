@@ -839,3 +839,14 @@ complete coverage report must finish before accepting its archived snapshot.
 This run was frozen before the unit-only clock/bounds additions above; those
 assertions have separate matching native evidence and must be included in the
 final complete four-edition cohort.
+
+Two additional ViewModel contracts verify asynchronous profile ownership. A
+default-profile request cancels a preceding device probe, restores all tuning
+defaults, and must not log cancellation as an error. An invalid profile must
+leave the entire preference snapshot unchanged, report one failure, and allow
+the next valid request to complete. The full ten-case PlaybackViewModel selection
+passed on API28 in 5.267 seconds without skips; debug assembly passed in 42 seconds.
+Its matching Android-only execution profile, APKs, native library, source and
+class mappings were archived before reporting, with no unrelated JVM profiles.
+The current full normal run predates these two cases; the next complete cohort
+must therefore run 189 Android tests, plus the current 19 native cases.

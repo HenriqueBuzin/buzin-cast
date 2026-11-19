@@ -198,6 +198,65 @@ class PlaybackViewModelContractTest {
         assertTrue(File(root, "airplay_logs.txt").readText().isEmpty())
     }
 
+    @Test fun aNewDefaultProfileCancelsAnOlderProbeAndRestoresAllTuningDefaults() {
+        lateinit var previous: Job
+        lateinit var latest: Job
+        instrumentation.runOnMainSync {
+            model.set(Prefs.RESOLUTION, "1280x720")
+            model.set(Prefs.MAX_FPS, 60)
+            model.set(Prefs.H265, Prefs.ON)
+            model.set(Prefs.LOW_LATENCY, true)
+            model.set(Prefs.AUDIO_AUTO_BUFFER, false)
+            model.set(Prefs.AUDIO_CUSHION_MS, 750)
+            model.set(Prefs.AUDIO_ADAPTIVE_STEP, 0)
+            model.set(Prefs.SYNC_CLIENT_VOLUME, false)
+            model.applyProfile("Cinema")
+            previous = field("profileJob")
+            model.applyProfile(Prefs.DEFAULT_PROFILE)
+            latest = field("profileJob")
+            assertNotSame(previous, latest)
+            assertTrue("Superseded device probe was not cancelled", previous.isCancelled)
+        }
+        await("Profile jobs did not finish after replacement") { previous.isCompleted && latest.isCompleted }
+        assertEquals(Prefs.DEFAULT_PROFILE, Prefs.EXPERIENCE_PROFILE.read(preferences))
+        assertEquals(Prefs.RESOLUTION.def, Prefs.RESOLUTION.read(preferences))
+        assertEquals(Prefs.MAX_FPS.def, Prefs.MAX_FPS.read(preferences))
+        assertEquals(Prefs.H265.def, Prefs.H265.read(preferences))
+        assertEquals(Prefs.LOW_LATENCY.def, Prefs.LOW_LATENCY.read(preferences))
+        assertEquals(Prefs.AUDIO_AUTO_BUFFER.def, Prefs.AUDIO_AUTO_BUFFER.read(preferences))
+        assertEquals(Prefs.AUDIO_CUSHION_MS.def, Prefs.AUDIO_CUSHION_MS.read(preferences))
+        assertEquals(Prefs.AUDIO_ADAPTIVE_STEP.def, Prefs.AUDIO_ADAPTIVE_STEP.read(preferences))
+        assertEquals(Prefs.SYNC_CLIENT_VOLUME.def, Prefs.SYNC_CLIENT_VOLUME.read(preferences))
+        assertTrue(field<AsyncLogStore>("logStore").flush())
+        assertTrue("Cancellation was reported as a profile error", model.logs.value.isEmpty())
+    }
+
+    @Test fun anInvalidProfilePreservesPreferencesAndDoesNotPreventTheNextRequest() {
+        lateinit var failed: Job
+        instrumentation.runOnMainSync {
+            model.set(Prefs.RESOLUTION, "1280x720")
+            model.set(Prefs.MAX_FPS, 45)
+        }
+        val before = preferences.all.toMap()
+        instrumentation.runOnMainSync {
+            model.applyProfile("not-a-profile")
+            failed = field("profileJob")
+        }
+        await("Invalid profile did not report its failure") {
+            failed.isCompleted && model.logs.value.any { "Profile unavailable:" in it }
+        }
+        assertEquals("Invalid profile partially changed tuning", before, preferences.all)
+        instrumentation.runOnMainSync { model.applyProfile(Prefs.DEFAULT_PROFILE) }
+        await("Valid profile did not recover after an invalid request") {
+            field<Job>("profileJob").isCompleted &&
+                Prefs.EXPERIENCE_PROFILE.read(preferences) == Prefs.DEFAULT_PROFILE &&
+                Prefs.RESOLUTION.read(preferences) == Prefs.RESOLUTION.def
+        }
+        assertEquals(Prefs.MAX_FPS.def, Prefs.MAX_FPS.read(preferences))
+        assertTrue(field<AsyncLogStore>("logStore").flush())
+        assertEquals(1, model.logs.value.count { "Profile unavailable:" in it })
+    }
+
     @Test fun detachedServiceMessagesClearAndLocalPinAndPermissionStatesRemainUsable() {
         instrumentation.runOnMainSync {
             model.subtitleText.value = "Old subtitle"
