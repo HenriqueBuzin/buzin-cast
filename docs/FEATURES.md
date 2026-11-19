@@ -55,8 +55,12 @@ YUV420 planar/NV12 e PCM intercalado de 1–8 canais: 8/16/24/32 bits ou float.
 O libswresample incluído normaliza o PCM de 1–384 kHz para uma taxa AAC
 de 8–48 kHz, preservando mono/estéreo e reduzindo multicanal para estéreo
 com ganho normalizado. Reordena a saída Vorbis do componente Google antigo
-quando necessário. Layouts YUV proprietários, compensação do atraso inicial
-dos codecs e validação física continuam pendentes.
+quando necessário. A conversão mede o atraso do componente AAC configurado
+com sinal sintético e guarda o resultado em memória. Drena o conteúdo real
+antes do EOS e usa edit lists MP4 para retirar o preroll e o padding da
+apresentação, preservando offsets, lacunas e períodos DASH. Metadados de cor
+incompletos são omitidos; declarações válidas, inclusive HDR, são preservadas.
+Layouts YUV proprietários e validação física continuam pendentes.
 
 A prévia também integra a retransmissão Buzin-a-Buzin em Ferramentas, com
 recepção por código, conexão manual à outra TV e parada. Reaproveita o

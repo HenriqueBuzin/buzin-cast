@@ -225,6 +225,8 @@ public final class LegacyUrlDownload implements java.io.Closeable {
             if(phase==Phase.SAVED)try {
                 List<long[]> timing=new ArrayList<>();for(Track track:tracks)if(track!=null)timing.add(track.timestamps());
                 Mp4CompositionRepair.repair(temporary,timing,minimumPtsUs);
+                List<Mp4AudioPriming.Track> audioTiming=new ArrayList<>();for(Track track:tracks)if(track!=null)audioTiming.add(new Mp4AudioPriming.Track(track.firstPtsUs,track.format.sampleRate,track.audioFrames,track.audioSegments));
+                Mp4AudioPriming.repair(temporary,audioTiming,minimumPtsUs,durationUs);
             }catch(IOException error) {failure=error;phase=Phase.FAILED;}
             if(phase==Phase.SAVED) {
                 if(samples==0 || !temporary.isFile() || destination.exists() || !temporary.renameTo(destination)) {failure=new IOException("Could not publish media");phase=Phase.FAILED;}
@@ -238,6 +240,7 @@ public final class LegacyUrlDownload implements java.io.Closeable {
             final FormatHolder holder=new FormatHolder();
             boolean ended,key,sourceEnded,pendingInput;long ptsUs;ByteBuffer sample;Format format;
             LegacyDownloadTranscoder transcoder;
+            long firstAudioFrame=-1;
             Binding(SampleStream stream,ExoTrackSelection selection,int index) {this.stream=stream;this.selection=selection;this.index=index;}
             void read() throws IOException {
                 if(ended || sample!=null)return;stream.maybeThrowError();
@@ -245,9 +248,22 @@ public final class LegacyUrlDownload implements java.io.Closeable {
                     if(transcoder!=null) {
                         LegacyDownloadTranscoder.Sample converted=transcoder.poll();
                         if(converted!=null) {
-                            track(converted.format);sample=converted.bytes;ptsUs=converted.ptsUs;key=converted.key;return;
+                            track(converted.format);sample=converted.bytes;ptsUs=converted.ptsUs;key=converted.key;
+                            if(MimeTypes.isAudio(converted.format.sampleMimeType)) {
+                                Track track=tracks.get(index);if(firstAudioFrame<0)firstAudioFrame=track.audioFrames;
+                                long start=track.firstPtsUs==Long.MAX_VALUE?periodOffsetUs+transcoder.audioStartUs():track.firstPtsUs;
+                                ptsUs=start+track.audioFrames*1000000/converted.format.sampleRate-periodOffsetUs;
+                                track.audioFrames+=1024;if(track.audioFrames>1000000L*1024)throw new IOException("AAC metadata exceeded its budget");
+                            }
+                            return;
                         }
-                        if(transcoder.ended()) {ended=true;return;}
+                        if(transcoder.ended()) {
+                            if(MimeTypes.isAudio(format.sampleMimeType)) {
+                                Track track=tracks.get(index);if(track==null || firstAudioFrame<0)throw new IOException("AAC encoder produced no samples");
+                                track.audioSegments.add(new Mp4AudioPriming.Segment(firstAudioFrame,track.audioFrames-firstAudioFrame,transcoder.audioPrimingFrames(),transcoder.audioContentFrames(),periodOffsetUs+transcoder.audioStartUs()));
+                            }
+                            ended=true;return;
+                        }
                         if(sourceEnded) {transcoder.endInput();return;}
                         if(pendingInput) {
                             if(!transcoder.offer(buffer.data,buffer.timeUs,buffer.isKeyFrame()))return;
@@ -261,7 +277,7 @@ public final class LegacyUrlDownload implements java.io.Closeable {
                         if(transcoder!=null) {if(!compatible(format,next))throw new IOException("Media format changed during conversion");continue;}
                         format=next;
                         if(!supported(format)) {transcoder=new LegacyDownloadTranscoder(format);continue;}
-                        format=format.buildUpon().setLanguage(IsoMediaLanguage.normalize(format.language)).build();
+                        format=format.buildUpon().setLanguage(IsoMediaLanguage.normalize(format.language)).setColorInfo(LegacyExportColor.complete(format.colorInfo)).build();
                         if(nalVideo(format)) {
                             List<byte[]> data=new ArrayList<>();
                             for(byte[] item:format.initializationData)data.add(AnnexBNormalization.normalize(item,128*1024));
@@ -294,6 +310,8 @@ public final class LegacyUrlDownload implements java.io.Closeable {
     private static final class Track {
         final Format format;final Mp4Muxer.TrackToken token;
         private long[] pts;private int count;
+        long firstPtsUs=Long.MAX_VALUE,audioFrames;
+        final List<Mp4AudioPriming.Segment> audioSegments=new ArrayList<>();
         Track(Format format,Mp4Muxer.TrackToken token) {
             this.format=format;this.token=token;
             boolean baseline=MimeTypes.VIDEO_H264.equals(format.sampleMimeType) && !format.initializationData.isEmpty() &&
@@ -301,6 +319,7 @@ public final class LegacyUrlDownload implements java.io.Closeable {
             if(MimeTypes.isVideo(format.sampleMimeType) && !baseline)pts=new long[1024];
         }
         void remember(long value) throws IOException {
+            if(firstPtsUs==Long.MAX_VALUE)firstPtsUs=value;
             if(pts==null)return;
             if(count==1000000)throw new IOException("Composition timestamp metadata exceeded its budget");
             if(count==pts.length)pts=Arrays.copyOf(pts,Math.min(1000000,pts.length*2));pts[count++]=value;

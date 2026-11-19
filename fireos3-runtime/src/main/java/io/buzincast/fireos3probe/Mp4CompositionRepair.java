@@ -70,27 +70,27 @@ final class Mp4CompositionRepair {
             out.writeInt(end-at);out.writeInt((int)values[at]);at=end;}
         return Node.leaf(type,bytes.toByteArray());
     }
-    private static long timescale(Node node) throws IOException {return uint(node.data,node.header+(version(node)==0?12:20));}
-    private static long duration(Node node,boolean track) throws IOException {
+    static long timescale(Node node) throws IOException {return uint(node.data,node.header+(version(node)==0?12:20));}
+    static long duration(Node node,boolean track) throws IOException {
         int version=version(node),at=node.header+(track?(version==0?20:28):(version==0?16:24));
         if(version==0)return uint(node.data,at);
         bounds(node.data,at,8);long value=ByteBuffer.wrap(node.data).getLong(at);if(value<0)throw new IOException("Invalid MP4 duration");return value;
     }
-    private static void setDuration(Node node,long value,boolean track) throws IOException {
+    static void setDuration(Node node,long value,boolean track) throws IOException {
         int version=version(node),at=node.header+(track?(version==0?20:28):(version==0?16:24));
         if(value<0 || version==0 && value>0xffffffffL)throw new IOException("MP4 duration exceeds header version");
         bounds(node.data,at,version==0?4:8);if(version==0)ByteBuffer.wrap(node.data).putInt(at,(int)value);else ByteBuffer.wrap(node.data).putLong(at,value);
     }
     private static int version(Node node) throws IOException {bounds(node.data,node.header,4);int v=node.data[node.header]&255;if(v>1)throw new IOException("Unsupported MP4 header version");return v;}
-    private static long uint(byte[] data,int at) throws IOException {bounds(data,at,4);return ByteBuffer.wrap(data).getInt(at)&0xffffffffL;}
+    static long uint(byte[] data,int at) throws IOException {bounds(data,at,4);return ByteBuffer.wrap(data).getInt(at)&0xffffffffL;}
     private static void bounds(byte[] data,int at,int size) throws IOException {if(at<0 || size<0 || at>data.length-size)throw new IOException("Truncated MP4 metadata");}
-    private static int fourcc(String value) {return value.charAt(0)<<24|value.charAt(1)<<16|value.charAt(2)<<8|value.charAt(3);}
-    private static Node parse(byte[] data,int start,int end,int depth) throws IOException {
+    static int fourcc(String value) {return value.charAt(0)<<24|value.charAt(1)<<16|value.charAt(2)<<8|value.charAt(3);}
+    static Node parse(byte[] data,int start,int end,int depth) throws IOException {
         if(depth>8 || end-start<8)throw new IOException("Invalid MP4 metadata nesting");
         long size=uint(data,start);int type=(int)uint(data,start+4),header=8;
         if(size==1) {bounds(data,start,16);size=ByteBuffer.wrap(data).getLong(start+8);header=16;}
         if(size!=end-start || size<header)throw new IOException("Invalid MP4 metadata box size");
-        boolean container=type==fourcc("moov") || type==fourcc("trak") || type==fourcc("mdia") || type==fourcc("minf") || type==fourcc("stbl");
+        boolean container=type==fourcc("moov") || type==fourcc("trak") || type==fourcc("mdia") || type==fourcc("minf") || type==fourcc("stbl") || type==fourcc("edts");
         Node node=new Node(type,header,container?null:Arrays.copyOfRange(data,start,end));
         if(container) {
             node.children=new ArrayList<>();int at=start+header;

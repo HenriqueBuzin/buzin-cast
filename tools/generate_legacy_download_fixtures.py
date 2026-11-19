@@ -16,6 +16,7 @@ def main():
     subset=parser.add_mutually_exclusive_group()
     subset.add_argument('--transcode-only',action='store_true',help='Add conversion fixtures without regenerating the established remux fixtures.')
     subset.add_argument('--pcm-only',action='store_true',help='Add resampling/downmix fixtures while preserving the established media.')
+    subset.add_argument('--priming-only',action='store_true',help='Add AAC priming, timestamp-gap and multi-period conversion fixtures.')
     args=parser.parse_args()
     if not args.ffmpeg:parser.error('Install FFmpeg or pass --ffmpeg.')
     args.output.mkdir(parents=True,exist_ok=True)
@@ -35,6 +36,27 @@ def main():
         surround='aevalsrc='+'|'.join(expressions)+':s=48000:d=8:c=5.1'
         run('-i','movie.mp4','-f','lavfi','-i',surround,'-map','0:v:0','-map','1:a:0','-t','8','-c:v','copy','-c:a','libvorbis','-q:a','6','avc-vorbis-51.mkv')
         return ['avc-vorbis-96k.mkv','avc-vorbis-51.mkv']
+    def priming_fixtures():
+        run('-i','movie.mp4','-i','vp8-vorbis.webm','-map','0:v:0','-map','1:a:0','-c','copy','-f','dash','-seg_duration','2',
+            '-use_template','1','-use_timeline','1','-init_seg_name','prime-init-$RepresentationID$.m4s',
+            '-media_seg_name','prime-chunk-$RepresentationID$-$Number$.m4s','-adaptation_sets','id=0,streams=v id=1,streams=a','priming.mpd')
+        ns='{urn:mpeg:dash:schema:mpd:2011}';tree=ET.parse(args.output/'priming.mpd');root=tree.getroot();period=root.find(ns+'Period')
+        period.set('duration','PT8S');second=copy.deepcopy(period);second.set('id','1');second.set('start','PT8S');root.append(second);root.set('mediaPresentationDuration','PT16S')
+        ET.register_namespace('',ns[1:-1]);tree.write(args.output/'two-periods-vorbis.mpd',encoding='utf-8',xml_declaration=True)
+        run('-i','movie.mp4','-i','vp8-vorbis.webm','-map','0:v:0','-map','1:a:0','-c:v','copy','-af','asetpts=PTS+gte(T\\,4)*0.5/TB','-c:a','libvorbis','-q:a','4','avc-vorbis-gap.mkv')
+        run('-i','bframes.mp4','-i','vp8-vorbis.webm','-map','0:v:0','-map','1:a:0','-c','copy','bframes-vorbis.mkv')
+        run('-i','movie.mp4','-itsoffset','0.5','-i','vp8-vorbis.webm','-map','0:v:0','-map','1:a:0','-c','copy','avc-vorbis-offset.mkv')
+        names=['priming.mpd','two-periods-vorbis.mpd','avc-vorbis-gap.mkv','bframes-vorbis.mkv','avc-vorbis-offset.mkv']
+        names+=sorted(p.name for p in args.output.glob('prime-*.m4s'))
+        for name in names:
+            if name.endswith('.mpd'):
+                path=args.output/name;path.write_bytes(path.read_bytes().replace(b'\r\n',b'\n'))
+        return names
+    if args.priming_only:
+        names=priming_fixtures();path=args.output/'fixtures.json';manifest=json.loads(path.read_text(encoding='utf-8'))
+        manifest['priming_scope']='Synthetic Vorbis multi-period DASH, a half-second PCM gap and start offset, and AVC B frames with converted audio'
+        manifest['sha256'].update({name:hashlib.sha256((args.output/name).read_bytes()).hexdigest() for name in names})
+        path.write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8');print('Generated priming fixtures.');return
     if args.pcm_only:
         names=pcm_fixtures();path=args.output/'fixtures.json';manifest=json.loads(path.read_text(encoding='utf-8'))
         manifest['pcm_scope']='Synthetic 96 kHz stereo with above-Nyquist component; 5.1 isolated speakers and correlated loud tail'
@@ -68,6 +90,7 @@ def main():
     names += sorted(p.name for p in args.output.glob('chunk-*.m4s'))
     names += conversion_fixtures()
     names += pcm_fixtures()
+    names += priming_fixtures()
     # ElementTree preserves the CRLF found in FFmpeg's MPD text nodes. Git's
     # LF policy normalizes those bytes on commit, so hash the canonical form.
     for name in names:

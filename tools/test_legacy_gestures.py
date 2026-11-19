@@ -187,10 +187,12 @@ def main():
         if args.download and not args.package.endswith('deat.legacy.preview'):
             if 'INSTRUMENTATION_RESULT: download_conversion=codec_buffers_cropped_avc_aac_cancel_restart' not in result:raise AssertionError('Test APK did not exercise conversion cancellation/restart')
             if 'INSTRUMENTATION_RESULT: download_pcm=native_filter_channel_masks_chunking_and_bounds' not in result:raise AssertionError('Test APK did not exercise native PCM normalization')
+            if 'INSTRUMENTATION_RESULT: download_priming=measured_delay_edits_tail_offsets_gaps_and_periods' not in result:raise AssertionError('Test APK did not exercise AAC presentation cases')
             report['download_conversion_cancel_restart']='pass'
             report['download_native_pcm_filter_and_bounds']='pass'
+            report['download_aac_priming_presentation']='pass'
             artifacts=[]
-            for index in range(11):
+            for index in range(15):
                 payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
                 if payload[4:8]!=b'ftyp':raise AssertionError('Download artifact was not MP4')
                 path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload)
@@ -199,7 +201,7 @@ def main():
                     decoded=subprocess.run([str(args.ffmpeg),'-hide_banner','-loglevel','error','-xerror','-i',str(path),'-map','0:v:0','-map','0:a:0','-f','null','-'],check=True,timeout=30,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
                     if decoded.stderr.strip():raise AssertionError('Independent decode/timestamp errors in '+path.name+': '+decoded.stderr.decode('utf-8','replace')[:1200])
                     record['independent_decode']='pass'
-                    if index in (4,5):
+                    if index in (4,5,13):
                         original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats/bframes.mp4'
                         def frames(media):
                             result=subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-f','framemd5','-'],timeout=30)
@@ -208,12 +210,12 @@ def main():
                         if actual_frames!=expected_frames or len(actual_frames)!=120:raise AssertionError('B-frame export changed decoded video frames')
                         record['decoded_frame_hashes']='120 identical to the source'
                     if index>=6:
-                        name={6:'vp8-vorbis.webm',7:'avc-vorbis.mkv',8:'vp8-aac.mkv',9:'avc-vorbis-96k.mkv',10:'avc-vorbis-51.mkv'}[index]
+                        name={6:'vp8-vorbis.webm',7:'avc-vorbis.mkv',8:'vp8-aac.mkv',9:'avc-vorbis-96k.mkv',10:'avc-vorbis-51.mkv',11:'movie.mp4',12:'avc-vorbis-gap.mkv',13:'bframes-vorbis.mkv',14:'avc-vorbis-offset.mkv'}[index]
                         original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats'/name
                         def rgb(media):
                             return subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-pix_fmt','rgb24','-f','rawvideo','-'],timeout=30)
-                        source_frames=rgb(original);exported_frames=rgb(path)
-                        if len(source_frames)!=160*90*120*3 or len(exported_frames)!=len(source_frames):raise AssertionError('Converted download changed its frame count/dimensions')
+                        source_frames=rgb(original)*(2 if index==11 else 1);exported_frames=rgb(path)
+                        if len(source_frames)!=160*90*120*3*(2 if index==11 else 1) or len(exported_frames)!=len(source_frames):raise AssertionError('Converted download changed its frame count/dimensions')
                         error=sum(abs(a-b) for a,b in zip(source_frames,exported_frames))/len(source_frames)
                         if error>10:raise AssertionError('Converted download has excessive pixel error: '+str(error))
                         record['converted_video_mean_absolute_error']=round(error,4)
@@ -262,6 +264,18 @@ def main():
                     if index in (9,10) and (int(audio.get('sample_rate',0))!=48000 or audio.get('channels')!=2):raise AssertionError('Normalized AAC has the wrong sample rate/channel count')
                     record.update(video_packets=int(video['nb_read_packets']),aac_packets=int(audio['nb_read_packets']))
                     (args.output/f'ffprobe-{index}.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
+                    if args.ffmpeg and index>=6 and index!=8:
+                        from legacy_download_timing import check_audio_presentation
+                        audio_source=original
+                        if index==11:
+                            fixture_root=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats'
+                            # Decode the actual DASH audio initialization and
+                            # clusters independently. Its declared 8 s period
+                            # contains a short source gap; the original WebM
+                            # before DASH packaging is a different reference.
+                            audio_source=args.output/'source-dash-period.webm'
+                            audio_source.write_bytes((fixture_root/'prime-init-1.m4s').read_bytes()+b''.join((fixture_root/f'prime-chunk-1-{part}.m4s').read_bytes() for part in range(1,5)))
+                        record['aac_presentation']=check_audio_presentation(path,audio_source,args.ffmpeg,args.ffprobe,repetitions=2 if index==11 else 1,gap=index==12)
                 artifacts.append(record)
             report['download_artifacts']=artifacts
         if args.recording and not args.package.endswith('deat.legacy.preview'):
@@ -364,7 +378,7 @@ def main():
                 try:
                     available=adb('shell','run-as',args.package,'ls','files',timeout=30).split()
                     artifacts=[]
-                    for index in range(11):
+                    for index in range(15):
                         if f'legacy-download-{index}.b64' not in available:continue
                         payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
                         if payload[4:8]==b'ftyp':

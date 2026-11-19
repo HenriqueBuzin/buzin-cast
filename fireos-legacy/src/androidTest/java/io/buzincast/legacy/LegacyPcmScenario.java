@@ -33,6 +33,7 @@ final class LegacyPcmScenario {
         return 2*Math.hypot(real,imag)/frames;
     }
     static void check() throws Exception {
+        verifyLowRatePriming();
         ByteBuffer identity=buffer(4000);for(int i=0;i<2000;i++)identity.putShort((short)(i*7919));identity.flip();
         byte[] original=new byte[identity.remaining()];identity.duplicate().get(original);
         if(!Arrays.equals(original,convert(identity,44100,2,0,2,44100,2,17)))throw new AssertionError("Identity PCM changed across chunk boundaries");
@@ -70,6 +71,17 @@ final class LegacyPcmScenario {
             int left=result.getShort(),right=result.getShort();if(left<1000 || left!=right)throw new AssertionError("PCM channel permutation did not preserve center routing");
         }
         validation();
+    }
+    static void verifyLowRatePriming() throws Exception {
+        String name=null;
+        for(int i=0;i<android.media.MediaCodecList.getCodecCount() && name==null;i++) {
+            android.media.MediaCodecInfo info=android.media.MediaCodecList.getCodecInfoAt(i);if(!info.isEncoder())continue;
+            for(String type:info.getSupportedTypes())if(type.equalsIgnoreCase("audio/mp4a-latm")) {name=info.getName();break;}
+        }
+        if(name==null)throw new AssertionError("Missing AAC calibration encoder");
+        Class<?> probe=Class.forName("io.buzincast.fireos3probe.AacEncoderPriming");java.lang.reflect.Method frames=probe.getDeclaredMethod("frames",String.class,int.class,int.class);frames.setAccessible(true);
+        int first=(Integer)frames.invoke(null,name,8000,1),cached=(Integer)frames.invoke(null,name,8000,1);
+        if(first<0 || first>8192 || first!=cached)throw new AssertionError("Low-rate mono AAC priming was not measured/cached consistently");
     }
     static void validation() throws Exception {
         try {new LegacyPcmConverter(0,2,0,2,48000,2);throw new AssertionError("Invalid PCM rate was accepted");}catch(IOException expected) { }

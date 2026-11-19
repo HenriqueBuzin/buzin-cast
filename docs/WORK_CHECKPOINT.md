@@ -1,5 +1,50 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — atraso AAC medido e apresentação dos downloads
+
+Concluída a etapa de compensação do atraso identificada no checkpoint abaixo.
+`AacEncoderPriming` configura o encoder escolhido e mede a saída com sinal
+sintético e correlação, com limites de memória/tempo e cache de oito
+configurações em memória. No emulador, o componente Google apresentou 2048
+amostras em mono 8 kHz e estéreo 44,1/48 kHz; esse número não é imposto a
+outros componentes. A calibração ocorre antes de abrir os codecs da conversão.
+
+O conversor drena o PCM real e acrescenta padding suficiente para o encoder
+entregar a cauda antes do EOS. `Mp4AudioPriming` mantém o preroll no arquivo,
+recompõe STTS com escala racional e adiciona edit lists padrão para apresentar
+somente o conteúdo. Preserva offsets, lacunas reais e o reinício de encoder
+entre períodos DASH. A publicação do arquivo só ocorre após finalizar os
+metadados; falha deixa a limpeza remover o parcial privado.
+
+A comparação RGB encontrou também uma declaração nclx incompleta escrita
+pelo muxer antigo como RGB/valores reservados. O exportador agora omite
+somente declarações incompletas e preserva metadados SDR/HDR válidos.
+Não há override de cor no verificador externo.
+
+Os quinze downloads passaram no emulador API17 e na decodificação independente
+FFmpeg/ffprobe em `outputs/legacy-aac-color-download/report.json`. Incluem
+duas conversões AAC em períodos DASH, timestamps com meio segundo de lacuna,
+quadros B com áudio convertido e início de áudio deslocado. Os testes
+conferem início dentro de 5 ms da origem, cauda, duração, frames de vídeo,
+cancelamento/liberação/reinício e reprodução local. O DASH de origem já tem
+cerca de 22,5 ms de lacuna entre períodos; a comparação usa os segmentos reais
+e limita o silêncio adicional a 10 ms. Os oito testes JVM novos passaram.
+Os dois builds `-Check` passaram. Download e gravação permaneceram bloqueados
+na edição DE/AT, conforme `outputs/legacy-aac-color-deat-download/report.json`
+e `outputs/legacy-aac-color-deat-recording/report.json`. Os runners removeram
+as instalações de teste ao terminar.
+
+SHA-256 dos APKs debug desta etapa:
+
+- Geral: `ca4934cb584e76c073aabef7a25d388d8bb1e59c238add18f181255b60fd81d6`.
+- DE/AT: `8bc7c854162d5fe1b7d5799093a14a6dd562a3d13392f25b5623b96793ae6d4c`.
+
+As 12 artes aprovadas permanecem intactas; auditoria pública de arquivos e
+histórico sem achados. Nenhuma TV física foi usada. Os APKs continuam prévias
+debug isoladas. Ainda faltam layouts YUV proprietários, produção/licença/
+assinatura, validação ARM e com emissores/Sticks antigos reais e outros itens
+de paridade: esta etapa não conclui o suporte universal a Fire TV Stick.
+
 ## API17 — reamostragem e downmix dos downloads
 
 `LegacyPcmConverter` agora possui o libswresample estaticamente incluído,

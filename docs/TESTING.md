@@ -223,10 +223,10 @@ filha local, limpeza de `.part` e preservação de arquivos preexistentes.
 Com `--package com.buzincast.tv.deat.legacy.preview`, exige ausência do
 botão e bloqueio de início/listagem/worker na edição restrita.
 
-`--ffprobe <executável>` verifica as faixas e contagens dos onze MP4s
+`--ffprobe <executável>` verifica as faixas e contagens dos quinze MP4s
 sintéticos. `--ffmpeg <executável>` exige decodificação sem mensagens de
 erro, inclusive erros de timestamp que retornam status zero. Os dois
-arquivos com quadros B (exportação e reexportação pelo leitor Media3)
+arquivos com quadros B sem conversão (exportação e reexportação pelo leitor Media3)
 precisam produzir os mesmos 120 hashes de quadros da origem.
 
 Os três casos adicionais são VP8/Vorbis em WebM, AVC/Vorbis e VP8/AAC em
@@ -274,9 +274,35 @@ Configuração do codec pode vir no evento de formato ou em buffers separados.
 Formatos MP4 já aceitos pelo muxer seguem por cópia direta.
 
 Esses resultados não provam codecs/cores proprietários de Sticks físicos.
-Ainda falta validar/compensar o atraso inicial dos codecs e converter layouts YUV
-proprietários; um formato sem os codecs/limites necessários falha sem publicar
+Ainda falta converter layouts YUV proprietários e validar os componentes físicos;
+um formato sem os codecs/limites necessários falha sem publicar
 o arquivo parcial. Conteúdo protegido continua sendo recusado.
+
+Os quatro casos finais acrescentam AAC convertido em dois períodos DASH,
+uma lacuna de timestamps de meio segundo, vídeo com quadros B e início de
+áudio deslocado em relação ao vídeo. `AacEncoderPriming` mede o componente
+real por correlação entre um sinal sintético e sua saída codificada/decodificada;
+não assume um atraso fixo para todos os aparelhos. A instrumentação inclui
+AAC mono a 8 kHz, além das conversões estéreo a 44,1/48 kHz. A cauda real
+recebe drenagem antes do EOS e `Mp4AudioPriming` recompõe STTS e edit lists,
+mantendo o preroll no arquivo e apresentando somente o conteúdo.
+
+`tools/legacy_download_timing.py` compara PCM decodificado independentemente:
+início relativo ao vídeo dentro de 5 ms, duração dentro de 8 ms por período
+e energia dos últimos 20 ms preservada. O intervalo entre períodos é comparado
+com os segmentos DASH efetivamente usados, cuja origem já tem cerca de
+22,5 ms de lacuna; a exportação permite no máximo 10 ms adicionais.
+A lacuna interna de meio segundo precisa permanecer silenciosa entre os tons.
+O caso com quadros B também precisa manter os 120 hashes de vídeo.
+O extrator do Android 4.2 ignora empty edits: o teste verifica separadamente
+a duração de apresentação do Media3 e a decodificação do host, sem exigir
+que a duração bruta desse extrator inclua o deslocamento inicial.
+
+Seis testes JVM cobrem payload preservado, preroll/cauda, múltiplos períodos,
+lacunas, escala fracionária, taxa baixa, flush insuficiente e correlação.
+Dois testes de cor exigem omitir declarações nclx incompletas, que o muxer
+antigo escreveria como RGB/reservado, e manter declarações SDR/HDR válidas.
+As comparações RGB externas continuam ativas, sem forçar cores no FFmpeg.
 
 O OMX do emulador API17 não decodifica AVC Main e seu extrator do sistema
 omite faixas com CTTS assinado. Esses dois casos não são usados como

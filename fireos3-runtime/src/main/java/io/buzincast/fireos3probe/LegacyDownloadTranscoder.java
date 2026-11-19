@@ -23,6 +23,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     private final Format input;
     private final int codedWidth,codedHeight;
     private final int audioRate,audioChannels;
+    private int primingFrames;
     private MediaCodec decoder,encoder;
     private String decoderName;
     private ByteBuffer[] decoderInputs,decoderOutputs,encoderInputs,encoderOutputs;
@@ -37,6 +38,12 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     private int inputPcmRate,inputPcmFrameBytes,inputPcmChannels,inputPcmEncoding,inputPcmMask;
     private long firstAudioUs=Long.MIN_VALUE,inputAudioBaseUs,inputAudioFrames,outputAudioFrames;
     private boolean audioEosQueued;
+    private boolean pendingAligned,overlapPending;
+    private long contentAudioFrames=-1;
+    private int paddingAudioFrames;
+    int audioPrimingFrames() {return primingFrames;}
+    long audioContentFrames() {return contentAudioFrames;}
+    long audioStartUs() {return firstAudioUs==Long.MIN_VALUE?0:firstAudioUs;}
 
     static boolean available(Format format) {
         boolean video=MimeTypes.isVideo(format.sampleMimeType);
@@ -87,6 +94,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
             String decodeName=codec(input.sampleMimeType,false,false),encodeName=codec(video?"video/avc":"audio/mp4a-latm",true,video);
             decoderName=decodeName;
             if(!available(input) || decodeName==null || encodeName==null)throw new IOException("No compatible download codec");
+            if(!video)primingFrames=AacEncoderPriming.frames(encodeName,audioRate,audioChannels);
             MediaFormat source=video?MediaFormat.createVideoFormat(input.sampleMimeType,input.width,input.height):
                 MediaFormat.createAudioFormat(input.sampleMimeType,input.sampleRate,input.channelCount);
             source.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE,LIMIT);
@@ -106,9 +114,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
                 target.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,2);
                 target.setInteger(MediaFormat.KEY_BIT_RATE,bitrate);
             } else {
-                target=MediaFormat.createAudioFormat("audio/mp4a-latm",audioRate,audioChannels);
-                target.setInteger(MediaFormat.KEY_AAC_PROFILE,MediaCodecInfo.CodecProfileLevel.AACObjectLC);
-                target.setInteger(MediaFormat.KEY_BIT_RATE,audioChannels*64000);
+                target=AacEncoderPriming.format(audioRate,audioChannels);
             }
             encoder=MediaCodec.createByCodecName(encodeName);encoder.configure(target,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE);encoder.start();encoderStarted=true;
             encoderInputs=encoder.getInputBuffers();encoderOutputs=encoder.getOutputBuffers();
@@ -165,7 +171,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
                 int next=decoder.dequeueOutputBuffer(decoded,0);
                 if(next==MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED)decoderOutputs=decoder.getOutputBuffers();
                 else if(next==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED)validateDecoded(decoder.getOutputFormat());
-                else if(next>=0) {pending=next;pendingOffset=0;}
+                else if(next>=0) {pending=next;pendingOffset=0;pendingAligned=false;}
             }
             if(pending>=0) {
                 if(!video) {convertPcm();continue;}
@@ -223,13 +229,28 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
         if(decoded.size%inputPcmFrameBytes!=0)throw new IOException("Invalid decoded PCM frame alignment");
         if(decoded.size>pendingOffset) {
             if(firstAudioUs==Long.MIN_VALUE)firstAudioUs=inputAudioBaseUs=decoded.presentationTimeUs;
-            if(pendingOffset==0) {
+            if(!pendingAligned) {
                 long expected=inputAudioBaseUs+inputAudioFrames*1000000/inputPcmRate,delta=decoded.presentationTimeUs-expected;
-                if(Math.abs(delta)>2000) {firstAudioUs+=delta;inputAudioBaseUs+=delta;}
+                if(Math.abs(delta)>2000 || overlapPending || pcm.ended()) {
+                    if(!pcm.ended()) {pcmOutput=pcm.finish();return;}
+                    long target=Math.round((decoded.presentationTimeUs-firstAudioUs)*(double)audioRate/1000000);
+                    if(target>1000000L*1024)throw new IOException("PCM timeline exceeds the MP4 metadata budget");
+                    if(target>outputAudioFrames) {
+                        int frames=(int)Math.min(4096,target-outputAudioFrames);pcmOutput=ByteBuffer.allocate(frames*audioChannels*2);return;
+                    }
+                    long currentUs=firstAudioUs+outputAudioFrames*1000000/audioRate;
+                    long skip=Math.max(0,(long)Math.ceil((currentUs-decoded.presentationTimeUs)*(double)inputPcmRate/1000000));
+                    int frames=decoded.size/inputPcmFrameBytes;pendingOffset=(int)Math.min(frames,skip)*inputPcmFrameBytes;overlapPending=skip>=frames;
+                    pcm.close();pcm=new LegacyPcmConverter(inputPcmRate,inputPcmChannels,inputPcmMask,inputPcmEncoding,audioRate,audioChannels,pcmChannelOrder(inputPcmChannels,inputPcmMask));
+                    inputAudioBaseUs=decoded.presentationTimeUs+(pendingOffset/inputPcmFrameBytes)*1000000L/inputPcmRate;inputAudioFrames=0;
+                }
+                pendingAligned=true;
             }
-            ByteBuffer source=decoderOutputs[pending].duplicate();source.position(decoded.offset+pendingOffset);
-            int count=Math.min(decoded.size-pendingOffset,LegacyPcmConverter.MAX_INPUT_FRAMES*inputPcmFrameBytes);
-            source.limit(source.position()+count);pcmOutput=pcm.convert(source);pendingOffset+=count;inputAudioFrames+=count/inputPcmFrameBytes;
+            if(pendingOffset<decoded.size) {
+                ByteBuffer source=decoderOutputs[pending].duplicate();source.position(decoded.offset+pendingOffset);
+                int count=Math.min(decoded.size-pendingOffset,LegacyPcmConverter.MAX_INPUT_FRAMES*inputPcmFrameBytes);
+                source.limit(source.position()+count);pcmOutput=pcm.convert(source);pendingOffset+=count;inputAudioFrames+=count/inputPcmFrameBytes;
+            }
         }
         if(pendingOffset==decoded.size) {
             boolean eos=(decoded.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
@@ -237,7 +258,12 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
         }
     }
     private void feedAudioEncoder() throws IOException {
-        boolean eos=decoderEnded && pcm!=null && pcm.ended() && !pcmOutput.hasRemaining();
+        boolean drained=decoderEnded && pcm!=null && pcm.ended() && !pcmOutput.hasRemaining();
+        if(drained && contentAudioFrames<0) {contentAudioFrames=outputAudioFrames;paddingAudioFrames=primingFrames;}
+        boolean eos=drained && paddingAudioFrames==0;
+        if(drained && paddingAudioFrames>0) {
+            int frames=Math.min(4096,paddingAudioFrames);pcmOutput=ByteBuffer.allocate(frames*audioChannels*2);paddingAudioFrames-=frames;eos=false;
+        }
         if(audioEosQueued || !pcmOutput.hasRemaining() && !eos)return;
         int next=encoder.dequeueInputBuffer(0);if(next<0)return;
         ByteBuffer target=encoderInputs[next];target.clear();int frame=audioChannels*2;
@@ -280,7 +306,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     }
     private Format format(ArrayList<byte[]> csd) {
         Format.Builder builder=new Format.Builder().setSampleMimeType(video?"video/avc":"audio/mp4a-latm").setInitializationData(csd).setLanguage(IsoMediaLanguage.normalize(input.language));
-        if(video)builder.setWidth(input.width).setHeight(input.height).setRotationDegrees(input.rotationDegrees).setFrameRate(input.frameRate);
+        if(video)builder.setWidth(input.width).setHeight(input.height).setRotationDegrees(input.rotationDegrees).setFrameRate(input.frameRate).setColorInfo(LegacyExportColor.complete(input.colorInfo));
         else builder.setSampleRate(audioRate).setChannelCount(audioChannels);
         return builder.build();
     }

@@ -46,7 +46,7 @@ final class LegacyDownloadScenario {
         try(Fixture fixture=new Fixture(runner)) {
             Map<String,String> headers=Collections.singletonMap("X-Download-Fixture","active");
             String base="http://127.0.0.1:"+fixture.server.getLocalPort();
-            String[] names={"movie.mp4","movie.m3u8","movie.mpd","two-periods.mpd","bframes.mp4","repaired-bframes.mp4","vp8-vorbis.webm","avc-vorbis.mkv","vp8-aac.mkv","avc-vorbis-96k.mkv","avc-vorbis-51.mkv"};
+            String[] names={"movie.mp4","movie.m3u8","movie.mpd","two-periods.mpd","bframes.mp4","repaired-bframes.mp4","vp8-vorbis.webm","avc-vorbis.mkv","vp8-aac.mkv","avc-vorbis-96k.mkv","avc-vorbis-51.mkv","two-periods-vorbis.mpd","avc-vorbis-gap.mkv","bframes-vorbis.mkv","avc-vorbis-offset.mkv"};
             for(int index=0;index<names.length;index++) {
                 String name=names[index];LegacyUrlRequest request=new LegacyUrlRequest(base+"/"+name,2000,headers);
                 android.util.Log.i("LegacyDownloadScenario","Checking "+name);
@@ -76,14 +76,17 @@ final class LegacyDownloadScenario {
                 // Stagefright on Android 4.2 omits tracks using signed CTTS.
                 // Media3 parses this standard metadata on the round trip above;
                 // FFmpeg independently validates and decodes both B-frame exports.
-                if(index<4 || index>=6)verify(saved,index==3?15900:7800);
+                // Stagefright 4.2 reports raw media duration, excluding an
+                // initial empty edit. The actual presentation is checked by
+                // Media3 below and independently by the host for that case.
+                if(index<4 || index>=6 && index!=13)verify(saved,name.startsWith("two-periods")?15900:name.contains("gap")?8400:7800);
                 android.net.Uri uri=androidx.core.content.FileProvider.getUriForFile(activity,activity.getPackageName()+".recordings",downloads.file(saved.getName()));
                 try(InputStream input=activity.getContentResolver().openInputStream(uri)) {
                     byte[] prefix=new byte[8];if(input.read(prefix)!=8 || !"ftyp".equals(new String(prefix,4,4,"US-ASCII")))throw new AssertionError("Export URI did not open an MP4");
                 }
-                if(index==4 || index==5)continue; // Independently decode B-frame artifacts on the host.
+                if(index==4 || index==5 || index==13)continue; // Independently decode B-frame artifacts on the host.
                 ui(runner,()-> {try {service.playDownload(saved.getName());}catch(IOException e) {throw new AssertionError(e);}});
-                await(()-> {LegacyUrlPlayer.State value=player(runner,service);return value!=null && value.playing && value.width==160 && value.durationMs>=(name.equals("two-periods.mpd")?15900:7900);});
+                await(()-> {LegacyUrlPlayer.State value=player(runner,service);return value!=null && value.playing && value.width==160 && value.durationMs>=(name.startsWith("two-periods")?15900:name.contains("gap") || name.contains("offset")?8400:7900);});
                 AtomicReference<Boolean> allowed=new AtomicReference<>();ui(runner,()->allowed.set(service.canDownload()));
                 if(allowed.get())throw new AssertionError("Local files were offered for network download");
             }

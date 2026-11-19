@@ -24,8 +24,24 @@
     "avc-vorbis.mkv": "8c4eed9194b6c65e47ad9a449720152c8fd52aba421b7acf5d5563c1cef23c0e",
     "vp8-aac.mkv": "59ab60b4b04a737f0d1ca4d08b71bc821754d79e1083e334571491d2be31598a",
     "avc-vorbis-96k.mkv": "125c43e9aded80fb22511498f2e7b7c841c98c60e71c789fc2c4074f0bae4d32",
-    "avc-vorbis-51.mkv": "4d1961ed0eb712517ce59ad74b620fc7a90f765f3b967fc00b7fe03ca19d874e"
+    "avc-vorbis-51.mkv": "4d1961ed0eb712517ce59ad74b620fc7a90f765f3b967fc00b7fe03ca19d874e",
+    "priming.mpd": "b098c16038c345b200d3e414dfd840cde2479361e8716af7678c5ccccf2a5a04",
+    "two-periods-vorbis.mpd": "fda675c7ff674fd0531574536f3d7a4dbc4938661b4a6f902bb8c25f30d1a2d1",
+    "avc-vorbis-gap.mkv": "90e5481271cfc0ea9aa1c2e5158e1ff357e9aacd5c0524a244cfffcf1747bd87",
+    "bframes-vorbis.mkv": "c26161460f19d0d8e33a81e811c85b13221cc5b6791e7ec730abec657d8d1b5c",
+    "avc-vorbis-offset.mkv": "dede7ed77c24f690b8c22874a894c2e6a8bdad70f313537f715489c41efb1f9d",
+    "prime-chunk-0-1.m4s": "6e0cafcfa445bc2c4de55d02e1815eee3418808b95cbdbee843a3c9a455329f6",
+    "prime-chunk-0-2.m4s": "d2dd4d22d71b607bb3c2722310ef9b4edfd5fe6cf49b97700d158e0e036d20c9",
+    "prime-chunk-0-3.m4s": "28b2a9fbe74652487321f503e61f21005f9c136a56d1d106bf7128de552eeec1",
+    "prime-chunk-0-4.m4s": "643f02257547a78652ebbc3333b5a83bae290f29ff6b4c02caeabffef45a060b",
+    "prime-chunk-1-1.m4s": "a400b14267fadf392368110f8f74974eed214d3907423b024d70c05490b8630a",
+    "prime-chunk-1-2.m4s": "ea15ab5bbf2c7bc2d1452c56f958515380d5eb33ae03212404712133557b445c",
+    "prime-chunk-1-3.m4s": "25d6118e43a1832ec5ea45372c40a752744b863c594f47720c6bb01da58baac6",
+    "prime-chunk-1-4.m4s": "5a44a368af5854f74894433fed95f99e9d50a71dc270fd4b1e84691e043eac42",
+    "prime-init-0.m4s": "d45bb0ce9910a792388a604bb8cb98e9b75d306435bd32f038755d43d2c6b5be",
+    "prime-init-1.m4s": "5e7911fd182013da510e39bb0d4f1bceda4336a224e14a8e183d943e413ce976"
   },
   "conversion_scope": "Eight-second synthetic VP8/Vorbis pattern and 880 Hz tone, plus mixed passthrough/conversion tracks",
-  "pcm_scope": "Synthetic 96 kHz stereo with above-Nyquist component; 5.1 isolated speakers and correlated loud tail"
+  "pcm_scope": "Synthetic 96 kHz stereo with above-Nyquist component; 5.1 isolated speakers and correlated loud tail",
+  "priming_scope": "Synthetic Vorbis multi-period DASH, a half-second PCM gap and start offset, and AVC B frames with converted audio"
 }
