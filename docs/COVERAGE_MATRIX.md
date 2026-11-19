@@ -1005,3 +1005,28 @@ The current source suite now has 200 Android cases. The ongoing full four-editio
 run remains frozen at 192 cases and must finish against its original mappings;
 these selected profiles cannot replace its acceptance gates or establish 100%
 coverage for the current source.
+
+Six MainActivity lifecycle contracts now use Android-driven activity transitions
+and a real bound receiver. They cover configuration recreation with a retained
+ViewModel, callback replacement and ownership on destruction, idle foreground
+shutdown, background retention, active sender/local-video/mirroring protection
+and keep-screen-on changes. A separate real PiP round trip reopens the existing
+activity through a launcher-equivalent intent and verifies the receiver session
+survives. Stop-policy cases temporarily deny PiP so Android reaches onStop instead
+of keeping the activity visible in its pinned window. Both PiP policy changes
+check the effective AppOps decision and restore the original policy.
+
+All six cases passed together on API28 in 104.910 seconds without skips. The
+matching archived-class JaCoCo report passed in 15 seconds and confirms onStop
+covers all 46 instructions and 12 branches; the PiP-mode callback covers all ten
+instructions. onDestroy retains one uncovered branch. The production lifecycle
+implementation is unchanged, and its source bytes match the preceding normal
+192-case cohort. The final assembly passed in 36 seconds and lint passed in
+4m46s in the separate clean checkout, with the same test source. These are
+selected lifecycle results, not complete current-edition coverage.
+
+The current source suite now has 206 Android cases. The preceding frozen
+192-case cohort completed all required runtime gates independently for normal,
+compat, DE/AT and compat DE/AT, with 19 native cases and all 192 Android cases
+passing in each. Its strict 100% check still fails because coverage remains
+incomplete; its profiles must remain separate from the changed current inputs.
