@@ -1,4 +1,4 @@
-"""Check coordinated Fire OS identities and optionally verify the APK signing certificates."""
+"""Check Fire OS release identities, signing certificates and emulator smoke evidence."""
 import argparse
 import hashlib
 import json
@@ -12,6 +12,7 @@ ANDROID = '{http://schemas.android.com/apk/res/android}'
 TARGETS = ('legacy', 'compat', 'modern')
 REGIONS = ('general', 'nodownload')
 EDITIONS = {f'{target}.{region}' for target in TARGETS for region in REGIONS}
+SMOKE_APIS = {'legacy': (17, 22), 'compat': (22,), 'modern': (25, 28, 30)}
 
 
 def load_plan(path):
@@ -87,6 +88,37 @@ def signer_fingerprint(path, apksigner_jar, min_sdk):
     return extract_signer_fingerprint(output)
 
 
+def verify_smoke(inputs, verified_apks, require_all):
+    results = {}
+    for item in inputs:
+        edition, filename = item.split('=', 1)
+        apk = verified_apks.get(edition)
+        if not apk:
+            raise ValueError('Smoke report needs its APK input: ' + edition)
+        evidence = json.loads(Path(filename).read_text(encoding='utf-8'))
+        if not isinstance(evidence, dict):
+            raise ValueError('Expected a JSON object in smoke report: ' + edition)
+        api = evidence.get('device_sdk')
+        target = edition.split('.')[0]
+        if type(api) is not int or api not in SMOKE_APIS[target] or evidence.get('target') != target:
+            raise ValueError('Unexpected target or device API in smoke report: ' + edition)
+        if api in results.get(edition, []):
+            raise ValueError(f'Repeated smoke report: {edition} API{api}')
+        if evidence.get('apk_sha256') != apk['sha256'] or evidence.get('package') != apk['package']:
+            raise ValueError(f'Smoke report is for a different APK: {edition} API{api}')
+        if (evidence.get('status') != 'pass' or evidence.get('native_rtsp') != 'pass'
+                or evidence.get('matching_public_key') != 'pass'
+                or evidence.get('certificate_sha256') != apk['certificate_sha256']):
+            raise ValueError(f'Smoke report did not pass all required checks: {edition} API{api}')
+        results.setdefault(edition, []).append(api)
+    if require_all:
+        missing = [f'{edition} API{api}' for edition in sorted(EDITIONS)
+                   for api in SMOKE_APIS[edition.split('.')[0]] if api not in results.get(edition, [])]
+        if missing:
+            raise ValueError('Missing smoke evidence: ' + ', '.join(missing))
+    return {edition: sorted(apis) for edition, apis in results.items()}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan', type=Path, default=ROOT / 'gradle/fireos-release.properties')
@@ -95,6 +127,8 @@ def main():
     parser.add_argument('--aapt', help='Required with --apk')
     parser.add_argument('--apksigner-jar', type=Path, help='Verify APK signatures and require the same signer within each listing')
     parser.add_argument('--require-all', action='store_true', help='Fail unless all six editions are provided')
+    parser.add_argument('--smoke', action='append', default=[], metavar='EDITION=REPORT_JSON', help='Match passing emulator evidence to the signed APK')
+    parser.add_argument('--require-smoke', action='store_true', help='Require the full six-APK emulator smoke matrix')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     report = {'status': 'failed', 'verified': [], 'completeSet': False, 'deviceTargetingVerified': False,
@@ -102,6 +136,8 @@ def main():
     try:
         if args.apksigner_jar and (not args.apk or args.manifest):
             raise ValueError('Signature verification requires APK inputs only')
+        if (args.smoke or args.require_smoke) and not args.apksigner_jar:
+            raise ValueError('Matching smoke reports requires --apksigner-jar')
         plan = load_plan(args.plan)
         report['plan_sha256'] = hashlib.sha256(args.plan.read_bytes()).hexdigest()
         seen = set()
@@ -135,6 +171,9 @@ def main():
         if args.require_all and not report['completeSet']:
             raise ValueError('Missing editions: ' + ', '.join(sorted(EDITIONS - seen)))
         report['signaturesVerified'] = bool(args.apksigner_jar)
+        if args.smoke or args.require_smoke:
+            apks = {item['edition']: item for item in report['verified']}
+            report['emulatorSmoke'] = verify_smoke(args.smoke, apks, args.require_smoke)
         report['status'] = 'pass'
     except (ValueError, KeyError, TypeError, OSError, ET.ParseError, subprocess.SubprocessError) as error:
         report['error'] = str(error)
