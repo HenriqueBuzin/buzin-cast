@@ -166,11 +166,13 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackContracts(JNIEnv *env,
     struct Context {
         android_callback_ctx_t value{};
         JNIEnv *env;
-        Context(JNIEnv *e, jobject sink) : env(e) { android_callbacks_init(&value, e, sink); }
-        ~Context() { android_callbacks_destroy(&value, env); }
+        bool ready;
+        Context(JNIEnv *e, jobject sink) : env(e), ready(android_callbacks_init(&value, e, sink) != 0) {}
+        ~Context() { if (ready) android_callbacks_destroy(&value, env); }
     } owner(env, sink);
     auto *ctx = &owner.value;
     if (env->ExceptionCheck()) return nullptr;
+    if (!owner.ready) return env->NewStringUTF("callback binding failed");
 #define CALLBACK_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
     raop_callbacks_t cbs{};
     android_callbacks_fill(&cbs, ctx);
@@ -589,4 +591,128 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
     FAULT_CONTRACT(!fixture.pending);
     return env->NewStringUTF("callback fault contracts passed");
 #undef FAULT_CONTRACT
+}
+
+// Controlled dependency faults for the real callback initializer.
+namespace {
+struct CallbackInitFixture {
+    JNINativeInterface functions{};
+    JNIEnv env{};
+    JavaVM vm{};
+    android_callback_ctx_t ctx{};
+    inline static thread_local CallbackInitFixture *active = nullptr;
+    int mode, illegal = 0, globalCalls = 0, classCalls = 0, methodCalls = 0;
+    int globalLive = 0, classLive = 0;
+    bool pending = false, initialized = false;
+    int result = -1;
+    explicit CallbackInitFixture(int failure) : mode(failure) {
+        active = this; env.functions = &functions;
+        functions.GetJavaVM = [](JNIEnv *, JavaVM **out) -> jint {
+            auto &s = *active; s.access();
+            *out = s.mode == 27 ? nullptr : &s.vm;
+            return s.mode == 1 ? JNI_ERR : JNI_OK;
+        };
+        functions.NewGlobalRef = [](JNIEnv *, jobject object) -> jobject {
+            auto &s = *active; s.access(); ++s.globalCalls;
+            if (object != receiver()) ++s.illegal;
+            if (s.mode == 2 || s.mode == 26) { s.pending = s.mode == 2; return nullptr; }
+            ++s.globalLive; return object;
+        };
+        functions.GetObjectClass = [](JNIEnv *, jobject object) -> jclass {
+            auto &s = *active; s.access(); ++s.classCalls;
+            if (object != receiver()) ++s.illegal;
+            if (s.mode == 3) { s.pending = true; return nullptr; }
+            ++s.classLive; return klass();
+        };
+        functions.GetMethodID = [](JNIEnv *, jclass type, const char *name, const char *signature) -> jmethodID {
+            auto &s = *active; s.access();
+            const int index = s.methodCalls++;
+            if (type != klass() || index >= 22 || std::strcmp(name, methods[index].first) ||
+                std::strcmp(signature, methods[index].second)) ++s.illegal;
+            if (s.mode == 4 + index) { s.pending = true; return nullptr; }
+            return method(index);
+        };
+        functions.DeleteGlobalRef = [](JNIEnv *, jobject object) {
+            auto &s = *active;
+            if (object != receiver() || s.globalLive != 1) ++s.illegal;
+            --s.globalLive;
+        };
+        functions.DeleteLocalRef = [](JNIEnv *, jobject object) {
+            auto &s = *active;
+            if (object != klass() || s.classLive != 1) ++s.illegal;
+            --s.classLive;
+        };
+        functions.ExceptionCheck = [](JNIEnv *) -> jboolean { return active->pending ? JNI_TRUE : JNI_FALSE; };
+        functions.ExceptionClear = [](JNIEnv *) { active->pending = false; };
+        functions.ExceptionDescribe = [](JNIEnv *) {};
+    }
+    void access() { if (pending) ++illegal; }
+    static jobject receiver() { return reinterpret_cast<jobject>(1); }
+    static jclass klass() { return reinterpret_cast<jclass>(2); }
+    static jmethodID method(int index) { return reinterpret_cast<jmethodID>(static_cast<uintptr_t>(index + 10)); }
+    inline static const std::array<std::pair<const char *, const char *>, 22> methods{{
+        {"onConnectionRequest", "(Ljava/lang/String;)Z"}, {"onVideoData", "([BJZ)V"},
+        {"onAudioPcm", "([BJII)V"}, {"onAudioFormat", "(IIZ)V"}, {"onVideoSize", "(FFFF)V"},
+        {"onClientVolume", "(F)V"}, {"onClientVolumeQuery", "()F"}, {"onAudioTeardown", "()V"},
+        {"onConnectionInit", "()V"}, {"onConnectionDestroy", "()V"}, {"onConnectionReset", "(I)V"},
+        {"onDisplayPin", "(Ljava/lang/String;)V"}, {"onMetadata", "([B)V"}, {"onCoverArt", "([B)V"},
+        {"onProgress", "(JJJ)V"}, {"onDacpId", "(Ljava/lang/String;Ljava/lang/String;)V"},
+        {"onMirrorRunning", "(Z)V"}, {"onVideoPlay", "(Ljava/lang/String;F)V"},
+        {"onVideoScrub", "(F)V"}, {"onVideoRate", "(F)V"}, {"onVideoStop", "()V"},
+        {"onVideoSessionPoll", "()V"}
+    }};
+    void initialize() {
+        result = android_callbacks_init(&ctx, &env, receiver());
+        initialized = result == 1;
+    }
+    void destroy() {
+        if (initialized) { android_callbacks_destroy(&ctx, &env); initialized = false; }
+    }
+    ~CallbackInitFixture() { destroy(); active = nullptr; }
+};
+}
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackInitContracts(JNIEnv *env, jobject, jint mode) {
+#define INIT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    INIT_CONTRACT(mode >= 0 && mode <= 27);
+    CallbackInitFixture fixture(mode);
+    fixture.initialize();
+    INIT_CONTRACT(fixture.illegal == 0);
+    INIT_CONTRACT(fixture.classLive == 0);
+    if (mode == 0) {
+        INIT_CONTRACT(fixture.result == 1);
+        INIT_CONTRACT(fixture.globalLive == 1 && fixture.methodCalls == 22);
+        INIT_CONTRACT(!fixture.pending && fixture.ctx.h265_enabled == 1 && fixture.ctx.require_pin == 0);
+        INIT_CONTRACT(fixture.ctx.registered_count == 0 && !fixture.ctx.audio_engine);
+        INIT_CONTRACT(fixture.ctx.playback_duration == 0 && fixture.ctx.play_ready == 0);
+        std::array<jmethodID, 22> ids{fixture.ctx.on_connection_request, fixture.ctx.on_video_data,
+            fixture.ctx.on_audio_pcm, fixture.ctx.on_audio_format, fixture.ctx.on_video_size,
+            fixture.ctx.on_client_volume, fixture.ctx.on_client_volume_query, fixture.ctx.on_audio_teardown,
+            fixture.ctx.on_conn_init, fixture.ctx.on_conn_destroy, fixture.ctx.on_conn_reset,
+            fixture.ctx.on_display_pin, fixture.ctx.on_metadata, fixture.ctx.on_coverart,
+            fixture.ctx.on_progress, fixture.ctx.on_dacp_id, fixture.ctx.on_mirror_running,
+            fixture.ctx.on_video_play, fixture.ctx.on_video_scrub, fixture.ctx.on_video_rate,
+            fixture.ctx.on_video_stop, fixture.ctx.on_video_session_poll};
+        for (int index = 0; index < 22; ++index) INIT_CONTRACT(ids[index] == CallbackInitFixture::method(index));
+        INIT_CONTRACT(pthread_mutex_trylock(&fixture.ctx.playback_info_lock) == 0);
+        INIT_CONTRACT(pthread_mutex_unlock(&fixture.ctx.playback_info_lock) == 0);
+        INIT_CONTRACT(pthread_cond_signal(&fixture.ctx.play_ready_cond) == 0);
+        fixture.destroy();
+        INIT_CONTRACT(fixture.globalLive == 0 && !fixture.ctx.callback_obj);
+    } else {
+        INIT_CONTRACT(fixture.result == 0);
+        INIT_CONTRACT(fixture.globalLive == 0 && !fixture.ctx.callback_obj && !fixture.ctx.jvm);
+        INIT_CONTRACT(fixture.pending == (mode != 1 && mode != 26 && mode != 27));
+        if (mode == 1 || mode == 27) {
+            INIT_CONTRACT(fixture.globalCalls == 0 && fixture.classCalls == 0 && fixture.methodCalls == 0);
+        } else if (mode == 2 || mode == 26) {
+            INIT_CONTRACT(fixture.globalCalls == 1 && fixture.classCalls == 0 && fixture.methodCalls == 0);
+        } else if (mode == 3) {
+            INIT_CONTRACT(fixture.classCalls == 1 && fixture.methodCalls == 0);
+        } else {
+            INIT_CONTRACT(fixture.methodCalls == mode - 3);
+        }
+    }
+    return env->NewStringUTF("callback init contracts passed");
+#undef INIT_CONTRACT
 }

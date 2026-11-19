@@ -55,7 +55,10 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     if (hw_len > 6) hw_len = 6;
     env->GetByteArrayRegion(hwAddr, 0, hw_len, (jbyte *)ctx->hw_addr);
 
-    android_callbacks_init(&ctx->cb_ctx, env, callback);
+    if (!android_callbacks_init(&ctx->cb_ctx, env, callback)) {
+        delete ctx;
+        return 0;
+    }
     ctx->cb_ctx.require_pin = requirePin ? 1 : 0;
     android_callbacks_fill(&ctx->callbacks, &ctx->cb_ctx);
 

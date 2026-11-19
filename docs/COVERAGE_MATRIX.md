@@ -10,6 +10,35 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
+Callback initialization now reports whether binding succeeded. It resolves the
+VM, global receiver reference, class and all 22 required Java methods before a
+receiver can be started. A failed lookup releases partial references and the
+context's synchronization primitives while preserving the pending Java error.
+Both native callers honor this result: the production JNI initializer returns
+before creating a server, and the coverage callback owner only destroys a
+successfully initialized context.
+
+Controlled JNI-table contracts first reproduced three failures in the original
+code (four tests, three failures, 0.031 seconds): VM failure left a bound context,
+and allocation/missing-method failures continued making JNI calls with an
+exception pending. The fixed contracts check every missing-method position,
+allocation/class failures, VM status/null output, exact method IDs and reference
+ownership. A real Java proxy without the admission callback also returns its
+NoSuchMethodError through JNI, followed by successful initialization. Five new
+contracts plus the existing callback and server contracts passed on API22:
+14 tests, 14.08 seconds, no skips. Assembly and lint passed in 9m44s. Evidence is
+`build/callback-init-green-selection`; the original failing cohort is preserved
+under `build/callback-init-red-selection`. The fixture models JNI dependency
+faults without exhausting an actual VM. These selected profiles do not establish
+whole-app or four-edition 100% and cannot be merged into older compiled cohorts.
+
+The prior regional retry was interrupted by a Windows restart at
+2026-11-19 00:35:42 UTC, after its recorded start and before a completed report.
+Its controller/emulator/Java workers were absent after restart. Completed earlier
+normal/compat snapshots remain valid for their original compiled inputs; this
+unfinished retry contributes no passing regional snapshot. The new initializer
+changes native mappings and requires a fresh four-edition matrix.
+
 Four relay-playback contracts passed on API22 (2.855 seconds, no skips), using
 real silent AudioTrack output and the production VideoRenderer. They require
 playback-head advancement, correct PCM format, release of the track and worker,
