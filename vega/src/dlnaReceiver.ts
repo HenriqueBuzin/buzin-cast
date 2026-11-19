@@ -3,6 +3,7 @@ import type {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import Network from './turbo-modules/BuzinNetwork';
 import {createPlaybackSession, PlaybackRequest, PlaybackSnapshot} from './playbackSession';
 import {dlnaConnectionInfo, DlnaFault, DlnaRequest, DlnaService, formatDlnaTime, isDlnaPhoto, parseDlnaTime, routeDlna} from './dlnaProtocol';
+import {dlnaConnectionEvent, dlnaRenderingEvent, dlnaTransportEvent} from './dlnaProtocol';
 import {loadDlnaPhoto, photoSource} from './dlnaPhoto';
 import {playRequest} from './fcastProtocol';
 
@@ -33,6 +34,8 @@ export function createDlnaReceiver(
   let uuid = '';
   let name = '';
   let lastLoad = -Infinity;
+  let lastTransportEvent = '';
+  let lastRenderingEvent = '';
 
   function clearPhotoTimeout() {
     if (photoTimeout !== undefined) {
@@ -65,6 +68,7 @@ export function createDlnaReceiver(
     if (!success) {onPhoto({token});}
     snapshot = {seconds: 0, state: success ? 'playing' : 'error'};
     onChange(snapshot);
+    publishEvents();
   }
 
   function startMedia(request: Media) {
@@ -125,6 +129,32 @@ export function createDlnaReceiver(
     return snapshot.state === 'paused' ? 'PAUSED_PLAYBACK' : 'PLAYING';
   }
 
+  function duration() {
+    return formatDlnaTime(active && uri?.kind === 'player' ? player?.duration ?? 0 : 0);
+  }
+
+  function transportActions(state: string, time: string) {
+    if (uri?.kind === 'photo') {return state === 'STOPPED' ? 'Play' : 'Stop';}
+    const seek = time !== '00:00:00' ? ',Seek' : '';
+    return state === 'PLAYING' ? 'Pause,Stop' + seek :
+      state === 'PAUSED_PLAYBACK' ? 'Play,Stop' + seek :
+      state === 'TRANSITIONING' ? 'Stop' : uri ? 'Play' : '';
+  }
+
+  function publishEvents() {
+    if (!serving || closed) {return;}
+    const state = transportState();
+    const time = duration();
+    const transport = dlnaTransportEvent(state, snapshot?.state === 'error' ? 'ERROR_OCCURRED' : 'OK',
+      uri?.url || '', time, transportActions(state, time));
+    const rendering = dlnaRenderingEvent(volume, muted);
+    if (transport !== lastTransportEvent || rendering !== lastRenderingEvent) {
+      Network.publishDlnaEvents(transport, rendering, dlnaConnectionEvent);
+      lastTransportEvent = transport;
+      lastRenderingEvent = rendering;
+    }
+  }
+
   function setOutputVolume() {
     session?.setVolume(muted ? 0 : volume / 100);
   }
@@ -155,7 +185,7 @@ export function createDlnaReceiver(
     }
 
     const state = transportState();
-    const duration = formatDlnaTime(active && uri?.kind === 'player' ? player?.duration ?? 0 : 0);
+    const time = duration();
     const position = formatDlnaTime(snapshot?.seconds ?? 0);
     switch (action) {
       case 'SetAVTransportURI': {
@@ -179,7 +209,7 @@ export function createDlnaReceiver(
         if (args.Speed !== '1') {throw new DlnaFault(717, 'Play speed not supported');}
         if (!uri) {throw new DlnaFault(702, 'No Contents');}
         if (state === 'STOPPED') {startMedia(uri);}
-        else if (state === 'PAUSED_PLAYBACK') {player?.play().catch(() => endMedia());}
+        else if (state === 'PAUSED_PLAYBACK') {player?.play().catch(() => {endMedia(); publishEvents();});}
         break;
       case 'Pause':
         if (uri?.kind !== 'player' || (state !== 'PLAYING' && state !== 'PAUSED_PLAYBACK')) {throw new DlnaFault(701, 'Transition not available');}
@@ -196,19 +226,16 @@ export function createDlnaReceiver(
         player.currentTime = Math.min(player.duration, parseDlnaTime(args.Target));
         break;
       case 'GetPositionInfo':
-        return {Track: uri ? '1' : '0', TrackDuration: duration, TrackMetaData: metadata,
+        return {Track: uri ? '1' : '0', TrackDuration: time, TrackMetaData: metadata,
           TrackURI: uri?.url || '', RelTime: position, AbsTime: position, RelCount: '2147483647', AbsCount: '2147483647'};
       case 'GetMediaInfo':
-        return {NrTracks: uri ? '1' : '0', MediaDuration: duration, CurrentURI: uri?.url || '', CurrentURIMetaData: metadata,
+        return {NrTracks: uri ? '1' : '0', MediaDuration: time, CurrentURI: uri?.url || '', CurrentURIMetaData: metadata,
           NextURI: '', NextURIMetaData: '', PlayMedium: uri ? 'NETWORK' : 'NONE', RecordMedium: 'NOT_IMPLEMENTED', WriteStatus: 'NOT_IMPLEMENTED'};
       case 'GetTransportInfo':
         return {CurrentTransportState: state, CurrentTransportStatus: snapshot?.state === 'error' ? 'ERROR_OCCURRED' : 'OK',
           CurrentSpeed: '1'};
       case 'GetCurrentTransportActions':
-        if (uri?.kind === 'photo') {return {Actions: state === 'STOPPED' ? 'Play' : 'Stop'};}
-        return {Actions: state === 'PLAYING' ? 'Pause,Stop' + (duration !== '00:00:00' ? ',Seek' : '') :
-          state === 'PAUSED_PLAYBACK' ? 'Play,Stop' + (duration !== '00:00:00' ? ',Seek' : '') :
-          state === 'TRANSITIONING' ? 'Stop' : uri ? 'Play' : ''};
+        return {Actions: transportActions(state, time)};
     }
     return {};
   }
@@ -222,6 +249,7 @@ export function createDlnaReceiver(
       const request = JSON.parse(packet) as DlnaRequest & {id: number};
       const result = routeDlna(request, uuid, name, dispatch);
       Network.respondDlna(request.id, result.status, result.body);
+      publishEvents();
     } catch {fail();}
   }, 40);
   session = createPlaybackSession(ready => {
@@ -233,13 +261,14 @@ export function createDlnaReceiver(
       const info = JSON.parse(encoded) as {port: number; uuid: string; name: string};
       uuid = info.uuid;
       name = info.name;
+      publishEvents();
       clearTimeout(deadline);
       onListening(info.port);
     } catch {fail();}
   }, state => {
     if (closed) {return;}
     if (!serving && state.state === 'error') {fail(); return;}
-    if (active && uri?.kind === 'player') {snapshot = state; onChange(state);}
+    if (active && uri?.kind === 'player') {snapshot = state; onChange(state); publishEvents();}
   }, null);
 
   return {

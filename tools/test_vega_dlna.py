@@ -5,6 +5,7 @@ import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+from queue import Empty, Queue
 import re
 import subprocess
 import threading
@@ -39,6 +40,7 @@ def main():
     fetched = threading.Event()
     slow_started = threading.Event()
     slow_release = threading.Event()
+    events = Queue()
     result = {'passed': False, 'physicalValidation': False}
     forwards = []
     client = None
@@ -52,6 +54,13 @@ def main():
 
         def do_GET(self):
             self.serve(True)
+
+        def do_NOTIFY(self):
+            content = self.rfile.read(int(self.headers['Content-Length']))
+            events.put((self.path, dict(self.headers), ET.fromstring(content)))
+            self.send_response(200)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
 
         def serve(self, body):
             if self.path not in media:
@@ -159,6 +168,33 @@ def main():
         hour, minute, second = map(int, position.split(':'))
         return hour * 3600 + minute * 60 + second
 
+    def subscription(method, service, headers, expected=200):
+        client.request(method, f'/evt/{service}', headers=headers)
+        response = client.getresponse()
+        response.read()
+        if response.status != expected:
+            raise RuntimeError(f'{method} {service} returned {response.status}, expected {expected}')
+        return response.getheader('SID'), response.getheader('TIMEOUT')
+
+    def notification(sid, match, seconds=5):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                path, headers, content = events.get(timeout=max(0, deadline - time.monotonic()))
+            except Empty:
+                break
+            if headers.get('SID') != sid:
+                continue
+            assert path == '/events' and headers['NT'] == 'upnp:event' and headers['NTS'] == 'upnp:propchange'
+            change = content.find('.//LastChange')
+            values = ET.fromstring(change.text) if change is not None else content
+            if match(values):
+                return int(headers['SEQ'])
+        raise RuntimeError('Expected DLNA event did not arrive')
+
+    def last_change(field, value):
+        return lambda event: any(node.tag.endswith('}' + field) and node.get('val') == value for node in event.iter())
+
     try:
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', run('exec', 'vda', 'devices'), re.M):
             raise RuntimeError('The VVD is not connected')
@@ -190,16 +226,33 @@ def main():
             assert request_http('GET', path.text).tag == '{urn:schemas-upnp-org:service-1-0}scpd'
         assert 'http-get:*:video/mp4:*' in soap('cmn', 'GetProtocolInfo')['Sink']
         assert transport('NO_MEDIA_PRESENT')
+        callback = {'CALLBACK': f'<http://127.0.0.1:{MEDIA_PORT}/events>', 'NT': 'upnp:event'}
+        subscription('SUBSCRIBE', 'avt', {**callback, 'CALLBACK': f'<http://127.0.0.2:{MEDIA_PORT}/events>'}, 412)
+        avt_sid, timeout = subscription('SUBSCRIBE', 'avt', {**callback, 'TIMEOUT': 'Second-120'})
+        assert avt_sid.startswith('uuid:') and timeout == 'Second-120'
+        assert notification(avt_sid, last_change('TransportState', 'NO_MEDIA_PRESENT')) == 0
+        rcs_sid, _ = subscription('SUBSCRIBE', 'rcs', callback)
+        assert notification(rcs_sid, last_change('Volume', '100')) == 0
+        cmn_sid, _ = subscription('SUBSCRIBE', 'cmn', {**callback, 'TIMEOUT': 'Second-1'})
+        assert notification(cmn_sid, lambda event: event.findtext('.//CurrentConnectionIDs') == '0') == 0
+        assert subscription('SUBSCRIBE', 'avt', {'SID': avt_sid, 'TIMEOUT': 'Second-180'}) == (avt_sid, 'Second-180')
+        subscription('SUBSCRIBE', 'rcs', {'SID': avt_sid}, 412)
         soap('avt', 'SetAVTransportURI', status=500, CurrentURI='file:///test-only.mp4', CurrentURIMetaData='')
         assert transport('NO_MEDIA_PRESENT')
         soap('avt', 'SetAVTransportURI', CurrentURI=f'http://127.0.0.1:{MEDIA_PORT}/clip.mp4', CurrentURIMetaData='')
         wait(lambda: transport('PLAYING') and seconds() >= 1)
+        assert notification(avt_sid, last_change('TransportState', 'PLAYING')) > 0
+        subscription('SUBSCRIBE', 'cmn', {'SID': cmn_sid}, 412)
         soap('rcs', 'SetVolume', Channel='Master', DesiredVolume=35)
         assert soap('rcs', 'GetVolume', Channel='Master')['CurrentVolume'] == '35'
         soap('rcs', 'SetMute', Channel='Master', DesiredMute=1)
         assert soap('rcs', 'GetMute', Channel='Master')['CurrentMute'] == '1'
+        assert notification(rcs_sid, last_change('Mute', '1')) > 0
+        subscription('UNSUBSCRIBE', 'rcs', {'SID': rcs_sid})
+        subscription('SUBSCRIBE', 'rcs', {'SID': rcs_sid}, 412)
         soap('avt', 'Pause')
         wait(lambda: transport('PAUSED_PLAYBACK'))
+        assert notification(avt_sid, last_change('TransportState', 'PAUSED_PLAYBACK')) > 0
         paused = seconds()
         time.sleep(0.7)
         assert seconds() == paused
@@ -251,6 +304,7 @@ def main():
         client = http.client.HTTPConnection('127.0.0.1', new_port, timeout=5)
         reopened = request_http('GET', '/desc.xml').findtext(f'{ns}device/{ns}UDN')
         assert reopened == identity and transport('NO_MEDIA_PRESENT')
+        subscription('SUBSCRIBE', 'avt', {'SID': avt_sid}, 412)
         soap('avt', 'SetAVTransportURI', CurrentURI=photo_url, CurrentURIMetaData='')
         wait(lambda: transport('PLAYING'))
         shell('inputd-cli', 'button_press', 'KEY_HOMEPAGE')
@@ -260,7 +314,9 @@ def main():
                       httpMedia=True, autoPlay=True, pause=True, seek=True, resume=True, stop=True, replay=True,
                       volumeAndMute=True, stableIdentity=True, playerReleased=True, backgroundReleased=True,
                       pngLoaded=True, didlPhotoLoaded=True, jpegLoaded=bool(args.jpeg),
-                      corruptPhotoRejected=True, pendingPhotoCancelledByStop=True, videoAfterPhoto=True)
+                      corruptPhotoRejected=True, pendingPhotoCancelledByStop=True, videoAfterPhoto=True,
+                      genaInitialAndUpdates=True, genaRenewal=True, genaExpiry=True, genaUnsubscribe=True,
+                      genaSamePeerEnforced=True, genaClearedOnExit=True)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)

@@ -1,5 +1,11 @@
 # Retomada — 19 de novembro de 2026
 
+## Notificações DLNA no Vega
+
+GENA entrega o estado inicial e avisa os emissores de mudanças no
+transporte, volume e mudo. O VVD confirmou inscrição, renovação,
+expiração e cancelamento. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Fotos DLNA no Vega
 
 O receptor exibe JPEG e PNG, inclusive URI sem extensão com o recurso

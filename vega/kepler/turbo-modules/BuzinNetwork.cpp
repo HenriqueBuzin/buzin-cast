@@ -192,6 +192,9 @@ std::string BuzinNetwork::pollDlnaRequest() {return dlna.poll();}
 void BuzinNetwork::respondDlna(double requestId, double status, std::string body) {
   dlna.respond(requestId, status, std::move(body));
 }
+void BuzinNetwork::publishDlnaEvents(std::string transport, std::string rendering, std::string connection) {
+  dlna.publish(std::move(transport), std::move(rendering), std::move(connection));
+}
 std::string BuzinNetwork::getReport() {
   auto report = runNetworkProbe();
   report.pop_back();

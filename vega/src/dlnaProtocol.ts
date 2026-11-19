@@ -54,6 +54,28 @@ const element = (name: string, value: string) => `<${name}>${escape(value)}</${n
 const namespace = (id: DlnaService) => `${SERVICE}${services[id].name}:1`;
 const version = '<specVersion><major>1</major><minor>0</minor></specVersion>';
 const envelope = (body: string) => `${xml}<s:Envelope xmlns:s="${SOAP}" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>${body}</s:Body></s:Envelope>`;
+const connectionVariables = {
+  Source: 'SourceProtocolInfo',
+  Sink: 'SinkProtocolInfo',
+  ConnectionIDs: 'CurrentConnectionIDs',
+} as const;
+const properties = (values: Args) => `${xml}<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">` +
+  Object.entries(values).map(([key, value]) => `<e:property>${element(key, value)}</e:property>`).join('') + '</e:propertyset>';
+
+export const dlnaConnectionEvent = properties({SourceProtocolInfo: '', SinkProtocolInfo: TYPES, CurrentConnectionIDs: '0'});
+
+export function dlnaTransportEvent(state: string, status: string, uri: string, duration: string, actions: string) {
+  const values = {TransportState: state, TransportStatus: status, TransportPlaySpeed: '1',
+    CurrentTrackURI: uri, AVTransportURI: uri, CurrentTrackDuration: duration,
+    CurrentMediaDuration: duration, CurrentTransportActions: actions};
+  const inner = Object.entries(values).map(([key, value]) => `<${key} val="${escape(value)}"/>`).join('');
+  return properties({LastChange: `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/"><InstanceID val="0">${inner}</InstanceID></Event>`});
+}
+
+export function dlnaRenderingEvent(volume: number, muted: boolean) {
+  return properties({LastChange: `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/RCS/"><InstanceID val="0">` +
+    `<Volume channel="Master" val="${volume}"/><Mute channel="Master" val="${muted ? 1 : 0}"/></InstanceID></Event>`});
+}
 
 export class DlnaFault extends Error {
   constructor(readonly code: number, message: string) { super(message); }
@@ -102,17 +124,20 @@ function description(uuid: string, name: string) {
 
 function scpd(id: DlnaService) {
   const variables = new Map<string, string>();
+  const evented = new Set<string>(id === 'cmn' ? Object.values(connectionVariables) : ['LastChange']);
+  for (const name of evented) {variables.set(name, 'string');}
   const actions = Object.entries(services[id].actions).map(([name, spec]) => {
     const argumentsXml = ([['in', spec.input], ['out', spec.output]] as const).flatMap(([direction, args]) =>
       args.map(([arg, type = 'string']) => {
-        const variable = `A_ARG_TYPE_${arg}`;
+        const variable = (id === 'cmn' && connectionVariables[arg as keyof typeof connectionVariables]) ||
+          `A_ARG_TYPE_${arg}`;
         variables.set(variable, type);
         return `<argument>${element('name', arg)}${element('direction', direction)}${element('relatedStateVariable', variable)}</argument>`;
       })).join('');
     return `<action>${element('name', name)}${argumentsXml ? `<argumentList>${argumentsXml}</argumentList>` : ''}</action>`;
   }).join('');
   const table = [...variables].map(([name, type]) =>
-    `<stateVariable sendEvents="no">${element('name', name)}${element('dataType', type)}</stateVariable>`).join('');
+    `<stateVariable sendEvents="${evented.has(name) ? 'yes' : 'no'}">${element('name', name)}${element('dataType', type)}</stateVariable>`).join('');
   return `${xml}<scpd xmlns="urn:schemas-upnp-org:service-1-0">${version}<actionList>${actions}</actionList><serviceStateTable>${table}</serviceStateTable></scpd>`;
 }
 
@@ -155,9 +180,6 @@ export function routeDlna(request: DlnaRequest, uuid: string, name: string,
     if (path === '/desc.xml') {return {status: 200, body: description(uuid, name)};}
     if (id && path === `/scpd/${id}.xml`) {return {status: 200, body: scpd(id)};}
     return {status: 404, body: ''};
-  }
-  if (id && path === `/evt/${id}` && (method === 'SUBSCRIBE' || method === 'UNSUBSCRIBE')) {
-    return {status: 501, body: ''};
   }
   if (!id || path !== `/ctl/${id}`) {return {status: 404, body: ''};}
   if (method !== 'POST') {return {status: 405, body: ''};}

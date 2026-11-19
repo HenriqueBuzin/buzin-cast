@@ -1,5 +1,22 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Notificações GENA do DLNA no Vega
+
+Os serviços AVTransport, RenderingControl e ConnectionManager aceitam
+inscrições com prazo e enviam o estado inicial com sequência zero.
+Mudanças de transporte, volume e mudo geram `LastChange`. Renovação e
+cancelamento usam o SID e o serviço da inscrição. Cada URL de retorno
+usa HTTP com o mesmo IPv4 do cliente inscrito. A fila de notificações é
+independente do socket de controle.
+[Arquitetura UPnP da OCF](https://openconnectivity.org/wp-content/uploads/2015/11/UPnP-arch-DeviceArchitecture-v1.0-20080424.pdf)
+
+O VVD confirmou a entrega inicial de cada serviço, atualizações de
+reprodução, pausa e mudo, renovação, expiração, cancelamento, descarte
+das inscrições ao fechar e recusa de callback em outro endereço.
+Relatório em `build/vega-dlna-gena-vvd-final`. Lint, TypeScript, 68
+testes Jest e as três validações de ABI passaram. Regras de acesso do
+app e validação em aparelho físico continuam pendentes.
+
 ## Fotos via DLNA no Vega
 
 O receptor aceita JPEG e PNG pela extensão da URI ou pelo recurso DIDL

@@ -43,6 +43,7 @@ public:
   void stopDlna() override;
   std::string pollDlnaRequest() override;
   void respondDlna(double requestId, double status, std::string body) override;
+  void publishDlnaEvents(std::string transport, std::string rendering, std::string connection) override;
   std::string getReport() override;
   void recordVideoPlaybackQuality(double total, double dropped, bool attached) override;
   void recordPlaybackState(std::string state, double seconds) override;

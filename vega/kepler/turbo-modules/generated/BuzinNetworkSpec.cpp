@@ -41,6 +41,7 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("stopDlna", &BuzinNetworkSpec::stopDlna);
   methodAggregator.addMethod("pollDlnaRequest", &BuzinNetworkSpec::pollDlnaRequest);
   methodAggregator.addMethod("respondDlna", &BuzinNetworkSpec::respondDlna);
+  methodAggregator.addMethod("publishDlnaEvents", &BuzinNetworkSpec::publishDlnaEvents);
   methodAggregator.addMethod("recordVideoPlaybackQuality", &BuzinNetworkSpec::recordVideoPlaybackQuality);
   methodAggregator.addMethod("recordPlaybackState", &BuzinNetworkSpec::recordPlaybackState);
   methodAggregator.addMethod("recordMediaCapabilities", &BuzinNetworkSpec::recordMediaCapabilities);

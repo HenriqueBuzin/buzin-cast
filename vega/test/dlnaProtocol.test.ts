@@ -1,5 +1,5 @@
 import {DOMParser} from '@xmldom/xmldom';
-import {DlnaRequest, formatDlnaTime, parseDlnaTime, routeDlna} from '../src/dlnaProtocol';
+import {DlnaRequest, dlnaRenderingEvent, dlnaTransportEvent, formatDlnaTime, parseDlnaTime, routeDlna} from '../src/dlnaProtocol';
 
 const service = 'urn:schemas-upnp-org:service:AVTransport:1';
 const soap = 'http://schemas.xmlsoap.org/soap/envelope/';
@@ -39,4 +39,15 @@ test('despacha uma URI XML com escape e valida a estrutura antes de tocar', () =
   expect(dispatch).not.toHaveBeenCalled();
   expect(formatDlnaTime(parseDlnaTime('01:02:03.250'))).toBe('01:02:03');
   expect(() => parseDlnaTime('00:99:00')).toThrow();
+});
+
+test('publica LastChange com o XML interno e anuncia a variável no SCPD', () => {
+  const parser = new DOMParser();
+  const trackUrl = 'http://example.invalid/clip?x=1&y=2';
+  const outer = parser.parseFromString(dlnaTransportEvent('PLAYING', 'OK', trackUrl, '00:00:08', 'Pause,Stop'), 'text/xml');
+  const inner = parser.parseFromString(outer.getElementsByTagName('LastChange')[0].textContent!, 'text/xml');
+  expect(inner.getElementsByTagName('CurrentTrackURI')[0].getAttribute('val')).toBe(trackUrl);
+  expect(inner.getElementsByTagName('TransportState')[0].getAttribute('val')).toBe('PLAYING');
+  expect(dlnaRenderingEvent(35, true)).toContain('&lt;Mute channel=&quot;Master&quot; val=&quot;1&quot;/&gt;');
+  expect(route(get('/scpd/avt.xml')).body).toContain('<stateVariable sendEvents="yes"><name>LastChange</name>');
 });
