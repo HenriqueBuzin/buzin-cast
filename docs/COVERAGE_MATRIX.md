@@ -949,3 +949,19 @@ and 19 native cases. The already-running complete four-edition cohort remains
 frozen at its preceding 192-test source identity. Its profiles must not be mixed
 with this changed fixture mapping. These selected results establish neither
 100% project coverage nor completion of the four-edition acceptance gates.
+
+A real-stream output contract now holds the production output mutex on another
+thread while querying diagnostics. The query must return the previously cached
+underrun count within 500ms, preserve the stream and retain that count after
+normal stop. The holder has a two-second release deadline so a blocking-query
+regression produces a bounded failure rather than deadlocking the runner.
+
+The 24-case output/JNI/server/init selection passed on API28 in 16.627 seconds
+without skips. The matching library-only export independently covers both
+conditions of the output diagnostic lock/stream guard, retains bridge MC/DC
+47/47 and exactly preserves the preceding native inventory and 24 shipped JNI
+entries, with no LLVM warnings. Only coverage fixture code and one Android test
+changed; production output locking is unchanged. The current source suite now
+has 194 Android cases; the ongoing frozen 192-case cohort remains separate.
+A separate noncoverage native Debug build passed in 12 seconds; symbol checks
+confirm the original entry points remain and the fault helpers are absent.
