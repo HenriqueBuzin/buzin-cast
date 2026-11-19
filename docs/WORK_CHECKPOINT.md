@@ -1,5 +1,33 @@
 # Retomada — 19 de novembro de 2026
 
+## Reconexão do espelhamento — 19 de novembro de 2026
+
+O worker encerra a saída quando o transporte de vídeo termina e descarta
+dimensões, configuração, áudio negociado e timestamps do emissor anterior.
+Fechar um socket RTSP auxiliar já não invalida a saída. Quando o consumidor
+HTTP desconecta ou expira, a saída é liberada e a sessão aguarda o fim do
+transporte antes de aceitar outra mídia.
+
+O patch compartilhado 0018 fecha o socket de mídia corretamente e faz o
+dono do transporte aguardar a thread, mesmo quando ela terminou por conta
+própria. O Vega pede que o EOF de mídia encerre a thread. A preparação
+isolada do UxPlay passou com 18 patches.
+
+O teste com ASan/UBSan verificou recuperação após falha do consumidor e
+descarte dos parâmetros anteriores. No VVD, `--mirror-reconnect` validou
+dois emissores TCP/AES-CTR sintéticos seguidos, com novo URL, EOF e liberação
+de portas e worker. O teste RTSP confirmou que fechar uma conexão auxiliar
+preserva a geração, e que Voltar ou background fecham o receptor.
+Relatórios em `build/vega-mirror-reconnect` e `build/vega-mirror-auxiliary`.
+As três arquiteturas passaram na validação de ABI. Ainda falta testar a
+negociação com um emissor Apple e confirmar imagem e som no aparelho.
+
+
+A regressão do fluxo criptografado em `build/vega-mirror-reconnect-regression`
+entregou os 120 quadros no primeiro ciclo. Voltar encerrou o segundo em
+46/120 com `clientClosed` e liberou produtor, player e superfície. O
+relatório mantém `visualValidation=false`.
+
 ## Volume RTSP na sessão de espelhamento — 19 de novembro de 2026
 
 O controle de volume AirPlay aceita de -30 a 0 dB e -144 dB para mute.

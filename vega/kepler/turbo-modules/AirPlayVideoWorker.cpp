@@ -17,7 +17,6 @@ struct AirPlayVideoWorker::Impl {
     Kind kind = Kind::Reset;
     uint64_t generation = 0, ntp = 0;
     std::vector<uint8_t> bytes;
-    bool clearParameters = false;
   };
   std::function<std::unique_ptr<VideoSampleSink>()> factory;
   mutable std::mutex mutex;
@@ -28,6 +27,8 @@ struct AirPlayVideoWorker::Impl {
   std::thread worker;
   AirPlayVideoState observation;
   bool closing = true, processing = false, inputEnded = false;
+  bool acceptReconnects = false;
+  bool clearParametersPending = false;
   size_t inFlightBytes = 0, heldBytes = 0, heldCount = 0;
   int audioSamples = 0;
 
@@ -48,6 +49,11 @@ struct AirPlayVideoWorker::Impl {
     changed.notify_one();
   }
   void stopCommandLocked() {command = AirPlayVideoCommand{AirPlayVideoCommand::Kind::Stop,observation.generation,{}};}
+  bool recoverableLocked() const {
+    const auto& error = observation.error;
+    return acceptReconnects && (error == "clientClosed" || error == "videoConsumerTimeout" ||
+           error == "consumerTimeout" || error == "outputBackpressure");
+  }
   void errorLocked(const char* reason) {
     if (observation.error.empty()) observation.error = reason;
     observation.phase = "error"; clearLocked(); cancelLocked(); stopCommandLocked(); changed.notify_all();
@@ -58,8 +64,9 @@ struct AirPlayVideoWorker::Impl {
   }
   void resetLocked(bool clearParameters) {
     ++observation.generation; ++observation.flushes; inputEnded = false;
+    clearParametersPending = clearParametersPending || clearParameters;
     clearLocked(); cancelLocked(); stopCommandLocked();
-    queue.push_back({Kind::Reset,observation.generation,0,{},clearParameters}); changed.notify_all();
+    queue.push_back({Kind::Reset,observation.generation,0,{}}); changed.notify_all();
   }
   void run() noexcept {
     std::shared_ptr<VideoSampleSink> sink;
@@ -206,7 +213,24 @@ struct AirPlayVideoWorker::Impl {
         {
           std::unique_lock lock(mutex);
           changed.wait_for(lock,std::chrono::milliseconds(25),[&] {return closing || !observation.error.empty() || !queue.empty();});
-          if (closing || !observation.error.empty()) break;
+          if (closing) break;
+          if (!observation.error.empty()) {
+            if (!recoverableLocked()) break;
+            lock.unlock();
+            try {release();}
+            catch (...) {
+              lock.lock();
+              observation.error = "nativeReleaseFailure";
+              errorLocked("nativeReleaseFailure");
+              break;
+            }
+            lock.lock();
+            if (recoverableLocked() && !closing) {
+              observation.phase = "awaitingSender";
+              changed.wait(lock,[&] {return closing || !recoverableLocked();});
+            }
+            continue;
+          }
           samples = audioSamples;
           if (!queue.empty()) {
             event = std::move(queue.front()); queue.pop_front();
@@ -218,8 +242,12 @@ struct AirPlayVideoWorker::Impl {
             if (!cancelled(event.generation)) {
               if (event.kind == Kind::Reset) {
                 release();
-                if (event.clearParameters) {sps.clear(); pps.clear();}
                 std::lock_guard lock(mutex);
+                if (clearParametersPending) {
+                  sps.clear();
+                  pps.clear();
+                  clearParametersPending = false;
+                }
                 if (event.generation == observation.generation && !closing) observation.phase = "waiting";
               } else if (event.kind == Kind::End) {
                 if (samples) drainAv(event.generation,samples,true);
@@ -330,7 +358,12 @@ struct AirPlayVideoWorker::Impl {
       }
     } catch (...) {std::lock_guard lock(mutex); errorLocked("nativeVideoFailure");}
     try {release();}
-    catch (...) {std::lock_guard lock(mutex); observation.released = false; errorLocked("nativeReleaseFailure");}
+    catch (...) {
+      std::lock_guard lock(mutex);
+      observation.released = false;
+      observation.error = "nativeReleaseFailure";
+      errorLocked("nativeReleaseFailure");
+    }
     std::lock_guard lock(mutex);
     active.reset(); inFlightBytes = 0; processing = false; clearLocked();
     if (observation.error.empty()) observation.phase = "stopped";
@@ -340,13 +373,15 @@ struct AirPlayVideoWorker::Impl {
 AirPlayVideoWorker::AirPlayVideoWorker(std::function<std::unique_ptr<VideoSampleSink>()> factory)
   : impl(std::make_unique<Impl>()) {impl->factory = std::move(factory);}
 AirPlayVideoWorker::~AirPlayVideoWorker() {stop();}
-void AirPlayVideoWorker::start() {
+void AirPlayVideoWorker::start(bool acceptReconnects) {
   stop();
   std::lock_guard lock(impl->mutex);
   if (!impl->observation.released) throw std::runtime_error("Previous native video release was not confirmed");
   const auto generation = impl->observation.generation+1;
   impl->observation = {}; impl->observation.generation = generation; impl->observation.phase = "waiting";
   impl->command.reset(); impl->inputEnded = false; impl->closing = false; impl->audioSamples = 0;
+  impl->acceptReconnects = acceptReconnects;
+  impl->clearParametersPending = false;
   try {impl->worker = std::thread([this] {impl->run();});}
   catch (...) {impl->closing = true; impl->observation.phase = "error"; impl->observation.error = "videoWorkerStartFailure"; throw;}
 }
@@ -409,6 +444,17 @@ void AirPlayVideoWorker::flush() noexcept {
   try {std::lock_guard lock(impl->mutex); if (!impl->closing && impl->observation.error.empty()) impl->resetLocked(false);}
   catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
 }
+void AirPlayVideoWorker::disconnect() noexcept {
+  try {
+    std::lock_guard lock(impl->mutex);
+    if (impl->closing || (!impl->observation.error.empty() && !impl->recoverableLocked())) return;
+    impl->observation.error.clear();
+    impl->observation.width = 0;
+    impl->observation.height = 0;
+    impl->audioSamples = 0;
+    impl->resetLocked(true);
+  } catch (...) {std::lock_guard lock(impl->mutex); impl->errorLocked("videoQueueFailure");}
+}
 void AirPlayVideoWorker::end() noexcept {
   try {
     std::lock_guard lock(impl->mutex);
@@ -424,4 +470,7 @@ bool AirPlayVideoWorker::poll(AirPlayVideoCommand& command) {
   command = std::move(*impl->command); impl->command.reset(); return true;
 }
 AirPlayVideoState AirPlayVideoWorker::state() const {std::lock_guard lock(impl->mutex); return impl->observation;}
-bool AirPlayVideoWorker::healthy() const {std::lock_guard lock(impl->mutex); return impl->observation.error.empty();}
+bool AirPlayVideoWorker::healthy() const {
+  std::lock_guard lock(impl->mutex);
+  return impl->observation.error.empty() || impl->recoverableLocked();
+}

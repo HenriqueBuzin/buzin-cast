@@ -28,13 +28,14 @@ public:
   ~AirPlayVideoWorker();
   AirPlayVideoWorker(const AirPlayVideoWorker&) = delete;
   AirPlayVideoWorker& operator=(const AirPlayVideoWorker&) = delete;
-  void start();
+  void start(bool acceptReconnects = false);
   void stop() noexcept;
   void format(int width, int height) noexcept;
   void sample(const uint8_t* bytes, size_t length, bool h265, uint64_t localNtpNs) noexcept;
   void audioFormat(int codec, int samplesPerFrame) noexcept;
   void audioSample(const uint8_t* bytes, size_t length, int codec, uint64_t localNtpNs) noexcept;
   void flush() noexcept;
+  void disconnect() noexcept;
   void end() noexcept;
   bool poll(AirPlayVideoCommand& command);
   AirPlayVideoState state() const;

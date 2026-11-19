@@ -160,6 +160,7 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--mux', action='store_true', help='Verify native lossless video fMP4 remuxing')
     modes.add_argument('--av-mux', action='store_true', help='Verify native A/V fMP4 and the shared timeline')
+    modes.add_argument('--mirror-reconnect', action='store_true', help='Verify encrypted mirror media EOF and a second connection')
     parser.add_argument('--audio-profile', choices=AUDIO_PROFILES, default='lc')
     parser.add_argument('--profile', choices=['baseline', 'high'], default='baseline')
     parser.add_argument('--mime', choices=['video/avc', 'video/h264'], default='video/avc')
@@ -172,7 +173,7 @@ def main():
     if not re.fullmatch(r'emulator-\d+', args.serial):
         parser.error('Only VVD is allowed')
     remuxing = args.mux or args.av_mux
-    args.annex_b = args.annex_b or remuxing
+    args.annex_b = args.annex_b or remuxing or args.mirror_reconnect
     args.output.mkdir(parents=True, exist_ok=True)
     history = []
     result = {'passed': False, 'physicalValidation': False, 'surfaceAttached': False}
@@ -200,18 +201,23 @@ def main():
         shell('cat > /data/buzin-msse-video-probe', payload=args.runner.read_bytes())
         shell('cat > /data/buzin-msse-video.bin', payload=fixture)
         shell('chmod', '700', '/data/buzin-msse-video-probe')
-        if args.av_mux:
+        if args.mirror_reconnect:
+            mode = '--mirror-reconnect'
+        elif args.av_mux:
             mode = '--av-transcode' if args.audio_profile == 'alac-aac' else '--av-mux'
         else:
             mode = '--mux' if args.mux else args.mime
         output = shell(*(['env', 'GST_DEBUG=6', 'GST_DEBUG_FILE=/data/buzin-video-gst.log'] if args.gst_debug else []), 'timeout', '55', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', mode, timeout=60)
         (args.output / 'runner.log').write_text(output)
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
-        if len(cycles) != 2 or any(c.get('released') is not True or (not remuxing and c.get('seconds', 0) < 7.8) for c in cycles):
+        if len(cycles) != 2 or any(c.get('released') is not True for c in cycles):
             raise RuntimeError('Two native video playback cycles were not observed')
         if args.av_mux and any(c.get('workerOwned') is not True or c.get('audioPackets') != len(audio_packets) for c in cycles):
             raise RuntimeError('Expected both tracks to pass through the native callback worker')
-        if not remuxing and any(c.get('totalFrames', 0) <= 0 for c in cycles):
+        if args.mirror_reconnect and (any(c.get('nativeEof') is not True or c.get('frames') != 1 for c in cycles) or
+                                      cycles[0]['generation'] >= cycles[1]['generation']):
+            raise RuntimeError('Native mirror did not renew and release its transport twice')
+        if not remuxing and not args.mirror_reconnect and any(c.get('totalFrames', 0) <= 0 or c.get('seconds', 0) < 7.8 for c in cycles):
             raise RuntimeError('No native video frames were observed; clock alone does not prove decoding')
         if remuxing:
             # Byte transport must remain binary: subprocess's text shell helper
@@ -230,7 +236,8 @@ def main():
             if args.av_mux:
                 verify_video_timeline(media, remux)
                 result.update(verify_audio_timeline(remux, audio_delay, audio_packets, args.audio_profile))
-        result.update(passed=True, mux=remuxing, avMux=args.av_mux, rendered=False, annexB=args.annex_b, profile=args.profile, cycles=cycles)
+        result.update(passed=True, mux=remuxing, avMux=args.av_mux, mirrorReconnect=args.mirror_reconnect,
+                      rendered=False, annexB=args.annex_b, profile=args.profile, cycles=cycles)
         print(json.dumps(result, indent=2))
     except Exception as error:
         result['error'] = str(error)

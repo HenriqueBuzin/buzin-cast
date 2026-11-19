@@ -99,6 +99,13 @@ def main():
             client = socket.create_connection(('127.0.0.1', port), timeout=3)
             request('OPTIONS', 1)
             waiting = observation(lambda value: value.get('phase') == 'waiting')
+            if args.video:
+                # An accepted socket that closes before any RTSP request can
+                # emit a generic flush, but it never owned the media session.
+                with socket.create_connection(('127.0.0.1', port), timeout=3):
+                    time.sleep(0.15)
+                # Round-trip through the listener after the auxiliary close.
+                request('OPTIONS', 6)
             if waiting.get('volumeDb') != 0:
                 raise RuntimeError('New receiver session inherited stale volume')
             request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
@@ -110,6 +117,8 @@ def main():
                     raise RuntimeError('Mirror receiver did not preserve the last valid gain')
             request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
             muted = observation(lambda value: value.get('volumeDb') == -144)
+            if args.video and muted['generation'] != waiting['generation']:
+                raise RuntimeError('An auxiliary connection invalidated the mirror generation')
             shell('inputd-cli', 'button_press', 'KEY_BACK' if cycle == 0 else 'KEY_HOMEPAGE')
             stopped = observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
             if client.recv(1) != b'':

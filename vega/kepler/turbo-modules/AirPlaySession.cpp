@@ -85,6 +85,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   impl->video = video;
   raop_callbacks_t callbacks{};
   callbacks.cls = impl.get();
+  callbacks.mirror_end_on_eof = video != nullptr;
   callbacks.conn_admit = [](void* cls, const char* peer) {
     in_addr ip{};
     if (!peer || inet_pton(AF_INET, peer, &ip) != 1) return 0;
@@ -115,7 +116,13 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   callbacks.video_resume = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Rate, 1);};
   callbacks.video_flush = [](void* cls) {
     auto& state = Impl::self(cls);
-    if (state.video) state.video->flush(); else state.simple(AirPlayEvent::Kind::FlushVideo);
+    // UxPlay emits this notification on every control socket close, even
+    // for rejected or auxiliary requests with no mirror transport.
+    if (!state.video) state.simple(AirPlayEvent::Kind::FlushVideo);
+  };
+  callbacks.mirror_video_running = [](void* cls, bool running) {
+    auto& state = Impl::self(cls);
+    if (state.video && !running) state.video->disconnect();
   };
   callbacks.audio_flush = [](void* cls) {
     auto& state = Impl::self(cls);
@@ -135,7 +142,8 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   };
   callbacks.video_reset = [](void* cls, reset_type_t reason) {
     auto& state = Impl::self(cls);
-    if (state.video) state.video->flush(); else state.simple(AirPlayEvent::Kind::Reset, reason);
+    // In mirror mode the actual media thread reports its end above.
+    if (!state.video) state.simple(AirPlayEvent::Kind::Reset, reason);
   };
   callbacks.conn_feedback = [](void* cls) {Impl::self(cls).simple(AirPlayEvent::Kind::Feedback);};
   callbacks.audio_set_client_volume = [](void* cls) {
@@ -166,7 +174,7 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   try {
     // Startup of either worker is covered by the same rollback as transport.
     if (audio) audio->start();
-    if (video) video->start();
+    if (video) video->start(true);
     impl->receiver = raop_init(&callbacks);
     if (!impl->receiver || raop_init2(impl->receiver, 1, identity.c_str(), keyPath.c_str()) != 0)
       throw std::runtime_error("Could not initialize AirPlay session");

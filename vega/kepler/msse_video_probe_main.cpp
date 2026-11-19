@@ -114,6 +114,45 @@ int main(int argc, char** argv) {
       }
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
+    if (mode == "--mirror-reconnect") {
+      AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
+      worker.start(true);
+      AirPlayVideoCommand previous;
+      for (int cycle = 0; cycle < 2; ++cycle) {
+        AirPlayMirrorProbe probe(worker,width,height,config,frames,true);
+        const auto accepted = worker.state().accepted;
+        auto waitFor = [&](auto ready) {
+          const auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(4);
+          while (!ready()) {
+            if (!worker.healthy() || std::chrono::steady_clock::now() >= deadline)
+              throw std::runtime_error("Mirror reconnection observation timed out");
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+          }
+        };
+        probe.send(0);
+        AirPlayVideoCommand play;
+        waitFor([&] {return worker.poll(play) && play.kind == AirPlayVideoCommand::Kind::Play;});
+        waitFor([&] {return probe.received() == 1 && worker.state().accepted == accepted+1;});
+        if (play.generation <= previous.generation || play.url == previous.url)
+          throw std::runtime_error("Mirror reconnection reused the prior output");
+        probe.closeSender();
+        waitFor([&] {
+          const auto state = worker.state();
+          return state.generation > play.generation && state.phase == "waiting" &&
+                 state.released && state.width == 0 && state.queuedBytes == 0;
+        });
+        AirPlayVideoCommand stop;
+        if (!worker.poll(stop) || stop.kind != AirPlayVideoCommand::Kind::Stop)
+          throw std::runtime_error("Mirror EOF did not notify the player");
+        probe.stop();
+        if (!probe.socketsReleased()) throw std::runtime_error("Mirror transport sockets not released");
+        previous = std::move(play);
+        std::cout << "{\"cycle\":" << cycle+1 << ",\"nativeEof\":true,\"frames\":1,"
+          << "\"generation\":" << previous.generation << ",\"released\":true}" << std::endl;
+      }
+      worker.stop();
+      return 0;
+    }
     constexpr uint64_t EpochNs = 1000000000;
     auto audioPts = [&](size_t index) {
       return audioOffsetUs+(uint64_t(index)*audioSamplesPerFrame*1000000+22050)/44100;

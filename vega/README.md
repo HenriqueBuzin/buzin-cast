@@ -70,7 +70,7 @@ ou vídeo.
 O bundle inclui Shaka/MSE para HLS/DASH experimentais no FCast. Os hooks de build preparam a versão fixada pelo script
 `tools/prepare_vega_shaka.py`; precisam de Git, curl, Python 3.12+ e Java 21+.
 A distribuição gerada fica em `vega/generated` e não é versionada.
-Os hooks também preparam o UxPlay fixado com os 17 patches Buzin numa cópia
+Os hooks também preparam o UxPlay fixado com os 18 patches Buzin numa cópia
 isolada nessa pasta; inicialize os submódulos antes do primeiro build.
 
 

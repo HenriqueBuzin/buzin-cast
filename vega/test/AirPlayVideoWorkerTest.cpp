@@ -67,7 +67,7 @@ public:
 struct Test {
   std::shared_ptr<Trace> trace = std::make_shared<Trace>();
   AirPlayVideoWorker worker{[this] {return std::make_unique<Sink>(trace);}};
-  Test() {worker.start(); worker.format(320,180);}
+  explicit Test(bool reconnects = false) {worker.start(reconnects); worker.format(320,180);}
   template<class Function> auto inspect(Function function) {std::lock_guard lock(trace->mutex); return function(*trace);}
   void submit(const std::vector<uint8_t>& bytes, uint64_t pts = 1000000000) {
     video_decode_struct frame{}; frame.data = const_cast<uint8_t*>(bytes.data()); frame.data_len = bytes.size(); frame.ntp_time_local = pts;
@@ -89,6 +89,43 @@ struct Test {
 };
 }
 int main() {
+  {
+    Test test(true);
+    test.worker.audioFormat(4,1024);
+    test.submitAudio({0x21},1000000000);
+    test.submit(initial());
+    test.submit(delta,1066667000);
+    const auto first = test.play();
+    await([&] {return test.worker.state().accepted == 1;});
+    test.inspect([](Trace& trace) {trace.state.error = "clientClosed";});
+    await([&] {
+      const auto state = test.worker.state();
+      return state.phase == "awaitingSender" && state.released;
+    });
+    assert(test.worker.healthy());
+    AirPlayVideoCommand stop;
+    assert(test.worker.poll(stop) && stop.kind == AirPlayVideoCommand::Kind::Stop);
+    test.submit(initial(),1100000000);
+    assert(test.worker.state().queuedBytes == 0);
+    test.worker.disconnect();
+    test.worker.format(640,360);
+    test.submit(idr,2000000000);
+    await([&] {return test.worker.state().dropped == 1;});
+    test.submit(initial(),2030000000);
+    const auto second = test.play();
+    assert(second.generation > first.generation && second.url != first.url);
+    await([&] {return test.worker.state().accepted == 2;});
+    test.inspect([](Trace& trace) {
+      assert(trace.audioSamples == 0);
+      assert(trace.samples.back().pts == 0);
+    });
+    test.worker.disconnect();
+    await([&] {
+      const auto state = test.worker.state();
+      return state.phase == "waiting" && state.released;
+    });
+    assert(test.worker.state().error.empty());
+  }
   for (const bool audioFirst : {true,false}) {
     Test test;
     const auto base = uint64_t{1000000000};
