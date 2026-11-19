@@ -7,6 +7,40 @@ somente a preferência. O VVD confirmou Permitir e Recusar pelo
 controle, bloqueio de SOAP e GENA após a recusa e nova confirmação
 depois de fechar e reabrir o receptor. Veja [Retomada Vega](VEGA_HANDOFF.md).
 
+## API17 — integração 0019 reconstruída e validada
+
+Os dois candidatos assinados foram reconstruídos após o merge de pareamento
+UxPlay 0019. Os dois builds `-Check` e os dois testes de release passaram:
+assinatura v1, chave por ficha, abertura R8, RTSP, navegação e Sobre.
+
+- Geral: `30208ca30b87592cd68039944edc89047350791d2a0ae580f4bb4916ef4954ad`.
+- DE/AT: `c3706c1f836b5346f5d84eea8aea6a0462e25440d650c454ea330abdd73004cb`.
+- Builds: `outputs/legacy-pin19-store-build.log` e
+  `outputs/legacy-pin19-deat-store-build.log`.
+- Releases: `outputs/legacy-pin19-store-smoke/report.json` e
+  `outputs/legacy-pin19-deat-store-smoke/report.json`.
+
+O teste de transporte passou novamente seus 12 cenários em
+`outputs/legacy-pin19-transport`. O teste real de PIN/SRP na prévia API17
+também passou, com 18 entradas de setup inválidas e 13 pacotes pair-verify
+inválidos, seguidos de autenticação válida na mesma conexão. UI, segundo
+plano, modo desativado e parada passaram em
+`outputs/legacy-pin19-proof-single-peer/report.json` e `instrumentation.txt`.
+O novo campo `require_verified_pin` permanece zerado no inicializador do
+Android; não foi ativada silenciosamente uma política diferente de acesso.
+
+Duas tentativas iniciais do teste adicional usaram sequências incorretas:
+SRP em nova conexão sem pair-pin-start e substituição do cliente RAOP ao
+abrir conexões auxiliares antes de retomar a original. As falhas estão
+preservadas em `outputs/legacy-pin19-proof` e
+`outputs/legacy-pin19-proof-sequenced`; o teste final mantém a mesma conexão
+para pacotes inválidos e autenticação válida. Não houve correção do app
+motivada por essas falhas do cliente de teste.
+
+Nenhuma TV física foi usada. Permanecem os limites de Appstore/LAT, ARM
+físico, códigos/dispositivos e paridade descritos abaixo; os artefatos
+continuam `submissionReady=false`. As 12 artes aprovadas foram conferidas.
+
 ## Notificações DLNA no Vega
 
 GENA entrega o estado inicial e avisa os emissores de mudanças no
@@ -21,7 +55,7 @@ a rejeição de imagem inválida e a troca de vídeo para foto e de volta
 para vídeo. Notificações GENA, regras de acesso e validação física
 continuam pendentes. Veja [Retomada Vega](VEGA_HANDOFF.md).
 
-## Integração posterior aos testes
+## Registro anterior — integração posterior aos testes 0018
 
 O merge incorporou também o patch compartilhado UxPlay 0019 de pareamento.
 Os APKs e resultados abaixo foram produzidos antes dessa integração; não

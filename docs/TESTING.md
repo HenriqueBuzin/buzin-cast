@@ -289,6 +289,11 @@ Um PIN incorreto precisa receber 470. Uma tag GCM adulterada também é
 recusada; a tentativa seguinte refaz SRP, pois o núcleo consome o estado
 após cada confirmação. Uma confirmação repetida é recusada. Há 18 casos
 adicionais de tipos/estado/tamanhos inválidos e chaves SRP inseguras.
+Também envia 13 pacotes `pair-verify` vazios, curtos ou longos e exige
+resposta sem chave/assinatura. Na mesma conexão, um pareamento válido
+precisa funcionar em seguida. Isso cobre o retorno antecipado do patch
+UxPlay 0019 e evita confundir substituição de cliente RAOP com recuperação
+da sessão em teste. Os contadores aparecem no relatório das próximas execuções.
 
 A parte Android exige a opção desligada por padrão, repasse ao JNI,
 `pw` correto nos registros DNS-SD nativos, quatro dígitos na janela real,

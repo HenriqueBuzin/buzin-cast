@@ -202,6 +202,19 @@ def malformed(port):
     return len(cases) + 4 + 2 + 2 + 4
 
 
+def malformed_verify(client):
+    # The first verification packet must be exactly 4 + 32 + 32 bytes.
+    # A short packet previously fell through into the key/signature reads.
+    packets = [b'', b'\1', b'\1\0\0']
+    packets += [b'\1' + bytes(size - 1) for size in (4, 35, 36, 67, 69, 96, 128)]
+    packets += [bytes(size) for size in (4, 67, 69)]
+    for packet in packets:
+        status, body = client.request('/pair-verify', packet)
+        if status not in (200, 470) or body:
+            raise AssertionError('Malformed pair-verify returned key/signature data')
+    return len(packets)
+
+
 def run_instrument(args, adb):
     """Host half of LegacyPinScenario, serialized with its actual Android UI."""
     seen = []
@@ -241,6 +254,9 @@ def run_instrument(args, adb):
                             if stage == 'pairing':
                                 wrong = str((int(pin) + 1) % 10000).zfill(4)
                                 client.prove(wrong, valid=False)
+                                if malformed_verify(client) != 13:
+                                    raise AssertionError('Malformed verification coverage incomplete')
+                                # The same connection must still complete valid authentication.
                                 session = client.prove(pin)
                                 client.finish(session, pin)
                                 if malformed(local) != 18:
