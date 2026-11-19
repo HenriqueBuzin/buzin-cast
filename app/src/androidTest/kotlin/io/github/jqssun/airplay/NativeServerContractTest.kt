@@ -245,6 +245,14 @@ class NativeServerContractTest {
         assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 0, true, true, false, false, false))
         NativeBridge.nativeSetCaptureEnabled(handle, true)
         val base = System.nanoTime()
+        // Rejected JNI input must not emit PCM or poison the next real decode.
+        DebugNativeBridge.nativeFeedAudio(0L, frames.first(), base)
+        val feed = DebugNativeBridge::class.java.getMethod("nativeFeedAudio",
+            java.lang.Long.TYPE, ByteArray::class.java, java.lang.Long.TYPE)
+        feed.invoke(DebugNativeBridge, handle, null, base)
+        DebugNativeBridge.nativeFeedAudio(handle, ByteArray(0), base)
+        DebugNativeBridge.nativeFeedAudio(handle, ByteArray(8193), base)
+        assertTrue("Rejected audio input emitted PCM", callback.pcm.isEmpty())
         val count = frames.size * 3 // enough real decodes to exercise latency reporting
         for (index in 0 until count) {
             if (index == 20)

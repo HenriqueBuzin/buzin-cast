@@ -878,3 +878,18 @@ The bridge file itself reaches MC/DC 39/47 in this selection; remaining paths st
 in the report. These changed source mappings must not absorb the previous full
 187-test profiles. The next complete cohort must run 190 Android and 19 native
 tests and still satisfy all runtime labels independently for every edition.
+
+The software-AAC recovery case also sends a zero context handle, a null array
+through the real debug JNI method, an empty array and an 8193-byte array before
+valid audio. Rejected input must emit no PCM; the following 264 real decodes
+retain the existing 263 captured packets, exact PCM bytes and timestamps, format
+and latency assertions. The 17-case JNI/server/init selection passed in 10.532
+seconds without skips. Its matching library-only export covers both conditions
+of each debug-input guard and reaches bridge MC/DC 43/47 and branches 161/178,
+with the same complete native inventory and no LLVM warnings.
+
+A Windows restart interrupted the preceding full 190-case run after its native
+suite passed and before Android instrumentation finished. That partial run has
+no accepted result or replay baseline; its files remain diagnostic evidence.
+The successful selected retry uses a separate output and cannot substitute for
+the required complete four-edition acceptance run.
