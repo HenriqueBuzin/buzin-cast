@@ -637,3 +637,29 @@ inventory. The test executable is not supplied as an additional coverage object:
 that would add helpers belonging only to the separate API17 frontend. This was
 checked with the real LLVM tools: unit profiles covered all 196 mapped timeline
 lines while the API17-only clock stayed outside the APK's source inventory.
+
+Service audio position contracts bind the real stopped `AirPlayService` and
+observe playback-state callbacks from its actual `MediaSessionCompat`. They
+check pause/resume without rewinding extrapolated progress, repeated remote play,
+duration bounds, degenerate progress, partial metadata and PNG artwork, current
+and duplicate PIN delivery, and connection-approval bypasses. The tests restore
+the exact approval preference (including an absent key) and wait for service
+destruction without starting a receiver.
+
+The initial six-test run with callback-based observations reproduced three
+position defects: pausing rewound 1,321 ms to the last sender report at 1,000 ms;
+pausing an over-duration report retained an invalid position; repeated play
+published the old report. Capturing the extrapolated position before changing
+playback state fixes these cases and keeps the stored position and time anchor
+consistent. On API28, all six new tests plus the six existing DACP-player and
+audio-metadata tests passed (12 tests, 2.685 seconds, no skips). Debug assembly
+passed as well. Selected tests are regression evidence, not full-edition coverage.
+
+The separate healthy API36 normal-edition baseline completed all 172 Android
+tests, 18 native unit cases and the 15 required result labels. Its archived
+compiled inputs, sources and raw profiles passed snapshot validation. It still
+falls below the target: Android/JVM line coverage is 85.0059%, branch coverage
+64.6584%; native line coverage is 96.1249%, branch coverage 83.7336% and MC/DC
+67.0659%. That frozen cohort predates the service position fix and must not be
+merged with profiles from the changed app. Completion still requires fresh,
+matching evidence at 100% for every metric in all four editions.
