@@ -10,6 +10,33 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
+Five main-screen state contracts passed on API22 (14.67 seconds, no skips).
+They render the production MainScreen with an isolated, unbound ViewModel:
+network ASK/SETTINGS actions and granted-access errors; PIN confirmation/Back
+clearing state and dialog; tools/settings/log navigation and return to overview
+when developer options are disabled; updated diagnostic sections and the initial
+decode window; and metadata/cover-art replacement followed by the unknown-track
+fallback. Cover-art verification checks the real painted pixel. These states
+must not create a video surface. Preferences, logs, bitmaps and locale are
+cleaned up or restored. Assembly and lint passed in 3m. Final evidence is
+`build/main-screen-final-selection`.
+
+The original tab assertion expected a selected ancestor to be clickable. The
+captured accessibility tree showed Tools selected on a non-clickable ancestor;
+the fixture now requires explicit selection anywhere in the bounded ancestor
+chain. The initial numeric fixture also expected 1.25 ms to round to 1.3 on an
+older Android formatter that rendered 1.2. The final fixture uses unambiguous
+1.4 ms input with a temporary US locale and keeps exact text assertions. The
+failed cohorts and semantics diagnostics are preserved separately.
+
+The current four-edition attempt under `build/android-coverage-init-guards-api36`
+hit its 900-second instrumentation deadline while the single-tap surface contract
+was running. Its partial transcript includes all five initializer contracts
+passing on API36, but there is no completed normal snapshot or report from that
+attempt. Partial status is not whole-suite success; the gesture wait requires
+isolated diagnosis before retrying the complete matrix. The selected main-screen
+results are a separate compiled test APK and cannot be merged into that attempt.
+
 Callback initialization now reports whether binding succeeded. It resolves the
 VM, global receiver reference, class and all 22 required Java methods before a
 receiver can be started. A failed lookup releases partial references and the
