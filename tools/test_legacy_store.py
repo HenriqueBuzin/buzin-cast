@@ -56,7 +56,10 @@ def main():
         if launcher is None:parser.error('Missing legacy launcher activity.')
         launch_args = ('-n', package + '/' + launcher[1])
     else:
-        launch_args = ('-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LEANBACK_LAUNCHER', '-p', package)
+        # TV launchers query the MAIN/LEANBACK filter, then start the selected
+        # component explicitly. An implicit am start matches DEFAULT filters.
+        launch_args = ('-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LEANBACK_LAUNCHER',
+                       '-n', package + '/io.github.jqssun.airplay.TvLauncher')
     signature=subprocess.check_output(['java','-jar',str(args.apksigner_jar),'verify','--verbose','--print-certs','--min-sdk-version',str(min_sdk),'--max-sdk-version',device_sdk,str(args.apk)],timeout=60).decode()
     if 'CN=Android Debug' in signature or (min_sdk < 24 and 'Verified using v1 scheme (JAR signing): true' not in signature):
         raise AssertionError('Candidate must use the release identity and a compatible signature scheme.')
@@ -146,7 +149,9 @@ def main():
         screenshot('home.png')
         for label,filename in (('Tools','tools.png'),('Settings','settings.png'),('Overview','overview.png')):
             click(label);time.sleep(.4);state=tree()
-            if not any(node.get('text')==label and node.get('selected')=='true' for node in state.iter('node')):
+            # Compose exposes selection on the tab and its label on a child.
+            if not any(node.get('selected') == 'true' and any(child.get('text') == label for child in node.iter('node'))
+                       for node in state.iter('node')):
                 raise AssertionError('Active menu selection missing in release: '+label)
             screenshot(filename)
         click('About BuzinCast');time.sleep(.4)
