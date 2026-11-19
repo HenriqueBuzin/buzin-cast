@@ -216,7 +216,7 @@ def run_instrument(args, adb):
             value = adb('shell', 'run-as', args.package, 'cat', 'files/pin-value').strip()
             if len(value) == 4 and value.isascii() and value.isdigit():
                 return value
-            time.sleep(.1)
+            time.sleep(.5)
         raise AssertionError('Native PIN did not reach the actual Android UI')
     with (args.output / 'instrumentation.txt').open('wb') as output:
         process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
@@ -247,7 +247,8 @@ def run_instrument(args, adb):
                                     raise AssertionError('Malformed PIN coverage incomplete')
                     adb('shell', 'run-as', args.package, 'mkdir', 'files/pin-ack-' + stage)
                     seen.append(stage)
-                time.sleep(.1)
+                # Keep old adbd polling bounded; each stage waits for its ACK.
+                time.sleep(1)
             if process.returncode != 0:
                 raise AssertionError('PIN instrumentation process failed')
         finally:

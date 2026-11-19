@@ -10,6 +10,7 @@ import com.android.build.api.instrumentation.InstrumentationScope
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
+import java.security.MessageDigest
 
 // JmDNS 3.6.5 uses StandardCharsets (Android API 19). Keep the maintained
 // library and substitute its constant lookups with the equivalent API 1 call.
@@ -63,6 +64,19 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
             "io/github/jqssun/airplay/media/PhotoActivity.kt")
         include("io/github/jqssun/airplay/media/ExternalSubtitles.kt")
         include("io/github/jqssun/airplay/media/ConnectionApproval.kt")
+        include("io/github/jqssun/airplay/discovery/CastV2Receiver.kt")
+        filesMatching("**/CastV2Receiver.kt") {
+            var replacingTls = false
+            filter { line: String -> when {
+                line == "    private fun tls(): SSLContext {" -> {
+                    replacingTls = true
+                    "    private fun tls(): io.buzincast.fireos3probe.LegacyNativeTls = io.buzincast.fireos3probe.LegacyTlsIdentity.nativeContext(context)"
+                }
+                replacingTls && line == "    @Synchronized override fun start() {" -> { replacingTls = false; line }
+                replacingTls -> ""
+                else -> line
+            } }
+        }
         filesMatching("**/PhotoActivity.kt") {
             filter { line: String -> when {
                 line == "import androidx.lifecycle.lifecycleScope" || line == "import androidx.activity.ComponentActivity" -> ""
@@ -76,6 +90,16 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
         }
     }
     doFirst {
+        val cast = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/discovery/CastV2Receiver.kt").readText().replace("\r\n", "\n")
+        listOf("    private fun tls(): SSLContext {", "    @Synchronized override fun start() {").forEach {
+            check(cast.split(it).size == 2) { "Review the API17 Cast TLS binding: upstream source changed" }
+        }
+        val tlsSection = cast.substring(cast.indexOf("    private fun tls(): SSLContext {"), cast.indexOf("    @Synchronized override fun start() {"))
+        val tlsHash = MessageDigest.getInstance("SHA-256").digest(tlsSection.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        check(tlsHash == "0c336e18a5d5dedcd355e89fef5d0ca11d4ad2fc81a66ef7cac926d0e8de7257") {
+            "Review the API17 Cast TLS binding: upstream identity policy changed"
+        }
         val source = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/media/PhotoActivity.kt").readText()
         listOf("import androidx.lifecycle.lifecycleScope", "class PhotoActivity : ComponentActivity() {",
             "val loaded = withContext(Dispatchers.IO) { loadPhoto(url) }", "private class PhotoLoadException").forEach {

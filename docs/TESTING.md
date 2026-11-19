@@ -1,5 +1,45 @@
 # Testes automatizados
 
+## Cast V2 experimental na prévia API17
+
+`tools/test_legacy_gestures.py --castv2` verifica o mesmo transporte Kotlin
+da produção, alterando somente a fábrica TLS na cópia gerada para API17.
+O build confere âncoras e hash do trecho de identidade substituído, para
+exigir revisão se a política TLS do app moderno mudar.
+
+O teste usa TLS 1.2 real, com identidade RSA de 2048 bits criada pelo
+OpenSSL incluído. Verifica DNS-SD, heartbeat, recusa de DeviceAuth,
+lançamento, URL inválida, LOAD, autoplay desligado, PLAY/PAUSE/SEEK,
+volume/mudo e STOP/IDLE. Confere autorização/recusa no controle, quadro
+maior que 64 KiB, persistência de certificado entre reinícios e regeneração
+após arquivo privado inválido. Encerrar uma conexão sem handshake deve
+interromper a operação e liberar todos os objetos/socket nativos.
+
+`tools/legacy_cast_client.py` conecta um cliente OpenSSL moderno do host,
+sem reduzir a política de cifras padrão. Um proxy do teste Android só
+encaminha os bytes até a interface LAN do emulador. O cliente confere o
+certificado público exato, sua assinatura e atributos de não-CA, e troca
+mensagens protobuf implementadas independentemente. O relatório separado
+`host-tls.json` registra protocolo/cifra; a chave privada nunca é exportada.
+Esse cenário requer o pacote Python `cryptography` no host.
+
+A implementação JSSE antiga chegou a passar no teste Android/Android, mas
+falhou com o cliente moderno. Sua lista não oferecia cifras atuais em comum;
+por isso o servidor usa o OpenSSL incluído, em vez de habilitar cifras
+antigas no cliente de teste. A verificação final negociou
+`ECDHE-RSA-AES256-GCM-SHA384` em TLS 1.2. O Android 4.2 também interpreta
+incorretamente a sequência vazia de BasicConstraints; a identidade exige
+a forma DER explícita de não-CA gerada pelo próprio app, verificada de
+forma independente pelo cliente do host.
+
+O adaptador de sockets é interno e apenas servidor. IDs nativos não são
+endereços de memória; o fechamento remove o ID, interrompe I/O e aguarda a
+última referência antes de liberar SSL/contexto/descritor. `liveSockets()`
+permite ao teste exigir zero objetos após desligar. Os símbolos OpenSSL
+ficam privados no ELF, sem dependência do `libssl.so`/`libcrypto.so` do sistema.
+Não testa um emissor físico, certificação Google, serviços protegidos ou
+espelhamento Chrome. O HTTPS de saída do player é uma camada separada.
+
 ## PIN experimental na prévia API17
 
 `tools/test_legacy_gestures.py --pin` usa `cryptography` no Python do host

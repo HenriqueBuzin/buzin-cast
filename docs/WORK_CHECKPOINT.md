@@ -1,5 +1,58 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — Cast V2 e TLS compatível com clientes modernos
+
+O transporte `CastV2Receiver.kt` é copiado do app moderno. A adaptação
+troca apenas a fábrica de identidade/sockets; âncoras e SHA-256 do trecho
+original exigem revisão quando a política compartilhada mudar. Há opção
+desligada por padrão, ciclo de vida por rede/nome/aprovação e porta dinâmica.
+O trabalho de identidade e inicialização ocorre no worker de protocolos.
+
+API17 não tem AndroidKeyStore. Uma identidade própria RSA-2048/SHA256 fica
+em arquivo atômico privado, com limites de tamanho, validade e verificação
+de correspondência chave/certificado. O certificado é explicitamente não-CA.
+O parser X509 antigo trata a sequência vazia de BasicConstraints como CA;
+o adaptador valida a codificação DER exata emitida pelo próprio gerador.
+
+O primeiro servidor JSSE passou entre dois endpoints API17, mas o cliente
+moderno recusou a conexão. As listas capturadas comprovaram a falta de
+cifras atuais em comum. O servidor final usa o OpenSSL já incluído no app,
+com TLS 1.2, AES-GCM e compatibilidade ECDHE/AES-CBC com clientes antigos.
+Não inclui RC4, DES ou cifras anônimas. Não altera provedores TLS globais.
+
+O adaptador interno usa IDs com registro/refcount nativo. Fechar remove o
+ID, chama shutdown para acordar I/O e só libera memória/descritor depois
+da última operação. Accept tem espera interrompível e os buffers são
+limitados a 64 KiB. Um contador exige zero objetos vivos ao desligar.
+
+`outputs/legacy-castv2-final` passou: descoberta, TLS real, protobuf,
+DeviceAuth explicitamente indisponível, reprodução e controles, aprovação,
+quadros grandes recusados, persistência e regeneração de identidade,
+encerramento durante handshake e ausência de recursos TLS restantes.
+O cliente independente negociou TLS 1.2 com AES256-GCM, conferiu o
+certificado público/assinatura/não-CA e heartbeat/erro de DeviceAuth.
+A inspeção ELF de ARMv7 e x86 confirmou os nove métodos JNI, símbolos
+OpenSSL privados e ausência de dependência do SSL/crypto do sistema.
+
+As duas compilações com `-Check` passaram. Na edição geral passaram as
+regressões FCast, DLNA, URLs nativas/FCUP, PIN e gravação. Na edição DE/AT,
+`outputs/legacy-castv2-deat-castv2` passou pela mesma integração Cast, e os
+testes negativos de download e gravação passaram. As execuções afetadas por
+desconexão do servidor ADB foram repetidas após reconectar o emulador;
+o polling do host foi reduzido, mantendo os ACKs e as verificações.
+Os 12 recursos de marca e os textos Cast nos 22 idiomas foram conferidos.
+A auditoria direcionada dos arquivos e do histórico público passou.
+
+SHA-256 das prévias conferidas:
+
+- Geral: `887c408c57cae0f6aa32683c62e7ca9a70a1893acc4801d4c28cc9c28559e945`.
+- DE/AT: `037234f8b1e84ef601e89c26a5e35e2ff1fb21e96ed816e8aacc6d4a843aba5d`.
+
+São previews debug, sem assinatura/SDK de produção. Os testes foram feitos
+no emulador API17, sem usar as TVs. Retransmissão, outros formatos de download,
+HTTPS real do player, testes físicos e demais itens da paridade permanecem
+pendentes. O Cast mantém as limitações experimentais do app moderno.
+
 ## API17 — PIN experimental e validação do pareamento nativo
 
 `ReceiverOptions` repassa `requirePin` ao JNI sem alterar o padrão das

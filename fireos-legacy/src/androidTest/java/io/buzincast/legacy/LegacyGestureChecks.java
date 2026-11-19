@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin;
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -31,6 +31,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         download=arguments!=null && "download".equals(arguments.getString("checks"));
         approval=arguments!=null && "approval".equals(arguments.getString("checks"));
         pin=arguments!=null && "pin".equals(arguments.getString("checks"));
+        castV2=arguments!=null && "castv2".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -51,7 +52,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(pin) {
+            if(castV2) {
+                LegacyCastScenario.check(this,activity);
+                result.putString("castv2","shared_tls12_dns_proto_media_approval_and_identity_lifecycle");
+            } else if(pin) {
                 LegacyPinScenario.check(this,activity);
                 result.putString("pin","native_srp_proofs_ui_txt_background_disabled_and_stop");
             } else if(approval) {

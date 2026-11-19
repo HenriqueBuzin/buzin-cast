@@ -35,9 +35,12 @@ edição DE/AT. Essa prévia também oferece aprovação opcional de conexões p
 com autorização temporária por protocolo/IP e recusa por tempo limite.
 Oferece o mesmo PIN experimental de quatro dígitos do receptor nativo,
 com janela, notificação e registro temporário de dispositivos na sessão.
+Inclui o receptor Cast V2 experimental compartilhado, com TLS 1.2 via
+OpenSSL incluído no app, descoberta, controles, aprovação e reprodução de
+URLs. Não oferece identidade certificada Google nem conteúdo protegido.
 Os testes usam emulador e mídia sintética, como detalhado em
 [TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
-compatíveis com o muxer MP4, Cast V2,
+compatíveis com o muxer MP4,
 retransmissão, licença/produção e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
 

@@ -8,10 +8,66 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <android/log.h>
+#include <openssl/x509v3.h>
+#include <openssl/rsa.h>
+#include <openssl/rand.h>
 #include "llhttp.h"
 #include "raop.h"
 #include "pairing.h"
 #include "android_dnssd_shim.h"
+
+/* Own self-signed end-entity identity for the API17 software TLS binding.
+ * This is not a Google device certificate and is never used for DeviceAuth. */
+JNIEXPORT jobjectArray JNICALL
+Java_io_buzincast_fireos3probe_NativeReceiver_createTlsIdentity(JNIEnv *env,jclass type) {
+    EVP_PKEY_CTX *generator=NULL;EVP_PKEY *key=NULL;X509 *certificate=NULL;
+    PKCS8_PRIV_KEY_INFO *private_info=NULL;BIGNUM *serial=NULL;ASN1_INTEGER *number=NULL;
+    unsigned char random_serial[8],*private_der=NULL,*certificate_der=NULL;
+    int private_length=0,certificate_length=0; jobjectArray result=NULL;
+    jclass bytes_type=NULL;jbyteArray private_bytes=NULL,certificate_bytes=NULL;
+    generator=EVP_PKEY_CTX_new_id(EVP_PKEY_RSA,NULL);
+    if(!generator || EVP_PKEY_keygen_init(generator)<=0 || EVP_PKEY_CTX_set_rsa_keygen_bits(generator,2048)<=0 || EVP_PKEY_keygen(generator,&key)<=0)goto done;
+    certificate=X509_new();if(!certificate || X509_set_version(certificate,2)!=1)goto done;
+    if(RAND_bytes(random_serial,sizeof(random_serial))!=1)goto done;
+    random_serial[0]&=0x7f;random_serial[7]|=1;
+    serial=BN_bin2bn(random_serial,sizeof(random_serial),NULL);
+    if(!serial || !(number=BN_to_ASN1_INTEGER(serial,NULL)) || X509_set_serialNumber(certificate,number)!=1)goto done;
+    if(!X509_gmtime_adj(X509_getm_notBefore(certificate),-86400L) ||
+            !X509_gmtime_adj(X509_getm_notAfter(certificate),31536000L) || X509_set_pubkey(certificate,key)!=1)goto done;
+    X509_NAME *subject=X509_get_subject_name(certificate);
+    if(!subject || X509_NAME_add_entry_by_txt(subject,"CN",MBSTRING_ASC,
+            (const unsigned char *)"Buzin Cast Experimental",-1,-1,0)!=1 || X509_set_issuer_name(certificate,subject)!=1)goto done;
+    const int extensions[]={NID_basic_constraints,NID_key_usage,NID_ext_key_usage};
+    const char *values[]={"critical,CA:FALSE","critical,digitalSignature,keyEncipherment","serverAuth"};
+    for(unsigned i=0;i<sizeof(extensions)/sizeof(extensions[0]);i++) {
+        X509_EXTENSION *extension=X509V3_EXT_conf_nid(NULL,NULL,extensions[i],(char *)values[i]);
+        if(!extension)goto done;
+        int added=X509_add_ext(certificate,extension,-1);X509_EXTENSION_free(extension);
+        if(added!=1)goto done;
+    }
+    if(X509_sign(certificate,key,EVP_sha256())<=0 || !(private_info=EVP_PKEY2PKCS8(key)))goto done;
+    private_length=i2d_PKCS8_PRIV_KEY_INFO(private_info,&private_der);
+    certificate_length=i2d_X509(certificate,&certificate_der);
+    if(private_length<1 || private_length>16384 || certificate_length<1 || certificate_length>16384)goto done;
+    bytes_type=(*env)->FindClass(env,"[B");if(!bytes_type)goto done;
+    result=(*env)->NewObjectArray(env,2,bytes_type,NULL);if(!result)goto done;
+    private_bytes=(*env)->NewByteArray(env,private_length);if(!private_bytes)goto done;
+    certificate_bytes=(*env)->NewByteArray(env,certificate_length);if(!certificate_bytes)goto done;
+    (*env)->SetByteArrayRegion(env,private_bytes,0,private_length,(jbyte *)private_der);
+    (*env)->SetByteArrayRegion(env,certificate_bytes,0,certificate_length,(jbyte *)certificate_der);
+    if(!(*env)->ExceptionCheck(env)) {
+        (*env)->SetObjectArrayElement(env,result,0,private_bytes);
+        (*env)->SetObjectArrayElement(env,result,1,certificate_bytes);
+    }
+done:
+    if(private_bytes)(*env)->DeleteLocalRef(env,private_bytes);
+    if(certificate_bytes)(*env)->DeleteLocalRef(env,certificate_bytes);
+    if(bytes_type)(*env)->DeleteLocalRef(env,bytes_type);
+    OPENSSL_clear_free(private_der,private_length>0?(size_t)private_length:0);
+    OPENSSL_free(certificate_der);PKCS8_PRIV_KEY_INFO_free(private_info);ASN1_INTEGER_free(number);
+    BN_free(serial);X509_free(certificate);EVP_PKEY_free(key);EVP_PKEY_CTX_free(generator);
+    return result;
+}
 
 static int message_complete(llhttp_t *parser) {
     int *complete = parser->data;

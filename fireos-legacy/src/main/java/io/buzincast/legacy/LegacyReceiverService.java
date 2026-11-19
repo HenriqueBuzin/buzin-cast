@@ -31,6 +31,7 @@ import io.buzincast.core.Protocol;
 import io.buzincast.core.ReceiverPlaybackPort;
 import io.github.jqssun.airplay.discovery.FCastReceiver;
 import io.github.jqssun.airplay.discovery.DlnaReceiver;
+import io.github.jqssun.airplay.discovery.CastV2Receiver;
 import io.github.jqssun.airplay.media.PhotoActivity;
 import io.github.jqssun.airplay.media.ConnectionApproval;
 import java.util.concurrent.ExecutorService;
@@ -160,6 +161,11 @@ public final class LegacyReceiverService extends Service {
     private LegacyNetwork dlnaNetwork;
     private String dlnaName;
     private boolean dlnaApproval;
+    private CastV2Receiver castV2;
+    private volatile int castEpoch;
+    private boolean castClosing,castApproval;
+    private LegacyNetwork castNetwork;
+    private String castName;
     private static final class NetworkState {
         final Protocol owner;
         final boolean active;
@@ -433,6 +439,7 @@ public final class LegacyReceiverService extends Service {
         }
         reconcileFcast();
         reconcileDlna();
+        reconcileCast();
         publish();
     }
     private void reconcileFcast() {
@@ -480,12 +487,32 @@ public final class LegacyReceiverService extends Service {
             dlna.start();
         }
     }
-    /** Commands run on main; SOAP worker reads use an immutable published snapshot. */
+    private void reconcileCast() {
+        boolean enabled=wanted() && reconnect.online() && selectedNetwork!=null && prefs.castV2();
+        if(castV2!=null && (!enabled || !selectedNetwork.equals(castNetwork) || !prefs.name().equals(castName) || prefs.approveConnections()!=castApproval)) {
+            CastV2Receiver previous=castV2;castV2=null;castClosing=true;castEpoch++;
+            if(urlOwner==Protocol.CAST_V2)stopUrl();
+            protocolWorker.execute(()-> {
+                try {previous.close();}
+                finally {main.post(()-> {castClosing=false;if(!destroyed)reconcile();});}
+            });
+        }
+        if(enabled && castV2==null && !castClosing) {
+            int owner=++castEpoch;castNetwork=selectedNetwork;castName=prefs.name();castApproval=prefs.approveConnections();
+            CastV2Receiver current=new CastV2Receiver(this,new NetworkPlayback(Protocol.CAST_V2,owner),castName,message-> {
+                main.post(()-> {if(!destroyed && owner==castEpoch && message.contains("failed"))record("Cast V2: "+getString(R.string.error_label));});
+                return Unit.INSTANCE;
+            });castV2=current;
+            // API17 has no AndroidKeyStore. Generate/load its software identity off main.
+            protocolWorker.execute(()-> {if(!destroyed && owner==castEpoch)current.start();});
+        }
+    }
+    /** Commands run on main; transport workers read an immutable published snapshot. */
     private final class NetworkPlayback implements ReceiverPlaybackPort {
         private final int owner;
         private final Protocol kind;
         NetworkPlayback(Protocol kind,int owner) {this.kind=kind;this.owner=owner;}
-        private boolean valid() {return owner==(kind==Protocol.FCAST?fcastEpoch:dlnaEpoch);}
+        private boolean valid() {return owner==(kind==Protocol.FCAST?fcastEpoch:kind==Protocol.DLNA?dlnaEpoch:castEpoch);}
         private void current() {if(!valid() || destroyed)throw new IllegalStateException("Receiver was replaced");}
         private void owns(Protocol protocol) {
             current();if(protocol!=kind || urlOwner!=protocol || !urlRequested || urlStopping && pendingUrl==null)throw new IllegalStateException("No owned media is playing");
@@ -501,11 +528,11 @@ public final class LegacyReceiverService extends Service {
         @Override public boolean getMediaActive() {return valid() && networkState.active;}
         @Override public PlaybackInfo getPlaybackInfo() {return valid()?networkState.info:EMPTY_NETWORK.info;}
         @Override public boolean authorize(String protocol,String peer) {
-            if(!valid() || !(kind==Protocol.FCAST?prefs.fcast():prefs.dlna()))return false;
+            if(!valid() || !(kind==Protocol.FCAST?prefs.fcast():kind==Protocol.DLNA?prefs.dlna():prefs.castV2()))return false;
             try {
                 java.net.InetAddress address=java.net.InetAddress.getByName(peer);
                 if(!address.isSiteLocalAddress() && !address.isLoopbackAddress())return false;
-                return authorizeConnection(kind==Protocol.FCAST?"FCast":"DLNA",peer) && valid() && !destroyed;
+                return authorizeConnection(kind==Protocol.FCAST?"FCast":kind==Protocol.DLNA?"DLNA":"Cast V2",peer) && valid() && !destroyed;
             }
             catch(java.net.UnknownHostException invalid) {return false;}
         }
@@ -703,9 +730,10 @@ public final class LegacyReceiverService extends Service {
         if(downloads!=null)downloads.close();
         if(systemMedia!=null)systemMedia.close();
         fcastEpoch++;
-        dlnaEpoch++;networkState=EMPTY_NETWORK;
+        dlnaEpoch++;castEpoch++;networkState=EMPTY_NETWORK;
         if(fcast!=null) {FCastReceiver previous=fcast;fcast=null;protocolWorker.execute(previous::close);}
         if(dlna!=null) {DlnaReceiver previous=dlna;dlna=null;protocolWorker.execute(previous::close);}
+        if(castV2!=null) {CastV2Receiver previous=castV2;castV2=null;protocolWorker.execute(previous::close);}
         protocolWorker.shutdown();
         subtitleWorker.shutdownNow();
         main.removeCallbacks(subtitlePickerTimeout);

@@ -6,6 +6,7 @@ import java.nio.charset.Charset;
 /** JNI entry points shared by the app and its separate debug-only test frontend. */
 final class NativeReceiver {
     static native boolean checkNativeParser();
+    static native byte[][] createTlsIdentity();
     static native long startReceiver(String keyPath, VideoFrameQueue callback);
     static long startNetworkReceiver(String keyPath, VideoFrameQueue callback, String identity,
                                     String address, int prefix, String name, int port, int width,int height,int fps) {

@@ -510,6 +510,7 @@ public final class LegacyActivity extends Activity {
         toggle(body,R.string.setting_keep_screen_on,R.string.setting_keep_screen_on_desc,"keep_screen_on",prefs.keepScreenOn());
         toggle(body,R.string.setting_fcast,R.string.setting_fcast_desc,"fcast_enabled",prefs.fcast());
         toggle(body,R.string.setting_dlna,R.string.setting_dlna_desc,"dlna_enabled",prefs.dlna());
+        toggle(body,R.string.setting_castv2,R.string.setting_castv2_desc,"castv2_enabled",prefs.castV2());
         toggle(body,R.string.setting_approve_connections,R.string.setting_approve_connections_desc,"approve_connections",prefs.approveConnections());
         toggle(body,R.string.setting_require_pin,R.string.setting_require_pin_desc,"require_pin",prefs.requirePin());
         toggle(body,R.string.setting_developer_options,R.string.setting_developer_options_desc,"developer_options",prefs.advanced());
