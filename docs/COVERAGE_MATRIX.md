@@ -814,3 +814,19 @@ cache on API34+, where that SDK API is available, before reading current nodes.
 All 11 settings/main-screen cases then passed on API36 in 82.172 seconds without
 skips, with unchanged source and input fingerprints. The failed full-run profiles
 are not accepted; a complete fresh edition run is still required.
+
+The native backlog contract now advances a unit-only monotonic clock across an
+underrun: sustained backlog must remain intact during recovery, must not trim
+one nanosecond before the two-second throttle boundary, and must trim only the
+excess at that boundary. The linker wrapper forwards normal clock calls to libc
+and is enabled only in the modern unit executable; production and the legacy
+unit build are unchanged. Additional assertions exercise a multi-second arrival
+spike and a full ring that must emit no accepted-clock metadata.
+
+All 19 native cases passed on API28 with sanitizer traps. The matching app-library
+mapping, excluding the unit executable as a coverage object, reports timeline
+MC/DC 14/14, branches 90/92 and regions 150/152, with no LLVM warnings. Functions,
+instantiations and lines are fully exercised for that file; the two remaining
+branch/region gaps are retained. ARM32/API22, ARM64/API22 and legacy x86/API17
+unit builds also compile. These are selected native results, not a whole-app or
+four-edition 100% claim.

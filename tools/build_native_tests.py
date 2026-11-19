@@ -39,8 +39,8 @@ if not args.legacy:
             "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.",*includes,
             "-c",str(source),"-o",str(callback_object)],check=True)
         callback_objects.append(str(callback_object))
-    callback_inputs=["-DBUZIN_CALLBACK_KEY_CONTRACTS",*includes,*callback_objects,
-                     "-Wl,--wrap=pthread_key_create"]
+    callback_inputs=["-DBUZIN_CALLBACK_KEY_CONTRACTS","-DBUZIN_CLOCK_CONTRACTS",*includes,*callback_objects,
+                     "-Wl,--wrap=pthread_key_create","-Wl,--wrap=clock_gettime"]
 command=[str(compiler),"--target="+triple+str(args.api),"--sysroot="+str(toolchain/"sysroot"),
          "-std=c++17" if args.legacy else "-std=c++23","-O1","-g","-static-libstdc++","-pthread",*instrumentation,
          "-ffile-prefix-map="+str(root/"app/src/main/cpp")+"=.","-I"+str(root/"app/src/main/cpp"),

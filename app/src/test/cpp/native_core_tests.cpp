@@ -17,6 +17,9 @@ static_assert(std::numeric_limits<decltype(SpscRingTestAccess::position(std::dec
               "Audio positions must remain 64-bit on ARM32 as well as ARM64");
 #define CHECK(condition) do { if (!(condition)) throw std::runtime_error(std::string(#condition)+" at line "+std::to_string(__LINE__)); } while(false)
 #include "log_sink_contracts.h"
+#ifdef BUZIN_CLOCK_CONTRACTS
+#include "timeline_clock_contracts.h"
+#endif
 #ifdef BUZIN_CALLBACK_KEY_CONTRACTS
 extern "C" int callbackThreadKeyCreationFailureStatus(void);
 static void callbackThreadKeyCreationFailureBlocksAttachment() {
@@ -57,6 +60,12 @@ static void fixedAndAdaptiveJitter() {
     for(int i=0;i<600;++i) adaptive.observe(1000000000LL+i*20000000LL,1800000000LL+i*20000000LL,20000000);
     CHECK(adaptive.target()>initial && adaptive.target()<=adaptive.ceil());
     adaptive.reanchor(); adaptive.observe(100,200,10000000); CHECK(adaptive.target()<=adaptive.ceil());
+    DelayTracker extreme(1000,1,0,95);
+    extreme.observe(1000000000,1000000000,10000000);
+    CHECK(extreme.target()==15);
+    // A multi-second arrival spike saturates the histogram and cushion ceiling.
+    extreme.observe(1010000000,4010000000,10000000);
+    CHECK(extreme.ceil()==1000 && extreme.target()==extreme.ceil());
 }
 static void pcmUnderrunAndReprime() {
     TimelineBuffer timeline(1000,1,0,95); int16_t input[]={1,2,3,4}, output[4]{};
@@ -119,6 +128,9 @@ static void sustainedBacklogIsTrimmed() {
     CHECK(output==1 && timeline.debugInfo().metrics.trims==1 && timeline.debugInfo().backlogMs==19);
     auto timing=clock.read(read.firstSample,read.samples);
     CHECK(read.firstSample==80 && timing.size()==3 && timing[2]==1080000000);
+#ifdef BUZIN_CLOCK_CONTRACTS
+    backlogTrimmingWaitsAfterAnUnderrun();
+#endif
 }
 static void acceptedClockExcludesLatePacketsAndPadding() {
     TimelineBuffer timeline(1000,1,0,95); int16_t packet[10]{};
@@ -159,6 +171,9 @@ static void acceptedClockReportsActualRingCapacity() {
     timeline.enqueuedPcm=[&](uint64_t first,size_t count,int64_t){CHECK(first==0);accepted+=count;};
     timeline.write(input.data(),input.size(),1000000000);
     CHECK(accepted>0 && accepted<input.size());
+    const size_t atCapacity=accepted;
+    timeline.write(input.data(),input.size(),0);
+    CHECK(accepted==atCapacity); // A full ring emits no accepted-clock metadata.
     CHECK(timeline.read(output.data(),10000).samples==accepted);
 }
 static void stereoResumesAfterUnderrunAndClockReset() {
