@@ -820,8 +820,8 @@ underrun: sustained backlog must remain intact during recovery, must not trim
 one nanosecond before the two-second throttle boundary, and must trim only the
 excess at that boundary. The linker wrapper forwards normal clock calls to libc
 and is enabled only in the modern unit executable; production and the legacy
-unit build are unchanged. Additional assertions exercise a multi-second arrival
-spike and a full ring that must emit no accepted-clock metadata.
+unit build do not link this wrapper. Additional assertions exercise a multi-second
+arrival spike and a full ring that must emit no accepted-clock metadata.
 
 All 19 native cases passed on API28 with sanitizer traps. The matching app-library
 mapping, excluding the unit executable as a coverage object, reports timeline
@@ -830,3 +830,12 @@ instantiations and lines are fully exercised for that file; the two remaining
 branch/region gaps are retained. ARM32/API22, ARM64/API22 and legacy x86/API17
 unit builds also compile. These are selected native results, not a whole-app or
 four-edition 100% claim.
+
+The subsequent full normal-edition Android run passed all 187 tests without
+skips in 304.831 seconds, including the seven checks that previously failed on
+API36. Its native suite also passed all 19 cases, and normal/advanced settings
+passed the separate external UI checks. Remaining external scenarios and the
+complete coverage report must finish before accepting its archived snapshot.
+This run was frozen before the unit-only clock/bounds additions above; those
+assertions have separate matching native evidence and must be included in the
+final complete four-edition cohort.
