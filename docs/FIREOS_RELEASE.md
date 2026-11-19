@@ -147,3 +147,20 @@ pacotes antes de abrir o app. As duas execuções passaram com RTSP pela
 ponte `libndk_translation.so`. Os relatórios são
 `modern.general-api30-armeabi-v7a` e `modern.general-api30-arm64-v8a`.
 Esse teste exercita as bibliotecas ARM por tradução em um emulador x86-64.
+
+## Matriz inicial dos seis APKs assinados
+
+O APK regional 53 passou nas APIs 25, 28 e 30 com o mesmo SHA-256 nas três
+execuções. `outputs/fireos/coordinated/verified-emulator-matrix.json`
+confirma os seis APKs 48–53, seus certificados e os doze testes de abertura
+X86 vinculados aos respectivos arquivos.
+
+A matriz registra os APKs nativos originais. Em um teste adicional, os
+APKs 48 e 49 caíram ao carregar a biblioteca ARMv7 pelo tradutor
+`libndk_translation.so` da API30. O APK 50 passou nas mesmas condições.
+Uma cópia de diagnóstico com a biblioteca ARM extraída do 48 também
+caiu no carregamento. Isolar apenas a detecção de CPU do OpenSSL permitiu
+carregar a biblioteca e executar o parser. A correção ARMv7/API17 está
+sendo recompilada para as duas fichas, em arquivos separados da matriz
+inicial. A validação em um Fire TV Stick antigo e a licença pela Appstore
+continuam pendentes.
