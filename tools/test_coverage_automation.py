@@ -19,6 +19,71 @@ from replay_android_coverage import copy_compiled_snapshot
 
 
 class CoverageAutomationTest(unittest.TestCase):
+
+    def instrumentation_fixture(self, directory, timeout=None, coverage=False):
+        suite=Suite.__new__(Suite)
+        suite.args=argparse.Namespace(adb="adb",serial="emulator-5558",test_apk="fixture.apk",
+                                      test_class=None,coverage=coverage)
+        if timeout is not None:
+            suite.args.instrumentation_timeout=timeout
+        suite.out=Path(directory);suite.package="com.buzincast.tv"
+        suite.results=[];suite.checkpoint=0;suite.adb=Mock(return_value="Success")
+        return suite
+
+    def test_instrumentation_streams_progress_and_honors_default_or_selected_timeout(self):
+        output=b"INSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS_CODE: 0\nOK (1 test)\n"
+        for selected,expected in ((None,900),(123,123)):
+            with self.subTest(timeout=selected), TemporaryDirectory() as directory:
+                suite=self.instrumentation_fixture(directory,selected)
+                def run(command, **kwargs):
+                    self.assertEqual(expected,kwargs["timeout"])
+                    self.assertTrue(kwargs["check"])
+                    kwargs["stdout"].write(output);kwargs["stdout"].flush()
+                    self.assertEqual(output,(suite.out/"instrumentation.txt").read_bytes())
+                    return subprocess.CompletedProcess(command,0)
+                with patch("test_emulator.subprocess.run",side_effect=run):
+                    suite.instrumentation()
+                self.assertEqual(1,len(suite.results))
+                self.assertEqual("Android socket integration",suite.results[0]["test"])
+                self.assertTrue(suite.results[0]["passed"])
+
+    def test_instrumentation_timeout_retains_partial_progress_without_pass_or_profiles(self):
+        with TemporaryDirectory() as directory:
+            suite=self.instrumentation_fixture(directory,123,coverage=True)
+            partial=b"INSTRUMENTATION_STATUS: test=still_running\nINSTRUMENTATION_STATUS_CODE: 1\n"
+            def run(command, **kwargs):
+                kwargs["stdout"].write(partial);kwargs["stdout"].flush()
+                raise subprocess.TimeoutExpired(command,kwargs["timeout"])
+            with patch("test_emulator.subprocess.run",side_effect=run), self.assertRaises(subprocess.TimeoutExpired):
+                suite.instrumentation()
+            self.assertEqual(partial,(suite.out/"instrumentation.txt").read_bytes())
+            self.assertEqual([],suite.results);self.assertEqual(0,suite.checkpoint)
+            self.assertFalse((suite.out/"coverage").exists())
+            self.assertEqual(1,suite.adb.call_count) # Install only; no profile reads.
+
+    def test_streaming_does_not_allow_skipped_tests_to_create_a_coverage_pass(self):
+        with TemporaryDirectory() as directory:
+            suite=self.instrumentation_fixture(directory,coverage=True)
+            skipped=b"INSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS_CODE: -3\nOK (1 test)\n"
+            def run(command, **kwargs):
+                kwargs["stdout"].write(skipped)
+                return subprocess.CompletedProcess(command,0)
+            with patch("test_emulator.subprocess.run",side_effect=run), self.assertRaisesRegex(AssertionError,"without skips"):
+                suite.instrumentation()
+            self.assertEqual(skipped,(suite.out/"instrumentation.txt").read_bytes())
+            self.assertEqual([],suite.results);self.assertEqual(0,suite.checkpoint)
+            self.assertFalse((suite.out/"coverage").exists())
+
+    def test_instrumentation_cli_rejects_nonpositive_timeout_before_device_access(self):
+        script=Path(__file__).with_name("test_emulator.py")
+        for timeout in ("0","-1"):
+            with self.subTest(timeout=timeout):
+                result=subprocess.run([sys.executable,str(script),"--serial","emulator-5558",
+                                       "--instrumentation-timeout",timeout],capture_output=True,text=True)
+                self.assertEqual(2,result.returncode)
+                self.assertIn("Instrumentation timeout must be positive",result.stderr)
+                self.assertNotIn("Traceback",result.stderr)
+
     def test_replay_rejects_an_incompatible_api_or_abi_before_installing(self):
         from replay_android_coverage import main
         with TemporaryDirectory(prefix="coverage-replay-guard-") as directory:

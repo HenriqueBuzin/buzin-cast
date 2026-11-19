@@ -10,6 +10,30 @@ Compatibility builds have API22 as their minimum; modern builds require API25.
 
 ## Verification checkpoint — 2026-11-18
 
+Four relay-playback contracts passed on API22 (2.855 seconds, no skips), using
+real silent AudioTrack output and the production VideoRenderer. They require
+playback-head advancement, correct PCM format, release of the track and worker,
+and new owners after restart. Invalid sample rates/channel counts terminate the
+worker and permit a later valid session. Video reference NALs check dimension
+and codec changes plus timestamp-anchor reset without starting a decoder.
+A real pacing sleep exercises the 64-packet limit and overflow error, and stop
+must interrupt that sleep, clear the queue and release output. A separate
+far-future timestamp case verifies the bounded pacing policy. Assembly and lint
+passed in 5m40s; evidence is `build/relay-playback-selection`.
+
+The regional API36 attempt under `build/android-coverage-regional-surface-api36`
+stopped when the Android instrumentation command reached its fixed 300-second
+limit. Its final logcat still showed gesture tests completing and another test
+starting. This attempt has no complete Android result/report and is not accepted
+coverage evidence. The host runner now streams instrumentation output to disk,
+preserving the last started test on timeout or failure, and accepts
+`--instrumentation-timeout` with a positive duration (default 900 seconds).
+Only a complete successful transcript can produce a pass or coverage checkpoint;
+all strict status/count checks remain. All 25 automation regression tests pass,
+including streamed output, configured/default deadlines, timeout retention,
+skipped-test rejection and invalid-timeout CLI rejection. The regional retry
+uses a fresh output directory and the expanded suite.
+
 Three integrated player-gesture contracts passed on API22 (33.202 seconds,
 no skips). Real Android MotionEvents traverse `VideoPlayerGestures` and the
 production tap/seek/brightness/volume/zoom states. Single taps remain available

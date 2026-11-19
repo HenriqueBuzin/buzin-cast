@@ -46,6 +46,13 @@ def validate_instrumentation_output(output, require_all=False):
             "Coverage runs must execute every selected instrumentation test without skips or assumptions:\n"+output)
 
 
+def positive_seconds(value):
+    seconds = int(value)
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError("Instrumentation timeout must be positive")
+    return seconds
+
+
 class Suite:
     def __init__(self, args):
         if not re.fullmatch(r"emulator-\d+", args.serial):
@@ -531,9 +538,15 @@ class Suite:
             import shlex
             command.extend(["-e", "class", shlex.quote(self.args.test_class)])
         command.append(self.package+".test/androidx.test.runner.AndroidJUnitRunner")
-        result=subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300, check=True)
-        output=result.stdout.decode("utf-8","replace")
-        (self.out/"instrumentation.txt").write_text(output,encoding="utf-8")
+        # Stream progress so a timeout/nonzero exit preserves the last started
+        # test without turning partial execution into passing evidence.
+        timeout = getattr(self.args, "instrumentation_timeout", 900)
+        if timeout <= 0:
+            raise ValueError("Instrumentation timeout must be positive")
+        transcript = self.out/"instrumentation.txt"
+        with transcript.open("wb") as progress:
+            subprocess.run(command, stdout=progress, stderr=subprocess.STDOUT, timeout=timeout, check=True)
+        output=transcript.read_text(encoding="utf-8",errors="replace")
         validate_instrumentation_output(output,require_all=self.args.coverage)
         self.results.append({"test":"Android socket integration", "passed":True, "runner":output})
         if self.args.coverage:
@@ -602,6 +615,8 @@ if __name__=="__main__":
     parser.add_argument("--native-tests", help="Standalone native C++ unit executable built for this emulator ABI")
     parser.add_argument("--test-apk", help="Run Android instrumentation integration suite first")
     parser.add_argument("--test-class", help="Select an AndroidJUnitRunner class or Class#method with --test-apk")
+    parser.add_argument("--instrumentation-timeout",type=positive_seconds,default=900,
+                        help="Maximum seconds for the complete Android test suite (default: 900); partial progress is retained on failure")
     parser.add_argument("--coverage", action="store_true", help="Require Android and native coverage checkpoints after every scenario")
     parser.add_argument("--output",default="build/emulator-checks")
     parser.add_argument("--case",action="append",help="Run matching case descriptions; repeat to select multiple cases")
