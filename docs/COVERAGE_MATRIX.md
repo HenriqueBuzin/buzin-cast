@@ -981,3 +981,27 @@ A separate noncoverage native Debug build passed in nine seconds. These remain
 selected contracts, separate from the ongoing complete frozen 192-case cohort.
 The selected run's archived owned-source identity starts `2f864a89107d`; later
 upstream source changes require fresh compiled mappings and execution evidence.
+
+Five recording ViewModel contracts now bind a real stopped service and exercise
+regular-file filtering and date ordering, canonical-directory traversal guards,
+valid deletion, readable FileProvider sharing URIs and grant flags, unavailable
+sharing targets, deferred refresh/deletion during armed capture, local playback
+routing and disconnected actions. External chooser launches are captured at the
+application context boundary; the provider and recording files remain real.
+Each case cleans up its own files, closes the capture/service/log workers and
+restores the launch-on-connect preference. DE/AT executes the same cases and
+asserts the disabled recording actions cannot delete, share, capture or play.
+
+The 21-case recording/playback/audio-state selection passed without skips on
+API28 in both normal (7.231s) and DE/AT (6.676s) editions. Assemblies passed in
+11 seconds and 1m40s respectively; matched archived-class JaCoCo reports passed
+in seven and nine seconds. In the normal selection, recording-file validation
+covers 14/14 branches; deletion, sharing and recording toggling each cover 4/4.
+Refresh and playback retain uncovered paths, and the DE/AT private validation
+helper remains uncovered because its public recording actions are disabled.
+These counters remain visible in the reports; no coverage inventory is removed.
+
+The current source suite now has 200 Android cases. The ongoing full four-edition
+run remains frozen at 192 cases and must finish against its original mappings;
+these selected profiles cannot replace its acceptance gates or establish 100%
+coverage for the current source.
