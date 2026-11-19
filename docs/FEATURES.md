@@ -43,9 +43,17 @@ as raízes e a verificação de domínio do sistema para player, downloads e fot
 Os testes usam emulador, mídia sintética e amostras HTTPS públicas, como detalhado em
 [TESTING.md](TESTING.md). Ainda faltam transcodificação de formatos não
 compatíveis com o muxer MP4,
-retransmissão (transporte compartilhado já validado; serviço, reprodução e
-interface ainda pendentes), licença/produção e demais itens do plano,
+licença/produção e demais itens do plano,
 além da validação com emissores e Sticks antigos reais.
+
+A prévia também integra a retransmissão Buzin-a-Buzin em Ferramentas, com
+recepção por código, conexão manual à outra TV e parada. Reaproveita o
+transporte criptografado compartilhado e o tap nativo de AVC/PCM. A saída
+API17 recebe AVC até o orçamento 1080p do primeiro Stick e PCM 44,1 kHz/stereo,
+com Surface exclusiva, relógio de áudio e foco. A edição DE/AT mantém esse
+transporte em memória; download e gravação continuam desativados. A validação
+de integração usa pares sintéticos locais; não comprova uma sessão física
+entre duas TVs.
 
 - Perfis Cinema/Apresentação/Jogos, calibração guiada dos quatro cantos, aprovação opcional pelo controle e diagnóstico local com navegação por setas.
 - Recuperação: reanúncio após mudança de rede e até três tentativas do player em falhas de conexão/timeout; AirPlay pode exigir reconexão no emissor.

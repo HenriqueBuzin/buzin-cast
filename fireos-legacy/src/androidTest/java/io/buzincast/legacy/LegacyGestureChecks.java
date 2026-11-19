@@ -19,7 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Platform-only instrumentation: AndroidX's current runner cannot run on API17. */
 public final class LegacyGestureChecks extends Instrumentation {
     private Activity activity;
-    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2,https,relay;
+    void activeActivity(Activity current) {activity=current;}
+    private boolean controls,metadata,systemMedia,url,fcast,dlna,nativeUrl,recording,download,approval,pin,castV2,https,relay,relayApp;
     @Override public void onCreate(Bundle arguments) {
         androidx.multidex.MultiDex.installInstrumentation(getContext(),getTargetContext());
         systemMedia=arguments!=null && "system".equals(arguments.getString("checks"));
@@ -34,6 +35,7 @@ public final class LegacyGestureChecks extends Instrumentation {
         castV2=arguments!=null && "castv2".equals(arguments.getString("checks"));
         https=arguments!=null && "https".equals(arguments.getString("checks"));
         relay=arguments!=null && "relay".equals(arguments.getString("checks"));
+        relayApp=arguments!=null && "relay_app".equals(arguments.getString("checks"));
         metadata=systemMedia || arguments!=null && "metadata".equals(arguments.getString("checks"));
         controls=metadata || arguments!=null && "controls".equals(arguments.getString("checks"));
         super.onCreate(arguments);start();
@@ -54,7 +56,10 @@ public final class LegacyGestureChecks extends Instrumentation {
             activity=startActivitySync(new Intent().setClassName(getTargetContext(),"io.buzincast.legacy.LegacyActivity")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
             awaitReceiver(true);
-            if(relay) {
+            if(relayApp) {
+                LegacyRelayAppScenario.check(this,activity);
+                result.putString("relay_app","tools_service_avc_pcm_surface_focus_native_capture_and_takeover");
+            } else if(relay) {
                 LegacyRelayScenario.check(this,activity);
                 result.putString("relay","shared_channel_native_gcm_independent_peer_both_directions_and_bounds");
             } else if(https) {

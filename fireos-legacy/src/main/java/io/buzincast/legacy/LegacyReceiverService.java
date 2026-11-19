@@ -40,7 +40,7 @@ import kotlin.Unit;
 
 /** Main-thread owner of the receiver. Native/codec work stays in runtime workers. */
 public final class LegacyReceiverService extends Service {
-    static final String OPEN="open",START="start",STOP="stop",RESTART="restart",CONFIGURE="configure",BOOT="boot";
+    static final String OPEN="open",START="start",STOP="stop",RESTART="restart",CONFIGURE="configure",BOOT="boot",RELAY="relay";
     private static final int NOTIFICATION=17001;
     private static final String CHANNEL="buzin-legacy-receiver";
     interface Observer { void changed(State state); }
@@ -60,12 +60,13 @@ public final class LegacyReceiverService extends Service {
             pin=service.pinCode;
             url=service.urlState();urlError=service.urlFailure!=null;
             desired=service.desired;running=service.running;busy=service.busy;
-            video=url==null?service.video:url.width>0 && url.height>0;
+            io.buzincast.fireos3probe.LegacyRelayPlayback relay=service.relay==null?null:service.relay.playback();
+            video=relay!=null && !relay.closed?relay.decodedFrames>0:url==null?service.video:url.width>0 && url.height>0;
             audioSuppressed=service.systemMedia.suppressed();
             networkWaiting=service.wanted() && service.reconnect.initialized() && !service.reconnect.online();
             name=service.name;failure=urlError?service.urlFailure:service.failure;
-            width=url==null?service.width:url.width;height=url==null?service.height:url.height;
-            address=service.session==null?null:service.session.localAddress();
+            width=relay!=null && !relay.closed?relay.width:url==null?service.width:url.width;height=relay!=null && !relay.closed?relay.height:url==null?service.height:url.height;
+            address=service.session==null?(service.selectedNetwork==null?null:service.selectedNetwork.address.getHostAddress()):service.session.localAddress();
             port=service.session==null?0:service.session.listeningPort();
             controls=service.controlState();
             media=service.mediaState();
@@ -119,6 +120,55 @@ public final class LegacyReceiverService extends Service {
     private Exception mediaFailure;
     private LegacySystemMedia systemMedia;
     private LegacyMirrorCapture capture;
+    private LegacyRelay relay;
+    private volatile boolean relayAvailable;
+    private boolean relayOutput,relayPresented;
+    private TextureTarget relayBoundTarget;
+    private io.buzincast.fireos3probe.LegacyRelayPlayback relayBoundPlayback;
+    private Exception relayFailure;
+    LegacyRelay relay() {return relay;}
+    boolean canListenRelay() {return relayAvailable && !busy && !stopping && (session==null || !session.mirroring() && !session.audioActive() && session.connectionCount()==0) && !relay.receiving();}
+    boolean canSendRelay() {return relayAvailable && !busy && !stopping && !relay.receiving();}
+    void listenRelay() {
+        if(!canListenRelay())return;
+        relay.listen();dispatch(this,RELAY);reconcile();
+    }
+    void connectRelay(String host,int port,String code) {
+        if(!canSendRelay())throw new IllegalStateException("Receiver unavailable");
+        relay.connect(host,port,code);dispatch(this,RELAY);reconcile();
+    }
+    void stopRelay() {relay.stop();reconcile();}
+    private void relayChanged() {
+        if(destroyed)return;
+        io.buzincast.fireos3probe.LegacyRelayPlayback playback=relay.playback();
+        if(playback!=null)playback.gain(systemGain);
+        if(relay.engaged())acquireWakeLock();
+        if(playback!=null && playback.failure!=null) {if(relayFailure!=playback.failure) {relayFailure=playback.failure;record("Relay output: "+playback.failure.getClass().getSimpleName());}relay.outputFailed();}
+        if(relay.reap() && relayOutput) {relayOutput=false;relayBoundTarget=null;relayBoundPlayback=null;restoreNativeOutput();if(session==null && !urlRequested)releaseWakeLock();}
+        if(relay.state().getReceiving()) {
+            if(!relayPresented) {
+                relayPresented=true;
+                if(!visible)startActivity(new Intent(this,LegacyActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            }
+            relayOutput=true;prepareRelayOutput();
+        } else relayPresented=false;
+        reconcile();
+        if(!relay.engaged() && session==null && !urlRequested)releaseWakeLock();
+    }
+    private void prepareRelayOutput() {
+        if(relay.playback()==null)return;
+        if(session!=null && parkedNative!=session) {
+            if(detachingNative==session)return;
+            LegacyReceiverSession previous=session;detachingNative=previous;int epoch=++outputEpoch;
+            previous.audioFocusGain(0);
+            previous.detachVideoOutput(()->main.post(()-> {
+                if(destroyed || epoch!=outputEpoch)return;
+                detachingNative=null;if(session==previous)parkedNative=previous;
+                if(relay.state().getReceiving())bindSurface();
+            }));return;
+        }
+        bindSurface();
+    }
     private LegacyDownloads downloads;
     private LegacyUrlRequest currentUrlRequest;
     private io.buzincast.fireos3probe.LegacyUrlDownload.Phase downloadNotice;
@@ -199,8 +249,8 @@ public final class LegacyReceiverService extends Service {
             }
         });
     }
-    LegacyMedia.State mediaState() {return urlRequested || session==null || stopping || session.mirroring()?LegacyMedia.inactive():session.media();}
-    private LegacyDacp.State controlState() {return urlRequested || session==null || stopping || session.mirroring()?LegacyDacp.inactive():session.controls();}
+    LegacyMedia.State mediaState() {return urlRequested || relay!=null && relay.receiving() || session==null || stopping || session.mirroring()?LegacyMedia.inactive():session.media();}
+    private LegacyDacp.State controlState() {return urlRequested || relay!=null && relay.receiving() || session==null || stopping || session.mirroring()?LegacyDacp.inactive():session.controls();}
 
     static void dispatch(Context context,String action) {
         Intent intent=new Intent(context,LegacyReceiverService.class).setAction(action);
@@ -211,6 +261,10 @@ public final class LegacyReceiverService extends Service {
         approvalConfigured=prefs.approveConnections();
         pinConfigured=prefs.requirePin();
         capture=new LegacyMirrorCapture(this,()->main.post(()-> {if(!destroyed)publish();}),BuildConfig.RECORDING_ENABLED);
+        relay=new LegacyRelay(this,()->main.post(this::relayChanged),()-> {
+            LegacyReceiverSession current=session;
+            return relayAvailable && (current==null || !current.mirroring() && !current.audioActive() && current.connectionCount()==0);
+        });
         downloads=new LegacyDownloads(this,()->main.post(()-> {
             if(destroyed)return;
             io.buzincast.fireos3probe.LegacyUrlDownload.State state=downloads.state();
@@ -225,8 +279,9 @@ public final class LegacyReceiverService extends Service {
             @Override public void command(LegacyDacp.Command command) {control(command,null);}
             @Override public void gain(float gain) {
                 systemGain=gain;
-                if(session!=null)session.audioFocusGain(urlRequested?0:gain);
+                if(session!=null)session.audioFocusGain(urlRequested || relay.receiving()?0:gain);
                 if(urlPlayer!=null && !urlStopping)urlPlayer.focusGain(gain);
+                if(relay.playback()!=null)relay.playback().gain(gain);
             }
             @Override public void stopLocal() {stopUrl();}
             @Override public void failure(RuntimeException error) {record("System media: "+error.getClass().getSimpleName());}
@@ -244,8 +299,9 @@ public final class LegacyReceiverService extends Service {
         promote();String action=intent==null?null:intent.getAction();
         if(action==null) {if(!opened) {desired=prefs.serviceRequested();bootSession=prefs.bootAutoStart();opened=true;}}
         else if(OPEN.equals(action)) {if(!opened) {desired=prefs.autoStart();opened=true;}}
+        else if(RELAY.equals(action)) {opened=true;}
         else if(START.equals(action)) {desired=true;opened=true;failure=null;urlFailure=null;resetRetries();}
-        else if(STOP.equals(action)) {pinCode=null;approval.close();desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();stopUrl();}
+        else if(STOP.equals(action)) {pinCode=null;approval.close();desired=false;opened=true;bootSession=false;failure=null;urlFailure=null;downloads.cancel();relay.stop();stopUrl();}
         else if(BOOT.equals(action)) {desired=prefs.bootAutoStart();bootSession=desired;opened=true;}
         else if(RESTART.equals(action)) {name=prefs.name();resetRetries();if(session!=null)stopNative();}
         else if(CONFIGURE.equals(action)) {
@@ -308,6 +364,14 @@ public final class LegacyReceiverService extends Service {
         client=null;observer=null;visible=false;target=null;bindSurface();reconcile();
     }
     private void bindSurface() {
+        if(relayOutput) {
+            if(relay.playback()!=null && (session==null || parkedNative==session)) {
+                if(relayBoundPlayback==relay.playback() && relayBoundTarget==target)return;
+                relayBoundPlayback=relay.playback();relayBoundTarget=target;
+                if(target==null)relay.surface(null,null);else {TextureTarget owned=target;relay.surface(owned.acquire(),owned::retired);}
+            }
+            return;
+        }
         if(urlRequested) {
             if(urlPlayer!=null && !urlStopping) {
                 if(target==null)urlPlayer.surface(null,null);
@@ -341,7 +405,7 @@ public final class LegacyReceiverService extends Service {
         if(session!=null)session.audioFocusGain(systemGain);
         bindSurface();
     }
-    private boolean wanted() {return (desired || urlRequested || downloads!=null && downloads.active()) && (visible || prefs.background() || bootSession || subtitlePicker!=0);}
+    private boolean wanted() {return (desired || urlRequested || relay!=null && relay.engaged() || downloads!=null && downloads.active()) && (visible || prefs.background() || bootSession || subtitlePicker!=0);}
     /** Internal protocol entry point. Validate before disturbing the active receiver. */
     void loadUrl(LegacyUrlRequest request) {
         loadUrl(request,Protocol.LOCAL);
@@ -349,6 +413,7 @@ public final class LegacyReceiverService extends Service {
     private void loadUrl(LegacyUrlRequest request,Protocol protocol) {
         if(request==null)throw new IllegalArgumentException("Missing media request");
         if(destroyed || !(visible || prefs.background() || subtitlePicker!=0))throw new IllegalStateException("Receiver is unavailable");
+        relay.stop();
         currentUrlRequest=request;
         urlRequestEpoch++;pendingUrl=request;urlPlay=true;urlRequested=true;urlFailure=null;urlGain=urlSpeed=1;urlOwner=protocol;
         urlStreamSession=session;urlStreamEpoch=session==null?0:session.streamEpoch();
@@ -410,8 +475,9 @@ public final class LegacyReceiverService extends Service {
         if(!changed)return;
         resetRetries();failure=null;
         if(hadNetworkState) {
-            recovering=true;record(getString(network==null?R.string.network_waiting:R.string.network_available));
-            if(!prefs.networkRecovery()) {
+            relay.stop();
+            recovering=desired || session!=null;record(getString(network==null?R.string.network_waiting:R.string.network_available));
+            if(!prefs.networkRecovery() && (desired || session!=null)) {
                 desired=false;prefs.serviceRequested(false);
                 failure=new java.net.SocketException("Local network changed; start the receiver again");
             }
@@ -421,19 +487,21 @@ public final class LegacyReceiverService extends Service {
     }
     private void reconcile() {
         if(destroyed)return;
-        if(wanted() && reconnect.initialized() && !reconnect.online() && !prefs.networkRecovery()) {
+        if((visible || wanted()) && watcher==null)watcher=new LegacyNetworkWatcher(this,main,this::networkChanged);
+        if(desired && wanted() && reconnect.initialized() && !reconnect.online() && !prefs.networkRecovery()) {
             desired=false;prefs.serviceRequested(false);failure=new java.net.SocketException("No local network is available");
         }
         if(wanted()) {
             promote();
-            if(watcher==null)watcher=new LegacyNetworkWatcher(this,main,this::networkChanged);
             if(session==null && desired) {
                 busy=!reconnect.initialized();
                 if(reconnect.canStart(SystemClock.elapsedRealtime()))startNative();
             }
-            if(urlRequested)prepareUrlOutput();
+            if(urlRequested && !relayOutput)prepareUrlOutput();
+            else if(relayOutput && relay.state().getReceiving())prepareRelayOutput();
         } else {
-            closeWatcher();
+            relay.stop();
+            if(!visible)closeWatcher();
             if(urlRequested)stopUrl();
             else if(session!=null)stopNative();else {busy=false;demote();stopSelf();}
         }
@@ -523,7 +591,7 @@ public final class LegacyReceiverService extends Service {
             return receiver==null?0:Math.max(receiver.connectionCount(),
                 receiver.mirroring() || receiver.audioActive() || receiver.media().active || receiver.controls().identified?1:0);
         }
-        @Override public boolean getRelayReceiving() {return false;}
+        @Override public boolean getRelayReceiving() {return relay.receiving();}
         @Override public Protocol getMediaOwner() {return valid()?networkState.owner:null;}
         @Override public boolean getMediaActive() {return valid() && networkState.active;}
         @Override public PlaybackInfo getPlaybackInfo() {return valid()?networkState.info:EMPTY_NETWORK.info;}
@@ -615,6 +683,7 @@ public final class LegacyReceiverService extends Service {
             @Override public void videoStopped() {post(()-> {video=false;publish();});}
             @Override public void streamChanged() {post(()-> {
                 if(stopping)return;
+                if(relay.receiving() && session!=null && (session.mirroring() || session.audioActive() || session.connectionCount()>0))relay.stop();
                 if(session!=null && (session.mirroring() || session.audioActive()))pinCode=null;
                 if(urlRequested && session!=null && (session!=urlStreamSession || session.streamEpoch()>urlStreamEpoch) &&
                     (session.mirroring() || session.audioActive()))stopUrl();
@@ -658,11 +727,17 @@ public final class LegacyReceiverService extends Service {
                 mediaFailure=current;publish();
             });}
         },prefs.options(),selectedNetwork);
-        session.capture(capture);session.audioFocusGain(0);bindSurface();session.start();
+        session.capture(new LegacyReceiverSession.Capture() {
+            public boolean active() {return capture.active() || relay.active();}
+            public void video(byte[] bytes,long pts,int width,int height) {capture.video(bytes,pts,width,height);relay.video(bytes,pts,width,height);}
+            public void audio(short[] pcm,int offset,int count,long pts) {capture.audio(pcm,offset,count,pts);relay.audio(pcm,offset,count,pts);}
+            public void ended() {capture.ended();relay.ended();}
+        });session.audioFocusGain(0);bindSurface();session.start();
     }
     private void stopNative() {pinCode=null;approval.close();main.removeCallbacks(stable);video=false;if(!stopping) {stopping=busy=true;session.stop();}}
     private void record(String text) {if(events.size()==100)events.removeFirst();events.addLast(text);}
     private void publish() {
+        relayAvailable=(visible || prefs.background() || bootSession) && reconnect.online() && !urlRequested && !destroyed && !stopping;
         LegacyUrlPlayer.State url=urlState();
         boolean mediaPending=urlRequested && (!urlStopping || pendingUrl!=null);
         if(nativeUrlSession!=null) {
@@ -676,14 +751,16 @@ public final class LegacyReceiverService extends Service {
         PlaybackInfo info=url==null?new PlaybackInfo(0,0,false,urlSpeed,false,mediaPending):
             new PlaybackInfo(url.positionMs,url.durationMs,url.playing,url.speed,false,url.buffering);
         networkState=new NetworkState(mediaPending?urlOwner:null,mediaPending,info);
-        systemMedia.update(mediaState(),controlState(),url!=null || running && !stopping && session!=null,
-            !urlRequested && session!=null && session.mirroring(),session!=null && session.audioActive(),url);
+        boolean relayReceiving=relay.receiving();
+        systemMedia.update(relayReceiving?LegacyMedia.inactive():mediaState(),relayReceiving?LegacyDacp.inactive():controlState(),relayReceiving || url!=null || running && !stopping && session!=null,
+            relayReceiving || !urlRequested && session!=null && session.mirroring(),relayReceiving || session!=null && session.audioActive(),url);
         if(promoted && !notificationBody().equals(notificationText))
             ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFICATION,notification());
         if(observer!=null)observer.changed(new State(this));
     }
     private void releaseWakeLock() {
         if(!destroyed && downloads!=null && downloads.active())return;
+        if(!destroyed && relay!=null && relay.engaged())return;
         if(wakeLock!=null) {if(wakeLock.isHeld())wakeLock.release();wakeLock=null;}
     }
     @android.annotation.SuppressLint("WakelockTimeout")
@@ -696,6 +773,7 @@ public final class LegacyReceiverService extends Service {
     }
     private String notificationBody() {
         if(pinCode!=null)return getString(R.string.notification_pin_text,pinCode);
+        if(relay!=null && relay.engaged() && !relay.message().isEmpty())return relay.message();
         if(wanted() && reconnect.initialized() && !reconnect.online())return getString(R.string.network_waiting);
         if(failure!=null)return getString(R.string.error_starting_server);
         if(urlFailure!=null)return getString(R.string.error_label);
@@ -727,6 +805,7 @@ public final class LegacyReceiverService extends Service {
         pinCode=null;
         approval.close();
         if(capture!=null)capture.close();
+        if(relay!=null)relay.close();
         if(downloads!=null)downloads.close();
         if(systemMedia!=null)systemMedia.close();
         fcastEpoch++;

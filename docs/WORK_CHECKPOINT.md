@@ -1,5 +1,68 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — retransmissão integrada ao serviço e à interface
+
+`LegacyRelay` liga o transporte compartilhado a `LegacyRelayPlayback` e ao
+tap nativo de AVC/PCM. Ferramentas oferece receber, conectar e parar, com
+formulário por controle/toque e bordas de foco. Usa os recursos existentes
+nos 22 idiomas; os erros internos ficam nos diagnósticos, com mensagem
+traduzida na interface. O formulário reduz sua altura junto com a janela
+quando o teclado ocupa espaço, mantendo os botões fora da área rolável.
+
+A saída API17 usa MediaCodec/Surface e AudioTrack com o relógio PCM comum.
+Mantém um quadro de preparação antes da primeira Surface, fila AVC de
+4 MiB/16 quadros e PCM de 256 KiB/64 pacotes. Ganho/foco acorda o worker
+mesmo sem novos pacotes. O serviço estaciona o vídeo nativo antes de ligar
+a Surface da retransmissão e só o restaura depois de ambos os workers
+encerrarem e liberarem a saída. Cache de binding evita recriar o codec a
+cada atualização de estado. A captura de saída combina gravação e envio;
+as restrições DE/AT continuam no gravador/download, sem arquivo de relay.
+
+A retransmissão também pode funcionar com o receptor nativo desligado.
+O serviço observa a rede enquanto a tela está aberta e tem uma ação própria
+de início para manter a sessão sem Activity, preservando o pedido nativo
+desligado. Depois do fim da sessão solta a trava de energia e deixa de ser
+foreground quando não há outra função ativa. Mudança de rede com o receptor
+nativo desligado não deve produzir um erro falso de inicialização nativa.
+
+As integrações comprovaram imagem/PCM, relógio de áudio, foco,
+segundo plano/retorno com outra Activity, captura nativa de envio, tomada
+por espelhamento nativo e URL, parada local/global, modo independente e
+destruição/reabertura de todas as Activities. A sessão pendente usa um
+booleano do transporte, exposto somente na cópia gerada API17: mudar o
+idioma durante a conexão não encerra o serviço por comparar textos traduzidos.
+
+`--relay-app` passou nas duas edições, incluindo essa troca de idioma:
+`outputs/legacy-relay-app-locale-diagnostic/report.json` (geral) e
+`outputs/legacy-relay-app-final-deat-relay-app/report.json` (regional).
+Os SHA-256 dos APKs debug são, respectivamente,
+`96c7f8382187cfa597f47f4b1b7002c33b9ca7b4ac6e6f32515d20d96efdae89` e
+`346b80fc269b04fa9277ddc866804b4cecdf3677e5d327307e8d7e4126ab3df0`.
+Uma primeira rodada geral falhou esperando o handshake de envio;
+o teste ganhou diagnóstico do estado/par e passou na repetição, sem mudar
+o APK. Não foi estabelecida a causa dessa falha transitória.
+Ferramentas e formulário foram conferidos visualmente. Nenhuma TV física
+foi usada; todos os testes desinstalam as prévias ao terminar.
+
+A regressão anterior da mesma integração passou em transporte independente,
+URL/URL nativa, gravação, download, PIN, mídia do sistema, DLNA e FCast;
+relatórios `outputs/legacy-relay-app-regression-*/report.json` (para PIN,
+mídia do sistema, DLNA e FCast usar os diretórios `regression-final-*`).
+A primeira tentativa de PIN perdeu o servidor ADB isolado; a repetição
+passou após recuperá-lo. Os 18 recursos usados pela interface estão presentes
+nos 22 diretórios de idiomas. Build/check passou nas duas variantes;
+`audit_public_repo.py --history` não encontrou dados privados e
+`verify_brand.py` confirmou as 12 artes aprovadas.
+No APK geral final passaram novamente transporte independente, URL/retorno
+ao receptor e mídia do sistema (`outputs/legacy-relay-app-final-regression-*`).
+No regional final passaram as negativas de download e gravação
+(`outputs/legacy-relay-app-final-deat-download` e `-recording`).
+
+Ainda faltam outros formatos/transcodificação de download, produção
+(SDK/licença/assinatura), validação com emissores e Sticks reais e demais
+itens de paridade. Os testes de relay não comprovam High Profile ou 1080p
+físico: a imagem sintética decodificada é AVC Baseline de 160×90.
+
 ## API17 — canal e transporte de retransmissão compartilhados
 
 `SecureMirrorChannel` agora aceita a implementação de cifra. O motor JVM

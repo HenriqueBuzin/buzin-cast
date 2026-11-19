@@ -71,6 +71,8 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
                 line == "import io.github.jqssun.airplay.R" -> "import io.buzincast.legacy.R"
                 line == "    private val queue = ArrayBlockingQueue<MirrorPacket>(120)" ->
                     "    private val queue = io.buzincast.legacy.LegacyRelayQueue(120)"
+                line == "    private val alive = AtomicBoolean(false)" ->
+                    line + "\n    fun sessionActive(): Boolean = alive.get()"
                 line.trimStart().startsWith("val channel = SecureMirrorChannel(") ->
                     line.dropLast(1) + ", io.buzincast.legacy.LegacyMirrorCipher.INSTANCE)"
                 else -> line
@@ -104,6 +106,7 @@ val sharedTransport = tasks.register<SharedResourcesCopy>("syncSharedTransport")
         val relay = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/media/MirrorRelay.kt").readText()
         check(relay.lineSequence().count { it.trimStart().startsWith("val channel = SecureMirrorChannel(") && it.endsWith("))") } == 2 &&
             relay.contains("    private val queue = ArrayBlockingQueue<MirrorPacket>(120)") &&
+            relay.split("    private val alive = AtomicBoolean(false)").size == 2 &&
             relay.contains("import io.github.jqssun.airplay.R")) { "Review API17 relay crypto/resource/queue bindings: shared source changed" }
         val cast = rootProject.file("app/src/main/kotlin/io/github/jqssun/airplay/discovery/CastV2Receiver.kt").readText().replace("\r\n", "\n")
         listOf("    private fun tls(): SSLContext {", "    @Synchronized override fun start() {").forEach {

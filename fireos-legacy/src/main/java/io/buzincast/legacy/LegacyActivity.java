@@ -63,6 +63,8 @@ public final class LegacyActivity extends Activity {
     private LinearLayout captureLibrary;
     private String captureFilesKey;
     private LegacyMirrorCapture.State captureSnapshot;
+    private TextView relayStatus,relayDetails,relayAddress;
+    private Button relayListen,relayConnect,relayStop;
     private Button urlDownload,downloadCancel;
     private TextView downloadStatus;
     private LinearLayout downloadLibrary;
@@ -205,7 +207,7 @@ public final class LegacyActivity extends Activity {
             events.clear();events.addAll(state.events);
             if(!state.video)videoDismissed=false;
             video=state.video && !videoDismissed;videoWidth=state.width;videoHeight=state.height;
-            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();refreshDownloadUi();fitVideo();updateAwake();
+            shell.setVisibility(video?View.GONE:View.VISIBLE);refreshReceiverUi();refreshUrlUi();refreshCaptureUi();refreshDownloadUi();refreshRelayUi();fitVideo();updateAwake();
             refreshApproval(state.approval);
             if(state.approval==null || state.pin==null)refreshPin(state.pin);
         });
@@ -405,6 +407,7 @@ public final class LegacyActivity extends Activity {
     private void render() {
         if(pane==null)return;
         captureToggle=null;captureStatus=null;captureLibrary=null;captureFilesKey=null;captureSnapshot=null;
+        relayStatus=relayDetails=relayAddress=null;relayListen=relayConnect=relayStop=null;
         downloadStatus=null;downloadLibrary=null;downloadCancel=null;downloadFilesKey=null;
         receiverStatus=receiverLabel=diagnosticView=null;receiverToggle=null;
         senderControls=null;
@@ -523,6 +526,15 @@ public final class LegacyActivity extends Activity {
     }
     private void tools() {
         LinearLayout body=page(R.string.tab_tools);
+        addSpaced(body,text(this,getString(R.string.tools_other_tv),20,WHITE,true),-2);
+        addSpaced(body,text(this,getString(R.string.tools_relay_help),13,MUTED,false),-2);
+        relayAddress=text(this,"",13,MUTED,false);addSpaced(body,relayAddress,-2);
+        relayDetails=text(this,"",17,WHITE,true);relayDetails.setTag("relay-details");addSpaced(body,relayDetails,-2);
+        relayStatus=text(this,"",13,MUTED,false);relayStatus.setTag("relay-status");addSpaced(body,relayStatus,-2);
+        relayListen=button(this,R.string.tools_relay_receive,false,()-> {if(service!=null)service.listenRelay();});relayListen.setTag("relay-listen");addSpaced(body,relayListen,-2);
+        relayConnect=button(this,R.string.tools_relay_connect,false,this::relayConnectDialog);relayConnect.setTag("relay-connect");addSpaced(body,relayConnect,-2);
+        relayStop=button(this,R.string.tools_relay_stop,false,()-> {if(service!=null)service.stopRelay();});relayStop.setTag("relay-stop");addSpaced(body,relayStop,-2);
+        refreshRelayUi();
         if(BuildConfig.RECORDING_ENABLED) {
             addSpaced(body,text(this,getString(R.string.tools_record_title),20,WHITE,true),-2);
             addSpaced(body,text(this,getString(R.string.tools_record_help),13,MUTED,false),-2);
@@ -551,6 +563,49 @@ public final class LegacyActivity extends Activity {
             try {startActivity(new Intent().setComponent(new ComponentName("com.amazon.cast.sink","com.amazon.cast.sink.DisplayMirroringSinkActivity")));}
             catch(ActivityNotFoundException unavailable){Toast.makeText(this,R.string.tools_native_unavailable,Toast.LENGTH_LONG).show();}
         }),-2);
+    }
+    private void refreshRelayUi() {
+        if(relayStatus==null || service==null)return;
+        io.github.jqssun.airplay.media.MirrorRelay.State state=service.relay().state();
+        relayAddress.setText(receiverState==null || receiverState.address==null?"":getString(R.string.tools_this_tv_ip,receiverState.address));
+        relayDetails.setText(state.getListening()?getString(R.string.tools_relay_details,state.getPort(),state.getCode()):"");
+        relayStatus.setText(service.relay().message());relayListen.setEnabled(service.canListenRelay());relayConnect.setEnabled(service.canSendRelay());
+        relayStop.setEnabled(service.relay().engaged());
+    }
+    private void relayConnectDialog() {
+        Modal modal=dialog();LinearLayout outer=dialogBody(modal,Math.min(dp(this,500),Math.round(getResources().getDisplayMetrics().heightPixels*.9f)));
+        addSpaced(outer,text(this,getString(R.string.tools_relay_connect),20,WHITE,true),-2);
+        ScrollView scroll=new ScrollView(this);LinearLayout fields=column(this);scroll.addView(fields);outer.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        addSpaced(fields,text(this,getString(R.string.tools_relay_input_help),13,MUTED,false),-2);
+        EditText host=relayInput(fields,R.string.tools_other_tv_ip,InputType.TYPE_CLASS_PHONE,"relay-host");
+        EditText port=relayInput(fields,R.string.tools_port,InputType.TYPE_CLASS_NUMBER,"relay-port");
+        EditText code=relayInput(fields,R.string.tools_pairing_code,InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS,"relay-code");
+        Button connect=button(this,R.string.tools_connect,true,()-> {
+            if(service==null)return;
+            String address=host.getText().toString().trim(),pairing=io.buzincast.media.SecureMirrorChannel.Companion.normalizeCode(code.getText().toString());
+            if(address.isEmpty() || address.length()>253) {host.setError(getString(R.string.error_label));return;}
+            int number;try {number=Integer.parseInt(port.getText().toString());if(number<1 || number>65535)throw new NumberFormatException();}
+            catch(NumberFormatException invalid) {port.setError(getString(R.string.error_label));return;}
+            if(!pairing.matches("[A-HJ-NP-Z2-9]{12}")) {code.setError(getString(R.string.error_label));return;}
+            try {service.connectRelay(address,number,pairing);modal.dismiss();}
+            catch(IllegalArgumentException | IllegalStateException unavailable) {host.setError(getString(R.string.error_label));}
+        });connect.setTag("relay-submit");addSpaced(outer,connect,48);
+        Button cancel=button(this,R.string.tv_edit_cancel,false,modal::dismiss);cancel.setTag("relay-cancel");addSpaced(outer,cancel,48);
+        show(modal);
+        modal.layer.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)-> {
+            int height=Math.min(dp(this,500),Math.round((b-t)*.9f));
+            FrameLayout.LayoutParams size=(FrameLayout.LayoutParams)modal.body.getLayoutParams();
+            if(height>0 && size.height!=height) {size.height=height;modal.body.setLayoutParams(size);}
+        });
+        host.requestFocus();modal.keyboard=true;getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+    }
+    private EditText relayInput(LinearLayout parent,int label,int type,String tag) {
+        addSpaced(parent,text(this,getString(label),13,MUTED,false),-2);EditText input=new EditText(this);
+        input.setSingleLine();input.setTextColor(WHITE);input.setTextSize(18);input.setInputType(type);input.setTag(tag);
+        LegacyUi.focus(input,false);input.setPadding(dp(this,12),dp(this,6),dp(this,12),dp(this,6));input.setContentDescription(getString(label));
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(label==R.string.tools_port?5:label==R.string.tools_pairing_code?32:253)});
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);addSpaced(parent,input,48);return input;
     }
     private void refreshCaptureUi() {
         if(captureToggle==null || service==null)return;

@@ -1,5 +1,51 @@
 # Testes automatizados
 
+## Retransmissão integrada na prévia API17
+
+`tools/test_legacy_gestures.py --relay-app` exercita os controles reais de
+Ferramentas, serviço, transporte e saída AVC/PCM. A recepção usa o decodificador
+`LegacyAvcPlayer` e `AudioPlaybackClock`, com AudioTrack compatível com API17.
+O teste exige quadro decodificado no TextureView, avanço do playback head
+PCM, atraso de renderização dentro do orçamento do relógio de áudio, perda
+e recuperação de foco mesmo sem novos pacotes, segundo plano e retorno pelo
+atalho. A abertura pode criar outra Activity: o teste acompanha a instância
+real e exige que retome o mesmo serviço/sessão com a nova Surface.
+
+A superfície nativa é estacionada antes de entregar a saída à retransmissão.
+Só volta ao receptor depois de ambos os workers terminarem e a Surface
+anterior ser liberada. O teste verifica leases durante recepção, End remoto,
+parada local, tomada por espelhamento nativo e parada completa do receptor
+enquanto a Activity permanece vinculada; nesse último caso exige também
+liberação da trava de energia. O envio passa pelo tap nativo real, com AVC
+e PCM decodificado de ALAC; não injeta somente pacotes na fila do transporte.
+Um formato autenticado incompatível deve encerrar a recepção sem derrubar a UI.
+Há ainda tomada por vídeo URL, recepção com o servidor nativo desligado,
+destruição de todas as Activities durante essa sessão e reabertura do app,
+além de conexão de envio antes de iniciar o receptor nativo. Um evento de
+rede com recuperação desativada e servidor nativo desligado não pode gerar
+erro falso desse servidor. O modo independente deve liberar sua trava de
+energia depois de terminar, sem depender da destruição do serviço.
+Durante a conexão independente, a troca de idioma antes da resposta do par
+não pode encerrar o serviço: a propriedade da sessão usa um estado booleano
+do transporte, separado da mensagem traduzida. A cópia gerada para API17
+expõe esse estado sem alterar a implementação moderna compartilhada.
+
+O PCM fica limitado a 256 KiB/64 pacotes, e o AVC usa o orçamento existente
+de 4 MiB/16 quadros. Antes da primeira Surface há no máximo um quadro de
+preparação, para preservar o IDR durante a troca de saída. A perda de foco
+acorda o worker de áudio para aplicar volume sem depender de novos dados.
+O teste exporta renderizações nativas da tela Ferramentas e do formulário
+de conexão, com borda de foco; devem ser conferidas visualmente.
+
+O teste separado `--relay` continua sendo a testemunha criptográfica
+independente. `--relay-app` usa pares sintéticos locais para avaliar a
+integração e a decodificação, não uma sessão física entre duas TVs. HEVC,
+AVC acima do orçamento do primeiro Stick e PCM diferente de 44,1 kHz/stereo
+não passam pela saída antiga. As mensagens da UI usam os recursos traduzidos,
+sem expor exceções internas do backend como texto de instrução.
+A amostra decodificada é AVC Baseline de 160×90; não valida High Profile,
+1080p em hardware antigo, sessões longas ou sincronismo físico entre TVs.
+
 ## Transporte de retransmissão na prévia API17
 
 `tools/test_legacy_gestures.py --relay` usa o próprio `MirrorRelay.kt`
@@ -31,9 +77,9 @@ completos, resultado da instrumentação e ausência das threads de transporte.
 Os forwards ADB são removidos e os APKs são desinstalados na limpeza.
 Não registra códigos de pareamento no relatório do host.
 
-Isso valida o transporte de pacotes, não decodificação de retransmissão,
-sessão física, integração ao serviço ou controles da tela Ferramentas.
-Esses itens continuam necessários antes de oferecer a função na prévia.
+Esse comando valida o transporte de pacotes; a decodificação, o serviço e
+os controles da tela Ferramentas são avaliados separadamente por `--relay-app`.
+Sessões físicas entre TVs continuam pendentes.
 
 ## HTTPS na prévia API17
 
