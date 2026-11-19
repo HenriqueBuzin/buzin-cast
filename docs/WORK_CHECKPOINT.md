@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Pareamento AirPlay no Vega
+
+O espelhamento exibe um PIN gerado na abertura e exige verificação da
+chave antes de aceitar mídia. No VVD, o pacote recusou comandos sem
+pareamento e o núcleo ARM64 passou com um cliente PIN/SRP sintético.
+Ainda falta validar com um emissor Apple real. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Descoberta AirPlay no Vega
 
 O espelhamento experimental publica AirPlay e RAOP via DNS-SD ao abrir a

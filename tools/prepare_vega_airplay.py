@@ -34,7 +34,7 @@ def tree_digest(root):
 
 def prepare(destination=DESTINATION):
     patches = sorted(PATCHES.glob('*.patch'))
-    if len(patches) != 18:
+    if len(patches) != 19:
         raise RuntimeError('Update the pinned patch inventory before preparing Vega')
     specification = {
         'upstreamCommit': REVISION,
@@ -73,7 +73,7 @@ def prepare(destination=DESTINATION):
     except Exception:
         shutil.rmtree(stage, ignore_errors=True)
         raise
-    print('Prepared isolated Vega UxPlay source with 18 patches')
+    print('Prepared isolated Vega UxPlay source with 19 patches')
 
 
 if __name__ == '__main__':

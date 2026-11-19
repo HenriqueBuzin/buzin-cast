@@ -1,5 +1,23 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## PIN do espelhamento AirPlay — 19 de novembro de 2026
+
+Ao abrir **Testar vídeo AirPlay**, o receptor gera um PIN e o exibe com
+quatro dígitos. Os dois anúncios DNS-SD indicam que o pareamento exige
+PIN. O patch compartilhado 0019 permite que o receptor Vega exija SRP e
+verifique a chave assinante antes dos comandos de mídia. O controle fica
+vinculado ao socket verificado. O receptor limita novos desafios SRP
+por sessão e gera outro código ao reabrir a tela.
+
+O app no VVD recusou SETUP e volume antes do pareamento e encerrou o
+anúncio e o socket em dois ciclos. O núcleo ARM64, testado no mesmo VVD
+com um cliente sintético, recusou PIN incorreto, aceitou PIN correto,
+verificou a assinatura e liberou o volume só no socket pareado.
+Relatórios em `build/vega-airplay-pin-vvd` e
+`build/vega-airplay-pin-probe`. O ensaio de áudio isolado, lint,
+TypeScript, 63 testes Jest e as três validações de ABI também passaram.
+Ainda falta verificar o fluxo completo com um emissor Apple real.
+
 ## Descoberta do espelhamento AirPlay — 19 de novembro de 2026
 
 A opção **Testar vídeo AirPlay** anuncia `_airplay._tcp.local` e

@@ -3,13 +3,12 @@
 Port separado com SDK oficial 2.0.13986, React Native 0.83 e integrações C++23.
 Identidade `com.buzincast.tv`; logo e ícone aprovados preservados. As duas
 edições Fire OS mantêm sua interface nativa e o código já testado.
-O Vega ainda está em desenvolvimento: recebe FCast v2 experimental por URLs e
-tem anúncio DNS-SD implementado para `_fcast._tcp.local`. Há um teste manual
-AirPlay por URL em Estado do port. Espelhamento AirPlay, DLNA e Cast V2 ainda
-não estão disponíveis. O anúncio DNS-SD foi compilado, mas ainda aguarda
-teste no VVD e com emissores físicos.
+O Vega recebe FCast v2 experimental por URLs. O menu **Estado do port**
+oferece testes de AirPlay por URL, áudio e espelhamento. O espelhamento
+anuncia o receptor por DNS-SD e pede o PIN exibido na TV. DLNA e Cast V2
+estão pendentes.
 
-## Estado verificado em 18 de novembro de 2026
+## Estado verificado em 19 de novembro de 2026
 
 - VPKGs release ARM64, ARMv7 e x86_64 compilados e aprovados na validação ABI.
 - Aplicativo instalado e executado no VVD ARM64; controle, foco, páginas de
@@ -17,8 +16,7 @@ teste no VVD e com emissores físicos.
 - Sockets TCP/UDP, bind de rede e adesão multicast testados no sandbox.
 - Fontes compartilhadas UxPlay, libplist, llhttp e PlayFair compiladas com
   OpenSSL 3.5.9 LTS. Parser RTSP fragmentado, rejeição de mensagem inválida e
-  vetor AES-CTR NIST aprovados. O teste AirPlay por URL usa a sessão UxPlay nativa;
-  a saída de espelhamento ainda está pendente.
+  vetor AES-CTR NIST aprovados. Os modos AirPlay usam a sessão UxPlay nativa.
 - Página Mídia consulta o módulo público Vega Media Descriptor: o VVD informou
   zero resultados H.264/HEVC e um AAC. Lista vazia também pode indicar erro da
   consulta; esses números não comprovam reprodução ou capacidades de TVs físicas.
@@ -26,7 +24,7 @@ teste no VVD e com emissores físicos.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript, doctor e 56 testes Jest passaram.
+- Lint sem avisos, TypeScript e 63 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -47,7 +45,7 @@ sem descoberta ou PIN. Isso ainda não comprova recepção com iPhone/Mac, HLS p
 AirPlay ou espelhamento. Identidade/chave ficam apenas no sandbox.
 
 O nome do receptor pode ser editado em Configurações e é preservado no sandbox.
-Ele será usado no próximo anúncio FCast após ativar o receptor.
+Ele será usado no próximo anúncio FCast ou AirPlay.
 
 O menu permanece visível nas páginas de consulta/configurações e mantém a
 seleção destacada enquanto o foco está no conteúdo. Voltar restaura o último
@@ -65,12 +63,21 @@ Esse ensaio usa chaves públicas de teste; negociação completa e emissores App
 reais ainda precisam ser validados. Este modo é manual, sem descoberta, PIN
 ou vídeo.
 
+O modo **Estado do port → Testar vídeo AirPlay** gera um PIN de quatro
+dígitos ao abrir. O receptor anuncia `_airplay._tcp.local` e
+`_raop._tcp.local`, exige pareamento e verificação da chave e encerra o
+anúncio ao sair ou ir para segundo plano. A saída usa H.264 e AAC ou
+ALAC convertido para AAC. No VVD, os testes verificaram anúncio e
+encerramento, bloqueio de comandos sem PIN e transporte criptografado
+com amostras sintéticas. Ainda faltam testes de descoberta, pareamento e
+reprodução com um emissor Apple em aparelho físico.
+
 ## Ambiente e build
 
 O bundle inclui Shaka/MSE para HLS/DASH experimentais no FCast. Os hooks de build preparam a versão fixada pelo script
 `tools/prepare_vega_shaka.py`; precisam de Git, curl, Python 3.12+ e Java 21+.
 A distribuição gerada fica em `vega/generated` e não é versionada.
-Os hooks também preparam o UxPlay fixado com os 18 patches Buzin numa cópia
+Os hooks também preparam o UxPlay fixado com os 19 patches Buzin numa cópia
 isolada nessa pasta; inicialize os submódulos antes do primeiro build.
 
 

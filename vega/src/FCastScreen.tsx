@@ -14,6 +14,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
   const [listening, setListening] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [pin, setPin] = useState('');
   const [focus, setFocus] = useState('back');
   useEffect(() => {
     try {
@@ -21,7 +22,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
       receiver.current = protocol === 'fcast'
         ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening)
-        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url');
+        : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin);
     } catch {
       setFailed(true);
     }
@@ -52,9 +53,12 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
               : protocol === 'mirror'
-              ? 'Teste de vídeo H.264 com áudio AAC ou ALAC convertido, sem PIN. Se o receptor não aparecer no emissor, conecte pela porta TCP.'
+              ? 'Selecione o receptor no emissor e digite o PIN quando solicitado.'
               : 'Somente URLs por conexão manual na rede local. Sem descoberta, PIN ou espelhamento de tela/áudio nesta etapa.'}
           </Text>
+          {protocol === 'mirror' && listening && !failed && pin !== '' && (
+            <Text style={styles.pin}>PIN {pin}</Text>
+          )}
           <Text style={styles.details}>Voltar desativa este receptor.</Text>
         </View>
       ) : (
@@ -123,6 +127,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {color: 'white', fontSize: 26, marginBottom: 12},
+  pin: {color: 'white', fontSize: 36, fontWeight: 'bold'},
   waiting: {flex: 1, maxWidth: 820, justifyContent: 'center', gap: 20},
   video: {width: '80%', flex: 1, backgroundColor: 'black'},
   details: {

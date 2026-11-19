@@ -68,7 +68,7 @@ def main():
             time.sleep(0.15)
         raise RuntimeError(f'Native {mode} observation did not match: {last}')
 
-    def request(method, sequence, body=b'', path='/audio', content_type='text/parameters'):
+    def request(method, sequence, body=b'', path='/audio', content_type='text/parameters', status=200):
         client.sendall(
             f'{method} rtsp://127.0.0.1{path} RTSP/1.0\r\nCSeq: {sequence}\r\n'
             f'Content-Type: {content_type}\r\nContent-Length: {len(body)}\r\n\r\n'.encode() + body)
@@ -78,7 +78,7 @@ def main():
             if not packet or len(response) + len(packet) > 16384:
                 raise RuntimeError('Invalid RTSP response')
             response += packet
-        if not response.startswith(b'RTSP/1.0 200 '):
+        if not response.startswith(f'RTSP/1.0 {status} '.encode()):
             raise RuntimeError(f'RTSP command failed: {response[:80]!r}')
         header, data = response.split(b'\r\n\r\n', 1)
         content_length = re.search(rb'(?:^|\r\n)Content-Length: (\d+)', header, re.I)
@@ -129,7 +129,8 @@ def main():
                 feature_bits = int(airplay['features'].split(',')[0], 16)
                 identity = (airplay['deviceid'], airplay['pk'])
                 if (not feature_bits & (1 << 7) or raop['ft'] != airplay['features'] or
-                        raop['pk'] != identity[1] or raop['cn'] != '1,2,3' or airplay['pw'] != 'false'):
+                        raop['pk'] != identity[1] or raop['cn'] != '1,2,3' or
+                        airplay['pw'] != 'true' or raop['pw'] != 'true'):
                     raise RuntimeError('AirPlay and RAOP identity records disagree')
                 if first_identity is not None and first_identity != identity:
                     raise RuntimeError('AirPlay identity changed when reopening the receiver')
@@ -142,17 +143,19 @@ def main():
                 request('OPTIONS', 6)
             if waiting.get('volumeDb') != 0:
                 raise RuntimeError('New receiver session inherited stale volume')
-            request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
-            gain = observation(lambda value: value.get('volumeDb') == -18)
             if args.video:
-                request('SET_PARAMETER', 3, b'volume: 5.0\r\n')
-                response = request('GET_PARAMETER', 4, b'volume\r\n')
-                if not re.search(rb'volume:\s*-18\.0+', response):
-                    raise RuntimeError('Mirror receiver did not preserve the last valid gain')
-            request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
-            muted = observation(lambda value: value.get('volumeDb') == -144)
-            if args.video and muted['generation'] != waiting['generation']:
-                raise RuntimeError('An auxiliary connection invalidated the mirror generation')
+                request('SET_PARAMETER', 2, b'volume: -18.000000\r\n', status=470)
+                request('SETUP', 3, status=470)
+                protected = observation(lambda value: value.get('phase') == 'waiting')
+                if protected['generation'] != waiting['generation'] or protected['volumeDb'] != 0:
+                    raise RuntimeError('An unpaired request modified the mirror session')
+                cycle_result = {'authenticationRequired': True}
+            else:
+                request('SET_PARAMETER', 2, b'volume: -18.000000\r\n')
+                gain = observation(lambda value: value.get('volumeDb') == -18)
+                request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
+                muted = observation(lambda value: value.get('volumeDb') == -144)
+                cycle_result = {'gain': gain, 'muted': muted}
             shell('inputd-cli', 'button_press', 'KEY_BACK' if cycle == 0 else 'KEY_HOMEPAGE')
             stopped = observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
             if args.video and stopped.get('advertising') is not False:
@@ -160,7 +163,7 @@ def main():
             if client.recv(1) != b'':
                 raise RuntimeError('Leaving the screen did not close the native control socket')
             client.close(); client = None
-            cycles.append({'waiting': waiting, 'gain': gain, 'muted': muted, 'stopped': stopped,
+            cycles.append({**cycle_result, 'waiting': waiting, 'stopped': stopped,
                            'controlSocketClosed': True, 'rtspIdentityVerified': args.video})
         report.update(passed=True, cycles=cycles)
         print(json.dumps(report, indent=2))

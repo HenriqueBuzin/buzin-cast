@@ -15,6 +15,7 @@
 extern "C" {
 #include "raop.h"
 #include "android_dnssd_shim.h"
+#include "pairing.h"
 }
 
 struct AirPlaySession::Impl {
@@ -89,6 +90,8 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   raop_callbacks_t callbacks{};
   callbacks.cls = impl.get();
   callbacks.mirror_end_on_eof = video != nullptr;
+  const bool advertise = video && !loopbackOnly;
+  callbacks.require_verified_pin = advertise;
   callbacks.conn_admit = [](void* cls, const char* peer) {
     in_addr ip{};
     if (!peer || inet_pton(AF_INET, peer, &ip) != 1) return 0;
@@ -179,13 +182,19 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
     if (audio) audio->start();
     if (video) video->start(true);
     impl->receiver = raop_init(&callbacks);
-    if (!impl->receiver || raop_init2(impl->receiver, 1, identity.c_str(), keyPath.c_str()) != 0)
+    if (!impl->receiver || raop_init2(impl->receiver, advertise ? 0 : 1, identity.c_str(), keyPath.c_str()) != 0)
       throw std::runtime_error("Could not initialize AirPlay session");
     raop_set_log_level(impl->receiver, 0);
+    if (advertise) {
+      const int pin = random_pin();
+      if (pin < 0 || pin > 9999) throw std::runtime_error("Could not generate AirPlay PIN");
+      raop_set_plist(impl->receiver, "pin", 10000 + pin);
+      impl->simple(AirPlayEvent::Kind::Pin, pin);
+    }
     int error = 0;
-    impl->discovery = dnssd_init(name.c_str(), static_cast<int>(name.size()), address, sizeof(address), &error, 0);
+    impl->discovery = dnssd_init(name.c_str(), static_cast<int>(name.size()),
+        address, sizeof(address), &error, advertise ? 1 : 0);
     if (!impl->discovery) throw std::runtime_error("Could not initialize AirPlay identity");
-    const bool advertise = video && !loopbackOnly;
     for (int bit = 0; bit < 64; ++bit) dnssd_set_airplay_features(impl->discovery, bit, 0);
     if (advertise) {
       // H.264 mirroring, audio, FairPlay, and legacy pairing.

@@ -103,6 +103,7 @@ std::string BuzinNetwork::pollAirPlayCommand() {
       case AirPlayEvent::Kind::Seek: kind = "seek"; break;
       case AirPlayEvent::Kind::Rate: kind = "rate"; break;
       case AirPlayEvent::Kind::Volume: kind = "volume"; break;
+      case AirPlayEvent::Kind::Pin: kind = "pin"; break;
       case AirPlayEvent::Kind::Stop: case AirPlayEvent::Kind::Reset: kind = "stop"; break;
       case AirPlayEvent::Kind::Audio: case AirPlayEvent::Kind::Video:
         throw std::runtime_error("AirPlay mirroring output is not available");

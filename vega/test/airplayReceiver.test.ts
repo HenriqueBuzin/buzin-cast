@@ -25,12 +25,13 @@ function setup(mode: 'url' | 'mirror' = 'url') {
   jest.mocked(Network.pollAirPlayCommand).mockImplementation(() => packets.shift() || '');
   const failed = jest.fn();
   const active = jest.fn();
+  const onPin = jest.fn();
   const starts = jest.mocked(Network.startAirPlayUrl).mock.calls.length;
-  const receiver = createAirPlayReceiver(active, jest.fn(), failed, undefined, mode);
+  const receiver = createAirPlayReceiver(active, jest.fn(), failed, undefined, mode, onPin);
   expect(Network.startAirPlayUrl).toHaveBeenCalledTimes(starts);
   ready(player as unknown as VideoPlayer);
   const send = (kind: string, value = 0, url = '') => {packets.push(JSON.stringify({kind, value, url})); jest.advanceTimersByTime(50);};
-  return {receiver, send, change, failed, active, player, media};
+  return {receiver, send, change, failed, active, player, media, onPin};
 }
 
 test('encaminha URL e controles ao player e devolve observação real', () => {
@@ -63,10 +64,12 @@ test('URL inválida encerra o receptor sem entregar arquivos locais ao player', 
 });
 
 test('vídeo nativo troca URLs locais sem bloquear mudanças rápidas de formato', () => {
-  const {receiver, send, media, failed} = setup('mirror');
+  const {receiver, send, media, failed, onPin} = setup('mirror');
   expect(Network.startAirPlayVideo).toHaveBeenCalledTimes(1);
   expect(Network.startAirPlayUrl).not.toHaveBeenCalled();
   const url = `http://127.0.0.1:43210/${'a'.repeat(64)}.mp4`;
+  send('pin', 42);
+  expect(onPin).toHaveBeenCalledWith('0042');
   send('volume', 0.125);
   expect(media.setVolume).toHaveBeenLastCalledWith(0.125);
   send('mirror', 0, url);
