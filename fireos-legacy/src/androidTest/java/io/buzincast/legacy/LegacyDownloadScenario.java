@@ -41,11 +41,12 @@ final class LegacyDownloadScenario {
         });
     }
     static void check(Instrumentation runner,Activity activity) throws Exception {
+        if(BuildConfig.VIDEO_DOWNLOAD_ENABLED)LegacyPcmScenario.check();
         LegacyReceiverService service=(LegacyReceiverService)field(activity,"service");LegacyDownloads downloads=service.downloads();
         try(Fixture fixture=new Fixture(runner)) {
             Map<String,String> headers=Collections.singletonMap("X-Download-Fixture","active");
             String base="http://127.0.0.1:"+fixture.server.getLocalPort();
-            String[] names={"movie.mp4","movie.m3u8","movie.mpd","two-periods.mpd","bframes.mp4","repaired-bframes.mp4","vp8-vorbis.webm","avc-vorbis.mkv","vp8-aac.mkv"};
+            String[] names={"movie.mp4","movie.m3u8","movie.mpd","two-periods.mpd","bframes.mp4","repaired-bframes.mp4","vp8-vorbis.webm","avc-vorbis.mkv","vp8-aac.mkv","avc-vorbis-96k.mkv","avc-vorbis-51.mkv"};
             for(int index=0;index<names.length;index++) {
                 String name=names[index];LegacyUrlRequest request=new LegacyUrlRequest(base+"/"+name,2000,headers);
                 android.util.Log.i("LegacyDownloadScenario","Checking "+name);

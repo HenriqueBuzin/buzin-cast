@@ -1,5 +1,47 @@
 # Retomada — 19 de novembro de 2026
 
+## API17 — reamostragem e downmix dos downloads
+
+`LegacyPcmConverter` agora possui o libswresample estaticamente incluído,
+habilitado somente quando `BUZIN_RAOP_LEGACY_AUDIO` está ativo. Mantém o
+build moderno com sua configuração anterior. Java serializa o handle e
+o JNI valida taxas, máscara/permutação, buffers diretos, contagens e limites
+antes de acessar/alocar. Entrada: PCM intercalado U8/S16/S24/S32/float,
+1–8 canais e 1–384 kHz. Cada chamada aceita até 16.384 quadros e limita a
+saída a 262.144 quadros. Packed S24 é expandido para S32 sem alterar escala.
+
+O exportador alimenta o AAC mono/estéreo em uma taxa válida entre 8 e 48 kHz,
+com contador de quadros para timestamps, contrapressão e drenagem do filtro
+antes do EOS do encoder. Downmix inclui centro/LFE, normaliza o ganho e
+usa as posições da máscara de canais. O primeiro teste 5.1 detectou a ordem
+Vorbis crua do `OMX.google.vorbis.decoder`: o SoftVorbis/Tremolo AOSP até
+API25 entrega essa ordem sem máscara. O adaptador limita a permutação a
+esse componente/versões sem máscara; os demais mantêm a ordem declarada.
+
+Passaram os onze downloads, reprodução local, decodificação FFmpeg/ffprobe,
+conversão/cancelamento/reinício e os testes JNI de formatos, entradas
+inválidas, identidade, relação fracionária, pacotes, oito falantes e filtro.
+O teste 96→48 kHz preservou 880/1760 Hz e suprimiu o alias do tom de 30 kHz;
+os seis falantes 5.1 foram roteados corretamente, sem saturar a cauda alta.
+Evidência geral: `outputs/legacy-pcm-final-download/report.json` e regressão
+ALAC/gravação em `outputs/legacy-pcm-final-recording/report.json`.
+Os dois builds `-Check` passaram; os gates DE/AT de download/gravação estão
+em `outputs/legacy-pcm-final-deat-*/report.json`.
+
+SHA-256 dos APKs debug finais:
+
+- Geral: `9f305564d3884fcb1737bf3023455f0a7b300a4d181cb6b8717ef95b6457210c`.
+- DE/AT: `99acc881b4511f3224d2953db5d19960c4322411b471a9aebf98880b351e77a9`.
+
+O próximo ponto concreto é a compensação do atraso inicial do áudio:
+`outputs/legacy-pcm-final-timing.json` compara o início do sinal nas duas
+origens e nos MP4s e mede cerca de 42,65–42,67 ms acrescentados à conversão
+a 48 kHz. Investigar priming de decoder/encoder e metadados/timestamps;
+não corrigir usando uma constante arbitrária para todos os componentes.
+Também permanecem layouts YUV proprietários, produção/licença/assinatura,
+validação com emissores e Sticks antigos reais e demais itens de paridade.
+Nenhuma TV física foi usada; os APKs continuam prévias debug isoladas.
+
 ## API17 — conversão de download com codecs do sistema
 
 `LegacyUrlDownload` mantém a cópia direta de faixas aceitas pelo muxer e

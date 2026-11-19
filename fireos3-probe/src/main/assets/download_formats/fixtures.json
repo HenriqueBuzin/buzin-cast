@@ -22,7 +22,10 @@
     "chunk-1-4.m4s": "c9e57959e8d40f817281707ae2c1aa30f802cfc8500b45c204d5cbe18a2fec10",
     "vp8-vorbis.webm": "f5e94436f3b32ecace060ed40663ae8d9f05af5fb84624475aaaab35dc5d9bd8",
     "avc-vorbis.mkv": "8c4eed9194b6c65e47ad9a449720152c8fd52aba421b7acf5d5563c1cef23c0e",
-    "vp8-aac.mkv": "59ab60b4b04a737f0d1ca4d08b71bc821754d79e1083e334571491d2be31598a"
+    "vp8-aac.mkv": "59ab60b4b04a737f0d1ca4d08b71bc821754d79e1083e334571491d2be31598a",
+    "avc-vorbis-96k.mkv": "125c43e9aded80fb22511498f2e7b7c841c98c60e71c789fc2c4074f0bae4d32",
+    "avc-vorbis-51.mkv": "4d1961ed0eb712517ce59ad74b620fc7a90f765f3b967fc00b7fe03ca19d874e"
   },
-  "conversion_scope": "Eight-second synthetic VP8/Vorbis pattern and 880 Hz tone, plus mixed passthrough/conversion tracks"
+  "conversion_scope": "Eight-second synthetic VP8/Vorbis pattern and 880 Hz tone, plus mixed passthrough/conversion tracks",
+  "pcm_scope": "Synthetic 96 kHz stereo with above-Nyquist component; 5.1 isolated speakers and correlated loud tail"
 }

@@ -223,7 +223,7 @@ filha local, limpeza de `.part` e preservação de arquivos preexistentes.
 Com `--package com.buzincast.tv.deat.legacy.preview`, exige ausência do
 botão e bloqueio de início/listagem/worker na edição restrita.
 
-`--ffprobe <executável>` verifica as faixas e contagens dos nove MP4s
+`--ffprobe <executável>` verifica as faixas e contagens dos onze MP4s
 sintéticos. `--ffmpeg <executável>` exige decodificação sem mensagens de
 erro, inclusive erros de timestamp que retornam status zero. Os dois
 arquivos com quadros B (exportação e reexportação pelo leitor Media3)
@@ -239,9 +239,31 @@ com os quatro codecs ativos, exige que todos tenham sido liberados e que
 nenhum arquivo final/parcial reste; depois reinicia a conversão no mesmo
 exportador. O marcador `download_conversion` impede usar um APK de teste antigo.
 
+Os dois casos seguintes usam Vorbis estéreo a 96 kHz (tons úteis e outro
+de 30 kHz) e Vorbis 5.1 com seis falantes isolados por segundo, seguidos de
+uma cauda alta correlacionada. O MP4 deve ter AAC estéreo a 48 kHz, manter
+os tons de 880/1760 Hz, rejeitar o alias de 18 kHz do tom acima de Nyquist,
+rotear cada falante e normalizar o ganho sem saturação. A origem também é
+decodificada para confirmar que realmente contém o tom de 30 kHz.
+
+`LegacyPcmScenario` exercita o JNI real no emulador: identidade PCM,
+relação fracionária 48→44,1 kHz sem dependência da divisão em pacotes,
+filtragem float 96→48 kHz e drenagem com contagem exata de quadros,
+8/24/32 bits, oito posições de falantes, permutação de canais e ganho.
+Exige rejeição de taxas/máscaras/permutação inconsistentes, buffer heap,
+offset/contagem fora dos limites e float não finito. O marcador
+`download_pcm` comprova a execução desses casos. O proprietário Java
+serializa conversão/fechamento, e o JNI valida limites antes de acessar memória.
+
 `LegacyDownloadTranscoder` usa os buffers síncronos do MediaCodec API16,
-sem Surface ou AudioTrack. PCM 16-bit mono/estéreo de 8 a 48 kHz é dividido
-entre os buffers do AAC-LC; vídeo YUV420 planar/NV12 é copiado para o encoder
+sem Surface ou AudioTrack. PCM é normalizado pelo libswresample estático
+habilitado somente no build legado, com filtro de 64 taps. Aceita PCM
+intercalado U8/S16/S24/S32/float, 1–8 canais e 1–384 kHz; o AAC-LC recebe
+mono/estéreo na taxa suportada mais próxima entre 8 e 48 kHz. Máscaras
+de posições de falantes determinam o downmix, incluindo centro/LFE e ganho
+normalizado. A ordem Vorbis é adaptada somente para `OMX.google.vorbis.decoder`
+até API25 sem máscara de saída, conforme o SoftVorbis/Tremolo dessas versões.
+Vídeo YUV420 planar/NV12 é copiado para o encoder
 AVC Baseline com um nível anunciado que comporte resolução/fps/bitrate.
 A entrada do AVC é alinhada e tem o mínimo QCIF exigido pelo encoder do
 Android 4.2. A área visível original é preservada por recorte padrão no SPS,
@@ -252,7 +274,7 @@ Configuração do codec pode vir no evento de formato ou em buffers separados.
 Formatos MP4 já aceitos pelo muxer seguem por cópia direta.
 
 Esses resultados não provam codecs/cores proprietários de Sticks físicos.
-Ainda não há reamostragem/downmix de PCM nem conversão de layouts YUV
+Ainda falta validar/compensar o atraso inicial dos codecs e converter layouts YUV
 proprietários; um formato sem os codecs/limites necessários falha sem publicar
 o arquivo parcial. Conteúdo protegido continua sendo recusado.
 

@@ -51,8 +51,12 @@ as demais com MediaCodec em buffers API16: AVC Baseline e AAC-LC, sem saída
 de vídeo/áudio durante o download. VP8/Vorbis e combinações com uma faixa
 preservada são verificados no emulador. O recorte AVC mantém a imagem visível
 quando o encoder exige padding. A conversão depende dos codecs do aparelho,
-YUV420 planar/NV12 e PCM 16-bit mono/estéreo de 8–48 kHz; reamostragem,
-downmix e layouts proprietários continuam pendentes.
+YUV420 planar/NV12 e PCM intercalado de 1–8 canais: 8/16/24/32 bits ou float.
+O libswresample incluído normaliza o PCM de 1–384 kHz para uma taxa AAC
+de 8–48 kHz, preservando mono/estéreo e reduzindo multicanal para estéreo
+com ganho normalizado. Reordena a saída Vorbis do componente Google antigo
+quando necessário. Layouts YUV proprietários, compensação do atraso inicial
+dos codecs e validação física continuam pendentes.
 
 A prévia também integra a retransmissão Buzin-a-Buzin em Ferramentas, com
 recepção por código, conexão manual à outra TV e parada. Reaproveita o

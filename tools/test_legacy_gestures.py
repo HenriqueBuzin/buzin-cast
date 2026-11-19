@@ -186,9 +186,11 @@ def main():
         if args.pin:capture_native_view('legacy-pin.b64','pin-ui.png')
         if args.download and not args.package.endswith('deat.legacy.preview'):
             if 'INSTRUMENTATION_RESULT: download_conversion=codec_buffers_cropped_avc_aac_cancel_restart' not in result:raise AssertionError('Test APK did not exercise conversion cancellation/restart')
+            if 'INSTRUMENTATION_RESULT: download_pcm=native_filter_channel_masks_chunking_and_bounds' not in result:raise AssertionError('Test APK did not exercise native PCM normalization')
             report['download_conversion_cancel_restart']='pass'
+            report['download_native_pcm_filter_and_bounds']='pass'
             artifacts=[]
-            for index in range(9):
+            for index in range(11):
                 payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
                 if payload[4:8]!=b'ftyp':raise AssertionError('Download artifact was not MP4')
                 path=args.output/f'synthetic-download-{index}.mp4';path.write_bytes(payload)
@@ -206,7 +208,7 @@ def main():
                         if actual_frames!=expected_frames or len(actual_frames)!=120:raise AssertionError('B-frame export changed decoded video frames')
                         record['decoded_frame_hashes']='120 identical to the source'
                     if index>=6:
-                        name={6:'vp8-vorbis.webm',7:'avc-vorbis.mkv',8:'vp8-aac.mkv'}[index]
+                        name={6:'vp8-vorbis.webm',7:'avc-vorbis.mkv',8:'vp8-aac.mkv',9:'avc-vorbis-96k.mkv',10:'avc-vorbis-51.mkv'}[index]
                         original=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats'/name
                         def rgb(media):
                             return subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:v:0','-fps_mode','passthrough','-pix_fmt','rgb24','-f','rawvideo','-'],timeout=30)
@@ -222,12 +224,42 @@ def main():
                             channel=pcm[4410:-4410:2];frequency=sum(a<=0<b for a,b in zip(channel,channel[1:]))*44100/len(channel)
                             if not 860<=frequency<=900:raise AssertionError('Converted audio changed its pitch: '+str(frequency))
                             record['converted_audio_tone_hz']=round(frequency,2)
+                        if index in (9,10):
+                            import array,math
+                            def pcm(media,rate):
+                                return array.array('h',subprocess.check_output([str(args.ffmpeg),'-hide_banner','-loglevel','error','-i',str(media),'-map','0:a:0','-ar',str(rate),'-ac','2','-f','s16le','-'],timeout=30))
+                            sound=pcm(path,48000)
+                            if not 7.8*48000*2<=len(sound)<=8.3*48000*2:raise AssertionError('Normalized audio duration changed')
+                            def amplitude(samples,rate,channel,frequency,start,end):
+                                window=samples[int(start*rate)*2+channel:int(end*rate)*2:2]
+                                real=sum(value*math.cos(2*math.pi*frequency*i/rate) for i,value in enumerate(window))
+                                imag=sum(value*math.sin(2*math.pi*frequency*i/rate) for i,value in enumerate(window))
+                                return 2*math.hypot(real,imag)/(len(window)*32768)
+                            if index==9:
+                                source=pcm(original,96000)
+                                high=amplitude(source,96000,0,30000,1,2)
+                                left=amplitude(sound,48000,0,880,1,2);right=amplitude(sound,48000,1,1760,1,2)
+                                alias=max(amplitude(sound,48000,ch,18000,1,2) for ch in (0,1))
+                                if high<0.04 or min(left,right)<0.05 or alias>0.005:raise AssertionError('Resampling lost its wanted tone or aliased above-Nyquist audio')
+                                if amplitude(sound,48000,1,880,1,2)>left/10 or amplitude(sound,48000,0,1760,1,2)>right/10:raise AssertionError('Resampling changed stereo routing')
+                                record['resample_96k_to_48k']={'source_30k_amplitude':round(high,5),'alias_18k_amplitude':round(alias,5),'left_880':round(left,5),'right_1760':round(right,5)}
+                            else:
+                                levels=[]
+                                for speaker,tone in enumerate((440,550,660,110,770,880)):
+                                    left=amplitude(sound,48000,0,tone,speaker+.2,speaker+.8);right=amplitude(sound,48000,1,tone,speaker+.2,speaker+.8)
+                                    if max(left,right)<0.025:raise AssertionError('Downmix dropped a speaker: '+str(speaker))
+                                    if speaker in (0,4) and left<right*10 or speaker in (1,5) and right<left*10 or speaker in (2,3) and not 0.8<left/right<1.25:raise AssertionError('Downmix routed a speaker incorrectly: '+str(speaker))
+                                    levels.append([round(left,5),round(right,5)])
+                                loud=sound[7*48000*2:]
+                                if not 10000<max(map(abs,loud),default=0)<32000:raise AssertionError('Correlated downmix clipped or lost gain')
+                                record['downmix_51_speakers_and_normalized_gain']=levels
                 if args.ffprobe:
                     probe=json.loads(subprocess.check_output([str(args.ffprobe),'-v','error','-count_packets','-show_streams','-show_format','-of','json',str(path)],timeout=30))
                     video=next((s for s in probe['streams'] if s.get('codec_type')=='video'),{})
                     audio=next((s for s in probe['streams'] if s.get('codec_type')=='audio'),{})
                     if video.get('codec_name')!='h264' or int(video.get('nb_read_packets',0))<100 or audio.get('codec_name')!='aac' or int(audio.get('nb_read_packets',0))<300:
                         raise AssertionError('Independent download codec/packet checks failed')
+                    if index in (9,10) and (int(audio.get('sample_rate',0))!=48000 or audio.get('channels')!=2):raise AssertionError('Normalized AAC has the wrong sample rate/channel count')
                     record.update(video_packets=int(video['nb_read_packets']),aac_packets=int(audio['nb_read_packets']))
                     (args.output/f'ffprobe-{index}.json').write_text(json.dumps(probe,indent=2),encoding='utf-8')
                 artifacts.append(record)
@@ -332,7 +364,7 @@ def main():
                 try:
                     available=adb('shell','run-as',args.package,'ls','files',timeout=30).split()
                     artifacts=[]
-                    for index in range(9):
+                    for index in range(11):
                         if f'legacy-download-{index}.b64' not in available:continue
                         payload=base64.b64decode(adb('shell','run-as',args.package,'cat',f'files/legacy-download-{index}.b64',timeout=30))
                         if payload[4:8]==b'ftyp':

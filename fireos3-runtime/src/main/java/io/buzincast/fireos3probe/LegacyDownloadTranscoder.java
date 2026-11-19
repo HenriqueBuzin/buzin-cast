@@ -22,7 +22,9 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     private final boolean video;
     private final Format input;
     private final int codedWidth,codedHeight;
+    private final int audioRate,audioChannels;
     private MediaCodec decoder,encoder;
+    private String decoderName;
     private ByteBuffer[] decoderInputs,decoderOutputs,encoderInputs,encoderOutputs;
     private final MediaCodec.BufferInfo decoded=new MediaCodec.BufferInfo(),encoded=new MediaCodec.BufferInfo();
     private MediaFormat decodedFormat;
@@ -30,14 +32,23 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     private final ByteArrayOutputStream configuration=new ByteArrayOutputStream();
     private boolean inputEnded,decoderEnded,encoderEnded,decoderStarted,encoderStarted,closed;
     private int pending=-1,pendingOffset;
+    private LegacyPcmConverter pcm;
+    private ByteBuffer pcmOutput=ByteBuffer.allocate(0);
+    private int inputPcmRate,inputPcmFrameBytes,inputPcmChannels,inputPcmEncoding,inputPcmMask;
+    private long firstAudioUs=Long.MIN_VALUE,inputAudioBaseUs,inputAudioFrames,outputAudioFrames;
+    private boolean audioEosQueued;
 
     static boolean available(Format format) {
         boolean video=MimeTypes.isVideo(format.sampleMimeType);
         if(!video && !MimeTypes.isAudio(format.sampleMimeType))return false;
         if(video && (format.width<=0 || format.height<=0 || (format.width&1)!=0 || (format.height&1)!=0 ||
             format.width>1920 || format.height>1920 || (long)format.width*format.height>1920L*1080))return false;
-        if(!video && (format.sampleRate<8000 || format.sampleRate>48000 || format.channelCount<1 || format.channelCount>2))return false;
+        if(!video && (format.sampleRate<1000 || format.sampleRate>384000 || format.channelCount<1 || format.channelCount>8))return false;
         return codec(format.sampleMimeType,false,false)!=null && codec(video?"video/avc":"audio/mp4a-latm",true,video)!=null;
+    }
+    private static int aacRate(int rate) {
+        int[] rates={8000,11025,12000,16000,22050,24000,32000,44100,48000};int closest=rates[0];
+        for(int candidate:rates)if(Math.abs(candidate-rate)<Math.abs(closest-rate))closest=candidate;return closest;
     }
     private static String codec(String mime,boolean encode,boolean planar) {
         if(mime==null)return null;
@@ -66,6 +77,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     }
     LegacyDownloadTranscoder(Format input) throws IOException {
         this.input=input;video=MimeTypes.isVideo(input.sampleMimeType);
+        audioRate=video?0:aacRate(input.sampleRate);audioChannels=video?0:Math.min(input.channelCount,2);
         // JB's SoftAVC encoder starts with a QCIF buffer and asserts when it is
         // configured smaller; it also requires macroblock-aligned dimensions.
         // Keep the source pixels and express the padding as standard SPS cropping.
@@ -73,6 +85,7 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
         codedHeight=video?Math.max(144,(input.height+15)&~15):0;
         try {
             String decodeName=codec(input.sampleMimeType,false,false),encodeName=codec(video?"video/avc":"audio/mp4a-latm",true,video);
+            decoderName=decodeName;
             if(!available(input) || decodeName==null || encodeName==null)throw new IOException("No compatible download codec");
             MediaFormat source=video?MediaFormat.createVideoFormat(input.sampleMimeType,input.width,input.height):
                 MediaFormat.createAudioFormat(input.sampleMimeType,input.sampleRate,input.channelCount);
@@ -93,9 +106,9 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
                 target.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,2);
                 target.setInteger(MediaFormat.KEY_BIT_RATE,bitrate);
             } else {
-                target=MediaFormat.createAudioFormat("audio/mp4a-latm",input.sampleRate,input.channelCount);
+                target=MediaFormat.createAudioFormat("audio/mp4a-latm",audioRate,audioChannels);
                 target.setInteger(MediaFormat.KEY_AAC_PROFILE,MediaCodecInfo.CodecProfileLevel.AACObjectLC);
-                target.setInteger(MediaFormat.KEY_BIT_RATE,input.channelCount*64000);
+                target.setInteger(MediaFormat.KEY_BIT_RATE,audioChannels*64000);
             }
             encoder=MediaCodec.createByCodecName(encodeName);encoder.configure(target,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE);encoder.start();encoderStarted=true;
             encoderInputs=encoder.getInputBuffers();encoderOutputs=encoder.getOutputBuffers();
@@ -147,28 +160,32 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
                     }
                 }finally {encoder.releaseOutputBuffer(index,false);}
             }
-            if(pending<0 && !decoderEnded) {
+            if(!video)feedAudioEncoder();
+            if(pending<0 && !decoderEnded && (video || !pcmOutput.hasRemaining())) {
                 int next=decoder.dequeueOutputBuffer(decoded,0);
                 if(next==MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED)decoderOutputs=decoder.getOutputBuffers();
                 else if(next==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED)validateDecoded(decoder.getOutputFormat());
                 else if(next>=0) {pending=next;pendingOffset=0;}
             }
             if(pending>=0) {
+                if(!video) {convertPcm();continue;}
                 int next=encoder.dequeueInputBuffer(0);
                 if(next>=0) {
                     ByteBuffer target=encoderInputs[next];target.clear();
                     int count=0;
                     if(decoded.size>0) {
-                        ByteBuffer source=decoderOutputs[pending].duplicate();source.position(decoded.offset+pendingOffset);source.limit(decoded.offset+decoded.size);
-                        if(video)count=copyVideo(source,target);
-                        else {int frame=input.channelCount*2;if(decoded.size%frame!=0)throw new IOException("Invalid decoded PCM capacity");count=Math.min(source.remaining(),target.remaining()/frame*frame);if(count==0)throw new IOException("Empty PCM encoder capacity");source.limit(source.position()+count);target.put(source);}
+                        ByteBuffer source=decoderOutputs[pending].duplicate();source.position(decoded.offset);source.limit(decoded.offset+decoded.size);
+                        count=copyVideo(source,target);
                     }
-                    long pts=decoded.presentationTimeUs+(video?0:pendingOffset/(input.channelCount*2L)*1000000/input.sampleRate);
-                    pendingOffset+=video?decoded.size:count;boolean complete=pendingOffset==decoded.size;
-                    boolean eos=complete && (decoded.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
-                    encoder.queueInputBuffer(next,0,count,pts,eos?MediaCodec.BUFFER_FLAG_END_OF_STREAM:0);
-                    if(complete) {decoder.releaseOutputBuffer(pending,false);pending=-1;}if(eos)decoderEnded=true;
+                    boolean eos=(decoded.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
+                    encoder.queueInputBuffer(next,0,count,decoded.presentationTimeUs,eos?MediaCodec.BUFFER_FLAG_END_OF_STREAM:0);
+                    decoder.releaseOutputBuffer(pending,false);pending=-1;if(eos)decoderEnded=true;
                 }
+            }
+            if(!video && decoderEnded && !pcmOutput.hasRemaining()) {
+                if(pcm==null)validateDecoded(decoder.getOutputFormat());
+                if(!pcm.ended())pcmOutput=pcm.finish();
+                feedAudioEncoder();
             }
         }
         return null;
@@ -178,9 +195,57 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
             int color=format.getInteger(MediaFormat.KEY_COLOR_FORMAT);
             if(color!=MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar && color!=MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)
                 throw new IOException("Download decoder produced an unsupported YUV layout");
-        } else if(format.getInteger(MediaFormat.KEY_SAMPLE_RATE)!=input.sampleRate || format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)!=input.channelCount || integer(format,"pcm-encoding",2)!=2)
-            throw new IOException("Download decoder changed the PCM layout");
+        } else {
+            int rate=format.getInteger(MediaFormat.KEY_SAMPLE_RATE),channels=format.getInteger(MediaFormat.KEY_CHANNEL_COUNT),encoding=integer(format,"pcm-encoding",2),mask=integer(format,"channel-mask",0);
+            if(pcm!=null) {
+                if(rate!=inputPcmRate || channels!=inputPcmChannels || encoding!=inputPcmEncoding || mask!=inputPcmMask)throw new IOException("Download decoder changed its PCM layout");
+            }else {
+                pcm=new LegacyPcmConverter(rate,channels,mask,encoding,audioRate,audioChannels,pcmChannelOrder(channels,mask));
+                inputPcmRate=rate;inputPcmChannels=channels;inputPcmEncoding=encoding;inputPcmMask=mask;
+                inputPcmFrameBytes=channels*(encoding==2?2:encoding==3?1:encoding==0x20000000?3:4);
+            }
+        }
         decodedFormat=format;
+    }
+    private int[] pcmChannelOrder(int channels,int mask) {
+        // AOSP's pre-Oreo SoftVorbis/Tremolo hands out Vorbis-order PCM,
+        // without a channel mask. Other components retain their declared order.
+        if(android.os.Build.VERSION.SDK_INT>25 || mask!=0 || !"OMX.google.vorbis.decoder".equals(decoderName) || !MimeTypes.AUDIO_VORBIS.equals(input.sampleMimeType))return null;
+        switch(channels) {
+            case 3:return new int[]{0,2,1};case 5:return new int[]{0,2,1,3,4};
+            case 6:return new int[]{0,2,1,5,3,4};case 7:return new int[]{0,2,1,6,3,4,5};
+            case 8:return new int[]{0,2,1,7,5,6,3,4};default:return null;
+        }
+    }
+    private void convertPcm() throws IOException {
+        if(pcmOutput.hasRemaining())return;
+        if(pcm==null)validateDecoded(decoder.getOutputFormat());
+        if(decoded.size%inputPcmFrameBytes!=0)throw new IOException("Invalid decoded PCM frame alignment");
+        if(decoded.size>pendingOffset) {
+            if(firstAudioUs==Long.MIN_VALUE)firstAudioUs=inputAudioBaseUs=decoded.presentationTimeUs;
+            if(pendingOffset==0) {
+                long expected=inputAudioBaseUs+inputAudioFrames*1000000/inputPcmRate,delta=decoded.presentationTimeUs-expected;
+                if(Math.abs(delta)>2000) {firstAudioUs+=delta;inputAudioBaseUs+=delta;}
+            }
+            ByteBuffer source=decoderOutputs[pending].duplicate();source.position(decoded.offset+pendingOffset);
+            int count=Math.min(decoded.size-pendingOffset,LegacyPcmConverter.MAX_INPUT_FRAMES*inputPcmFrameBytes);
+            source.limit(source.position()+count);pcmOutput=pcm.convert(source);pendingOffset+=count;inputAudioFrames+=count/inputPcmFrameBytes;
+        }
+        if(pendingOffset==decoded.size) {
+            boolean eos=(decoded.flags&MediaCodec.BUFFER_FLAG_END_OF_STREAM)!=0;
+            decoder.releaseOutputBuffer(pending,false);pending=-1;if(eos)decoderEnded=true;
+        }
+    }
+    private void feedAudioEncoder() throws IOException {
+        boolean eos=decoderEnded && pcm!=null && pcm.ended() && !pcmOutput.hasRemaining();
+        if(audioEosQueued || !pcmOutput.hasRemaining() && !eos)return;
+        int next=encoder.dequeueInputBuffer(0);if(next<0)return;
+        ByteBuffer target=encoderInputs[next];target.clear();int frame=audioChannels*2;
+        int count=Math.min(pcmOutput.remaining(),target.remaining()/frame*frame);
+        if(count==0 && !eos)throw new IOException("Empty AAC encoder capacity");
+        ByteBuffer source=pcmOutput.duplicate();source.limit(source.position()+count);target.put(source);pcmOutput.position(pcmOutput.position()+count);
+        long pts=(firstAudioUs==Long.MIN_VALUE?0:firstAudioUs)+outputAudioFrames*1000000/audioRate;
+        encoder.queueInputBuffer(next,0,count,pts,eos?MediaCodec.BUFFER_FLAG_END_OF_STREAM:0);outputAudioFrames+=count/frame;if(eos)audioEosQueued=true;
     }
     private static int integer(MediaFormat format,String name,int fallback) {return format.containsKey(name)?format.getInteger(name):fallback;}
     private int copyVideo(ByteBuffer source,ByteBuffer target) throws IOException {
@@ -216,12 +281,12 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
     private Format format(ArrayList<byte[]> csd) {
         Format.Builder builder=new Format.Builder().setSampleMimeType(video?"video/avc":"audio/mp4a-latm").setInitializationData(csd).setLanguage(IsoMediaLanguage.normalize(input.language));
         if(video)builder.setWidth(input.width).setHeight(input.height).setRotationDegrees(input.rotationDegrees).setFrameRate(input.frameRate);
-        else builder.setSampleRate(input.sampleRate).setChannelCount(input.channelCount);
+        else builder.setSampleRate(audioRate).setChannelCount(audioChannels);
         return builder.build();
     }
     @Override public void close() {
         if(closed)return;closed=true;
-        try {release(decoder,decoderStarted);}finally {try {release(encoder,encoderStarted);}finally {decoder=encoder=null;}}
+        try {release(decoder,decoderStarted);}finally {try {release(encoder,encoderStarted);}finally {if(pcm!=null)pcm.close();decoder=encoder=null;}}
     }
     private static void release(MediaCodec codec,boolean started) {
         if(codec==null)return;try {if(started)codec.stop();}finally {codec.release();}

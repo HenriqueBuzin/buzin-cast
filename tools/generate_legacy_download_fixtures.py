@@ -13,7 +13,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ffmpeg',default=shutil.which('ffmpeg'))
     parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[1]/'fireos3-probe/src/main/assets/download_formats')
-    parser.add_argument('--transcode-only',action='store_true',help='Add conversion fixtures without regenerating the established remux fixtures.')
+    subset=parser.add_mutually_exclusive_group()
+    subset.add_argument('--transcode-only',action='store_true',help='Add conversion fixtures without regenerating the established remux fixtures.')
+    subset.add_argument('--pcm-only',action='store_true',help='Add resampling/downmix fixtures while preserving the established media.')
     args=parser.parse_args()
     if not args.ffmpeg:parser.error('Install FFmpeg or pass --ffmpeg.')
     args.output.mkdir(parents=True,exist_ok=True)
@@ -25,6 +27,19 @@ def main():
         run('-i','movie.mp4','-i','vp8-vorbis.webm','-map','0:v:0','-map','1:a:0','-c','copy','avc-vorbis.mkv')
         run('-i','vp8-vorbis.webm','-i','movie.mp4','-map','0:v:0','-map','1:a:0','-c','copy','vp8-aac.mkv')
         return ['vp8-vorbis.webm','avc-vorbis.mkv','vp8-aac.mkv']
+    def pcm_fixtures():
+        high='aevalsrc=0.12*sin(2*PI*880*t)+0.12*sin(2*PI*30000*t)|0.12*sin(2*PI*1760*t)+0.12*sin(2*PI*30000*t):s=96000:d=8:c=stereo'
+        run('-i','movie.mp4','-f','lavfi','-i',high,'-map','0:v:0','-map','1:a:0','-t','8','-c:v','copy','-c:a','libvorbis','-q:a','6','-cutoff','45000','avc-vorbis-96k.mkv')
+        tones=[440,550,660,110,770,880]
+        expressions=[f'0.5*sin(2*PI*{tone}*t)*between(t\\,{channel}\\,{channel+1})+0.7*sin(2*PI*880*t)*gte(t\\,6)' for channel,tone in enumerate(tones)]
+        surround='aevalsrc='+'|'.join(expressions)+':s=48000:d=8:c=5.1'
+        run('-i','movie.mp4','-f','lavfi','-i',surround,'-map','0:v:0','-map','1:a:0','-t','8','-c:v','copy','-c:a','libvorbis','-q:a','6','avc-vorbis-51.mkv')
+        return ['avc-vorbis-96k.mkv','avc-vorbis-51.mkv']
+    if args.pcm_only:
+        names=pcm_fixtures();path=args.output/'fixtures.json';manifest=json.loads(path.read_text(encoding='utf-8'))
+        manifest['pcm_scope']='Synthetic 96 kHz stereo with above-Nyquist component; 5.1 isolated speakers and correlated loud tail'
+        manifest['sha256'].update({name:hashlib.sha256((args.output/name).read_bytes()).hexdigest() for name in names})
+        path.write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8');print('Generated PCM fixtures.');return
     if args.transcode_only:
         names=conversion_fixtures();path=args.output/'fixtures.json';manifest=json.loads(path.read_text(encoding='utf-8'))
         manifest['conversion_scope']='Eight-second synthetic VP8/Vorbis pattern and 880 Hz tone, plus mixed passthrough/conversion tracks'
@@ -52,6 +67,7 @@ def main():
     names += [f'init-{track}.mp4' for track in range(2)]
     names += sorted(p.name for p in args.output.glob('chunk-*.m4s'))
     names += conversion_fixtures()
+    names += pcm_fixtures()
     # ElementTree preserves the CRLF found in FFmpeg's MPD text nodes. Git's
     # LF policy normalizes those bytes on commit, so hash the canonical form.
     for name in names:

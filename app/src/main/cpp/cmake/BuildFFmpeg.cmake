@@ -29,6 +29,12 @@ if(_ffmpeg_jobs EQUAL 0)
 endif()
 
 set(FFMPEG_INSTALL ${CMAKE_BINARY_DIR}/ffmpeg)
+set(_ffmpeg_legacy_resample "")
+set(_ffmpeg_resample_byproducts "")
+if(BUZIN_RAOP_LEGACY_AUDIO)
+    set(_ffmpeg_legacy_resample --enable-swresample)
+    set(_ffmpeg_resample_byproducts ${FFMPEG_INSTALL}/lib/libswresample.a)
+endif()
 
 # instrument ffmpeg with the same sanitizers; built with --disable-asm
 set(_ffmpeg_sanitize "")
@@ -54,10 +60,11 @@ ExternalProject_Add(ffmpeg_ep
         --enable-pic --disable-asm --disable-x86asm
         --disable-all --disable-debug --disable-network --disable-autodetect
         --enable-avcodec --enable-decoder=alac,aac --enable-static --disable-shared
+        ${_ffmpeg_legacy_resample}
         ${_ffmpeg_sanitize}
     BUILD_COMMAND make -j${_ffmpeg_jobs}
     INSTALL_COMMAND make install
-    BUILD_BYPRODUCTS ${FFMPEG_INSTALL}/lib/libavcodec.a ${FFMPEG_INSTALL}/lib/libavutil.a
+    BUILD_BYPRODUCTS ${FFMPEG_INSTALL}/lib/libavcodec.a ${FFMPEG_INSTALL}/lib/libavutil.a ${_ffmpeg_resample_byproducts}
     LOG_CONFIGURE TRUE
     LOG_BUILD TRUE
     LOG_INSTALL TRUE
@@ -76,3 +83,11 @@ set_target_properties(ffmpeg::avcodec PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${FFMPEG_INSTALL}/include
     INTERFACE_LINK_LIBRARIES ffmpeg::avutil
 )
+if(BUZIN_RAOP_LEGACY_AUDIO)
+    add_library(ffmpeg::swresample STATIC IMPORTED GLOBAL)
+    set_target_properties(ffmpeg::swresample PROPERTIES
+        IMPORTED_LOCATION ${FFMPEG_INSTALL}/lib/libswresample.a
+        INTERFACE_INCLUDE_DIRECTORIES ${FFMPEG_INSTALL}/include
+        INTERFACE_LINK_LIBRARIES ffmpeg::avutil
+    )
+endif()
