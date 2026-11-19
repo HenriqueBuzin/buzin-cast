@@ -27,6 +27,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--transport-only', action='store_true', help='Verify progressive transport/lifecycle; does not validate rendered frames')
+    parser.add_argument('--mirror', action='store_true', help='Pass a fixture with a public test key through the native loopback TCP/AES-CTR mirror parser, without FairPlay negotiation')
     parser.add_argument('--vpkg', type=Path, required=True)
     parser.add_argument('--runner', type=Path, required=True)
     parser.add_argument('--profile', choices=['baseline', 'high'], default='baseline')
@@ -37,7 +38,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     sdk = shutil.which('vega')
     history, forwards, cycles = [], [], []
-    result = {'passed': False, 'physicalValidation': False, 'transportOnly': args.transport_only, 'visualValidation': False}
+    result = {'passed': False, 'physicalValidation': False, 'transportOnly': args.transport_only, 'visualValidation': False,
+              'encryptedMirrorLoopback': args.mirror, 'fairPlayNegotiation': False}
     producer = log = client = None
 
     def run(*command, payload=None, timeout=30):
@@ -93,7 +95,7 @@ def main():
             forwards.append(control)
             log = (args.output / f'producer-{cycle + 1}.log').open('w')
             producer = subprocess.Popen([sdk, 'exec', 'vda', '-s', args.serial, 'shell', '-T', '-c', COMPONENT,
-                                         'timeout', '35', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', '--serve'],
+                                         'timeout', '35', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', '--mirror-serve' if args.mirror else '--serve'],
                                         stdout=log, stderr=subprocess.STDOUT)
             url = observe('/data/local-video-url.json', lambda value: isinstance(value.get('url'), str))['url']
             client = http.client.HTTPConnection('127.0.0.1', control, timeout=5)
@@ -107,6 +109,8 @@ def main():
                 raise RuntimeError('Playback did not start while native frames were still being produced')
             if active.get('workerOwned') is not True or active.get('dropped') != 0 or not 0 <= active.get('callbackQueuedBytes', -1) <= 8 * 1024 * 1024:
                 raise RuntimeError('Expected the shared native callback worker with bounded queue and no fixture drops')
+            if active.get('mirrorEncrypted') is not args.mirror:
+                raise RuntimeError('Native producer did not use the requested mirror transport')
             entry = {'playing': playing, 'quality': quality, 'whileProducing': active, 'positiveFrameCounters': quality.get('available') is True and quality.get('total', 0) > quality.get('dropped', 0)}
             if cycle == 0:
                 entry['end'] = observe('/data/playback-state.json', lambda value: value.get('seconds', 0) > 7 and value.get('state') in ['playing', 'ended'])
@@ -120,6 +124,12 @@ def main():
                 entry['stream'] = observe('/data/local-video-state.json', lambda value: value.get('released') and value.get('error') == 'clientClosed')
                 if entry['stream']['framesFed'] >= frame_count:
                     raise RuntimeError('Early Back did not cancel native media production')
+            if args.mirror:
+                transport = entry['stream']
+                if not transport.get('mirrorReleased') or transport.get('mirrorTimed', 0) < 1 or transport.get('mirrorReceived') != transport['mirrorTimed'] or transport.get('mirrorWrites', 0) <= transport['mirrorReceived'] * 2:
+                    raise RuntimeError('Native mirror did not verify decrypted bytes/NTP, fragmented writes and released sockets')
+                if cycle == 0 and transport['mirrorReceived'] != frame_count:
+                    raise RuntimeError('Native mirror lost a fixture frame')
             if producer.wait(timeout=10) != 0:
                 raise RuntimeError('Native producer did not exit cleanly')
             producer = None

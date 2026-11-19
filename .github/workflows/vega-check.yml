@@ -3,10 +3,10 @@ name: Buzin Cast - verificar fontes Vega
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'tools/test_vega_msse.py', 'tools/test_vega_msse_video.py', 'tools/test_vega_local_video.py', 'tools/test_vega_alac_decoder.py', 'fireos3-probe/src/main/assets/audio_samples.json', 'app/src/main/cpp/third_party/ffmpeg', 'tools/test_vega_airplay_audio.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
+    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'tools/test_vega_msse.py', 'tools/test_vega_msse_video.py', 'tools/test_vega_local_video.py', 'tools/test_vega_mirror_crypto.py', 'tools/test_vega_alac_decoder.py', 'fireos3-probe/src/main/assets/audio_samples.json', 'app/src/main/cpp/third_party/ffmpeg', 'tools/test_vega_airplay_audio.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
   push:
     branches: [main]
-    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'tools/test_vega_msse.py', 'tools/test_vega_msse_video.py', 'tools/test_vega_local_video.py', 'tools/test_vega_alac_decoder.py', 'fireos3-probe/src/main/assets/audio_samples.json', 'app/src/main/cpp/third_party/ffmpeg', 'tools/test_vega_airplay_audio.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
+    paths: ['vega/**', 'tools/prepare_vega_airplay.py', 'tools/test_prepare_vega_airplay.py', 'tools/test_vega.py', 'tools/test_vega_msse.py', 'tools/test_vega_msse_video.py', 'tools/test_vega_local_video.py', 'tools/test_vega_mirror_crypto.py', 'tools/test_vega_alac_decoder.py', 'fireos3-probe/src/main/assets/audio_samples.json', 'app/src/main/cpp/third_party/ffmpeg', 'tools/test_vega_airplay_audio.py', 'app/src/main/cpp/patches/UxPlay/**', '.github/workflows/vega-check.yml']
 
 permissions:
   contents: read
@@ -27,7 +27,7 @@ jobs:
           cache-dependency-path: vega/package-lock.json
       - name: Preparar núcleo AirPlay isolado
         run: |
-          git -C .. submodule update --init --depth 1 app/src/main/cpp/third_party/UxPlay app/src/main/cpp/third_party/ffmpeg
+          git -C .. submodule update --init --depth 1 app/src/main/cpp/third_party/UxPlay app/src/main/cpp/third_party/ffmpeg app/src/main/cpp/third_party/libplist
           python3 ../tools/test_prepare_vega_airplay.py
           python3 -m py_compile ../tools/test_vega.py ../tools/test_vega_msse.py ../tools/test_vega_msse_video.py ../tools/test_vega_local_video.py ../tools/test_vega_airplay_audio.py
       - run: npm ci
@@ -58,6 +58,8 @@ jobs:
         run: |
           clang++ -std=c++23 -Wall -Wextra -Werror -pthread -Igenerated/UxPlay/lib test/AirPlayVideoWorkerTest.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp -o ../build/vega-native-tests/airplay-video-worker
           ../build/vega-native-tests/airplay-video-worker
+      - name: Testar estado AES-CTR do espelhamento
+        run: python3 ../tools/test_vega_mirror_crypto.py
       - name: Testar ALAC e MP4 incremental com FFmpeg fixado
         run: python3 ../tools/test_vega_alac_decoder.py
       - name: Testar persistência do nome

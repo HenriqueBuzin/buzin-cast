@@ -45,6 +45,6 @@ install(TARGETS buzin-msse-probe RUNTIME DESTINATION bin)
 
 # Development-only H.264/MSSE/mux/loopback probe, excluded from the VPKG.
 add_executable(buzin-msse-video-probe kepler/msse_video_probe_main.cpp
-  kepler/probes/MsseVideoPlayer.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp)
+  kepler/probes/MsseVideoPlayer.cpp kepler/turbo-modules/AirPlayVideoWorker.cpp kepler/AirPlayMirrorProbe.cpp)
 target_link_libraries(buzin-msse-video-probe PRIVATE BuzinMediaIdl BuzinVideoOutput BuzinAirPlayCore)
 install(TARGETS buzin-msse-video-probe RUNTIME DESTINATION bin)

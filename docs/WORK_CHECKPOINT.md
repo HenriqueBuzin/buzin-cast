@@ -1,5 +1,28 @@
 # Retomada — 19 de novembro de 2026
 
+## Transporte criptografado do vídeo AirPlay — 19 de novembro de 2026
+
+O probe de desenvolvimento agora passa a amostra H.264 pelo receptor TCP de
+espelhamento do UxPlay. Usa uma chave de teste pública, sincroniza NTP por
+loopback e compara os bytes descriptografados e timestamps antes de enviar
+cada quadro ao worker de produção. O player recebe a URL do fMP4 pela tela
+AirPlay por URL. O probe permanece fora dos VPKGs.
+
+O teste ASan/UBSan encontrou uma falha quando um fragmento chegava menor que o
+saldo do bloco AES anterior. O patch compartilhado 0017 passa cada fragmento
+ao mesmo contexto CTR sem preencher ou descartar blocos entre pacotes. O teste
+confere partições curtas, chamadas vazias, buffers sobrepostos e troca de chave.
+O staging Vega agora aplica 17 patches. O CI roda o teste de regressão.
+
+No VVD ARM64, `build/vega-mirror-ctr-fixed-high/result.json` registra 120
+frames com bytes e timestamps verificados no ciclo completo. O player avançou
+com 35 frames produzidos. Ao sair com Voltar no segundo ciclo, o fluxo encerrou
+em 61/120 e liberou sockets TCP/NTP, produtor, player e superfície. As três
+arquiteturas passaram no build e na validação de ABI. Ainda faltam negociação
+FairPlay com emissor real, comprovação de imagem exibida e sincronismo A/V.
+O relatório mantém `fairPlayNegotiation=false` e `visualValidation=false`.
+
+
 ## API17 — atraso AAC medido e apresentação dos downloads
 
 Concluída a etapa de compensação do atraso identificada no checkpoint abaixo.

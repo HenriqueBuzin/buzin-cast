@@ -2,6 +2,7 @@
 #include "turbo-modules/H264Fmp4Muxer.h"
 #include "turbo-modules/Fmp4VideoOutput.h"
 #include "turbo-modules/AirPlayVideoCallbacks.h"
+#include "AirPlayMirrorProbe.h"
 #include <cstdio>
 #include <apmf/errors.h>
 #include <chrono>
@@ -30,7 +31,7 @@ int main(int argc, char** argv) {
     const auto config = payload();
     const auto count = number();
     if (!count || count > 600) throw std::runtime_error("Invalid video frame count");
-    struct Frame {uint32_t pts, duration; bool keyframe; std::vector<uint8_t> data;};
+    using Frame = AirPlayVideoFixtureFrame;
     std::vector<Frame> frames;
     size_t total = 0;
     for (uint32_t i = 0; i < count; ++i) {
@@ -40,12 +41,17 @@ int main(int argc, char** argv) {
       frames.push_back({pts,duration,key != 0,std::move(data)});
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
-    if (argc == 3 && std::string(argv[2]) == "--serve") {
+    if (argc == 3 && (std::string(argv[2]) == "--serve" || std::string(argv[2]) == "--mirror-serve")) {
       AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
       worker.start();
+      const bool encryptedMirror = std::string(argv[2]) == "--mirror-serve";
+      std::unique_ptr<AirPlayMirrorProbe> mirror;
+      if (encryptedMirror) mirror = std::make_unique<AirPlayMirrorProbe>(worker,width,height,config,frames);
       const float reportedWidth = width, reportedHeight = height;
-      forwardAirPlayVideoSize(worker,&reportedWidth,&reportedHeight);
-      auto submit = [&](const Frame& frame) {
+      if (!mirror) forwardAirPlayVideoSize(worker,&reportedWidth,&reportedHeight);
+      auto submit = [&](size_t index) {
+        if (mirror) {mirror->send(index); return;}
+        const auto& frame = frames[index];
         video_decode_struct sample{};
         sample.data = const_cast<uint8_t*>(frame.data.data()); sample.data_len = frame.data.size();
         sample.ntp_time_local = uint64_t(1000000000)+uint64_t(frame.pts)*1000000;
@@ -58,6 +64,11 @@ int main(int argc, char** argv) {
         output << "{\"framesFed\":" << workerState.accepted << ",\"sentBytes\":" << state.sentBytes
           << ",\"workerOwned\":true,\"callbackQueuedBytes\":" << workerState.queuedBytes
           << ",\"dropped\":" << workerState.dropped << ",\"generation\":" << workerState.generation
+          << ",\"mirrorEncrypted\":" << (mirror ? "true" : "false")
+          << ",\"mirrorReceived\":" << (mirror ? mirror->received() : 0)
+          << ",\"mirrorTimed\":" << (mirror ? mirror->timed() : 0)
+          << ",\"mirrorWrites\":" << (mirror ? mirror->fragmentedWrites() : 0)
+          << ",\"mirrorReleased\":" << (mirror && mirror->socketsReleased() ? "true" : "false")
           << ",\"queuedBytes\":" << state.queuedBytes << ",\"connected\":" << (state.connected ? "true" : "false")
           << ",\"complete\":" << (state.complete ? "true" : "false") << ",\"released\":" << (workerState.released ? "true" : "false")
           << ",\"error\":\"" << workerState.error << "\"}" << std::endl;
@@ -65,9 +76,12 @@ int main(int argc, char** argv) {
         if (!output || std::rename("/data/local-video-state.json.tmp","/data/local-video-state.json"))
           throw std::runtime_error("Could not save native stream observation");
       };
-      auto check = [&] {if (!worker.healthy()) throw std::runtime_error("Native video worker failed");};
+      auto check = [&] {
+        if (!worker.healthy()) throw std::runtime_error("Native video worker failed");
+        if (mirror && !mirror->healthy()) throw std::runtime_error("Decrypted mirror transport or fixture mismatch");
+      };
       try {
-        submit(frames.front());
+        submit(0);
         AirPlayVideoCommand command;
         auto deadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
         for (;;) {
@@ -90,7 +104,16 @@ int main(int argc, char** argv) {
         for (size_t i = 1; i < frames.size(); ++i) {
           const auto& frame = frames[i];
           std::this_thread::sleep_until(start+std::chrono::milliseconds(frame.pts));
-          check(); submit(frame); report();
+          check(); submit(i); report();
+        }
+        if (mirror) {
+          deadline = std::chrono::steady_clock::now()+std::chrono::seconds(3);
+          while (mirror->received() != count) {
+            check();
+            if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("Native mirror did not receive every frame");
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          }
+          mirror->stop();
         }
         worker.end();
         deadline = std::chrono::steady_clock::now()+std::chrono::seconds(20);
@@ -100,9 +123,12 @@ int main(int argc, char** argv) {
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
       } catch (...) {
-        const auto error = worker.state().error; worker.stop(); report();
+        const auto error = worker.state().error;
+        if (mirror) mirror->stop();
+        worker.stop(); report();
         if (error != "clientClosed") throw;
       }
+      if (mirror) {mirror->stop(); mirror->stop();}
       worker.stop(); worker.stop(); report();
       return 0;
     }
