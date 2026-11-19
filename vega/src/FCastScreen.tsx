@@ -4,6 +4,7 @@ import ConnectionApprovalPrompt from './ConnectionApprovalPrompt';
 import React, {useEffect, useRef, useState} from 'react';
 import {AppState, Image, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
+import {createCastV2Receiver} from './castV2Receiver';
 import {createFCastReceiver} from './fcastReceiver';
 import {createAirPlayReceiver} from './airplayReceiver';
 import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
@@ -12,6 +13,7 @@ import type {PlaybackSnapshot} from './playbackSession';
 
 const titles = {
   fcast: 'FCast v2 experimental',
+  castv2: 'Cast V2 experimental',
   airplay: 'AirPlay por URL experimental',
   mirror: 'Vídeo AirPlay experimental',
   dlna: 'DLNA experimental',
@@ -35,6 +37,8 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       const onListening = (activePort?: number) => {setPort(activePort || 46899); setListening(true);};
       receiver.current = protocol === 'fcast'
         ? createFCastReceiver(setToken, setSnapshot, onFailure, onListening, setApproval)
+        : protocol === 'castv2'
+        ? createCastV2Receiver(setToken, setSnapshot, onFailure, onListening, setApproval)
         : protocol === 'dlna'
         ? createDlnaReceiver(setToken, setSnapshot, onFailure, onListening, setPhoto, setApproval)
         : createAirPlayReceiver(setToken, setSnapshot, onFailure, onListening, protocol === 'mirror' ? 'mirror' : 'url', setPin, setApproval);
@@ -81,6 +85,8 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           <Text style={styles.details}>
             {protocol === 'fcast'
               ? 'Conexão manual pela rede local, sem PIN ou TLS. Descoberta FCast v2 por DNS-SD. Áudio, vídeo e HLS/DASH experimentais.'
+              : protocol === 'castv2'
+              ? 'Áudio e vídeo por URL com emissores compatíveis com o receptor experimental. O Google Cast oficial exige autenticação de dispositivo.'
               : protocol === 'mirror'
               ? 'Selecione o receptor no emissor e digite o PIN quando solicitado.'
               : protocol === 'dlna'
@@ -127,7 +133,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
         <ConnectionApprovalPrompt
           key={approval.id}
           request={approval}
-          protocol={protocol === 'fcast' ? 'FCast' : protocol === 'dlna' ? 'DLNA' : 'AirPlay'}
+          protocol={protocol === 'fcast' ? 'FCast' : protocol === 'castv2' ? 'Cast V2' : protocol === 'dlna' ? 'DLNA' : 'AirPlay'}
           onAnswer={(id, allow) => receiver.current?.answerApproval?.(id, allow)}
         />
       )}

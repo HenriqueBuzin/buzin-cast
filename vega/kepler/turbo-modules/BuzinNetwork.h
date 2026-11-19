@@ -8,6 +8,7 @@
 
 #include "generated/BuzinNetworkSpec.h"
 #include "FCastTransport.h"
+#include "CastV2Transport.h"
 #include "DlnaTransport.h"
 #include "MdnsDiscovery.h"
 #include "AirPlaySession.h"
@@ -34,6 +35,12 @@ public:
   std::string pollAirPlayApproval() override;
   void answerAirPlayApproval(double requestId, bool allow) override;
   void updateAirPlayState(double position, double duration, double rate, bool ready) override;
+  double startCastV2() override;
+  void stopCastV2() override;
+  std::string pollCastV2() override;
+  void sendCastV2(double client, std::string frame) override;
+  void disconnectCastV2(double client) override;
+  void answerCastV2Approval(double requestId, bool allow) override;
   double startFCast() override;
   void stopFCast() override;
   std::string pollFCastCommand() override;
@@ -61,6 +68,7 @@ private:
   AirPlaySession airplay;
   bool videoModeActive = false;
   FCastTransport fcast;
+  CastV2Transport castV2;
   MdnsDiscovery discovery;
   DlnaTransport dlna;
 };

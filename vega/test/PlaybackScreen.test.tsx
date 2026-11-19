@@ -15,6 +15,7 @@ test('controle pausa a amostra e segundo plano sai da tela liberando a sessão',
     setVolume: jest.fn(),
     attachSurface: jest.fn(),
     detachSurface: jest.fn(),
+    setPlaying: jest.fn(),
     togglePause: jest.fn(),
     stop: jest.fn(() => Promise.resolve()),
   };

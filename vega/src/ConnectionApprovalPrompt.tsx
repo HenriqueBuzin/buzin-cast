@@ -5,7 +5,7 @@ import type {ConnectionApprovalRequest} from './connectionApproval';
 
 export default function ConnectionApprovalPrompt({request, protocol, onAnswer}: {
   request: ConnectionApprovalRequest;
-  protocol: 'DLNA' | 'FCast' | 'AirPlay';
+  protocol: 'DLNA' | 'FCast' | 'AirPlay' | 'Cast V2';
   onAnswer: (id: number, allow: boolean) => void;
 }) {
   const [focus, setFocus] = useState<boolean | null>(false);

@@ -45,6 +45,7 @@ test('comandos válidos controlam o player; Play inválido e eventos antigos nã
     setVolume: jest.fn(),
     attachSurface: jest.fn(),
     detachSurface: jest.fn(),
+    setPlaying: jest.fn(),
     togglePause: jest.fn(),
     stop: jest.fn(() => Promise.resolve()),
   };
@@ -118,7 +119,7 @@ test('negociação de versão inválida encerra somente o controlador atual', ()
 
 test('a porta só abre depois que o player nativo conclui initialize', () => {
   let ready: Parameters<typeof createPlaybackSession>[0] | undefined;
-  const media = {load: jest.fn(), setVolume: jest.fn(), attachSurface: jest.fn(), detachSurface: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
+  const media = {load: jest.fn(), setVolume: jest.fn(), attachSurface: jest.fn(), detachSurface: jest.fn(), setPlaying: jest.fn(), togglePause: jest.fn(), stop: jest.fn(() => Promise.resolve())};
   jest.mocked(createPlaybackSession).mockImplementation((callback) => {ready = callback; return media;});
   const receiver = createFCastReceiver(jest.fn(), jest.fn(), jest.fn());
   expect(Network.startFCast).not.toHaveBeenCalled();

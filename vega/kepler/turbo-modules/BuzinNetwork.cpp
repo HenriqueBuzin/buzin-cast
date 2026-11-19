@@ -127,6 +127,26 @@ std::string BuzinNetwork::pollAirPlayCommand() {
   }
   return "";
 }
+double BuzinNetwork::startCastV2() {
+  const auto port = castV2.start(getReceiverName(), "/data/cast-v2.pem", getConnectionApproval());
+  std::ofstream report("/data/cast-v2-port.json.tmp", std::ios::trunc);
+  report << "{\"port\":" << port << '}';
+  report.close();
+  if (!report || std::rename("/data/cast-v2-port.json.tmp", "/data/cast-v2-port.json")) {
+    std::remove("/data/cast-v2-port.json.tmp");
+    stopCastV2();
+    throw std::runtime_error("Could not record the Cast V2 listener");
+  }
+  return port;
+}
+void BuzinNetwork::stopCastV2() {
+  castV2.stop();
+  std::remove("/data/cast-v2-port.json");
+}
+std::string BuzinNetwork::pollCastV2() {return castV2.poll();}
+void BuzinNetwork::sendCastV2(double client, std::string frame) {castV2.send(client, frame);}
+void BuzinNetwork::disconnectCastV2(double client) {castV2.disconnect(client);}
+void BuzinNetwork::answerCastV2Approval(double requestId, bool allow) {castV2.answerApproval(requestId, allow);}
 double BuzinNetwork::startFCast() {
   const auto listeningPort = fcast.start(46899, false, getConnectionApproval());
   try {
@@ -144,7 +164,7 @@ bool BuzinNetwork::isFCastClient(double client) {return fcast.isClient(client);}
 void BuzinNetwork::disconnectFCastClient(double client) {fcast.disconnect(client);}
 void BuzinNetwork::fcastError(double client, std::string message) {fcast.error(client, message);}
 void BuzinNetwork::updateFCastState(std::string playback, std::string volume) {fcast.update(playback, volume);}
-// Retain the original path so an existing DLNA preference also applies to FCast.
+// Retain the original path so an existing DLNA preference also applies to the other receivers.
 bool BuzinNetwork::getConnectionApproval() {return readApprovalSetting("/data/dlna-approval");}
 void BuzinNetwork::setConnectionApproval(bool enabled) {writeApprovalSetting("/data/dlna-approval", enabled);}
 void BuzinNetwork::answerDlnaApproval(double requestId, bool allow) {dlna.answerApproval(requestId, allow);}

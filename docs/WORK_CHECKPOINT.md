@@ -1,5 +1,12 @@
 # Retomada — 19 de novembro de 2026
 
+## Cast V2 experimental no Vega
+
+O menu Estado do port agora abre o receptor experimental de mídia
+por URL com TLS e descoberta DNS-SD. No VVD ARM64, passaram MP4,
+controles, liberação ao Voltar e a espera de aprovação antes do TLS.
+Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Aprovação AirPlay no Vega
 
 A preferência de aprovação agora inclui AirPlay por URL, áudio e

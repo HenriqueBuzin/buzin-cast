@@ -32,6 +32,12 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("pollAirPlayApproval", &BuzinNetworkSpec::pollAirPlayApproval);
   methodAggregator.addMethod("answerAirPlayApproval", &BuzinNetworkSpec::answerAirPlayApproval);
   methodAggregator.addMethod("updateAirPlayState", &BuzinNetworkSpec::updateAirPlayState);
+  methodAggregator.addMethod("startCastV2", &BuzinNetworkSpec::startCastV2);
+  methodAggregator.addMethod("stopCastV2", &BuzinNetworkSpec::stopCastV2);
+  methodAggregator.addMethod("pollCastV2", &BuzinNetworkSpec::pollCastV2);
+  methodAggregator.addMethod("sendCastV2", &BuzinNetworkSpec::sendCastV2);
+  methodAggregator.addMethod("disconnectCastV2", &BuzinNetworkSpec::disconnectCastV2);
+  methodAggregator.addMethod("answerCastV2Approval", &BuzinNetworkSpec::answerCastV2Approval);
   methodAggregator.addMethod("startFCast", &BuzinNetworkSpec::startFCast);
   methodAggregator.addMethod("stopFCast", &BuzinNetworkSpec::stopFCast);
   methodAggregator.addMethod("pollFCastCommand", &BuzinNetworkSpec::pollFCastCommand);

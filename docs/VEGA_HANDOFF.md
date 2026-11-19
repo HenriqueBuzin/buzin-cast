@@ -1,8 +1,26 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Cast V2 experimental no Vega
+
+**Estado do port → Testar Cast V2** abre o receptor por TLS local e
+registra a descoberta DNS-SD. A sessão suporta o fluxo experimental do
+Fire OS para mídia por URL, com aprovação configurável na TV. O
+certificado autossinado e a chave são gerados no sandbox. Dispositivos e
+apps oficiais do Google Cast que exigem autenticação precisam de um
+receptor certificado.
+
+O teste `tools/test_vega_cast_v2.py` passou no VVD ARM64 com e sem
+`--approval`. Foram verificados TLS, heartbeat, resposta de
+autenticação indisponível, lançamento, MP4 HTTP com autoplay
+desativado, pausa, busca, retomada, volume, rejeição de URL inválida,
+Stop e liberação ao Voltar. Lint, TypeScript, 70 testes Jest e os
+VPKGs Release ARM64, ARMv7 e x86_64 passaram. Descoberta por um
+emissor na rede física e reprodução HLS/DASH pelo Cast V2 aguardam
+validação.
+
 ## Aprovação de conexões AirPlay no Vega
 
-**Configurações → Aprovar conexões AirPlay, DLNA e FCast** também
+**Configurações → Aprovar conexões dos receptores**
 protege os três modos AirPlay no Vega. O servidor aguarda a decisão
 antes de processar a primeira solicitação. Permitir vale por cinco
 minutos para novas conexões AirPlay do emissor enquanto a tela estiver

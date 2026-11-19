@@ -16,6 +16,12 @@ export interface BuzinNetwork extends KeplerTurboModule {
   pollAirPlayApproval: () => string;
   answerAirPlayApproval: (requestId: number, allow: boolean) => void;
   updateAirPlayState: (position: number, duration: number, rate: number, ready: boolean) => void;
+  startCastV2: () => number;
+  stopCastV2: () => void;
+  pollCastV2: () => string;
+  sendCastV2: (client: number, frame: string) => void;
+  disconnectCastV2: (client: number) => void;
+  answerCastV2Approval: (requestId: number, allow: boolean) => void;
   startFCast: () => number;
   stopFCast: () => void;
   pollFCastCommand: () => string;
