@@ -139,8 +139,12 @@ def main():
             try:
                 with socket.create_connection(('127.0.0.1',int(forward)),timeout=2) as connection:
                     connection.sendall(b'OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n')
-                    response=connection.recv(8192)
-                if not response.startswith(b'RTSP/1.0 200'):raise AssertionError('Native release RTSP did not answer OPTIONS')
+                    with connection.makefile('rb') as stream:
+                        response=stream.readline(1024)
+                if not response:
+                    raise ConnectionError('Forwarded socket closed before the receiver was ready')
+                if not response.startswith(b'RTSP/1.0 200 '):
+                    raise AssertionError(f'Native release RTSP returned {response[:100]!r} to OPTIONS')
                 break
             except OSError:
                 if time.monotonic()>deadline:raise AssertionError('Native receiver did not start in the minified release')
@@ -160,10 +164,27 @@ def main():
         if not any('Buzin Solutions LTDA' in node.get('text','') for node in state.iter('node')):raise AssertionError('Release About footer missing')
         screenshot('about.png');click('Close')
         report['release_ui']='home, tools, settings, persistent menu and About pass'
-        logs=adb('logcat','-d');(args.output/'logcat.txt').write_text(logs,encoding='utf-8')
-        if any(marker in logs for marker in ('FATAL EXCEPTION','UnsatisfiedLinkError','VerifyError','NoSuchMethodError','NoClassDefFoundError')):
-            raise AssertionError('Release runtime/linkage failure; inspect logcat.txt')
-        if 'AppstoreBilling' not in logs:raise AssertionError('No evidence of the actual Appstore initializer')
+        ps_args = ('ps', '-A') if int(device_sdk) >= 26 else ('ps',)
+        app_pids = set()
+        for line in adb('shell', *ps_args).splitlines():
+            columns = line.split()
+            if len(columns) > 2 and columns[1].isdecimal() and (columns[-1] == package or columns[-1].startswith(package + ':')):
+                app_pids.add(columns[1])
+        if not app_pids:
+            raise AssertionError('The release process stopped during the startup test')
+        logs=adb('logcat','-v','threadtime','-d');(args.output/'logcat.txt').write_text(logs,encoding='utf-8')
+        app_logs=[]
+        for line in logs.splitlines():
+            entry = re.match(r'^\S+\s+\S+\s+(\d+)\s+\d+\s', line)
+            if entry and entry[1] in app_pids:
+                app_logs.append(line)
+        (args.output/'app-logcat.txt').write_text('\n'.join(app_logs)+'\n',encoding='utf-8')
+        release_markers = ('FATAL EXCEPTION','UnsatisfiedLinkError','VerifyError','NoSuchMethodError','NoClassDefFoundError')
+        app_crashed = re.search(r'\bProcess: '+re.escape(package)+r'(?::[^,]+)?, PID:', logs)
+        if app_crashed or any(marker in line for marker in release_markers for line in app_logs):
+            raise AssertionError('Release runtime/linkage failure; inspect app-logcat.txt and logcat.txt')
+        if not any('AppstoreBilling' in line for line in app_logs):
+            raise AssertionError('No evidence of the actual Appstore initializer')
         report['appstore_sdk']='initializer observed; no Appstore client/license grant in this emulator'
         report['status']='pass'
     except BaseException as error:
@@ -171,7 +192,7 @@ def main():
     finally:
         cleanup_errors=[]
         if installed:
-            try:(args.output/'logcat.txt').write_text(adb('logcat','-d'),encoding='utf-8')
+            try:(args.output/'logcat.txt').write_text(adb('logcat','-v','threadtime','-d'),encoding='utf-8')
             except (OSError,subprocess.SubprocessError) as error:cleanup_errors.append('logcat: '+str(error))
         if forward:
             try:adb('forward','--remove','tcp:'+forward)
