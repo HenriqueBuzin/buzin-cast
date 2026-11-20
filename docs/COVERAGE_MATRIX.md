@@ -1323,3 +1323,14 @@ report covers all 24 branches and 160 JVM instructions across the five
 validation, persistence, generation and conversion methods. Hardware
 interface enumeration is measured separately. The suite now has 229 Android
 cases.
+
+The network interface test uses the same selector called at receiver
+startup. It verifies that unavailable or invalid hardware addresses
+fall through to the saved identity. It also verifies that the selector
+reads eligible Wi-Fi and Ethernet addresses lazily and keeps the first
+usable address.
+
+All 37 selected service, DACP and lifecycle cases passed on normal API28.
+The matched report covers all 8 branches and 52 instructions in the
+selector. It also covers the real Android adapter and two of its four
+branch outcomes. The suite now has 231 Android cases.

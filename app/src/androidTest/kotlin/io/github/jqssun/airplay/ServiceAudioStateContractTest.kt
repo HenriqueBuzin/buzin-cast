@@ -36,6 +36,7 @@ import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.net.InetAddress
+import java.net.SocketException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -516,6 +517,46 @@ class ServiceAudioStateContractTest {
         }
         assertEquals(true, method.invoke(service, byteArrayOf(2, 0, 0, 0, 0, 1)))
         assertEquals(true, method.invoke(service, byteArrayOf(-86, -69, -52, -35, -18, -1)))
+    }
+
+    @Test fun receiverSelectsTheFirstUsableWifiOrEthernetAddress() {
+        val wifi = byteArrayOf(6, 1, 2, 3, 4, 5)
+        val ethernet = byteArrayOf(10, 5, 4, 3, 2, 1)
+        val loopback = AirPlayService.NetworkAddressSource("lo") { throw AssertionError("Read loopback hardware address") }
+        val placeholder = AirPlayService.NetworkAddressSource("wlan0") { byteArrayOf(2, 0, 0, 0, 0, 0) }
+        val validWifi = AirPlayService.NetworkAddressSource("wlan1") { wifi }
+        val validEthernet = AirPlayService.NetworkAddressSource("eth0") { ethernet }
+        val unread = AirPlayService.NetworkAddressSource("eth1") { throw AssertionError("Read address beyond the first usable one") }
+        main {
+            assertArrayEquals(ethernet, service.selectReceiverHardwareAddress {
+                sequenceOf(loopback, placeholder, validEthernet, unread)
+            })
+            assertArrayEquals(wifi, service.selectReceiverHardwareAddress { sequenceOf(loopback, validWifi, unread) })
+        }
+    }
+
+    @Test fun missingOrInaccessibleNetworkInterfacesReuseTheSavedReceiverAddress() {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val key = Prefs.FALLBACK_MAC_ADDRESS
+        val saved = prefs.getString(key, null)
+        val fallback = "0a:01:02:03:04:05"
+        val expected = byteArrayOf(10, 1, 2, 3, 4, 5)
+        main {
+            try {
+                assertTrue(prefs.edit().putString(key, fallback).commit())
+                assertArrayEquals(expected, service.selectReceiverHardwareAddress { emptySequence() })
+                assertArrayEquals(expected, service.selectReceiverHardwareAddress {
+                    sequenceOf(AirPlayService.NetworkAddressSource("wlan0") { null })
+                })
+                assertArrayEquals(expected, service.selectReceiverHardwareAddress { throw SocketException("Enumeration failed") })
+                assertArrayEquals(expected, service.selectReceiverHardwareAddress {
+                    sequenceOf(AirPlayService.NetworkAddressSource("eth0") { throw SocketException("Address inaccessible") })
+                })
+                assertEquals(fallback, prefs.getString(key, null))
+            } finally {
+                assertTrue(prefs.edit().putString(key, saved).commit())
+            }
+        }
     }
 
     @Test fun senderVolumeStepsFollowFeedbackAndStopAtTargetOrOvershoot() {

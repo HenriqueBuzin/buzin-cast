@@ -1193,12 +1193,19 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
     // helpers
 
-    private fun getHwAddr(): ByteArray {
+    internal class NetworkAddressSource(val name: String, val hardwareAddress: () -> ByteArray?)
+
+    private fun getHwAddr(): ByteArray = selectReceiverHardwareAddress {
+        NetworkInterface.getNetworkInterfaces()?.asSequence().orEmpty().map { iface ->
+            NetworkAddressSource(iface.name, iface::getHardwareAddress)
+        }
+    }
+
+    internal fun selectReceiverHardwareAddress(interfaces: () -> Sequence<NetworkAddressSource>): ByteArray {
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            for (iface in interfaces) {
+            for (iface in interfaces()) {
                 if (iface.name.startsWith("wlan") || iface.name.startsWith("eth")) {
-                    val mac = iface.hardwareAddress
+                    val mac = iface.hardwareAddress()
                     if (isUsableMac(mac)) return mac!!
                 }
             }
