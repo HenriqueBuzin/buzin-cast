@@ -28,6 +28,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.Protocol
 import io.buzincast.core.SessionKind
 import io.buzincast.core.SessionPhase
+import io.buzincast.core.SessionToken
 import io.buzincast.media.MirrorPacket
 import io.buzincast.media.MirrorPacketCodec
 import io.buzincast.media.SecureMirrorChannel
@@ -44,6 +45,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.net.InetAddress
+import java.net.Socket
 import java.net.SocketException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -394,12 +396,22 @@ class ServiceAudioStateContractTest {
         }
     }
 
-    @Test fun airplayMirroringReleasesThePreviousLocalPlaybackWithoutDroppingMirrorOwnership() = withoutAutoLaunch {
-        val file = File.createTempFile("mirror-handoff-", ".mp4", context.cacheDir)
+    private fun withLocalVideoFixture(block: (String) -> Unit) {
+        val file = File.createTempFile("service-video-", ".mp4", context.cacheDir)
         try {
             instrumentation.context.assets.open("download/sample.mp4").use { input -> file.outputStream().use(input::copyTo) }
+            block(Uri.fromFile(file).toString())
+        } finally {
+            service.stopVideoPlayback()
+            instrumentation.waitForIdleSync()
+            assertTrue(file.delete())
+        }
+    }
+
+    @Test fun airplayMirroringReleasesThePreviousLocalPlaybackWithoutDroppingMirrorOwnership() = withoutAutoLaunch {
+        withLocalVideoFixture { location ->
             main {
-                service.playLocalVideo(Uri.fromFile(file).toString())
+                service.playLocalVideo(location)
                 service.setVideoPlaying(false)
                 assertTrue(service.videoPlaybackActive.value)
                 assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
@@ -419,10 +431,6 @@ class ServiceAudioStateContractTest {
                 service.onConnectionDestroy()
                 assertNull(service.sessionSnapshot())
             }
-        } finally {
-            service.stopVideoPlayback()
-            instrumentation.waitForIdleSync()
-            assertTrue(file.delete())
         }
     }
 
@@ -476,6 +484,79 @@ class ServiceAudioStateContractTest {
                 service.onMirrorRunning(false)
                 service.onConnectionDestroy()
                 assertNull(service.sessionSnapshot())
+            }
+        }
+    }
+
+    @Test fun relayRejectsPeersUntilLocalPlaybackAndTheAirPlayConnectionHaveEnded() = withoutAutoLaunch {
+        withLocalVideoFixture { location ->
+            fun assertPeerRejected() {
+                val listener = service.relay.state.value
+                assertTrue(listener.listening)
+                Socket("127.0.0.1", listener.port).use { peer ->
+                    peer.soTimeout = 5_000
+                    assertEquals("Busy service sent pairing data", -1, peer.getInputStream().read())
+                }
+                assertEquals(listener, service.relay.state.value)
+            }
+
+            main {
+                service.playLocalVideo(location)
+                service.setVideoPlaying(false)
+                service.relay.listen()
+            }
+            val local = requireNotNull(service.sessionSnapshot())
+            assertEquals(Protocol.LOCAL, local.token.protocol)
+            assertPeerRejected()
+            assertEquals(local.token, service.sessionSnapshot()?.token)
+            assertTrue(service.videoPlaybackActive.value)
+            service.stopVideoPlayback()
+            await("Local playback did not end") { service.sessionSnapshot() == null }
+
+            main {
+                service.onConnectionInit()
+                service.onAudioFormat(2, 352, false)
+                service.relay.listen()
+            }
+            val airplay = requireNotNull(service.sessionSnapshot())
+            assertEquals(Protocol.AIRPLAY, airplay.token.protocol)
+            assertEquals(SessionKind.AUDIO, airplay.kind)
+            assertPeerRejected()
+            assertEquals(airplay, service.sessionSnapshot())
+            assertEquals(1, service.connectionCount.value)
+            main { service.onConnectionDestroy() }
+
+            withAuthenticatedRelayPeer(service.relay.state.value) { channel ->
+                sendRelayVideo(channel, 640, 360, 1_000_000_000)
+                assertEquals(Protocol.RELAY, service.sessionSnapshot()?.token?.protocol)
+                channel.send(MirrorPacketCodec.encode(MirrorPacket.End))
+                await("Admitted relay did not release display ownership") { service.sessionSnapshot() == null }
+            }
+        }
+    }
+
+    @Test fun queuedMirrorTakeoverDoesNotStopNewerLocalPlayback() = withoutAutoLaunch {
+        withLocalVideoFixture { location ->
+            lateinit var successor: SessionToken
+            main {
+                service.playLocalVideo(location)
+                val original = requireNotNull(service.sessionSnapshot()).token
+                service.onConnectionInit()
+                service.onMirrorRunning(true)
+                service.onVideoSize(1920f, 1080f, 1280f, 720f)
+                assertEquals(Protocol.AIRPLAY, service.sessionSnapshot()?.token?.protocol)
+                service.onMirrorRunning(false)
+                service.playLocalVideo(location)
+                service.setVideoPlaying(false)
+                val replacement = requireNotNull(service.sessionSnapshot()).token
+                assertNotEquals(original, replacement)
+                successor = replacement
+            }
+            main {
+                service.onConnectionDestroy()
+                assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
+                assertEquals(successor, service.sessionSnapshot()?.token)
+                assertTrue(service.videoPlaybackActive.value)
             }
         }
     }

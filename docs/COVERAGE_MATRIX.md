@@ -1623,3 +1623,11 @@ All 28 selected service and relay tests passed on normal and compat DE/AT
 API28. Each matching JaCoCo report exercises 13 previously uncovered relay
 callback branch outcomes. The video-size callback reaches nine of ten branch
 outcomes in both profiles. The suite has 271 Android cases.
+
+Two service contracts verify that the relay refuses peers during local video
+or an AirPlay connection, accepts a peer when the receiver is free, and leaves
+newer local playback active after queued mirror teardown. All 30 selected
+service and relay tests passed on normal and compat DE/AT API28. The matching
+JaCoCo profiles cover all four relay admission branch outcomes and both
+outcomes of the queued playback ownership check. The suite has 273 Android
+cases.
