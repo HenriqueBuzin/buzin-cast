@@ -1700,3 +1700,10 @@ of 21 branch outcomes. The foreground startup retry test now saves the port
 before binding the service. In the frozen 275-case DE/AT run, a pending
 preference restart closed the RTSP connection during the check. The corrected
 test passed on DE/AT. The suite has 283 Android cases.
+
+The adaptive AAC jitter contract feeds two consecutive timestamps with a
+receiver-side stall and checks that the measured cushion reaches its
+one-second limit while both packets still deliver PCM. It and the two
+selected AAC regression tests passed on normal and compat DE/AT API28.
+The matching LLVM profiles show one execution on each side of the ceiling
+check in both editions. The suite has 284 Android cases.

@@ -332,6 +332,32 @@ class NativeServerContractTest {
         assertEquals(2, callbacks.getValue(handle).pcm.size)
     }
 
+    @Test fun adaptiveAudioCushionStaysBoundedWhenAnAacPacketArrivesLate() {
+        val handle = create()
+        val frames = aacFrames()
+        val debug = ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder())
+        val frameDurationNs = 1024L * 1_000_000_000L / 44100
+        fun tunedCushionMs(): Int {
+            assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
+            return debug.getShort(2).toInt() and 0xffff
+        }
+
+        NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
+        assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 0, 95, 0, true, true, false, false, false))
+        NativeBridge.nativeSetCaptureEnabled(handle, true)
+
+        val firstPts = System.nanoTime()
+        DebugNativeBridge.nativeFeedAudio(handle, frames[0], firstPts)
+        assertTrue("A single packet should not saturate the adaptive cushion", tunedCushionMs() in 1 until 1000)
+
+        // Keep consecutive sender timestamps while introducing a receiver-side stall.
+        android.os.SystemClock.sleep(1200)
+        DebugNativeBridge.nativeFeedAudio(handle, frames[1], firstPts + frameDurationNs)
+        assertEquals("The adaptive cushion must stop growing at one second", 1000, tunedCushionMs())
+        assertEquals(0, debug.getInt(34))
+        assertEquals(listOf(firstPts, firstPts + frameDurationNs), callbacks.getValue(handle).pcm.map { it.pts })
+    }
+
     @Test fun softwareAacDecodesExactPcmAcrossReconfigurationAndCaptureToggle() {
         val frames = aacFrames()
         val handle = create()
