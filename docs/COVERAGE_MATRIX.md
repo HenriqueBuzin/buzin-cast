@@ -1390,3 +1390,11 @@ The suite now has 235 Android cases. In the separate four-edition run pinned
 at `1b991d4`, DE/AT passed all 231 Android tests, 21 native cases and the
 required runtime gates. It reached 72.70% JVM branch coverage and 95.00%
 native branch coverage. Those figures apply to the pinned build.
+
+Four FCast socket contracts now verify playback and volume updates, pairing
+refusal before the handshake, preservation of an active client when another
+connects, and listener startup failure on an occupied port. All 21 selected
+receiver integration tests passed on normal API28. The FCast receiver and its
+update callback have identical compiled bytes across the two selected runs.
+Together they went from 125 to 154 covered branches out of 208. The current
+suite has 239 Android cases.

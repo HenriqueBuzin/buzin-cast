@@ -22,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.ServerSocket
 import java.net.ConnectException
+import java.net.InetAddress
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -97,6 +98,98 @@ class ReceiverIntegrationTest {
         eventually { playback.events.contains("stop:FCAST") }
         assertTrue(playback.events.containsAll(listOf("playing:false", "playing:true", "seek:12.0", "gain:0.5", "speed:2.0")))
     }
+
+    @Test fun fcastReportsPlayingPausedAndReleasedPlayback() = withFcast { playback, socket ->
+        fun update(opcode: Int, matches: (JSONObject) -> Boolean): JSONObject {
+            repeat(5) {
+                val fields = JSONObject(frame(socket, opcode).body)
+                if (matches(fields)) return fields
+            }
+            error("FCast did not report the expected update for opcode $opcode")
+        }
+        fun status(expectedState: Int) = update(6) { it.getInt("state") == expectedState }
+        val output = socket.getOutputStream()
+        FCastFrame(11, """{"version":2}""").writeTo(output)
+        FCastFrame(13).writeTo(output)
+        FCastFrame(12).writeTo(output)
+        frame(socket, 13)
+
+        playback.playbackInfo = PlaybackInfo(positionMs = 1250, durationMs = 12000, speed = 1.25f)
+        FCastFrame(1, """{"url":"https://example.test/track.aac","container":"audio/aac","content":null,"headers":null,"time":null,"speed":null}""").writeTo(output)
+        eventually { playback.events.contains("speed:1.0") }
+        val request = playback.requests.single()
+        assertEquals("audio/aac", request.mime)
+        assertEquals(0f, request.time, 0f)
+        assertTrue(request.headers.isEmpty())
+
+        val playing = status(1)
+        assertEquals(1.25, playing.getDouble("time"), 0.0)
+        assertEquals(12.0, playing.getDouble("duration"), 0.0)
+        assertEquals(1.25, playing.getDouble("speed"), 0.0)
+
+        playback.playbackInfo = playback.playbackInfo.copy(playing = false, durationMs = -1)
+        val paused = status(2)
+        assertEquals(1.25, paused.getDouble("time"), 0.0)
+        assertEquals(0.0, paused.getDouble("duration"), 0.0)
+
+        FCastFrame(8, """{"volume":0.25}""").writeTo(output)
+        eventually { playback.events.contains("gain:0.25") }
+        update(7) { it.getDouble("volume") == 0.25 }
+
+        playback.mediaActive = false
+        val released = status(0)
+        assertEquals(0.0, released.getDouble("time"), 0.0)
+        assertEquals(0.0, released.getDouble("duration"), 0.0)
+        assertEquals(1.0, released.getDouble("speed"), 0.0)
+        FCastFrame(4).writeTo(output)
+        assertTrue(frame(socket, 9).body.contains("No FCast media"))
+        assertFalse(playback.events.contains("stop:FCAST"))
+    }
+
+    @Test fun fcastDeniesConnectionBeforeSendingTheHandshake() {
+        val playback = Playback().apply { allowed = false }
+        FCastReceiver(context, playback, "Buzin integration", {}, requestedPort = 0).use { receiver ->
+            receiver.start()
+            Socket(ip, receiver.listeningPort).use { socket ->
+                socket.soTimeout = 5000
+                assertEquals(-1, socket.getInputStream().read())
+            }
+            assertEquals(listOf("authorize:FCast"), playback.events.toList())
+            assertTrue(playback.requests.isEmpty())
+        }
+    }
+
+    @Test fun fcastKeepsTheActiveClientWhenAnotherClientConnects() {
+        val playback = Playback()
+        FCastReceiver(context, playback, "Buzin integration", {}, requestedPort = 0).use { receiver ->
+            receiver.start()
+            Socket(ip, receiver.listeningPort).use { active ->
+                active.soTimeout = 5000
+                frame(active, 11)
+                Socket(ip, receiver.listeningPort).use { second ->
+                    second.soTimeout = 5000
+                    assertEquals(-1, second.getInputStream().read())
+                }
+                FCastFrame(12).writeTo(active.getOutputStream())
+                frame(active, 13)
+            }
+            assertEquals(listOf("authorize:FCast"), playback.events.toList())
+        }
+    }
+
+    @Test fun fcastReportsAnOccupiedPortAndRemainsClosedAfterStartupFails() {
+        val diagnostics = CopyOnWriteArrayList<String>()
+        val blocker = ServerSocket(0, 1, InetAddress.getByName(ip))
+        FCastReceiver(context, Playback(), "Buzin integration", { diagnostics += it }, blocker.localPort).use { receiver ->
+            blocker.use { receiver.start() }
+            assertEquals(0, receiver.listeningPort)
+            assertTrue(diagnostics.single().startsWith("FCast start failed:"))
+            receiver.start()
+            assertEquals(0, receiver.listeningPort)
+            assertEquals(1, diagnostics.size)
+        }
+    }
+
     @Test fun fcastRejectsInvalidUrlsAndHeadersWithoutClaimingPlayback() = withFcast { playback, socket ->
         for (body in listOf(
             """{"url":"file:///etc/passwd","container":"video/mp4"}""",
