@@ -1,5 +1,9 @@
 package io.github.jqssun.airplay
 
+import android.content.Context
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.text.TextUtils
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,6 +23,9 @@ import org.junit.runner.RunWith
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Real Android sockets, NSD, handlers and parsers; only the playback device is a recording port. */
 @RunWith(AndroidJUnit4::class)
@@ -152,13 +159,18 @@ class ReceiverIntegrationTest {
                 socket.getInputStream().bufferedReader().readText()
             }
 
-        fun transport(action: String, vararg args: Pair<String, String>): String {
-            val service = "urn:schemas-upnp-org:service:AVTransport:1"
+        private fun soap(path: String, name: String, action: String, args: Array<out Pair<String, String>>): String {
+            val service = "urn:schemas-upnp-org:service:$name:1"
             val arguments = args.joinToString("") { (name, value) -> "<$name>${TextUtils.htmlEncode(value)}</$name>" }
             val body = """<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">""" +
                 """<s:Body><u:$action xmlns:u="$service"><InstanceID>0</InstanceID>$arguments</u:$action></s:Body></s:Envelope>"""
-            return request("POST", "/ctl/avt", "SOAPAction: \"$service#$action\"\r\n", body)
+            return request("POST", path, "SOAPAction: \"$service#$action\"\r\n", body)
         }
+
+        fun transport(action: String, vararg args: Pair<String, String>) = soap("/ctl/avt", "AVTransport", action, args)
+
+        fun rendering(action: String, vararg args: Pair<String, String>) =
+            soap("/ctl/rcs", "RenderingControl", action, arrayOf("Channel" to "Master", *args))
 
         fun accepted(action: String, vararg args: Pair<String, String>): String = transport(action, *args).also {
             assertTrue(it, it.startsWith("HTTP/1.1 200"))
@@ -275,6 +287,93 @@ class ReceiverIntegrationTest {
         }
         assertTrue(playback.requests.isEmpty())
     }
+    @Test fun dlnaRenderingControlSetsMediaVolumeAndNotifiesSubscribers() {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val original = audio.getStreamVolume(stream)
+        val max = audio.getStreamMaxVolume(stream)
+        assertTrue("Expected adjustable emulator media volume", max > 2 && !audio.isVolumeFixed)
+        try {
+            withDlna { playback, control ->
+                ServerSocket(0).use { callback ->
+                    callback.soTimeout = 5000
+                    val response = control.request("SUBSCRIBE", "/evt/rcs",
+                        "CALLBACK: <http://$ip:${callback.localPort}/volume>\r\nNT: upnp:event\r\n")
+                    assertTrue(response, response.startsWith("HTTP/1.1 200"))
+                    val sid = response.lineSequence().first { it.startsWith("SID:", ignoreCase = true) }.substringAfter(':').trim()
+                    fun expectNotification(seq: Int, percent: Int) {
+                        val body = receiveDlnaEvent(callback, "/volume", sid, seq)
+                        assertTrue(body, "<LastChange>" in body)
+                        assertTrue(body, TextUtils.htmlEncode("""<Volume channel="Master" val="$percent"/>""") in body)
+                    }
+                    expectNotification(0, original * 100 / max)
+                    playback.allowed = false
+                    val denied = control.rendering("SetVolume", "DesiredVolume" to "0")
+                    assertTrue(denied, denied.startsWith("HTTP/1.1 403"))
+                    assertEquals(original, audio.getStreamVolume(stream))
+                    playback.allowed = true
+
+                    val intermediate = if (original < max / 2) 63 else 37
+                    for ((index, requested) in listOf(intermediate, 130).withIndex()) {
+                        val percent = requested.coerceAtMost(100)
+                        val set = control.rendering("SetVolume", "DesiredVolume" to requested.toString())
+                        assertTrue(set, set.startsWith("HTTP/1.1 200"))
+                        expectNotification(index + 1, percent)
+                        val get = control.rendering("GetVolume")
+                        assertTrue(get, get.startsWith("HTTP/1.1 200") && "<CurrentVolume>$percent</CurrentVolume>" in get)
+                        eventually { audio.getStreamVolume(stream) == (percent * max / 100f).toInt() }
+                    }
+                    val removed = control.request("UNSUBSCRIBE", "/evt/rcs", "SID: $sid\r\n")
+                    assertTrue(removed, removed.startsWith("HTTP/1.1 200"))
+                }
+            }
+        } finally {
+            audio.setStreamVolume(stream, original, 0)
+            eventually { audio.getStreamVolume(stream) == original }
+        }
+    }
+
+    @Test fun dlnaPendingLoadChecksAirPlayOwnershipAgainOnMainThread() = withDlna { playback, control ->
+        val blocked = CountDownLatch(1)
+        val resume = CountDownLatch(1)
+        val resumedInTime = AtomicBoolean(false)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        check(Handler(Looper.getMainLooper()).post {
+            blocked.countDown()
+            resumedInTime.set(resume.await(4, TimeUnit.SECONDS))
+        })
+        try {
+            assertTrue("Main looper did not reach the fixture gate", blocked.await(4, TimeUnit.SECONDS))
+            val response = control.media("http://example.test/queued.mp4")
+            assertTrue(response, response.startsWith("HTTP/1.1 200"))
+            playback.activeConnections = 1
+            playback.mediaOwner = Protocol.AIRPLAY
+            playback.mediaActive = true
+        } finally {
+            resume.countDown()
+            instrumentation.waitForIdleSync()
+        }
+        assertTrue("The SOAP request did not complete while the main looper was gated", resumedInTime.get())
+        eventually { control.state() == "STOPPED" }
+        assertTrue(playback.requests.isEmpty())
+        assertEquals(Protocol.AIRPLAY, playback.mediaOwner)
+        assertTrue(playback.mediaActive)
+    }
+
+    private fun receiveDlnaEvent(server: ServerSocket, path: String, sid: String, seq: Int, status: String = "200 OK"): String =
+        server.accept().use { socket ->
+            socket.soTimeout = 5000
+            val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
+            assertEquals("NOTIFY $path HTTP/1.1", input.readLine())
+            val headers = generateSequence { input.readLine()?.takeIf(String::isNotEmpty) }.toList()
+            assertTrue("SID: $sid" in headers)
+            assertTrue("SEQ: $seq" in headers)
+            val size = headers.first { it.startsWith("CONTENT-LENGTH:") }.substringAfter(':').trim().toInt()
+            val body = buildString { repeat(size) { append(input.read().also { assertTrue(it >= 0) }.toChar()) } }
+            socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
+            body
+        }
+
     @Test fun dlnaSubscriptionNotifiesFallbackCallbackAndSupportsRenewalAndRemoval() {
         val log = CopyOnWriteArrayList<String>()
         DlnaReceiver(context, Playback(), "Buzin integration", { log += it }).use { receiver ->
@@ -297,20 +396,8 @@ class ReceiverIntegrationTest {
                 assertTrue(response, response.contains("TIMEOUT: Second-120", ignoreCase = true))
                 val sid = response.lineSequence().first { it.startsWith("SID:", ignoreCase = true) }.substringAfter(':').trim()
 
-                fun receive(path: String, status: String) = callback.accept().use { socket ->
-                    socket.soTimeout = 5000
-                    val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
-                    assertEquals("NOTIFY $path HTTP/1.1", input.readLine())
-                    val headers = generateSequence { input.readLine()?.takeIf(String::isNotEmpty) }.toList()
-                    assertTrue("SID: $sid" in headers)
-                    assertTrue("SEQ: 0" in headers)
-                    val size = headers.first { it.startsWith("CONTENT-LENGTH:") }.substringAfter(':').trim().toInt()
-                    val body = buildString { repeat(size) { append(input.read().also { assertTrue(it >= 0) }.toChar()) } }
-                    assertTrue(body.contains("LastChange"))
-                    socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
-                }
-                receive("/fail", "500 Diagnostic 200")
-                receive("/notify?source=test", "200 OK")
+                assertTrue("LastChange" in receiveDlnaEvent(callback, "/fail", sid, 0, "500 Diagnostic 200"))
+                assertTrue("LastChange" in receiveDlnaEvent(callback, "/notify?source=test", sid, 0))
                 val renewed = eventRequest("SUBSCRIBE", "SID: $sid", "TIMEOUT: Second-10")
                 assertTrue(renewed.startsWith("HTTP/1.1 200"))
                 assertTrue(renewed.contains("TIMEOUT: Second-60", ignoreCase = true))

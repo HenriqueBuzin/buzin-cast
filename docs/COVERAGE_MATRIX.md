@@ -1291,3 +1291,14 @@ All 13 receiver integration cases passed on normal API28. The matched
 report for DlnaReceiver.kt covers 91 of 126 branches, including 25 of 30 in
 the player-state tick, 15 of 16 in prepareAndPlay and 18 of 22 in its posted
 callback. The suite now has 223 Android cases.
+
+The DLNA tests now verify RenderingControl against the Android media stream,
+including denial, volume clamping, sequenced GENA notifications, and
+restoration of the original volume. A separate case holds the main looper
+until AirPlay claims playback after the SOAP request was accepted, then
+verifies the queued DLNA load is discarded.
+
+All 15 receiver socket integration cases passed on normal API28. On the
+identical application APK, the selected DlnaReceiver report grew from
+91 to 94 out of 126 covered branches and from 108 to 116 out of 121 lines.
+The suite now has 225 Android cases.
