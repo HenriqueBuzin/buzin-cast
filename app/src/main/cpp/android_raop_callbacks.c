@@ -289,7 +289,6 @@ static void _display_pin(void *cls, char *pin) {
 }
 
 /* Stubs for less critical callbacks */
-static void _noop(void *cls) { (void)cls; }
 static void _video_pause(void *cls) { LOGI("video_pause"); }
 static void _video_resume(void *cls) { LOGI("video_resume"); }
 static void _conn_feedback(void *cls) { (void)cls; }

@@ -30,4 +30,9 @@ class NativeCallbackFaultContractTest {
     @Test fun unavailableVmSkipsScalarAndControlCallbacks() = checkFailures(8..21, 2..3)
     @Test fun throwingScalarAndControlCallbacksRecoverForTheNextDelivery() = checkFailures(8..21, 4..4)
     @Test fun missingEnvironmentFromMalformedVmResultBlocksDeliveryAndRecovers() = checkFailures(0..21, 5..5)
+    @Test fun admissionFailsClosedUntilItsJvmDependencyRecovers() {
+        checkFailures(22..22, 0..0)
+        checkFailures(22..22, 2..5)
+    }
+    @Test fun pcmClearsAStaleExceptionBeforeAllocatingAndDelivering() = checkFailures(7..7, 6..6)
 }

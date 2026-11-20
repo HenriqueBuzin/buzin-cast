@@ -1238,3 +1238,13 @@ The suite now has 217 Android cases.
 The compat report pinned at c13c113 passed 214 Android and 20 native cases
 and all 15 runtime result checks. Its report measured 70.7297% JVM branch
 coverage and 93.7229% native branch coverage.
+
+The JNI callback tests now inject unavailable environments, peer-string
+allocation failure and a Java exception into connection admission. Each
+failure rejects the peer and the next valid callback can accept it. A PCM
+case starts with a pending exception and verifies that it is cleared before
+allocation and delivery. An unreferenced static callback stub was removed.
+
+All 15 callback cases passed on normal API28. LLVM coverage from the
+matching APK library shows all 6 admission and all 28 PCM callback branch
+outcomes. The suite now has 219 Android cases.

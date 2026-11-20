@@ -897,6 +897,10 @@ struct CallbackFaultFixture {
         callVoid(env, object, method);
         return -6.25f;
     }
+    static jboolean callBoolean(JNIEnv *env, jobject object, jmethodID method, ...) {
+        callVoid(env, object, method);
+        return JNI_TRUE;
+    }
     CallbackFaultFixture() {
         active = this; env.functions = &functions; vm.functions = &invocation;
         ctx.jvm = &vm; ctx.callback_obj = reinterpret_cast<jobject>(1);
@@ -918,6 +922,7 @@ struct CallbackFaultFixture {
         };
         functions.CallVoidMethod = callVoid;
         functions.CallFloatMethod = callFloat;
+        functions.CallBooleanMethod = callBoolean;
         functions.DeleteLocalRef = [](JNIEnv *, jobject object) {
             if (object) --active->live; // Legal while an exception is pending.
         };
@@ -986,6 +991,11 @@ struct CallbackFaultFixture {
                 if (volume != (envStatus == JNI_OK && !missingEnv ? -6.25 : 0.0)) ++illegal;
                 break;
             }
+            case 22: {
+                const bool allowed = envStatus == JNI_OK && !missingEnv && !failAllocation && !callbackThrows;
+                if (callbacks.conn_admit(&ctx, "fixture-peer") != allowed || pending != (failAllocation != 0)) ++illegal;
+                break;
+            }
             default: ++illegal; break;
         }
     }
@@ -994,9 +1004,11 @@ struct CallbackFaultFixture {
 extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv *env, jobject, jint scenario, jint failure) {
 #define FAULT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
-    FAULT_CONTRACT(scenario >= 0 && scenario <= 21 && failure >= 0 && failure <= 5);
+    FAULT_CONTRACT(scenario >= 0 && scenario <= 22 && failure >= 0 && failure <= 6);
+    FAULT_CONTRACT(failure != 6 || scenario == 7);
+    FAULT_CONTRACT(scenario != 22 || failure != 1);
     // Scalar/control callbacks allocate no JNI objects and copy no byte arrays.
-    FAULT_CONTRACT(scenario <= 7 || failure >= 2);
+    FAULT_CONTRACT(scenario <= 7 || scenario == 22 || failure >= 2);
     CallbackFaultFixture fixture;
     if (failure == 0) fixture.failAllocation = scenario == 6 ? 2 : 1;
     if (failure == 1) fixture.failCopy = true;
@@ -1004,21 +1016,25 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
     if (failure == 3) fixture.envStatus = JNI_EDETACHED;
     if (failure == 4) fixture.callbackThrows = true;
     if (failure == 5) fixture.missingEnv = true;
+    if (failure == 6) fixture.pending = true;
+    const int delivered = failure == 4 || failure == 6 ? 1 : 0;
     fixture.deliver(scenario);
     FAULT_CONTRACT(fixture.illegal == 0);
     FAULT_CONTRACT(fixture.live == 0);
-    FAULT_CONTRACT(fixture.calls == (failure == 4 ? 1 : 0));
+    FAULT_CONTRACT(fixture.calls == delivered);
     if (failure == 0) FAULT_CONTRACT(fixture.allocation == (scenario == 6 ? 2 : 1));
     if (failure == 1) FAULT_CONTRACT(fixture.writes == 1);
     if (failure == 5) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
-    if (scenario >= 8) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
+    if (scenario >= 8 && scenario <= 21) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
+    if (scenario == 22) FAULT_CONTRACT(fixture.clears == (failure == 4 ? 1 : 0));
+    if (failure == 6) FAULT_CONTRACT(!fixture.pending && fixture.clears == 1 && fixture.writes == 1);
     fixture.failAllocation = 0; fixture.failCopy = false;
     fixture.callbackThrows = false; fixture.missingEnv = false; fixture.envStatus = JNI_OK;
     // PCM clears its own exception; the other callbacks recover at _get_env.
     fixture.deliver(scenario);
     FAULT_CONTRACT(fixture.illegal == 0);
     FAULT_CONTRACT(fixture.live == 0);
-    FAULT_CONTRACT(fixture.calls == (failure == 4 ? 2 : 1));
+    FAULT_CONTRACT(fixture.calls == delivered + 1);
     FAULT_CONTRACT(!fixture.pending);
     return env->NewStringUTF("callback fault contracts passed");
 #undef FAULT_CONTRACT
