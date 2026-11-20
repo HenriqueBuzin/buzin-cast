@@ -1355,3 +1355,13 @@ its startup resources. A later attempt starts the receiver.
 All 27 selected cases passed on normal API28, including the real JNI
 callback lookup failure test. The matching LLVM report covers all 22
 branch outcomes in nativeInit.
+
+The foreground restart contract changes the active service's port to a
+socket already held by the test. It verifies the receiver closes the old
+RTSP listener and exits foreground mode on failure, then successfully
+serves RTSP on the requested port once it is available.
+
+All 28 selected cases passed on normal API28. Comparing the same app APK
+before and after adding the case, restart coverage grew from 1 to 4 of
+4 branches and failed-start coverage grew from 5 to 6 of 10 branches.
+The suite now has 233 Android cases.

@@ -34,6 +34,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.net.ConnectException
+import java.net.ServerSocket
+import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -226,6 +229,50 @@ class MainActivityLifecycleContractTest {
             }
         }
         start(activity)
+    }
+
+    @Test fun occupiedPortDuringForegroundRestartClosesTheListenerAndAllowsRetry() {
+        val portPreference = Prefs.SERVER_PORT
+        val savedPort = portPreference.read(preferences)
+        val hadPort = preferences.contains(portPreference.key)
+        val foregroundFlag = AirPlayService::class.java.getDeclaredField("foregroundStarted")
+            .apply { isAccessible = true }
+        val initialPort = ServerSocket(0).use { it.localPort }
+        fun expectRtsp(port: Int) = Socket("127.0.0.1", port).use { socket ->
+            socket.soTimeout = 5000
+            socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n".toByteArray())
+            val reply = socket.getInputStream().bufferedReader().readLine()
+            assertTrue("Unexpected RTSP response: $reply", reply?.startsWith("RTSP/1.0 200") == true)
+        }
+
+        try {
+            assertTrue(portPreference.write(preferences, initialPort))
+            val activity = launch()
+            start(activity)
+            main { assertTrue(foregroundFlag.getBoolean(service)) }
+            expectRtsp(initialPort)
+
+            val nextPort = ServerSocket(0).use { occupied ->
+                assertTrue(portPreference.write(preferences, occupied.localPort))
+                await("The busy port did not stop foreground playback") {
+                    service.serverState.value == AirPlayService.ServerState.ERROR &&
+                        model(activity).serverState.value == AirPlayService.ServerState.ERROR &&
+                        !foregroundFlag.getBoolean(service)
+                }
+                val failure = runCatching { Socket("127.0.0.1", initialPort).use { } }.exceptionOrNull()
+                assertTrue("The previous RTSP listener is still reachable: $failure", failure is ConnectException)
+                occupied.localPort
+            }
+
+            start(activity)
+            main { assertTrue(foregroundFlag.getBoolean(service)) }
+            expectRtsp(nextPort)
+        } finally {
+            main { service.stopServer() }
+            val restore = preferences.edit()
+            if (hadPort) restore.putInt(portPreference.key, savedPort) else restore.remove(portPreference.key)
+            assertTrue(restore.commit())
+        }
     }
 
     @Test fun receiverReadvertisesDisplayOnlyForChangedAutomaticOrientation() {
