@@ -1093,3 +1093,15 @@ The normal API28 lifecycle and main-screen selection passed all 12 tests in
 117.152 seconds. This includes the previously stalled idle receiver lifecycle and
 the real PiP round trip. The run verified that the emulator's original animator
 scale of 1.0 was restored after the selection.
+
+The DNS allocation test now checks each failure with and without the optional
+error output. All 20 native tests passed under UBSan on API28. Export against
+the matching application library covers all 12 branch outcomes and all three
+MC/DC conditions in dnssd_init.
+
+The service audio tests now verify that a music-to-mirror transition disables
+the Android media session and clears the prior track and playback position.
+Audio received for the mirrored screen stays in mirror mode. The normal API28
+service and DACP selection passed all 22 tests in 5.383 seconds. Its matching
+report covers 4/4 branches in onMirrorRunning and 9/12 in _setAudioOnly.
+The source suite now contains 210 Android cases.

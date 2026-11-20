@@ -39,6 +39,7 @@ class ServiceAudioStateContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private lateinit var service: AirPlayService
+    private lateinit var mediaSession: MediaSessionCompat
     private lateinit var controller: MediaControllerCompat
     private lateinit var connection: ServiceConnection
     private var binding = false
@@ -83,8 +84,8 @@ class ServiceAudioStateContractTest {
         main {
             assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
             val field = AirPlayService::class.java.getDeclaredField("mediaSession").apply { isAccessible = true }
-            val session = requireNotNull(field.get(service) as? MediaSessionCompat)
-            controller = MediaControllerCompat(context, session.sessionToken)
+            mediaSession = requireNotNull(field.get(service) as? MediaSessionCompat)
+            controller = MediaControllerCompat(context, mediaSession.sessionToken)
             controller.registerCallback(callback, Handler(Looper.getMainLooper()))
         }
     }
@@ -245,6 +246,43 @@ class ServiceAudioStateContractTest {
             val replacement = mutableListOf<String?>()
             service.pinCallback = { replacement.add(it) }
             assertEquals(listOf("5678"), replacement)
+        }
+    }
+
+    @Test fun mirrorAudioKeepsTheMediaSessionInactiveAndDropsThePreviousTrack() {
+        main {
+            val emptyTrack = service.trackInfo.value
+            val title = "Track before mirroring"
+            service.onAudioFormat(2, 352, false)
+            service.onMetadata(item("mlit", text("minm", title)))
+            service.onProgress(0, 44100, 44100 * 60L)
+            assertTrue(service.audioOnly.value)
+            assertTrue(mediaSession.isActive)
+            assertEquals(title, service.trackInfo.value.title)
+            assertTrue(service.positionMs.value > 0)
+            assertTrue(service.durationMs.value > 0)
+
+            service.onMirrorRunning(true)
+            try {
+                assertFalse(service.audioOnly.value)
+                assertFalse(mediaSession.isActive)
+                assertEquals(emptyTrack, service.trackInfo.value)
+                assertEquals(0L, service.positionMs.value)
+                assertEquals(0L, service.durationMs.value)
+                assertEquals(0L, service.currentPositionMs())
+
+                service.onAudioFormat(2, 352, true)
+                assertFalse(service.audioOnly.value)
+                assertFalse(mediaSession.isActive)
+                assertEquals(emptyTrack, service.trackInfo.value)
+            } finally {
+                service.onMirrorRunning(false)
+            }
+            assertTrue(service.audioOnly.value)
+            assertTrue(mediaSession.isActive)
+            service.onMirrorRunning(false)
+            assertTrue(mediaSession.isActive)
+            assertEquals(emptyTrack, service.trackInfo.value)
         }
     }
 
