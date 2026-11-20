@@ -265,7 +265,7 @@ fun coverageClassDirectory(name: String, live: File): File =
     coverageMappingsDirectory?.resolve("classes/$name") ?: live
 val productionClasses = files(
     fileTree(coverageClassDirectory("app", layout.buildDirectory.dir("intermediates/classes/debug/transformDebugClassesWithAsm/dirs").get().asFile)) {
-        exclude("**/DebugMediaReceiver*", "**/DebugNativeBridge*", "**/DebugCoverage*", "**/DebugTvPreviewActivity*", "**/DebugTvPlaybackActivity*", "**/DebugNativeFixture*")
+        exclude("**/DebugMediaReceiver*", "**/DebugNativeBridge*", "**/DebugCoverage*", "**/DebugTvPreviewActivity*", "**/DebugTvPlaybackActivity*", "**/DebugNativeFixture*", "**/DebugDiagnosticVpnService*")
         exclude("**/Hilt_*", "**/*_Hilt*", "**/*_Factory*", "**/*_MembersInjector*", "**/hilt_aggregated_deps/**", "dagger/**")
     },
     fileTree(coverageClassDirectory("app-kotlin", layout.buildDirectory.dir("tmp/kotlin-classes/debug").get().asFile)),

@@ -1754,3 +1754,9 @@ active Android network. Running the same APK pair with connectivity and
 then with no default network covers 17 of 18 diagnostic branches in the
 normal and compat DE/AT API28 selections. The remaining branch requires
 Android to report an active VPN transport. The suite has 295 Android cases.
+
+The diagnostics contract also runs against a real Android VPN in a disposable
+emulator. The debug-only service exposes a VPN transport to the app's package
+and closes its tunnel after checking the report. For normal and compat DE/AT
+API28, the connected, VPN, and offline profiles from the same APK pairs cover
+all six JVM metrics for `NetworkDiagnostics`, including 18 of 18 branches.

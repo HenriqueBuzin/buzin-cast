@@ -1,10 +1,16 @@
 package io.github.jqssun.airplay
 
 import android.content.Context
+import android.content.ComponentName
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.VpnService
+import android.os.IBinder
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.media.NetworkDiagnostics
@@ -15,6 +21,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class NetworkDiagnosticsContractTest {
@@ -64,14 +72,50 @@ class NetworkDiagnosticsContractTest {
 
     @Test fun publicReportMatchesTheDefaultAndroidNetwork() {
         val manager = target.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val activeNetwork = manager.currentNetworkCompat()
-        val expectation = InstrumentationRegistry.getArguments().getString("networkDiagnosticState")
-        if (expectation == "offline") assertNull("The test emulator still has a default network", activeNetwork)
-        val hasVpn = activeNetwork?.let(manager::getNetworkCapabilities)
+        fun hasVpn() = manager.currentNetworkCompat()?.let(manager::getNetworkCapabilities)
             ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        val report = NetworkDiagnostics.report(context, running = false)
-        assertEquals(hasVpn, context.getString(R.string.diag_vpn_active) in report.lineSequence())
-        assertTrue(context.getString(R.string.diag_receiver_stopped) in report.lineSequence())
+        fun assertReport(vpn: Boolean) {
+            val report = NetworkDiagnostics.report(context, running = false)
+            assertEquals(vpn, context.getString(R.string.diag_vpn_active) in report.lineSequence())
+            assertTrue(context.getString(R.string.diag_receiver_stopped) in report.lineSequence())
+        }
+        val expectation = InstrumentationRegistry.getArguments().getString("networkDiagnosticState")
+        when (expectation) {
+            "vpn" -> withDiagnosticVpn {
+                val deadline = SystemClock.elapsedRealtime() + 10_000
+                while (!hasVpn() && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(25)
+                assertTrue("Android did not report the VPN transport", hasVpn())
+                assertReport(true)
+            }
+            "offline" -> {
+                assertNull("The test emulator still has a default network", manager.currentNetworkCompat())
+                assertReport(false)
+            }
+            else -> assertReport(hasVpn())
+        }
+    }
+
+    private fun withDiagnosticVpn(check: () -> Unit) {
+        assertNull("The test VPN needs authorization on the emulator", VpnService.prepare(target))
+        val ready = CountDownLatch(1)
+        var control: DebugDiagnosticVpnService.Control? = null
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                control = service as DebugDiagnosticVpnService.Control
+                ready.countDown()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) = Unit
+        }
+        val intent = Intent(target, DebugDiagnosticVpnService::class.java)
+        assertTrue(target.bindService(intent, connection, Context.BIND_AUTO_CREATE))
+        try {
+            assertTrue("Diagnostic VPN service did not bind", ready.await(10, TimeUnit.SECONDS))
+            val tunnel = requireNotNull(requireNotNull(control).establish()) { "Android refused the diagnostic VPN" }
+            tunnel.use { check() }
+        } finally {
+            target.unbindService(connection)
+        }
     }
 
     private fun configure(usbOnly: Boolean, dlna: Boolean, fcast: Boolean) {
