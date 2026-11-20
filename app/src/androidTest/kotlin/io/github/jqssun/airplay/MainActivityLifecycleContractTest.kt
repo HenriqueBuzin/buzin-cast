@@ -21,11 +21,17 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import io.buzincast.core.AsyncLogStore
+import io.buzincast.core.MediaRequest
+import io.buzincast.core.Protocol
+import io.buzincast.core.ReceiverPlaybackPort
+import io.buzincast.core.SessionKind
+import io.github.jqssun.airplay.renderer.AirPlayVideoPlayer
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import io.leancast.app.Net
@@ -519,6 +525,83 @@ class MainActivityLifecycleContractTest {
         keepsScreenOn(activity, false)
         stopped(activity, AirPlayService.ServerState.STOPPED)
         finishActivities()
+    }
+
+    @Test fun playbackControlsStayWithTheOwnerAcrossFcastAirplayAndLocalHandoffs() {
+        val activity = launch()
+        start(activity)
+        val file = File.createTempFile("media-ownership-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("download/sample.mp4").use { input -> file.outputStream().use(input::copyTo) }
+        val location = android.net.Uri.fromFile(file).toString()
+        val port = AirPlayService::class.java.getDeclaredField("playbackPort").apply { isAccessible = true }
+            .get(service) as ReceiverPlaybackPort
+        val playerField = AirPlayVideoPlayer::class.java.getDeclaredField("player").apply { isAccessible = true }
+        fun player() = playerField.get(service.airPlayVideoPlayer) as ExoPlayer
+
+        main {
+            service.relay.listen()
+            assertTrue(service.relay.state.value.listening)
+            port.load(MediaRequest(location, Protocol.FCAST))
+            assertFalse(service.relay.state.value.listening)
+            assertEquals(Protocol.FCAST, service.networkPlaybackOwner)
+            assertEquals(SessionKind.MEDIA, service.sessionSnapshot()?.kind)
+            port.playing(Protocol.FCAST, false)
+            port.speed(Protocol.FCAST, 1.25f)
+            port.gain(Protocol.FCAST, 0.5f)
+            port.seek(Protocol.FCAST, 0.25f)
+            port.playing(Protocol.DLNA, true)
+            port.speed(Protocol.DLNA, 2f)
+            port.gain(Protocol.DLNA, 0.9f)
+            port.stop(Protocol.DLNA)
+        }
+        main {
+            assertFalse(player().playWhenReady)
+            assertEquals(1.25f, player().playbackParameters.speed, 0f)
+            assertEquals(0.5f, player().volume, 0f)
+            service.onConnectionInit()
+            val blocked = runCatching { port.load(MediaRequest(location, Protocol.DLNA)) }.exceptionOrNull()
+            assertEquals("Another display session is active", blocked?.message)
+            assertEquals(Protocol.FCAST, service.networkPlaybackOwner)
+            service.onVideoPlay(location, 0f)
+            service.onVideoRate(0f)
+        }
+        await("AirPlay did not claim and pause playback") {
+            service.networkPlaybackOwner == Protocol.AIRPLAY && !player().playWhenReady
+        }
+        main {
+            service.onVideoRate(1.5f)
+            service.onVideoRate(0f)
+        }
+        await("AirPlay rate commands were not applied") {
+            !player().playWhenReady && player().playbackParameters.speed == 1.5f
+        }
+        main {
+            assertFalse(player().playWhenReady)
+            assertEquals(1.5f, player().playbackParameters.speed, 0f)
+            service.onVideoStop()
+            service.playLocalVideo(location)
+            service.setVideoPlaying(false)
+        }
+        var localPosition = 0L
+        main {
+            assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
+            assertFalse(player().playWhenReady)
+            localPosition = player().currentPosition
+            service.onVideoRate(2f)
+            service.onVideoScrub(0.5f)
+            port.seek(Protocol.FCAST, 0.5f)
+            service.onConnectionDestroy()
+        }
+        main {
+            assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
+            assertTrue(service.videoPlaybackActive.value)
+            assertFalse(player().playWhenReady)
+            assertEquals(1f, player().playbackParameters.speed, 0f)
+            assertEquals(localPosition, player().currentPosition)
+            port.stop(Protocol.LOCAL)
+            assertNull(service.networkPlaybackOwner)
+            assertFalse(service.videoPlaybackActive.value)
+        }
     }
 
     @Test fun pictureInPictureRoundTripKeepsTheSessionAndReturnsToTheSameActivity() {

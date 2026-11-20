@@ -826,11 +826,19 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     }
 
     override fun onVideoScrub(positionSeconds: Float) {
-        airPlayVideoPlayer.scrub(positionSeconds)
+        withAirPlayVideo { airPlayVideoPlayer.scrub(positionSeconds, it) }
     }
 
     override fun onVideoRate(rate: Float) {
-        airPlayVideoPlayer.setRate(rate)
+        withAirPlayVideo { airPlayVideoPlayer.setRate(rate, it) }
+    }
+
+    private fun withAirPlayVideo(command: (SessionToken) -> Unit) {
+        // Resolve ownership in the same queue that processes onVideoPlay.
+        _mainHandler.post {
+            val token = mediaToken?.takeIf { it.protocol == Protocol.AIRPLAY && sessions.owns(it) } ?: return@post
+            command(token)
+        }
     }
 
     override fun onVideoStop() {

@@ -144,7 +144,8 @@ class AirPlayVideoPlayer(private val context: Context) {
         player?.isScrubbingModeEnabled = enabled
     }
 
-    fun setRate(rate: Float) = mainHandler.post {
+    fun setRate(rate: Float, expected: SessionToken) = mainHandler.post {
+        if (currentToken != expected) return@post
         val p = player ?: return@post
         if (rate <= 0f) {
             p.playWhenReady = false

@@ -1376,3 +1376,17 @@ test. The gesture now settles before releasing its scroll, and the test
 checks stable slider bounds before tapping. All 29 selected cases passed
 on normal API28 after that adjustment. On the same APK, server startup
 coverage grew from 19 to 29 of 42 branches. The suite has 234 Android cases.
+
+The media ownership contract exercises the actual player as FCast hands
+playback off to AirPlay and then to a local video. It checks that AirPlay
+can pause immediately after requesting playback and that late AirPlay and
+FCast commands leave the local video's speed, position and pause state intact.
+AirPlay rate and seek commands now resolve ownership on the same queue as
+playback startup and pass the active session token to the player.
+All 30 selected lifecycle, receiver, and JNI tests passed on normal API28.
+The matching JaCoCo report covers 17 of 22 branches in `beginMedia`.
+
+The suite now has 235 Android cases. In the separate four-edition run pinned
+at `1b991d4`, DE/AT passed all 231 Android tests, 21 native cases and the
+required runtime gates. It reached 72.70% JVM branch coverage and 95.00%
+native branch coverage. Those figures apply to the pinned build.
