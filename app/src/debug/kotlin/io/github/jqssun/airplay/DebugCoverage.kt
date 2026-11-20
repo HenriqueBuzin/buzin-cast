@@ -18,6 +18,7 @@ object DebugCoverage {
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     external fun nativeCallbackInitContracts(mode: Int): String
     external fun nativeCreatePartialServer(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): Long
+    external fun nativeWithRaopInitFailure(action: Runnable): Int
     external fun nativeInitWithPinResult(bridge: io.github.jqssun.airplay.bridge.NativeBridge,
         callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler, hardware: ByteArray,
         name: String, keyFile: String, result: Int): Long

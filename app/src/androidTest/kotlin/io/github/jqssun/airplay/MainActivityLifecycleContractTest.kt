@@ -201,6 +201,30 @@ class MainActivityLifecycleContractTest {
         }
     }
 
+    @Test fun nativePairingInitializationFailureReleasesTheServiceAndAllowsRetry() {
+        org.junit.Assume.assumeTrue("Requires instrumented native initialization fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        System.loadLibrary("airplay_native")
+        val activity = launch()
+        main {
+            val messages = CopyOnWriteArrayList<String>()
+            val previous = service.logCallback
+            service.logCallback = { message -> messages += message; previous?.invoke(message) }
+            try {
+                assertEquals(1, DebugCoverage.nativeWithRaopInitFailure { service.startServer() })
+                assertEquals(AirPlayService.ServerState.ERROR, service.serverState.value)
+                assertTrue(messages.toString(), messages.any { it.contains("Native AirPlay init failed") })
+                for (field in listOf("airPlayReceiver", "wakeLock", "nsdManager")) {
+                    val value = AirPlayService::class.java.getDeclaredField(field).apply { isAccessible = true }.get(service)
+                    assertNull("Resource retained after initialization failure: $field", value)
+                }
+            } finally {
+                service.logCallback = previous
+            }
+        }
+        start(activity)
+    }
+
     @Test fun receiverReadvertisesDisplayOnlyForChangedAutomaticOrientation() {
         val resolution = Prefs.RESOLUTION
         val saved = preferences.getString(resolution.key, null)

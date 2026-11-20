@@ -1334,3 +1334,14 @@ All 37 selected service, DACP and lifecycle cases passed on normal API28.
 The matched report covers all 8 branches and 52 instructions in the
 selector. It also covers the real Android adapter and two of its four
 branch outcomes. The suite now has 231 Android cases.
+
+If RAOP pairing or HTTP initialization fails, JNI destroys the partial
+engine and callback binding and returns failure before the service tries
+to start the listener. The lifecycle test forces this return status,
+checks the service error state and resource release, and starts the
+receiver successfully on its next attempt.
+
+All 22 selected lifecycle and native receiver cases passed on normal API28.
+The matching native profile covers both outcomes of RAOP initialization
+and 19 of 22 branch outcomes in nativeInit. The suite now has 232 Android
+cases.

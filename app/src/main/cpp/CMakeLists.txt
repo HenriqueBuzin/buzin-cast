@@ -200,6 +200,7 @@ if(BUZIN_COVERAGE)
         COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping;-fcoverage-mcdc;-fprofile-update=atomic")
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
+        "-Wl,--wrap=raop_init2"
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
         "-Wl,--wrap=pthread_setspecific"
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"

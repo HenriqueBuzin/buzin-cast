@@ -29,6 +29,7 @@ extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
 
 extern "C" int __real_random_pin(void);
+extern "C" int __real_raop_init2(raop_t *, int, const char *, const char *);
 extern "C" JNIEXPORT jlong JNICALL
 Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     JNIEnv *, jobject, jobject, jbyteArray, jstring, jstring, jboolean, jboolean);
@@ -163,6 +164,32 @@ extern "C" int __wrap_random_pin(void) {
         return activePinResult->result;
     }
     return __real_random_pin();
+}
+
+namespace {
+thread_local int *forcedRaopInitCalls = nullptr;
+}
+
+extern "C" int __wrap_raop_init2(raop_t *raop, int nohold, const char *deviceId, const char *keyFile) {
+    if (!forcedRaopInitCalls) return __real_raop_init2(raop, nohold, deviceId, keyFile);
+    ++*forcedRaopInitCalls;
+    return -1;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeWithRaopInitFailure(JNIEnv *env, jobject, jobject action) {
+    jclass runnable = env->FindClass("java/lang/Runnable");
+    if (!runnable) return 0;
+    jmethodID run = env->GetMethodID(runnable, "run", "()V");
+    env->DeleteLocalRef(runnable);
+    if (!run) return 0;
+
+    int calls = 0;
+    auto *previous = forcedRaopInitCalls;
+    forcedRaopInitCalls = &calls;
+    env->CallVoidMethod(action, run);
+    forcedRaopInitCalls = previous;
+    return calls;
 }
 
 extern "C" JNIEXPORT jlong JNICALL

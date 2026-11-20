@@ -66,7 +66,6 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     raop_set_log_callback(ctx->raop, _log_callback, NULL);
 
     const char *keyfile_c = env->GetStringUTFChars(keyFile, NULL);
-    const char *name_c = env->GetStringUTFChars(name, NULL);
 
     char device_id[18];
     snprintf(device_id, sizeof(device_id), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -75,8 +74,13 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
              (unsigned char)ctx->hw_addr[4], (unsigned char)ctx->hw_addr[5]);
 
     int ret = raop_init2(ctx->raop, nohold ? 1 : 0, device_id, keyfile_c);
+    env->ReleaseStringUTFChars(keyFile, keyfile_c);
     if (ret < 0) {
         LOGE("raop_init2 failed: %d", ret);
+        raop_destroy(ctx->raop);
+        android_callbacks_destroy(&ctx->cb_ctx, env);
+        delete ctx;
+        return 0;
     }
 
     if (requirePin) {
@@ -84,8 +88,6 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
         int pin = random_pin();
         if (pin < 0 || pin > 9999) {
             LOGE("Cannot start PIN-protected receiver: random PIN generation failed");
-            env->ReleaseStringUTFChars(keyFile, keyfile_c);
-            env->ReleaseStringUTFChars(name, name_c);
             raop_destroy(ctx->raop);
             android_callbacks_destroy(&ctx->cb_ctx, env);
             delete ctx;
@@ -97,15 +99,14 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     /* shim dnssd_init only builds txt records; kotlin does the actual nsd registration */
     int dns_err = 0;
     unsigned char pin_pw = requirePin ? 1 : 0;
+    const char *name_c = env->GetStringUTFChars(name, NULL);
     ctx->dnssd = dnssd_init(name_c, (int)strlen(name_c), ctx->hw_addr, 6, &dns_err, pin_pw);
+    env->ReleaseStringUTFChars(name, name_c);
     if (!ctx->dnssd) {
         LOGE("dnssd_init failed: %d", dns_err);
     } else {
         raop_set_dnssd(ctx->raop, ctx->dnssd);
     }
-
-    env->ReleaseStringUTFChars(keyFile, keyfile_c);
-    env->ReleaseStringUTFChars(name, name_c);
 
     ctx->log = std::make_shared<LogSink>();
     ctx->log->bind(env, callback);
