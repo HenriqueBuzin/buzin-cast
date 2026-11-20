@@ -1707,3 +1707,11 @@ one-second limit while both packets still deliver PCM. It and the two
 selected AAC regression tests passed on normal and compat DE/AT API28.
 The matching LLVM profiles show one execution on each side of the ceiling
 check in both editions. The suite has 284 Android cases.
+
+The ALAC recovery contract rejects the first FFmpeg allocation, verifies
+the retry deadline, and confirms decoded PCM after retrying the same format.
+It then switches from 352 to 4096 samples per frame while keeping ALAC and
+checks the new PCM size and timestamp. Both outcomes of the same-codec
+format check execute in the selected LLVM profiles for normal and compat
+DE/AT. The frozen 275-case profiles did not execute the format-change
+outcome in either edition. The suite has 285 Android cases.

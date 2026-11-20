@@ -6,6 +6,8 @@
 #include <jni.h>
 
 struct AudioEngineContractAccess {
+    static int64_t &retryDeadline(AudioEngine &engine) { return engine.mRetryAtNs; }
+
     static bool readCachedDebug(AudioEngine *engine, AudioDebugData &debug) {
         std::unique_lock<std::mutex> rebuild(engine->mRebuildLock);
         auto poll = std::async(std::launch::async, [&] {
@@ -741,4 +743,64 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeFfmpegFailureContracts(JNIEnv 
     }
 #undef FFMPEG_CONTRACT
     return env->NewStringUTF("ffmpeg failure contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecoderRetryContract(JNIEnv *env, jobject, jbyteArray input,
+                                                                     jbyteArray changedFormat) {
+#define RETRY_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    const auto size = input ? env->GetArrayLength(input) : 0;
+    RETRY_CONTRACT(size > 0 && size <= 8192);
+    std::vector<uint8_t> packet(size + AV_INPUT_BUFFER_PADDING_SIZE, 0);
+    env->GetByteArrayRegion(input, 0, size, reinterpret_cast<jbyte *>(packet.data()));
+    if (env->ExceptionCheck()) return nullptr;
+
+    struct Capture { size_t samples = 0; int64_t pts = 0; } capture;
+    using Engine = std::unique_ptr<AudioEngine, decltype(&audio_engine_destroy)>;
+    Engine engine(audio_engine_create(std::make_shared<LogSink>(), 44100, 2), audio_engine_destroy);
+    RETRY_CONTRACT(engine);
+    RETRY_CONTRACT(audio_engine_configure(engine.get(), 20, 95, 0, true, true, false, false, false));
+    audio_engine_on_format(engine.get(), CT_ALAC, 352);
+    audio_engine_set_pcm_callback(engine.get(), [](void *user, const int16_t *, size_t samples,
+                                                   int64_t pts, int, int) {
+        auto &pcm = *static_cast<Capture *>(user);
+        pcm.samples += samples;
+        pcm.pts = pts;
+    }, &capture);
+    audio_engine_set_capture_enabled(engine.get(), true);
+    auto feed = [&](int64_t pts) { audio_engine_decode(engine.get(), packet.data(), size, CT_ALAC, pts); };
+
+    auto &deadline = AudioEngineContractAccess::retryDeadline(*engine);
+    const auto pts = monoNs();
+    {
+        ScopedDecoderAllocationFault allocation(DecoderAllocation::Context);
+        feed(pts);
+        RETRY_CONTRACT(allocation.fault.rejected && capture.samples == 0);
+    }
+    RETRY_CONTRACT(deadline >= pts + NS_PER_SEC && deadline <= monoNs() + NS_PER_SEC);
+
+    // Drive both sides of the scheduled deadline without relying on CPU scheduling.
+    deadline = INT64_MAX;
+    {
+        ScopedDecoderAllocationFault attemptedEarly(DecoderAllocation::Context);
+        feed(pts + 8'000'000);
+        RETRY_CONTRACT(!attemptedEarly.fault.rejected && capture.samples == 0 && deadline == INT64_MAX);
+    }
+    deadline = monoNs();
+    const auto resumedPts = pts + 16'000'000;
+    feed(resumedPts);
+    RETRY_CONTRACT(deadline == 0 && capture.samples == 352 * 2 && capture.pts == resumedPts);
+
+    // A new frame size must recreate the decoder even though the codec stays ALAC.
+    const auto changedSize = changedFormat ? env->GetArrayLength(changedFormat) : 0;
+    RETRY_CONTRACT(changedSize > 0 && changedSize <= 8192);
+    std::vector<uint8_t> changedPacket(changedSize + AV_INPUT_BUFFER_PADDING_SIZE, 0);
+    env->GetByteArrayRegion(changedFormat, 0, changedSize, reinterpret_cast<jbyte *>(changedPacket.data()));
+    if (env->ExceptionCheck()) return nullptr;
+    audio_engine_on_format(engine.get(), CT_ALAC, 4096);
+    const auto changedPts = resumedPts + 352 * NS_PER_SEC / 44100;
+    audio_engine_decode(engine.get(), changedPacket.data(), changedSize, CT_ALAC, changedPts);
+    RETRY_CONTRACT(capture.samples == (352 + 4096) * 2 && capture.pts == changedPts);
+#undef RETRY_CONTRACT
+    return env->NewStringUTF("decoder retry contract passed");
 }
