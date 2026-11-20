@@ -1226,3 +1226,15 @@ All 25 selected service and DACP cases passed on normal API28. The matched
 report covers all 18 branches and 143 instructions in receiverDisplaySize
 and all 23 instructions in the AirPlayService._displaySize delegate. The suite
 now has 216 Android cases.
+
+The lifecycle instrumentation now checks resolution advertisements on a real
+running receiver. It dispatches controlled configuration callbacks and
+verifies that a new automatic orientation advertises once. Repeated
+orientations, fixed resolutions and stopped receivers emit no update.
+All eight lifecycle cases passed on normal API28. The matched report covers
+7 of 8 branches and all 64 instructions in AirPlayService.onConfigurationChanged.
+The suite now has 217 Android cases.
+
+The compat report pinned at c13c113 passed 214 Android and 20 native cases
+and all 15 runtime result checks. Its report measured 70.7297% JVM branch
+coverage and 93.7229% native branch coverage.

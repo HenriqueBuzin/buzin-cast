@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.media.AudioManager
@@ -34,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 
 /** Android-driven lifecycle transitions with the real bound receiver and ViewModel. */
@@ -196,6 +198,58 @@ class MainActivityLifecycleContractTest {
         await("Keep-screen-on flag did not become $expected") {
             val set = activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
             set == expected
+        }
+    }
+
+    @Test fun receiverReadvertisesDisplayOnlyForChangedAutomaticOrientation() {
+        val resolution = Prefs.RESOLUTION
+        val saved = preferences.getString(resolution.key, null)
+        val activity = launch()
+        val advertisements = CopyOnWriteArrayList<String>()
+        fun reportOrientation(changed: Boolean) {
+            val config = Configuration(service.resources.configuration)
+            if (changed) {
+                config.orientation = if (config.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    Configuration.ORIENTATION_LANDSCAPE
+                } else Configuration.ORIENTATION_PORTRAIT
+            }
+            service.onConfigurationChanged(config)
+        }
+
+        try {
+            assertTrue(resolution.write(preferences, Prefs.AUTO))
+            start(activity)
+            main {
+                val previousLog = service.logCallback
+                service.logCallback = { message ->
+                    if (message.startsWith("Advertising ")) advertisements += message
+                    previousLog?.invoke(message)
+                }
+                try {
+                    val advertisedSize = service.videoResolution.value
+                    reportOrientation(changed = false)
+                    assertTrue("A repeated configuration must keep its advertisement", advertisements.isEmpty())
+                    reportOrientation(changed = true)
+                    reportOrientation(changed = true)
+                    assertEquals(listOf("Advertising $advertisedSize from next session"), advertisements)
+
+                    assertTrue(resolution.write(preferences, Prefs.LANDSCAPE))
+                    reportOrientation(changed = false)
+                    assertEquals("A fixed resolution must keep its advertisement", 1, advertisements.size)
+
+                    service.stopServer()
+                    assertTrue(resolution.write(preferences, Prefs.AUTO))
+                    reportOrientation(changed = true)
+                    assertEquals("A stopped receiver cannot advertise a new resolution", 1, advertisements.size)
+                } finally {
+                    service.logCallback = previousLog
+                }
+            }
+        } finally {
+            main { service.stopServer() }
+            val restore = preferences.edit()
+            if (saved == null) restore.remove(resolution.key) else restore.putString(resolution.key, saved)
+            assertTrue(restore.commit())
         }
     }
 
