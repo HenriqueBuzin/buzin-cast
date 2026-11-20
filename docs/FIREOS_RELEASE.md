@@ -155,6 +155,13 @@ execuções. `outputs/fireos/coordinated/verified-emulator-matrix.json`
 confirma os seis APKs 48–53, seus certificados e os doze testes de abertura
 X86 vinculados aos respectivos arquivos.
 
+Na API25, os APKs assinados 52 e 53 também passaram na checagem da tela
+Ferramentas. A ação Preparar gravação aparece na edição geral e os controles
+de gravação e download não aparecem na área verificada na edição DE/AT.
+Os relatórios ficam em `outputs/fireos/coordinated/edition-tools-api25`.
+Essa verificação cobre a interface. A execução de gravação e download
+permanece uma etapa separada.
+
 A matriz registra os APKs nativos originais. Em um teste adicional, os
 APKs 48 e 49 caíram ao carregar a biblioteca ARMv7 pelo tradutor
 `libndk_translation.so` da API30. O APK 50 passou nas mesmas condições.
