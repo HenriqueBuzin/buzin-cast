@@ -1,6 +1,7 @@
 package io.github.jqssun.airplay
 
 import android.os.SystemClock
+import android.text.TextUtils
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.*
@@ -34,10 +35,16 @@ class ReceiverIntegrationTest {
         @Volatile override var mediaActive = false
         @Volatile override var playbackInfo = PlaybackInfo()
         @Volatile var allowed = true
+        @Volatile var failLoad = false
         val requests = CopyOnWriteArrayList<MediaRequest>()
         val events = CopyOnWriteArrayList<String>()
         override fun authorize(protocol: String, peer: String) = allowed.also { events += "authorize:$protocol" }
-        override fun load(request: MediaRequest) { requests += request; mediaOwner = request.protocol; mediaActive = true }
+        override fun load(request: MediaRequest) {
+            check(!failLoad) { "Fixture player refused the request" }
+            requests += request
+            mediaOwner = request.protocol
+            mediaActive = true
+        }
         override fun stop(protocol: Protocol) { events += "stop:$protocol"; mediaActive = false }
         override fun playing(protocol: Protocol, playing: Boolean) { events += "playing:$playing" }
         override fun seek(protocol: Protocol, seconds: Float) { events += "seek:$seconds" }
@@ -135,25 +142,138 @@ class ReceiverIntegrationTest {
             } finally { first.close() }
         }
     }
-    @Test fun dlnaHttpDescriptionAndScpdsUseRealListener() {
-        val log = CopyOnWriteArrayList<String>()
-        DlnaReceiver(context, Playback(), "Buzin integration", { log += it }).use { receiver ->
-            receiver.start()
-            val line = log.firstOrNull { it.contains("receiver started on") } ?: error(log.toString())
-            val port = line.substringAfterLast(":").toInt()
-            fun request(method: String, path: String, headers: String = "", body: String = ""): String = Socket(ip, port).use { socket ->
+    private inner class DlnaControl(private val port: Int) {
+        fun request(method: String, path: String, headers: String = "", body: String = ""): String =
+            Socket(ip, port).use { socket ->
                 socket.soTimeout = 5000
-                socket.getOutputStream().write(("$method $path HTTP/1.1\r\nHost: $ip\r\nConnection: close\r\nContent-Length: ${body.toByteArray().size}\r\n$headers\r\n$body").toByteArray())
+                val request = "$method $path HTTP/1.1\r\nHost: $ip\r\nConnection: close\r\n" +
+                    "Content-Length: ${body.toByteArray().size}\r\n$headers\r\n$body"
+                socket.getOutputStream().write(request.toByteArray())
                 socket.getInputStream().bufferedReader().readText()
             }
-            val description = request("GET", "/desc.xml")
-            assertTrue(description.startsWith("HTTP/1.1 200")); assertTrue(description.contains("Buzin integration"))
-            for (path in listOf("/scpd/avt.xml", "/scpd/rcs.xml", "/scpd/cmn.xml")) assertTrue(request("GET", path).startsWith("HTTP/1.1 200"))
-            assertTrue(request("GET", "/missing").startsWith("HTTP/1.1 404"))
-            assertTrue(request("HEAD", "/desc.xml").substringAfter("\r\n\r\n").isEmpty())
-            val invalid = request("POST", "/ctl/avt", "SOAPAction: urn:schemas-upnp-org:service:AVTransport:1#GetTransportInfo\r\n", "<broken>")
-            assertTrue(invalid, invalid.startsWith("HTTP/1.1 400"))
+
+        fun transport(action: String, vararg args: Pair<String, String>): String {
+            val service = "urn:schemas-upnp-org:service:AVTransport:1"
+            val arguments = args.joinToString("") { (name, value) -> "<$name>${TextUtils.htmlEncode(value)}</$name>" }
+            val body = """<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">""" +
+                """<s:Body><u:$action xmlns:u="$service"><InstanceID>0</InstanceID>$arguments</u:$action></s:Body></s:Envelope>"""
+            return request("POST", "/ctl/avt", "SOAPAction: \"$service#$action\"\r\n", body)
         }
+
+        fun accepted(action: String, vararg args: Pair<String, String>): String = transport(action, *args).also {
+            assertTrue(it, it.startsWith("HTTP/1.1 200"))
+        }
+
+        fun media(location: String, metadata: String = "") =
+            transport("SetAVTransportURI", "CurrentURI" to location, "CurrentURIMetaData" to metadata)
+
+        fun state() = accepted("GetTransportInfo").substringAfter("<CurrentTransportState>")
+            .substringBefore("</CurrentTransportState>")
+    }
+
+    private fun withDlna(test: (Playback, DlnaControl) -> Unit) {
+        val log = CopyOnWriteArrayList<String>()
+        val playback = Playback()
+        DlnaReceiver(context, playback, "Buzin integration", { log += it }).use { receiver ->
+            receiver.start()
+            val line = log.firstOrNull { it.contains("receiver started on") } ?: error(log.toString())
+            test(playback, DlnaControl(line.substringAfterLast(':').toInt()))
+        }
+    }
+
+    @Test fun dlnaHttpDescriptionAndScpdsUseRealListener() = withDlna { _, control ->
+        val description = control.request("GET", "/desc.xml")
+        assertTrue(description.startsWith("HTTP/1.1 200")); assertTrue(description.contains("Buzin integration"))
+        for (path in listOf("/scpd/avt.xml", "/scpd/rcs.xml", "/scpd/cmn.xml")) assertTrue(control.request("GET", path).startsWith("HTTP/1.1 200"))
+        assertTrue(control.request("GET", "/missing").startsWith("HTTP/1.1 404"))
+        assertTrue(control.request("HEAD", "/desc.xml").substringAfter("\r\n\r\n").isEmpty())
+        val invalid = control.request("POST", "/ctl/avt", "SOAPAction: urn:schemas-upnp-org:service:AVTransport:1#GetTransportInfo\r\n", "<broken>")
+        assertTrue(invalid, invalid.startsWith("HTTP/1.1 400"))
+    }
+
+    @Test fun dlnaTransportUsesPlayerStateAndDistinguishesLiveStreams() = withDlna { playback, control ->
+        val movie = "http://example.test/movie.mp4"
+        playback.playbackInfo = PlaybackInfo(positionMs = 12_000, durationMs = 90_000, buffering = true)
+        assertTrue(control.media(movie).startsWith("HTTP/1.1 200"))
+        eventually { playback.requests == listOf(MediaRequest(movie, Protocol.DLNA)) }
+        assertEquals("TRANSITIONING", control.state())
+
+        playback.playbackInfo = playback.playbackInfo.copy(buffering = false)
+        eventually { control.state() == "PLAYING" }
+        val position = control.accepted("GetPositionInfo")
+        assertTrue(position, "<RelTime>0:00:12</RelTime>" in position)
+        assertTrue(position, "<TrackDuration>0:01:30</TrackDuration>" in position)
+        control.accepted("Seek", "Unit" to "REL_TIME", "Target" to "00:00:34")
+        eventually { "seek:34.0" in playback.events }
+
+        playback.playbackInfo = playback.playbackInfo.copy(playing = false)
+        eventually { control.state() == "PAUSED_PLAYBACK" && "playing:false" in playback.events }
+        val pauseCount = playback.events.count { it == "playing:false" }
+        control.accepted("Pause")
+        eventually { playback.events.count { it == "playing:false" } > pauseCount }
+        playback.playbackInfo = playback.playbackInfo.copy(playing = true)
+        eventually { control.state() == "PLAYING" && "playing:true" in playback.events }
+
+        playback.playbackInfo = playback.playbackInfo.copy(durationMs = 0)
+        val livePosition = control.accepted("GetPositionInfo")
+        assertTrue(livePosition, "<TrackDuration>0:00:00</TrackDuration>" in livePosition)
+        control.accepted("Seek", "Unit" to "REL_TIME", "Target" to "00:00:56")
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        assertEquals(listOf("seek:34.0"), playback.events.filter { it.startsWith("seek:") })
+
+        control.accepted("Stop")
+        eventually { control.state() == "STOPPED" && "stop:DLNA" in playback.events }
+        control.accepted("Play", "Speed" to "1")
+        eventually { control.state() == "PLAYING" && playback.requests.size == 2 }
+        playback.mediaActive = false
+        eventually { control.state() == "STOPPED" }
+    }
+
+    @Test fun dlnaRejectsUnplayableItemsAndReleasesOwnershipOnHandoff() = withDlna { playback, control ->
+        val movie = "https://example.test/movie.mp4"
+        for (location in listOf("ftp://example.test/movie.mp4", "http:/movie.mp4", "http://user@example.test/movie.mp4")) {
+            val rejected = control.media(location)
+            assertTrue(rejected, rejected.startsWith("HTTP/1.1 500") && "<errorCode>402</errorCode>" in rejected)
+        }
+        playback.activeConnections = 1
+        val busy = control.media(movie)
+        assertTrue(busy, busy.startsWith("HTTP/1.1 500") && "<errorCode>701</errorCode>" in busy)
+        assertTrue(playback.requests.isEmpty())
+
+        playback.activeConnections = 0
+        playback.failLoad = true
+        assertTrue(control.media(movie).startsWith("HTTP/1.1 200"))
+        eventually { control.state() == "STOPPED" }
+        assertTrue(playback.requests.isEmpty())
+
+        playback.failLoad = false
+        assertTrue(control.media(movie).startsWith("HTTP/1.1 200"))
+        eventually { control.state() == "PLAYING" }
+        playback.mediaOwner = Protocol.FCAST
+        eventually { control.state() == "STOPPED" }
+        control.accepted("Stop")
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        assertEquals(Protocol.FCAST, playback.mediaOwner)
+        assertTrue(playback.mediaActive)
+        assertFalse("stop:DLNA" in playback.events)
+
+        assertTrue(control.media(movie).startsWith("HTTP/1.1 200"))
+        eventually { control.state() == "PLAYING" }
+        playback.activeConnections = 1
+        eventually { control.state() == "STOPPED" }
+        assertFalse("stop:DLNA" in playback.events)
+    }
+
+    @Test fun dlnaRoutesPhotosBySuffixOrMetadataAndExpiresUnopenedViewer() = withDlna { playback, control ->
+        val cases = listOf("photo.jpg" to "", "photo.JPEG" to "", "photo.png" to "", "jpeg" to "image/jpeg", "png" to "image/png")
+        for ((path, metadata) in cases) {
+            val location = "http://example.test/$path"
+            assertTrue(control.media(location, metadata).startsWith("HTTP/1.1 200"))
+            eventually { control.state() == "PLAYING" && "photo:$location" in playback.events }
+            if (path != "png") control.accepted("Stop")
+            eventually { control.state() == "STOPPED" }
+        }
+        assertTrue(playback.requests.isEmpty())
     }
     @Test fun dlnaSubscriptionNotifiesFallbackCallbackAndSupportsRenewalAndRemoval() {
         val log = CopyOnWriteArrayList<String>()

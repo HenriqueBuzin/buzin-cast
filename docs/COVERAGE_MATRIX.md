@@ -1280,3 +1280,14 @@ default saved scroll state.
 All six Settings cases passed on the updated DE/AT API28 APK at
 1920 x 1080 and density 320. The previously failing switch case passed
 two additional runs on the same APK.
+
+The receiver integration suite now sends live SOAP requests to the DLNA
+listener and verifies playback through its recording player port. Cases
+cover seek, pause, resume, stop, live-duration reporting, rejected media,
+player failure, ownership handoff, photo routing by file extension or MIME,
+and expiration when no photo viewer opens.
+
+All 13 receiver integration cases passed on normal API28. The matched
+report for DlnaReceiver.kt covers 91 of 126 branches, including 25 of 30 in
+the player-state tick, 15 of 16 in prepareAndPlay and 18 of 22 in its posted
+callback. The suite now has 223 Android cases.
