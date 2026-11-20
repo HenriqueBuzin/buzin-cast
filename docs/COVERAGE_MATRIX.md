@@ -1969,3 +1969,16 @@ when the discovery state is absent. Both invalid-state calls are covered
 along with valid records, oversized hardware addresses, and TXT capacity.
 Both API28 profiles, normal and compat DE/AT, cover all 18 RAOP
 registration outcomes and all 14 AirPlay registration outcomes.
+
+The 324-case API22 run at `2673805` passed the receiver idle and playback
+surface cases. Two settings cases still failed after the earlier isolated
+checks passed. The settings harness now waits for the updated accessibility
+tree while scanning and uses the nearest labeled button group to check
+focus. The three selected settings cases passed on API22 and API28 using
+the same compat DE/AT APK pair.
+
+Those matched API22 and API28 runs also passed the AAC decoder-selection
+and automatic ALAC PCM contracts. LLVM covered both outcomes of the
+device-API guard and both outcomes of the Lollipop ALAC fallback decision
+in `startMediaCodec`. The merged profile uses the exact same native
+binary and APK pair across the two devices.

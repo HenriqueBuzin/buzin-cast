@@ -161,24 +161,22 @@ class SettingsScreenStateContractTest {
 
     @Suppress("DEPRECATION")
     private fun reveal(value: String) {
-        fun visible() = tree { root ->
-            find(root) { it.isVisibleToUser && matches(it, value) }?.let { it.recycle(); true } ?: false
-        } == true
-        if (visible()) return
-        // Scroll in overlapping steps and inspect the settled layout. An animated
-        // accessibility page scroll can advance after the title first appears.
-        val step = (scrollState.viewportSize / 2).coerceAtLeast(1)
-        for (direction in listOf(1, -1)) {
-            while (true) {
+        var direction = 1
+        await("Setting not reachable: $value") {
+            val visible = tree { root ->
+                find(root) { it.isVisibleToUser && matches(it, value) }?.let { it.recycle(); true } == true
+            } == true
+            if (visible) return@await true
+            // The preference can persist before its new text has been composed.
+            // Keep looking until the accessibility tree reflects the settled row.
+            runBlocking(Dispatchers.Main) {
                 val position = scrollState.value
+                val step = (scrollState.viewportSize / 2).coerceAtLeast(1)
                 val next = (position + direction * step).coerceIn(0, scrollState.maxValue)
-                if (next == position) break
-                runBlocking(Dispatchers.Main) { scrollState.scrollTo(next) }
-                instrumentation.waitForIdleSync()
-                if (visible()) return
+                if (next == position) direction = -direction else scrollState.scrollTo(next)
             }
+            false
         }
-        fail("Setting not reachable: $value; nodes=${texts()}")
     }
 
     @Suppress("DEPRECATION")
@@ -322,15 +320,15 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun <T> withTvButton(value: String, action: (AccessibilityNodeInfo, Boolean) -> T): T? = tree { root ->
+    private fun <T> withTvButton(
+        value: String, action: (AccessibilityNodeInfo, AccessibilityNodeInfo) -> T,
+    ): T? = tree { root ->
         var row = find(root) { it.isVisibleToUser && matches(it, value) } ?: return@tree null
         try {
             repeat(4) {
-                val button = find(row) {
-                    it.isVisibleToUser && it.isFocusable && it.className == "android.widget.Button"
-                }
+                val button = find(row) { it.isVisibleToUser && it.className == "android.widget.Button" }
                 if (button != null) {
-                    try { return@tree action(button, row.isFocused || button.isFocused) } finally { button.recycle() }
+                    try { return@tree action(button, row) } finally { button.recycle() }
                 }
                 val parent = row.parent ?: return@tree null
                 row.recycle()
@@ -341,13 +339,16 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun tvControlHasFocus(value: String): Boolean = tree { root ->
-        val focused = find(root) { node ->
-            node.isVisibleToUser && node.isFocused && !node.isEditable &&
-                (find(node) { matches(it, value) }?.let { it.recycle(); true } == true)
-        }
-        focused?.let { it.recycle(); true } ?: false
-    } == true || withTvButton(value) { _, focused -> focused } == true
+    private fun tvControlHasFocus(value: String): Boolean {
+        withTvButton(value) { button, row -> button.isFocused || row.isFocused }?.let { return it }
+        return tree { root ->
+            val focused = find(root) { node ->
+                node.isVisibleToUser && node.isFocused && !node.isEditable &&
+                    (find(node) { matches(it, value) }?.let { it.recycle(); true } == true)
+            }
+            focused?.let { it.recycle(); true } ?: false
+        } == true
+    }
 
     private fun focusTvControl(value: String) {
         reveal(value)
@@ -358,7 +359,10 @@ class SettingsScreenStateContractTest {
         }
         await("Remote could not focus $value") {
             tvControlHasFocus(value) ||
-                withTvButton(value) { button, _ -> button.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } == true
+                withTvButton(value) { button, row ->
+                    button.performAction(AccessibilityNodeInfo.ACTION_FOCUS) ||
+                        row.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                } == true
         }
         await("Focus did not land on $value") { tvControlHasFocus(value) }
     }
