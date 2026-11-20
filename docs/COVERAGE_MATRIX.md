@@ -1776,3 +1776,10 @@ formatting now uses the non-null mode of a selected plan directly. All six
 JVM metrics for `ExperienceProfiles` are covered in the selected normal and
 compat DE/AT API28 profiles, including 24 branch outcomes. The suite has
 298 Android cases.
+
+The video surface tests exercise the real Android `SurfaceView`. They verify
+that a live surface fits landscape and portrait bounds, notifies its owner
+when removed, and respects caller-supplied playback dimensions. The selected
+normal and compat DE/AT API28 profiles cover all six JVM metrics for
+`VideoSurfaceView`, including 10 of 10 branches compared with 9 in both
+284-case profiles. The suite has 300 Android cases.
