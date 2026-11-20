@@ -1,5 +1,6 @@
 package io.github.jqssun.airplay
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
@@ -52,9 +53,15 @@ class SettingsScreenStateContractTest {
     private lateinit var logs: AsyncLogStore
     private lateinit var scrollState: ScrollState
     private var activity: DebugTvPreviewActivity? = null
+    private var previousAccessibilityFlags: Int? = null
     private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }
 
     @Before fun setup() {
+        val automation = instrumentation.uiAutomation
+        val serviceInfo = requireNotNull(automation.serviceInfo)
+        previousAccessibilityFlags = serviceInfo.flags
+        serviceInfo.flags = serviceInfo.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        automation.serviceInfo = serviceInfo
         preferenceName = "settings-contract-${System.nanoTime()}"
         root = File(context.cacheDir, preferenceName).apply { check(mkdirs()) }
         val config = Configuration(context.resources.configuration).apply {
@@ -75,6 +82,12 @@ class SettingsScreenStateContractTest {
     }
 
     @After fun cleanup() {
+        previousAccessibilityFlags?.let { flags ->
+            val automation = instrumentation.uiAutomation
+            val serviceInfo = requireNotNull(automation.serviceInfo)
+            serviceInfo.flags = flags
+            automation.serviceInfo = serviceInfo
+        }
         if (::logs.isInitialized) assertTrue(logs.flush())
         if (::store.isInitialized) instrumentation.runOnMainSync { store.clear() }
         if (::logs.isInitialized) assertTrue("Settings log worker survived clearing", logs.awaitClosed())
@@ -101,11 +114,22 @@ class SettingsScreenStateContractTest {
         if (Build.VERSION.SDK_INT >= 34) check(instrumentation.uiAutomation.clearCache()) {
             "Could not invalidate the accessibility cache"
         }
-        val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+        fun isAppRoot(root: AccessibilityNodeInfo) =
+            root.refresh() && root.packageName?.toString() == context.packageName && root.childCount > 0
+
+        instrumentation.uiAutomation.rootInActiveWindow?.let { root ->
+            try { if (isAppRoot(root)) return block(root) } finally { root.recycle() }
+        }
+        // The active-window query can briefly drop the app after a TV dialog closes.
+        val windows = instrumentation.uiAutomation.windows
         try {
-            if (!root.refresh() || root.packageName?.toString() != context.packageName || root.childCount == 0) return null
-            return block(root)
-        } finally { root.recycle() }
+            for (window in windows.sortedByDescending { it.isFocused }) {
+                if (!window.isFocused && !window.isActive) continue
+                val root = window.root ?: continue
+                try { if (isAppRoot(root)) return block(root) } finally { root.recycle() }
+            }
+        } finally { windows.forEach { it.recycle() } }
+        return null
     }
     private fun matches(node: AccessibilityNodeInfo, value: String): Boolean =
         node.text?.toString()?.lines()?.contains(value) == true || node.contentDescription?.toString() == value ||
@@ -273,7 +297,38 @@ class SettingsScreenStateContractTest {
         }
     }
 
-    private fun screen(block: () -> Unit) {
+    @Suppress("DEPRECATION")
+    private fun tvControlHasFocus(value: String): Boolean = tree { root ->
+        val focused = find(root) { it.isVisibleToUser && it.isFocused && !it.isEditable } ?: return@tree false
+        try {
+            find(focused) { matches(it, value) }?.let { it.recycle(); true } ?: false
+        } finally { focused.recycle() }
+    } == true
+
+    private fun focusTvControl(value: String) {
+        reveal(value)
+        repeat(45) {
+            if (tvControlHasFocus(value)) return
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
+            instrumentation.waitForIdleSync()
+        }
+        fail("Remote could not focus $value; nodes=${texts()}")
+    }
+
+    private fun pressTvControl(value: String) {
+        focusTvControl(value)
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+    }
+
+    private fun openTvEditor(value: String) {
+        pressTvControl(value)
+        await("Remote OK did not open the editor for $value") { withEditor(value) { it.isFocused } }
+    }
+
+    private fun screen(tv: Boolean = false, block: () -> Unit) {
+        val uiContext = if (tv) isolated.createConfigurationContext(Configuration(isolated.resources.configuration).apply {
+            uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK.inv()) or Configuration.UI_MODE_TYPE_TELEVISION
+        }) else isolated
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java)
             .putExtra("screen", "contract_host").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target ->
@@ -290,7 +345,7 @@ class SettingsScreenStateContractTest {
                         return consumed
                     }
                 }
-                target.setContent { CompositionLocalProvider(LocalContext provides isolated) {
+                target.setContent { CompositionLocalProvider(LocalContext provides uiContext) {
                     AirPlayTheme { SettingsScreen(model, scrollState) }
                 } }
             }
@@ -378,6 +433,49 @@ class SettingsScreenStateContractTest {
         click(all)
         await("All-network discovery did not persist") { !Prefs.USB_ONLY.read(prefs) }
         reveal(allSummary)
+    }
+
+    @Test fun tvPortEditorValidatesDraftsAndRestoresRemoteFocus() = screen(tv = true) {
+        val port = label(R.string.setting_server_port)
+        val save = label(R.string.tv_edit_save)
+        val cancel = label(R.string.tv_edit_cancel)
+        openTvEditor(port)
+        edit(port, "x0?", expectedText = "0")
+        focusTvControl(cancel)
+        repeat(3) {
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
+            instrumentation.waitForIdleSync()
+            assertFalse("Save became focusable for an invalid port", tvControlHasFocus(save))
+        }
+        pressTvControl(cancel)
+        await("Cancel did not return focus to the port button") { tvControlHasFocus(port) }
+        assertFalse(prefs.contains(Prefs.SERVER_PORT.key))
+
+        openTvEditor(port)
+        await("The canceled draft was kept") { withEditor(port) { it.text?.toString() == "7000" } }
+        edit(port, "A70?01b", expectedText = "7001")
+        pressTvControl(save)
+        await("Valid port was not saved and refocused") {
+            Prefs.SERVER_PORT.read(prefs) == 7001 && tvControlHasFocus(port)
+        }
+    }
+
+    @Test fun tvCustomResolutionPersistsOnlyAfterBothDimensionsAreSaved() {
+        assertTrue(Prefs.RESOLUTION.write(prefs, "1600x900"))
+        screen(tv = true) {
+            val width = label(R.string.setting_resolution_width)
+            val height = label(R.string.setting_resolution_height)
+            val save = label(R.string.tv_edit_save)
+            for ((field, input, normalized) in listOf(Triple(width, "A12?80", "1280"), Triple(height, "7x20", "720"))) {
+                openTvEditor(field)
+                edit(field, input, expectedText = normalized)
+                pressTvControl(save)
+                await("Dimension editor stayed open: $field") { tvControlHasFocus(field) }
+                assertEquals("1600x900", Prefs.RESOLUTION.read(prefs))
+            }
+            pressTvControl(save)
+            await("Custom dimensions were not applied together") { Prefs.RESOLUTION.read(prefs) == "1280x720" }
+        }
     }
 
     @Test fun resolutionPresetsSaveEachDeviceOrientation() = screen {

@@ -1658,3 +1658,12 @@ cases.
 The `73f1e5e` run verified compat DE/AT with 275 Android cases, 21 native
 cases, and all 15 runtime gates. It covered 4505 of 5896 JVM branches
 (76.41%) and 906 of 922 native branches (98.26%).
+
+Two settings contracts exercise the TV dialogs using key navigation. The
+port test verifies invalid-draft rejection, cancellation, normalization,
+and restored focus. The resolution test verifies that both dimensions are
+applied together after the form is saved. All 11 settings tests passed on
+normal and compat DE/AT API28. Each matching JaCoCo report covers 312 of 448
+settings branches, up from 292 in the preceding settings run. The TV editor
+file covers 28 of 77 branches on normal and 26 on compat DE/AT. The suite has
+279 Android cases.
