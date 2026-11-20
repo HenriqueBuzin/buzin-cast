@@ -1429,3 +1429,16 @@ test APK. Combining the profiles from that identical native binary raised
 In the separate full run pinned at `1b991d4`, normal passed all 231 Android
 tests, 21 native cases, and the remaining runtime gates. It reached 73.05%
 JVM branch coverage and 95.00% native branch coverage.
+
+The automatic ALAC decoder contract delivers the original 352-frame stereo
+fixture through the RAOP callback with the software override off. It checks
+every PCM16 sample, channel order, frame count, and presentation timestamp.
+The capture fixture accepts asynchronous output from a platform decoder and
+joins it before reading the recorded PCM.
+
+All 20 selected audio cases passed on normal and compat DE/AT API28. The
+normal profile increased coverage of `startMediaCodec` from 7 to 9 of 10
+branches. All six selected AAC and ALAC cases passed on the same compat DE/AT
+APK on API22. Combining profiles for that binary covers 13 of 14 branches in
+`startMediaCodec` and 116 of 130 in `audio_decoder.h`. The current suite has
+245 Android cases.

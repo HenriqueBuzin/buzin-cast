@@ -25,11 +25,14 @@ class NativeAlacContractTest {
     @Test fun defaultRaopFrameSizeDecodesEveryStereoAlacSample() =
         decodeFixture("native_audio/raop352", intArrayOf(352), 0)
 
+    @Test fun automaticDecoderSelectionPreservesEveryStereoAlacSample() =
+        decodeFixture("native_audio/raop352", intArrayOf(352), 352, forceSoftware = false)
+
     @Test fun enabledCaptureWithoutAConsumerCanAttachALaterSinkWithoutLosingStereoSamples() =
         decodeFixture("native_audio", intArrayOf(4096, 128), 4096, attachSinkAfterFirstDecode = true)
 
     private fun decodeFixture(assetPath: String, frameCounts: IntArray, samplesPerFrame: Int,
-                              attachSinkAfterFirstDecode: Boolean = false) {
+                              attachSinkAfterFirstDecode: Boolean = false, forceSoftware: Boolean = true) {
         assumeTrue("Requires coverage JNI fixture", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val assets = instrumentation.context.assets
@@ -48,7 +51,12 @@ class NativeAlacContractTest {
         assertEquals(frameCounts.sum(), manifest.getInt("frames"))
         val base = System.nanoTime()
         var offset = 0L
-        val timestamps = frameCounts.map { count -> (base + offset * 1_000_000_000L / 44100).also { offset += count } }.toLongArray()
+        val timestamps = frameCounts.map { count ->
+            val pts = base + offset * 1_000_000_000L / 44100
+            offset += count
+            // MediaCodec carries presentation timestamps at microsecond precision.
+            pts / 1000 * 1000
+        }.toLongArray()
         val expected = ByteBuffer.allocate(frameCounts.sum() * 4).order(ByteOrder.LITTLE_ENDIAN)
         repeat(frameCounts.sum()) { frame ->
             expected.putShort(((frame * 97) % 30001 - 15000).toShort())
@@ -58,7 +66,7 @@ class NativeAlacContractTest {
         System.loadLibrary("airplay_native")
         try {
             val records = DebugCoverage.nativeDecodeAlac(packets.toTypedArray(), timestamps, samplesPerFrame,
-                attachSinkAfterFirstDecode)
+                attachSinkAfterFirstDecode, forceSoftware)
             assertEquals(packets.size, records.size)
             val actual = ByteBuffer.allocate(expected.capacity())
             records.forEachIndexed { index, bytes ->

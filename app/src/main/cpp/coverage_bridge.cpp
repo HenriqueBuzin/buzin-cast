@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <condition_variable>
 #include <memory>
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <mutex>
 #include <future>
 #include <string>
 #include <thread>
@@ -472,33 +474,50 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
 // ALAC decoding uses the production engine and its normal PCM capture tap.
 // Returned records are native-endian {int64 pts, int32 rate, int32 channels, PCM16}.
 extern "C" JNIEXPORT jobjectArray JNICALL
-Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame, jboolean attachSinkAfterFirstDecode) {
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(
+    JNIEnv *env, jobject, jobjectArray packets, jlongArray timestamps, jint samplesPerFrame,
+    jboolean attachSinkAfterFirstDecode, jboolean forceSoftware) {
 #define ALAC_CONTRACT(condition) do { if (!(condition)) { \
     auto error = env->FindClass("java/lang/AssertionError"); \
     if (error) { env->ThrowNew(error, #condition); env->DeleteLocalRef(error); } \
     return nullptr; } } while (false)
     ALAC_CONTRACT(packets && timestamps);
     ALAC_CONTRACT(samplesPerFrame >= 0 && samplesPerFrame <= 4096);
+    ALAC_CONTRACT(!attachSinkAfterFirstDecode || forceSoftware);
     const auto count = env->GetArrayLength(packets);
     ALAC_CONTRACT(count > 0 && count <= 32 && env->GetArrayLength(timestamps) == count);
     std::vector<jlong> pts(count);
     env->GetLongArrayRegion(timestamps, 0, count, pts.data());
     if (env->ExceptionCheck()) return nullptr;
     struct Capture {
+        std::mutex lock;
+        std::condition_variable ready;
         std::vector<std::vector<uint8_t>> records;
+        size_t size() {
+            std::lock_guard<std::mutex> guard(lock);
+            return records.size();
+        }
+        bool waitFor(size_t expected) {
+            std::unique_lock<std::mutex> guard(lock);
+            return ready.wait_for(guard, std::chrono::seconds(3), [&] { return records.size() >= expected; });
+        }
         static void receive(void *user, const int16_t *pcm, size_t samples, int64_t time, int rate, int channels) {
-            auto &records = static_cast<Capture *>(user)->records;
             std::vector<uint8_t> record(16 + samples * sizeof(int16_t));
             const int32_t sampleRate = rate, channelCount = channels;
             memcpy(record.data(), &time, 8); memcpy(record.data() + 8, &sampleRate, 4);
             memcpy(record.data() + 12, &channelCount, 4); memcpy(record.data() + 16, pcm, samples * sizeof(int16_t));
-            records.push_back(std::move(record));
+            auto &capture = *static_cast<Capture *>(user);
+            {
+                std::lock_guard<std::mutex> guard(capture.lock);
+                capture.records.push_back(std::move(record));
+            }
+            capture.ready.notify_one();
         }
     } capture;
     using Engine = std::unique_ptr<AudioEngine, decltype(&audio_engine_destroy)>;
     Engine engine(audio_engine_create(std::make_shared<LogSink>(), 44100, 2), audio_engine_destroy);
     ALAC_CONTRACT(engine);
-    ALAC_CONTRACT(audio_engine_configure(engine.get(), 50, 95, 0, true, true, false, false, false));
+    ALAC_CONTRACT(audio_engine_configure(engine.get(), 50, 95, 0, forceSoftware, true, false, false, false));
     audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
     audio_engine_set_capture_enabled(engine.get(), true);
     audio_engine_on_format(engine.get(), 2, samplesPerFrame);
@@ -534,7 +553,7 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobjec
             callbacks.audio_process(&callbackContext, nullptr, &input);
             input.data_len = -1;
             callbacks.audio_process(&callbackContext, nullptr, &input);
-            ALAC_CONTRACT(capture.records.empty());
+            ALAC_CONTRACT(capture.size() == 0);
             if (attachSinkAfterFirstDecode) {
                 // Capture may be enabled before a consumer is attached. Decode
                 // actual audio in that state, then attach the normal PCM tap.
@@ -543,15 +562,19 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDecodeAlac(JNIEnv *env, jobjec
                 ALAC_CONTRACT(pts[i] > 1'000'000'000);
                 input.ntp_time_local = static_cast<uint64_t>(pts[i] - 1'000'000'000);
                 callbacks.audio_process(&callbackContext, nullptr, &input);
-                ALAC_CONTRACT(capture.records.empty());
+                ALAC_CONTRACT(capture.size() == 0);
                 audio_engine_set_pcm_callback(engine.get(), Capture::receive, &capture);
                 input.ntp_time_local = static_cast<uint64_t>(pts[i]);
             }
         }
         input.data = bytes.data(); input.data_len = length;
         callbacks.audio_process(&callbackContext, nullptr, &input);
-        ALAC_CONTRACT(capture.records.size() == static_cast<size_t>(i + 1));
+        const auto expected = static_cast<size_t>(i + 1);
+        ALAC_CONTRACT(forceSoftware ? capture.size() == expected : capture.waitFor(expected));
     }
+    // Stop and join the optional platform drain thread before reading its records.
+    engine.reset();
+    ALAC_CONTRACT(capture.records.size() == static_cast<size_t>(count));
     auto bytesClass = env->FindClass("[B");
     if (!bytesClass) return nullptr;
     auto result = env->NewObjectArray(count, bytesClass, nullptr);
