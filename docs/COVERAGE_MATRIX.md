@@ -1798,3 +1798,10 @@ execute all 99 lines and 19 methods of `BuzinAbout`, including the link
 fallback. They cover six of eight branch outcomes. The default-version
 fallback and the non-TV focus outcome stay outside this TV selection. The
 suite has 302 Android cases.
+
+About now uses the version generated for its Gradle edition. The TV contract
+checks that the displayed version equals the installed package version. A
+second case exercises the ordinary Android UI mode and dismisses About with
+Back. The combined selected profiles cover all six JVM metrics for
+`BuzinAbout` in normal and compat DE/AT on API28, including all six branch
+outcomes. The suite has 303 Android cases.

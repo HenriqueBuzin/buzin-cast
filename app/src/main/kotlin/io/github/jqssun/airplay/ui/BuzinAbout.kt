@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.github.jqssun.airplay.BuildConfig
 import io.github.jqssun.airplay.R
 
 @Composable
@@ -50,10 +51,6 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
     val tv = isTv()
     val closeFocus = remember { FocusRequester() }
     var licenses by remember { mutableStateOf(false) }
-    @Suppress("DEPRECATION")
-    val version = remember(context) {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
-    }
     val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
     val mint = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -101,7 +98,7 @@ internal fun BuzinAbout(onDismiss: () -> Unit) {
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(stringResource(R.string.app_name), fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
                             Text(stringResource(R.string.buzin_about_tagline), fontSize = 12.sp, lineHeight = 17.sp, color = muted)
-                            Text(stringResource(R.string.buzin_version, version), fontSize = 11.sp, lineHeight = 15.sp, color = mint, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.buzin_version, BuildConfig.VERSION_NAME), fontSize = 11.sp, lineHeight = 15.sp, color = mint, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     HorizontalDivider(color = Color(0xFF34434E))

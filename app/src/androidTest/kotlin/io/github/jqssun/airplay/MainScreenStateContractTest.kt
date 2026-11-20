@@ -6,6 +6,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
@@ -26,6 +28,7 @@ import io.github.jqssun.airplay.audio.TrackInfo
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
 import io.github.jqssun.airplay.ui.MainScreen
 import io.github.jqssun.airplay.ui.BuzinAbout
+import io.github.jqssun.airplay.ui.isTvDevice
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.AudioDebug
 import io.github.jqssun.airplay.viewmodel.DebugInfo
@@ -265,6 +268,33 @@ class MainScreenStateContractTest {
             }
             click(text(R.string.buzin_close))
             await("Close did not dismiss About") { dismissals.get() == 1 }
+        }
+    }
+
+    @Test fun aboutOnAnOrdinaryScreenShowsTheBuildVersionAndDismissesWithBack() {
+        val shown = mutableStateOf(true)
+        val intent = Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
+        ActivityScenario.launch<DebugTvPreviewActivity>(intent).use { scenario ->
+            scenario.onActivity { activity ->
+                val normalMode = Configuration(activity.resources.configuration).apply {
+                    uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK.inv()) or Configuration.UI_MODE_TYPE_NORMAL
+                }
+                val normalResources = activity.createConfigurationContext(normalMode).resources
+                val ordinary = object : ContextWrapper(activity) {
+                    override fun getResources(): Resources = normalResources
+                }
+                assertFalse("This contract requires the ordinary Android emulator mode", ordinary.isTvDevice())
+                activity.setContent {
+                    AirPlayTheme {
+                        CompositionLocalProvider(LocalContext provides ordinary) {
+                            if (shown.value) BuzinAbout { shown.value = false }
+                        }
+                    }
+                }
+            }
+            await("About is missing on an ordinary Android screen") { has(text(R.string.buzin_version, BuildConfig.VERSION_NAME)) }
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+            await("Back did not dismiss About") { !shown.value }
         }
     }
 
