@@ -226,6 +226,37 @@ struct AudioOutputContractAccess {
     }
 };
 
+namespace {
+thread_local bool *audioStreamClosure = nullptr;
+
+struct ScopedAudioStreamClosure {
+    bool closed = false;
+    bool *previous = audioStreamClosure;
+    ScopedAudioStreamClosure() { audioStreamClosure = &closed; }
+    ~ScopedAudioStreamClosure() { audioStreamClosure = previous; }
+};
+}
+
+// Run the real builder, then emulate losing the opened stream before it starts.
+extern "C" oboe::Result realOboeOpenStream(
+    oboe::AudioStreamBuilder *, std::shared_ptr<oboe::AudioStream> &)
+    asm("__real__ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE");
+extern "C" oboe::Result wrapOboeOpenStream(
+    oboe::AudioStreamBuilder *, std::shared_ptr<oboe::AudioStream> &)
+    asm("__wrap__ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE");
+extern "C" oboe::Result wrapOboeOpenStream(
+    oboe::AudioStreamBuilder *builder, std::shared_ptr<oboe::AudioStream> &stream) {
+    // OpenSL ES retains readable buffer metadata after close. Android API 28
+    // AAudio's MMAP query dereferences the native stream even after close.
+    if (audioStreamClosure) builder->setAudioApi(oboe::AudioApi::OpenSLES);
+    const auto result = realOboeOpenStream(builder, stream);
+    if (audioStreamClosure && result == oboe::Result::OK) {
+        *audioStreamClosure = stream->close() == oboe::Result::OK &&
+                              stream->getState() == oboe::StreamState::Closed;
+    }
+    return result;
+}
+
 // Deliberately invokes the real post-close callback; no physical disconnection
 // is simulated at the OS level, and all opened emulator streams are closed.
 extern "C" JNIEXPORT jstring JNICALL
@@ -233,7 +264,9 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
 #define OUTPUT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
     auto timeline = std::make_shared<TimelineBuffer>(44100, 2, 50, 95);
     auto log = std::make_shared<LogSink>();
-    auto output = AudioOutput::create(scenario == 2 ? -1 : 44100, 2, 192, false, timeline, log);
+    const bool automaticLowLatency = scenario == 4;
+    auto output = AudioOutput::create(scenario == 2 ? -1 : 44100, 2,
+                                     automaticLowLatency ? 0 : 192, automaticLowLatency, timeline, log);
     auto callbacks = AudioOutputContractAccess::callbacks(output);
     OUTPUT_CONTRACT(callbacks);
     if (scenario == 0) {
@@ -274,6 +307,8 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
         callbacks->onErrorAfterClose(recovered.get(), oboe::Result::ErrorDisconnected);
         OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
     } else if (scenario == 2) {
+        OUTPUT_CONTRACT(!output->start());
+        OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
         callbacks->onErrorAfterClose(nullptr, oboe::Result::ErrorDisconnected);
         OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
         output->stop();
@@ -289,6 +324,19 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
         output->stop();
         OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
         OUTPUT_CONTRACT(output->debugInfo().xrun == cached.xrun);
+    } else if (scenario == 4) {
+        {
+            ScopedAudioStreamClosure closeOnOpen;
+            OUTPUT_CONTRACT(!output->start());
+            OUTPUT_CONTRACT(closeOnOpen.closed);
+            OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        }
+        OUTPUT_CONTRACT(output->start());
+        auto stream = AudioOutputContractAccess::stream(output);
+        OUTPUT_CONTRACT(stream && stream->getBufferSizeInFrames() > 0);
+        OUTPUT_CONTRACT(stream->getBufferSizeInFrames() <= stream->getBufferCapacityInFrames());
+        output->stop();
+        OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
     } else {
         OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
     }

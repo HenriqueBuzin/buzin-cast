@@ -1126,3 +1126,17 @@ verifies the Tools screen is visible again after each action. The API28 normal
 selection then passed all ten Settings and Tools tests in 48.080 seconds.
 Both failures from the 210-case normal run are covered by that selection.
 A complete matrix run is still required.
+
+The 210-case API28 normal run passed 209 cases. Its only failure was an intro
+touch test with a fixed wall-clock threshold. The skip tests now compose the
+actual intro against a controlled animation scale and verify that home was
+still hidden when the input arrived. The natural-completion case keeps the
+ordinary animation clock.
+
+The coverage-only Oboe fixture now rejects an invalid output format at startup
+and tests losing an opened stream before it starts. The latter exercises a
+real OpenSL ES stream, then verifies that the same output can reopen normally
+with automatic buffer sizing. The 31-case normal API28 selection passed in
+31.773 seconds. Its matched native report covers 4/4 branch outcomes in
+AudioOutput::start and 17/20 in AudioOutput::openLocked.
+The source suite now contains 211 Android cases.

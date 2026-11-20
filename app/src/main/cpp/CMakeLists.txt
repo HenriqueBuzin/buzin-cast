@@ -201,7 +201,9 @@ if(BUZIN_COVERAGE)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
         "-Wl,--wrap=android_dnssd_get_raop_txt_key" "-Wl,--wrap=android_dnssd_get_raop_txt_val"
-        "-Wl,--wrap=android_dnssd_get_airplay_txt_key" "-Wl,--wrap=android_dnssd_get_airplay_txt_val")
+        "-Wl,--wrap=android_dnssd_get_airplay_txt_key" "-Wl,--wrap=android_dnssd_get_airplay_txt_val"
+        # Oboe's shared-pointer overload. The coverage fixture can close the real stream before start.
+        "-Wl,--wrap=_ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE")
 endif()
 
 # Keep upstream C libraries in their declared dialect; app-owned C uses C23.

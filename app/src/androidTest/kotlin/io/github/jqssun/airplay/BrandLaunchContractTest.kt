@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
@@ -31,6 +34,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.AndroidUiDispatcher
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -38,6 +43,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.ui.BuzinLaunch
 import io.github.jqssun.airplay.ui.BuzinLogoReveal
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -46,7 +54,6 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 
@@ -56,6 +63,7 @@ class BrandLaunchContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private var originalScale = 1f
+    private var controlledComposition: CoroutineScope? = null
 
     @Before fun animations() {
         originalScale = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
@@ -69,6 +77,7 @@ class BrandLaunchContractTest {
         }
     }
     @After fun cleanup() {
+        controlledComposition?.cancel()
         animatorScale(originalScale)
         if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
     }
@@ -148,15 +157,20 @@ class BrandLaunchContractTest {
         val backs = AtomicInteger()
         val keys = AtomicInteger()
         val firstComposition = CountDownLatch(1)
-        val firstAt = AtomicLong()
+        val durationScale = AtomicReference<Float>()
         val bounds = AtomicReference<Rect>()
     }
-    private fun launch(enabled: Boolean = true, action: (ActivityScenario<DebugTvPreviewActivity>, LaunchState) -> Unit) = activity { scenario ->
+    private fun launch(enabled: Boolean = true, slowIntro: Boolean = false,
+                       action: (DebugTvPreviewActivity, LaunchState) -> Unit) = activity { scenario ->
         val state = LaunchState()
-        scenario.onActivity { target -> target.setContent {
+        lateinit var target: DebugTvPreviewActivity
+        val content: @Composable () -> Unit = {
             AirPlayTheme {
                 BackHandler { state.backs.incrementAndGet() }
-                SideEffect { state.firstAt.compareAndSet(0, SystemClock.elapsedRealtime()); state.firstComposition.countDown() }
+                SideEffect { state.firstComposition.countDown() }
+                LaunchedEffect(Unit) {
+                    state.durationScale.set(coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f)
+                }
                 Box(Modifier.fillMaxSize().onGloballyPositioned { state.bounds.set(it.boundsInWindow()) }) {
                     BuzinLaunch(enabled) {
                         DisposableEffect(Unit) {
@@ -172,9 +186,26 @@ class BrandLaunchContractTest {
                     }
                 }
             }
-        } }
+        }
+        scenario.onActivity { host ->
+            target = host
+            if (slowIntro) {
+                val scale = object : MotionDurationScale { override val scaleFactor = 20f }
+                val scope = CoroutineScope(AndroidUiDispatcher.Main + scale)
+                controlledComposition = scope
+                val recomposer = Recomposer(scope.coroutineContext)
+                scope.launch { recomposer.runRecomposeAndApplyChanges() }
+                host.setContentView(ComposeView(host).apply {
+                    setParentCompositionContext(recomposer)
+                    setContent(content)
+                })
+            } else {
+                host.setContent(content = content)
+            }
+        }
         assertTrue("First intro composition missing", state.firstComposition.await(15, TimeUnit.SECONDS))
-        action(scenario, state)
+        if (slowIntro) await("Compose did not receive the test animator scale") { state.durationScale.get() == 20f }
+        action(target, state)
         await("Home never composed") { state.composed.get() == 1 }
         await("Intro did not uncover home") {
             val bounds = state.bounds.get() ?: return@await false
@@ -193,36 +224,36 @@ class BrandLaunchContractTest {
         await("Disabled intro delayed content") { state.composed.get() == 1 }
     }
     @Test fun naturalAnimationCompletesAndReleasesBackHandling() = launch { _, _ -> }
-    @Test fun remoteKeySkipsIntroAndDoesNotActivateTheNewHome() = launch { scenario, state ->
-        scenario.onActivity { target ->
+    @Test fun remoteKeySkipsIntroAndDoesNotActivateTheNewHome() = launch(slowIntro = true) { target, state ->
+        instrumentation.runOnMainSync {
             assertEquals("Intro had already finished before key test", 0, state.composed.get())
             target.window.decorView.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER))
             assertEquals("Key-up skipped the intro", 0, state.composed.get())
             target.window.decorView.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER))
         }
         await("Remote key failed to skip intro") { state.composed.get() == 1 }
-        assertTrue("Key waited for natural completion", SystemClock.elapsedRealtime() - state.firstAt.get() < 1900)
         assertEquals("Skip key activated home", 0, state.keys.get())
     }
-    @Test fun backSkipsIntroBeforeDelegatingSubsequentBack() = launch { scenario, state ->
-        scenario.onActivity {
+    @Test fun backSkipsIntroBeforeDelegatingSubsequentBack() = launch(slowIntro = true) { target, state ->
+        instrumentation.runOnMainSync {
             assertEquals(0, state.composed.get())
-            it.onBackPressedDispatcher.onBackPressed()
+            target.onBackPressedDispatcher.onBackPressed()
         }
         assertEquals("Back escaped the active intro", 0, state.backs.get())
         await("Back failed to skip intro") { state.composed.get() == 1 }
-        assertTrue("Back waited for natural completion", SystemClock.elapsedRealtime() - state.firstAt.get() < 1900)
     }
-    @Test fun touchSkipsIntroAndReleasesItsPointerHandler() = launch { scenario, state ->
+    @Test fun touchSkipsIntroAndReleasesItsPointerHandler() = launch(slowIntro = true) { target, state ->
         await("Intro did not lay out") { state.bounds.get() != null }
         val point = state.bounds.get().center
-        val down = SystemClock.uptimeMillis()
-        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
-            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, point.x, point.y, 0)
-            try { scenario.onActivity { it.window.decorView.dispatchTouchEvent(event) } }
-            finally { event.recycle() }
+        instrumentation.runOnMainSync {
+            assertEquals("Intro had already finished before tap", 0, state.composed.get())
+            val down = SystemClock.uptimeMillis()
+            for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, point.x, point.y, 0)
+                try { target.window.decorView.dispatchTouchEvent(event) }
+                finally { event.recycle() }
+            }
         }
         await("Tap failed to skip intro") { state.composed.get() == 1 }
-        assertTrue("Tap waited for natural completion", SystemClock.elapsedRealtime() - state.firstAt.get() < 1900)
     }
 }
