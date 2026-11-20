@@ -5,9 +5,14 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Rect as PixelRect
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,11 +23,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntSize
@@ -32,6 +44,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.ui.DpadSeekIndicator
+import io.github.jqssun.airplay.ui.PlayerButton
+import io.github.jqssun.airplay.ui.VideoControlsTop
 import io.github.jqssun.airplay.ui.formatVideoTime
 import io.github.jqssun.airplay.ui.gestures.DoubleTapIndicator
 import io.github.jqssun.airplay.ui.gestures.GestureInfoText
@@ -50,6 +64,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 
@@ -113,6 +129,65 @@ class GestureIndicatorContractTest {
         } finally { root.recycle() }
     }
     private fun textVisible(value: String) = texts()?.contains(value) == true
+
+    @Suppress("DEPRECATION")
+    private fun <T> withNode(matches: (AccessibilityNodeInfo) -> Boolean, action: (AccessibilityNodeInfo) -> T): T? {
+        val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+        fun visit(node: AccessibilityNodeInfo): T? {
+            if (node.isVisibleToUser && matches(node)) return action(node)
+            repeat(node.childCount) { index ->
+                node.getChild(index)?.let { child ->
+                    try { visit(child)?.let { return it } } finally { child.recycle() }
+                }
+            }
+            return null
+        }
+        return try {
+            if (root.packageName?.toString() == context.packageName) visit(root) else null
+        } finally { root.recycle() }
+    }
+
+    private fun controlLabel(node: AccessibilityNodeInfo, label: String): Boolean =
+        node.text?.toString() == label || node.contentDescription?.toString() == label
+
+    @Suppress("DEPRECATION")
+    private fun activateControl(label: String) {
+        await("Could not activate player control $label") {
+            withNode({ controlLabel(it, label) }) { leaf ->
+                var owner = AccessibilityNodeInfo.obtain(leaf)
+                try {
+                    while (!owner.isClickable) {
+                        val parent = owner.parent ?: return@withNode false
+                        owner.recycle()
+                        owner = parent
+                    }
+                    owner.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                } finally { owner.recycle() }
+            } == true
+        }
+    }
+
+    private fun tapPlayerControl(scenario: ActivityScenario<DebugTvPreviewActivity>, label: String) {
+        val bounds = PixelRect()
+        await("Could not locate player control $label") {
+            withNode({ controlLabel(it, label) }) { it.getBoundsInScreen(bounds) }
+            !bounds.isEmpty
+        }
+        scenario.onActivity { activity ->
+            val origin = IntArray(2)
+            val decor = activity.window.decorView
+            decor.getLocationOnScreen(origin)
+            val down = SystemClock.uptimeMillis()
+            for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
+                    bounds.exactCenterX() - origin[0], bounds.exactCenterY() - origin[1], 0)
+                try {
+                    event.source = InputDevice.SOURCE_TOUCHSCREEN
+                    assertTrue("Playback window did not consume touch for $label", decor.dispatchTouchEvent(event))
+                } finally { event.recycle() }
+            }
+        }
+    }
     private fun shot(bounds: Rect): Bitmap {
         val screen = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
         var crop: Bitmap? = null
@@ -220,6 +295,89 @@ class GestureIndicatorContractTest {
         await("Seek feedback remained accessible after closing") {
             texts()?.let { ready in it && zero !in it && formatVideoTime(3_600_000L) !in it } == true
         }
+    }
+
+    @Test fun playerButtonActivatesOnceByTouchRemoteAndAccessibility() = activity { scenario ->
+        val label = "Playback command"
+        val focus = FocusRequester()
+        val focused = AtomicBoolean()
+        val presses = AtomicInteger()
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    PlayerButton(
+                        modifier = Modifier.width(180.dp).focusRequester(focus).onFocusChanged { focused.set(it.isFocused) },
+                        onClick = { presses.incrementAndGet() },
+                    ) { Text(label) }
+                }
+            }
+        } }
+        activateControl(label)
+        await("Accessibility click did not activate the button") { presses.get() == 1 }
+        tapPlayerControl(scenario, label)
+        await("Touch did not activate the button exactly once") { presses.get() == 2 }
+        scenario.onActivity { focus.requestFocus() }
+        await("Remote button did not receive keyboard focus") { focused.get() }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        await("Remote OK did not activate the button exactly once") { presses.get() == 3 }
+        instrumentation.waitForIdleSync()
+        assertEquals(3, presses.get())
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun playerToolbarShowsCopyAndDownloadOnlyWhenAvailable() = activity { scenario ->
+        val url = mutableStateOf<String?>(null)
+        val showDownload = mutableStateOf(false)
+        val progress = mutableStateOf<Int?>(null)
+        val copied = AtomicReference<AnnotatedString>()
+        val download = AtomicInteger()
+        val back = AtomicInteger()
+        val speed = AtomicInteger()
+        val subtitles = AtomicInteger()
+        val clipboard = object : ClipboardManager {
+            override fun getText() = copied.get()
+            override fun setText(annotatedString: AnnotatedString) { copied.set(annotatedString) }
+        }
+        val title = "Playback toolbar"
+        val copyLabel = context.getString(R.string.cd_copy_url)
+        val downloadLabel = context.getString(R.string.cd_download)
+        fun hasControl(label: String) = withNode({ controlLabel(it, label) }) { true } == true
+        fun hasProgress() = withNode({ it.className == "android.widget.ProgressBar" }) { true } == true
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                CompositionLocalProvider(LocalClipboardManager provides clipboard) {
+                    VideoControlsTop(title, url.value, progress.value, showDownload.value,
+                        onBackClick = { back.incrementAndGet() }, onSpeedClick = { speed.incrementAndGet() },
+                        onDownloadClick = { download.incrementAndGet() }, onSubtitlesClick = { subtitles.incrementAndGet() },
+                        modifier = Modifier.fillMaxSize())
+                }
+            }
+        } }
+        await("Toolbar exposed unavailable actions") { textVisible(title) && !hasControl(copyLabel) && !hasControl(downloadLabel) }
+        activateControl(context.getString(R.string.cd_back))
+        activateControl(context.getString(R.string.select_playback_speed))
+        activateControl("CC")
+        assertEquals(listOf(1, 1, 1), listOf(back.get(), speed.get(), subtitles.get()))
+
+        val mediaUrl = "https://example.invalid/movie.m3u8"
+        scenario.onActivity {
+            url.value = mediaUrl
+            showDownload.value = true
+        }
+        activateControl(copyLabel)
+        activateControl(downloadLabel)
+        assertEquals(mediaUrl, copied.get()?.text)
+        assertEquals(1, download.get())
+        instrumentation.runOnMainSync { progress.value = -1 }
+        await("Indeterminate download progress was not shown") { hasProgress() && !hasControl(downloadLabel) }
+        instrumentation.runOnMainSync { progress.value = 60 }
+        await("Determinate download progress was not shown") {
+            withNode({ it.className == "android.widget.ProgressBar" }) { node ->
+                android.os.Build.VERSION.SDK_INT == 22 || node.rangeInfo?.current == 0.6f
+            } == true
+        }
+        instrumentation.runOnMainSync { showDownload.value = false }
+        await("Hidden download still exposed progress") { hasControl(copyLabel) && !hasProgress() }
     }
 
     private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }

@@ -1928,3 +1928,21 @@ uses Right to move from Width to Height, and checks that the pair is only
 saved together. Both contracts passed on the same compat DE/AT APK and
 test APK on API22 and API28. The complete API22 replay remains pending for
 the updated test build.
+
+Player buttons now dispatch through the standard Compose click handler.
+The input contract presses the same button by accessibility action, touch,
+and remote OK and checks one action for each input. The toolbar contract
+checks clipboard copying, availability of the download action, and
+indeterminate and determinate progress. Touch is delivered through the
+test activity's decor view so it reaches the real Compose pointer handler
+on API22. Both targeted tests passed on compat DE/AT API22 and API28 and
+on normal API28. Both API28 JaCoCo profiles cover all eight branch outcomes
+governing copy and download visibility and progress. The suite has 322
+Android cases.
+
+The DE/AT edition of the API28 311-case matrix at `6e77219` passed all
+311 Android cases, 21 native cases, and 15 runtime checks. JaCoCo measured
+4588/5892 branches (77.87%), and LLVM measured 904/908 (99.56%).
+The updated 320-case API22 compat DE/AT instrumentation run completed with
+one failure in the activity idle-shutdown contract. Both settings cases
+from the previous replay passed in that run.
