@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.bridge.LogListener
 import io.github.jqssun.airplay.bridge.NativeBridge
 import io.github.jqssun.airplay.bridge.RaopCallbackHandler
+import io.github.jqssun.airplay.discovery.AirPlayReceiverAdapter
 import io.github.jqssun.airplay.renderer.AudioConfig
 import io.github.jqssun.airplay.renderer.AudioRenderer
 import org.junit.After
@@ -14,6 +15,8 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.net.ConnectException
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.Buffer
@@ -86,6 +89,50 @@ class NativeServerContractTest {
         for (handle in handles) NativeBridge.nativeDestroy(handle)
         keys.forEach { it.delete() }
         if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
+    }
+
+    @Test fun receiverAdapterStartAndCloseAreIdempotent() {
+        val key = File.createTempFile("receiver-adapter-", ".pem", context.cacheDir).also { keys += it }
+        val requestedPort = port()
+        val configured = mutableListOf<Long>()
+        val adapter = AirPlayReceiverAdapter(Callbacks(), byteArrayOf(16, 32, 48, 64, 80, 96),
+            "Adapter Contract", key.absolutePath, false, false, requestedPort) { configured += it }
+        assertEquals(0L, adapter.handle)
+        assertEquals(-1, adapter.port)
+        try {
+            adapter.start()
+            val handle = adapter.handle
+            assertNotEquals(0L, handle)
+            assertEquals(requestedPort, adapter.port)
+            adapter.start()
+            assertEquals(handle, adapter.handle)
+            assertEquals(requestedPort, adapter.port)
+            assertEquals(listOf(handle), configured)
+            Socket().use { it.connect(InetSocketAddress("127.0.0.1", requestedPort), 2000) }
+        } finally {
+            adapter.close()
+        }
+        adapter.close()
+        adapter.start()
+        assertEquals(0L, adapter.handle)
+        assertEquals(-1, adapter.port)
+        assertEquals(1, configured.size)
+        assertThrows(ConnectException::class.java) {
+            Socket().use { it.connect(InetSocketAddress("127.0.0.1", requestedPort), 2000) }
+        }
+    }
+
+    @Test fun receiverAdapterClosedBeforeStartNeverConfiguresTheEngine() {
+        val key = File.createTempFile("receiver-adapter-", ".pem", context.cacheDir).also { keys += it }
+        val adapter = AirPlayReceiverAdapter(Callbacks(), byteArrayOf(16, 32, 48, 64, 80, 96),
+            "Adapter Contract", key.absolutePath, false, false, port()) {
+            fail("A closed receiver must not configure an engine")
+        }
+        adapter.close()
+        adapter.start()
+        assertEquals(0L, adapter.handle)
+        assertEquals(-1, adapter.port)
+        assertEquals(0L, key.length())
     }
 
     @Test fun partialServerRejectsUnavailableChildrenAndDestroysItsCallbackBinding() {

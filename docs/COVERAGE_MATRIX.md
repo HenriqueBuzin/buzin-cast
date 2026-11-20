@@ -1715,3 +1715,11 @@ checks the new PCM size and timestamp. Both outcomes of the same-codec
 format check execute in the selected LLVM profiles for normal and compat
 DE/AT. The frozen 275-case profiles did not execute the format-change
 outcome in either edition. The suite has 285 Android cases.
+
+The receiver adapter tests cover repeated start and close, closing before
+the first start, and refusal of connections after the listener closes. The
+four selected contracts also exercised existing native initialization and
+occupied-port failures. Normal and compat DE/AT API28 covered all six JVM
+metrics for `AirPlayReceiverAdapter`, including 16 of 16 branches compared
+with 13 in the frozen 275-case profiles for the same class. The suite has
+287 Android cases.
