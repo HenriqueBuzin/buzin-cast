@@ -1748,3 +1748,9 @@ They also verify both states of DLNA and FCast. The formatter covers all 12
 branches in the normal and compat DE/AT API28 selections. The full file
 covers 15 of 18 branches, with three remaining in Android network capability
 lookup. The suite has 294 Android cases.
+
+The public diagnostics contract checks the report against the emulator's
+active Android network. Running the same APK pair with connectivity and
+then with no default network covers 17 of 18 diagnostic branches in the
+normal and compat DE/AT API28 selections. The remaining branch requires
+Android to report an active VPN transport. The suite has 295 Android cases.

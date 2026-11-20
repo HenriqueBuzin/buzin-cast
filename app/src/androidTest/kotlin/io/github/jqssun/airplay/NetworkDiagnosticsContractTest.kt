@@ -3,11 +3,15 @@ package io.github.jqssun.airplay
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.media.NetworkDiagnostics
+import io.github.jqssun.airplay.media.currentNetworkCompat
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,6 +60,18 @@ class NetworkDiagnosticsContractTest {
             "",
             context.getString(R.string.diag_help),
         ).joinToString(separator = "\n", postfix = "\n"), report)
+    }
+
+    @Test fun publicReportMatchesTheDefaultAndroidNetwork() {
+        val manager = target.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = manager.currentNetworkCompat()
+        val expectation = InstrumentationRegistry.getArguments().getString("networkDiagnosticState")
+        if (expectation == "offline") assertNull("The test emulator still has a default network", activeNetwork)
+        val hasVpn = activeNetwork?.let(manager::getNetworkCapabilities)
+            ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        val report = NetworkDiagnostics.report(context, running = false)
+        assertEquals(hasVpn, context.getString(R.string.diag_vpn_active) in report.lineSequence())
+        assertTrue(context.getString(R.string.diag_receiver_stopped) in report.lineSequence())
     }
 
     private fun configure(usbOnly: Boolean, dlna: Boolean, fcast: Boolean) {
