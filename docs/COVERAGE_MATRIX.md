@@ -1767,3 +1767,12 @@ against the installed APK pair and restores the emulator's network settings.
 The relay form now sends Down from a valid pairing code to Connect. The
 targeted compat test passed on API28 after the previous 284-case compat run
 failed to reach Connect using Tab.
+
+The experience profile contracts verify the saved video and audio settings
+for Cinema, Presentation, Games, and Default. Invalid profiles and a device
+without a supported mode leave the existing preferences intact. The implicit
+Games profile reads the emulator's advertised AVC capabilities. Resolution
+formatting now uses the non-null mode of a selected plan directly. All six
+JVM metrics for `ExperienceProfiles` are covered in the selected normal and
+compat DE/AT API28 profiles, including 24 branch outcomes. The suite has
+298 Android cases.

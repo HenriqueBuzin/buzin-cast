@@ -26,7 +26,7 @@ object ExperienceProfiles {
         val plan = presets.getValue(name).profile?.let { QualityProfiles.choose(it, capabilities ?: DeviceCapabilityProbe.read()) }
         // One atomic preference edit produces one debounced receiver restart.
         prefs.edit().putString(Prefs.EXPERIENCE_PROFILE.key, name)
-            .putString(Prefs.RESOLUTION.key, plan?.mode?.let { "${it.width}x${it.height}" } ?: Prefs.RESOLUTION.def)
+            .putString(Prefs.RESOLUTION.key, plan?.let { "${it.mode.width}x${it.mode.height}" } ?: Prefs.RESOLUTION.def)
             .putInt(Prefs.MAX_FPS.key, plan?.mode?.fps ?: Prefs.MAX_FPS.def)
             .putString(Prefs.H265.key, if (plan == null) Prefs.H265.def else Prefs.OFF)
             .putBoolean(Prefs.LOW_LATENCY.key, plan?.lowLatency ?: Prefs.LOW_LATENCY.def)
