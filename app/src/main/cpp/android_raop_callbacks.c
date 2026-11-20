@@ -16,12 +16,13 @@
 
 // Detach only native-created threads that this bridge attached. Store the VM,
 // not the receiver context, because TLS destructors run as the thread exits.
+// pthread invokes the destructor only for a non-null stored value.
 static pthread_key_t jni_detach_key;
 static pthread_once_t jni_detach_once = PTHREAD_ONCE_INIT;
 static int jni_detach_ready = 0;
 static void _detach_native_thread(void *value) {
     JavaVM *vm = (JavaVM *)value;
-    if (vm) (*vm)->DetachCurrentThread(vm);
+    (*vm)->DetachCurrentThread(vm);
 }
 static void _create_detach_key(void) {
     jni_detach_ready = pthread_key_create(&jni_detach_key, _detach_native_thread) == 0;

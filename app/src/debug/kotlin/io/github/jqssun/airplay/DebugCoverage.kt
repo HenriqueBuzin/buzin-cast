@@ -31,6 +31,7 @@ object DebugCoverage {
         attachSinkAfterFirstDecode: Boolean = false, forceSoftware: Boolean = true): Array<ByteArray>
     external fun nativeOutputContracts(scenario: Int, log: LogListener? = null): String
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
+    external fun nativeCallbackThreadLifetimeContract(): String
     external fun nativeCallbackInitContracts(mode: Int): String
     external fun nativeCreatePartialServer(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): Long
     external fun withBridgeDiscoveryDetached(handle: Long, action: Runnable): Boolean

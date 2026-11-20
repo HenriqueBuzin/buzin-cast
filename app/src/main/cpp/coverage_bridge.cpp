@@ -1276,6 +1276,47 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
 #undef FAULT_CONTRACT
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackThreadLifetimeContract(JNIEnv *env, jobject) {
+#define THREAD_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    CallbackFaultFixture fixture;
+    fixture.deliver(8);
+    THREAD_CONTRACT(fixture.calls == 1 && fixture.attaches == 0 && fixture.detaches == 0);
+
+    // The pthread destructor may run after the worker's C++ TLS is gone.
+    // Resolve the counters from the VM, whose owner lives until after join.
+    struct LifetimeVm : JavaVM {
+        CallbackFaultFixture &fixture;
+        explicit LifetimeVm(CallbackFaultFixture &owner) : fixture(owner) { functions = &owner.invocation; }
+    } lifetimeVm(fixture);
+    fixture.ctx.jvm = &lifetimeVm;
+    fixture.invocation.AttachCurrentThread = [](JavaVM *vm, JNIEnv **out, void *) -> jint {
+        auto &worker = *CallbackFaultFixture::active;
+        if (vm != worker.ctx.jvm || worker.envStatus != JNI_EDETACHED) ++worker.illegal;
+        ++worker.attaches;
+        worker.envStatus = JNI_OK;
+        *out = &worker.env;
+        return JNI_OK;
+    };
+    fixture.invocation.DetachCurrentThread = [](JavaVM *vm) -> jint {
+        ++static_cast<LifetimeVm *>(vm)->fixture.detaches;
+        return JNI_OK;
+    };
+    int detachesBeforeExit = -1;
+    std::thread worker([&] {
+        CallbackFaultFixture::active = &fixture;
+        fixture.envStatus = JNI_EDETACHED;
+        fixture.deliver(8);
+        fixture.deliver(8);
+        detachesBeforeExit = fixture.detaches;
+    });
+    worker.join();
+    THREAD_CONTRACT(fixture.illegal == 0 && fixture.calls == 3);
+    THREAD_CONTRACT(detachesBeforeExit == 0 && fixture.attaches == 1 && fixture.detaches == 1);
+    return env->NewStringUTF("callback thread lifetime contract passed");
+#undef THREAD_CONTRACT
+}
+
 // Controlled dependency faults for the real callback initializer.
 namespace {
 struct CallbackInitFixture {

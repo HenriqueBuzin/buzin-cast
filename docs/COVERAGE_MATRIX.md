@@ -1822,3 +1822,11 @@ API28 profiles execute both outcomes of the discovery guard in start, stop,
 and HLS configuration. The 295-case profiles had zero executions of the
 unavailable-discovery outcome at all three guards. The fixture is linked
 in coverage builds. The suite has 309 Android cases.
+
+The JNI callback lifetime contract uses a native pthread and checks one
+attachment across two deliveries and one detachment at exit. A separate
+delivery with an already attached thread does not change ownership. The
+destructor directly detaches the stored JVM because pthread calls it only
+for a non-null thread-specific value. The normal and compat DE/AT API28
+profiles run the destructor through real callbacks and the counted fixture.
+All 12 selected cases pass on each edition. The suite has 310 Android cases.

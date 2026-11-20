@@ -36,4 +36,12 @@ class NativeCallbackFaultContractTest {
     }
     @Test fun pcmClearsAStaleExceptionBeforeAllocatingAndDelivering() = checkFailures(7..7, 6..6)
     @Test fun failedDetachRegistrationRollsBackTheNewJvmAttachment() = checkFailures(8..8, 7..7)
+
+    @Test fun nativeCallbackThreadAttachesOnceAndDetachesWhenItExits() {
+        assumeTrue("Requires coverage JNI fixture", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        System.loadLibrary("airplay_native")
+        try {
+            assertEquals("callback thread lifetime contract passed", DebugCoverage.nativeCallbackThreadLifetimeContract())
+        } finally { DebugCoverage.dump(InstrumentationRegistry.getInstrumentation().targetContext) }
+    }
 }
