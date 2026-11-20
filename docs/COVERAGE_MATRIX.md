@@ -1258,3 +1258,14 @@ All 21 native unit cases passed on API28. The previous implementation failed
 only the new case when the wait returned EINVAL. With the corrected build,
 the unit profile mapped to the normal APK library covers all four branch
 outcomes in android_raop_callbacks.c:_video_wait_ready.
+
+The JNI attachment test lets the simulated JVM attach a native thread and
+then injects a failure in the thread-local detach registration. The
+production callback detaches the thread immediately, skips delivery, and
+can deliver the next valid callback. The linker hook is coverage-only.
+
+The normal API28 emulator passed all 16 callback tests. Their native
+profile covers 13 of 14 outcomes in android_raop_callbacks.c:_get_env.
+Together with the standalone TLS key-creation failure profile for the
+unchanged callback source, all 14 outcomes are covered in the normal APK
+mapping. The suite now has 220 Android cases.

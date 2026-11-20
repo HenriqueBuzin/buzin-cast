@@ -2,6 +2,7 @@
 #include <jni.h>
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <memory>
 #include <cstdlib>
 #include <cstring>
@@ -880,7 +881,9 @@ struct CallbackFaultFixture {
     inline static thread_local CallbackFaultFixture *active = nullptr;
     int allocation = 0, failAllocation = 0, live = 0, calls = 0, writes = 0;
     int illegal = 0, clears = 0, envStatus = JNI_OK;
+    int attaches = 0, detachRegistrations = 0, detaches = 0;
     bool pending = false, failCopy = false, callbackThrows = false, missingEnv = false;
+    bool failDetachRegistration = false;
     void access() { if (pending || missingEnv || envStatus != JNI_OK) ++illegal; }
     jobject allocate() {
         access();
@@ -937,9 +940,15 @@ struct CallbackFaultFixture {
             return active->envStatus;
         };
         invocation.AttachCurrentThread = [](JavaVM *, JNIEnv **out, void *) -> jint {
-            *out = &active->env; return JNI_ERR;
+            ++active->attaches;
+            *out = &active->env;
+            return active->failDetachRegistration ? JNI_OK : JNI_ERR;
         };
-        invocation.DetachCurrentThread = [](JavaVM *) -> jint { return JNI_OK; };
+        invocation.DetachCurrentThread = [](JavaVM *vm) -> jint {
+            if (vm != &active->vm) ++active->illegal;
+            ++active->detaches;
+            return JNI_OK;
+        };
         android_callbacks_fill(&callbacks, &ctx);
     }
     ~CallbackFaultFixture() {
@@ -1001,11 +1010,22 @@ struct CallbackFaultFixture {
     }
 };
 }
+extern "C" int __real_pthread_setspecific(pthread_key_t key, const void *value);
+extern "C" int __wrap_pthread_setspecific(pthread_key_t key, const void *value) {
+    auto *fixture = CallbackFaultFixture::active;
+    if (fixture && fixture->failDetachRegistration && value == &fixture->vm) {
+        ++fixture->detachRegistrations;
+        return ENOMEM;
+    }
+    return __real_pthread_setspecific(key, value);
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv *env, jobject, jint scenario, jint failure) {
 #define FAULT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
-    FAULT_CONTRACT(scenario >= 0 && scenario <= 22 && failure >= 0 && failure <= 6);
+    FAULT_CONTRACT(scenario >= 0 && scenario <= 22 && failure >= 0 && failure <= 7);
     FAULT_CONTRACT(failure != 6 || scenario == 7);
+    FAULT_CONTRACT(failure != 7 || scenario == 8);
     FAULT_CONTRACT(scenario != 22 || failure != 1);
     // Scalar/control callbacks allocate no JNI objects and copy no byte arrays.
     FAULT_CONTRACT(scenario <= 7 || scenario == 22 || failure >= 2);
@@ -1013,10 +1033,11 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
     if (failure == 0) fixture.failAllocation = scenario == 6 ? 2 : 1;
     if (failure == 1) fixture.failCopy = true;
     if (failure == 2) fixture.envStatus = JNI_ERR;
-    if (failure == 3) fixture.envStatus = JNI_EDETACHED;
+    if (failure == 3 || failure == 7) fixture.envStatus = JNI_EDETACHED;
     if (failure == 4) fixture.callbackThrows = true;
     if (failure == 5) fixture.missingEnv = true;
     if (failure == 6) fixture.pending = true;
+    if (failure == 7) fixture.failDetachRegistration = true;
     const int delivered = failure == 4 || failure == 6 ? 1 : 0;
     fixture.deliver(scenario);
     FAULT_CONTRACT(fixture.illegal == 0);
@@ -1028,8 +1049,10 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCallbackFaultContracts(JNIEnv 
     if (scenario >= 8 && scenario <= 21) FAULT_CONTRACT(fixture.allocation == 0 && fixture.writes == 0);
     if (scenario == 22) FAULT_CONTRACT(fixture.clears == (failure == 4 ? 1 : 0));
     if (failure == 6) FAULT_CONTRACT(!fixture.pending && fixture.clears == 1 && fixture.writes == 1);
+    if (failure == 7) FAULT_CONTRACT(fixture.attaches == 1 && fixture.detachRegistrations == 1 && fixture.detaches == 1);
     fixture.failAllocation = 0; fixture.failCopy = false;
     fixture.callbackThrows = false; fixture.missingEnv = false; fixture.envStatus = JNI_OK;
+    fixture.failDetachRegistration = false;
     // PCM clears its own exception; the other callbacks recover at _get_env.
     fixture.deliver(scenario);
     FAULT_CONTRACT(fixture.illegal == 0);

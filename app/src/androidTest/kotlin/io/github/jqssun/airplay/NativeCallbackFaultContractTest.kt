@@ -35,4 +35,5 @@ class NativeCallbackFaultContractTest {
         checkFailures(22..22, 2..5)
     }
     @Test fun pcmClearsAStaleExceptionBeforeAllocatingAndDelivering() = checkFailures(7..7, 6..6)
+    @Test fun failedDetachRegistrationRollsBackTheNewJvmAttachment() = checkFailures(8..8, 7..7)
 }

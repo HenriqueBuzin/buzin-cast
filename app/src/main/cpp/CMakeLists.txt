@@ -201,6 +201,7 @@ if(BUZIN_COVERAGE)
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
+        "-Wl,--wrap=pthread_setspecific"
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
         "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"
         "-Wl,--wrap=avcodec_free_context" "-Wl,--wrap=av_packet_free" "-Wl,--wrap=av_frame_free"
