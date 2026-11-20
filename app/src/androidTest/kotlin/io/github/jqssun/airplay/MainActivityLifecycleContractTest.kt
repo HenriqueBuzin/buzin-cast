@@ -28,6 +28,7 @@ import androidx.test.runner.lifecycle.Stage
 import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.viewmodel.MainViewModel
+import io.leancast.app.Net
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -275,6 +276,65 @@ class MainActivityLifecycleContractTest {
         }
     }
 
+    @Test fun optionalReceiversFollowServicePreferencesAndUsbMode() {
+        val optional = listOf(Prefs.DLNA_ENABLED, Prefs.FCAST_ENABLED, Prefs.CASTV2_ENABLED)
+        for (pref in optional + Prefs.USB_ONLY) {
+            original[pref.key] = if (preferences.contains(pref.key)) pref.read(preferences) else null
+            set(pref, false)
+        }
+        val activity = launch()
+        start(activity)
+        val messages = CopyOnWriteArrayList<String>()
+        val prefixes = listOf("DLNA experimental receiver started on ", "FCast v2 experimental listening on ",
+            "Cast V2 experimental listening on ")
+        val host = requireNotNull(Net.lanIpv4())
+        val previous = service.logCallback
+        main { service.logCallback = { message -> messages += message; previous?.invoke(message) } }
+
+        fun portsAfter(marker: Int): List<Int> {
+            await("Optional listeners did not start") {
+                prefixes.all { prefix -> messages.drop(marker).any { it.startsWith(prefix) } }
+            }
+            return prefixes.map { prefix ->
+                val reported = messages.drop(marker).first { it.startsWith(prefix) }.removePrefix(prefix)
+                assertTrue("Unexpected listener endpoint: $reported", reported.startsWith("$host:"))
+                reported.substringAfter(':').substringBefore(';').toInt()
+            }
+        }
+
+        fun assertClosed(ports: List<Int>) {
+            for (port in ports) {
+                val error = runCatching { Socket(host, port).use { } }.exceptionOrNull()
+                assertTrue("Listener $port still accepts connections: $error", error is ConnectException)
+            }
+        }
+
+        try {
+            val enabled = preferences.edit()
+            optional.forEach { enabled.putBoolean(it.key, true) }
+            assertTrue(enabled.commit())
+            val lanPorts = portsAfter(0)
+            lanPorts.forEach { port -> Socket(host, port).use { assertTrue(it.isConnected) } }
+
+            val usbMarker = messages.size
+            set(Prefs.USB_ONLY, true)
+            await("USB-only restart did not reach the running state") {
+                service.serverState.value == AirPlayService.ServerState.RUNNING &&
+                    messages.drop(usbMarker).any { it.startsWith("Server started on port ") }
+            }
+            assertClosed(lanPorts)
+
+            val lanMarker = messages.size
+            set(Prefs.USB_ONLY, false)
+            val restoredPorts = portsAfter(lanMarker)
+            restoredPorts.forEach { port -> Socket(host, port).use { assertTrue(it.isConnected) } }
+            main { service.stopServer() }
+            assertClosed(restoredPorts)
+        } finally {
+            main { service.logCallback = previous }
+        }
+    }
+
     @Test fun receiverReadvertisesDisplayOnlyForChangedAutomaticOrientation() {
         val resolution = Prefs.RESOLUTION
         val saved = preferences.getString(resolution.key, null)
@@ -514,10 +574,18 @@ class MainActivityLifecycleContractTest {
                 true
             }
             lateinit var receiverBounds: Rect
+            var lastBounds: Rect? = null
+            var stableSince = 0L
             awaitVolumeControl(R.string.volume_server) { node ->
                 assertTrue(node.isEnabled)
-                receiverBounds = Rect().also(node::getBoundsInScreen)
-                !receiverBounds.isEmpty
+                val bounds = Rect().also(node::getBoundsInScreen)
+                if (!node.isVisibleToUser || bounds.isEmpty || bounds != lastBounds) {
+                    lastBounds = bounds
+                    stableSince = SystemClock.elapsedRealtime()
+                    return@awaitVolumeControl false
+                }
+                receiverBounds = bounds
+                SystemClock.elapsedRealtime() - stableSince >= 150L
             }
             val touchX = receiverBounds.left + receiverBounds.width() * 0.85f
             val touchY = receiverBounds.exactCenterY()
@@ -557,6 +625,9 @@ class MainActivityLifecycleContractTest {
                 Thread.sleep(16)
                 send(MotionEvent.ACTION_MOVE, startY + (endY - startY) * step / 5)
             }
+            // Keep the finger still before release so the scroll does not fling.
+            Thread.sleep(120)
+            send(MotionEvent.ACTION_MOVE, endY)
         }
         send(MotionEvent.ACTION_UP, endY)
     }

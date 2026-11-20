@@ -1365,3 +1365,14 @@ All 28 selected cases passed on normal API28. Comparing the same app APK
 before and after adding the case, restart coverage grew from 1 to 4 of
 4 branches and failed-start coverage grew from 5 to 6 of 10 branches.
 The suite now has 233 Android cases.
+
+The service lifecycle test starts DLNA, FCast and Cast V2 through their
+preferences and connects to each actual listener. USB-only mode closes
+the three LAN listeners. Returning to LAN mode restores their sockets,
+and stopping the service closes them again.
+
+The initial selected run exposed a moving volume control during a touch
+test. The gesture now settles before releasing its scroll, and the test
+checks stable slider bounds before tapping. All 29 selected cases passed
+on normal API28 after that adjustment. On the same APK, server startup
+coverage grew from 19 to 29 of 42 branches. The suite has 234 Android cases.
