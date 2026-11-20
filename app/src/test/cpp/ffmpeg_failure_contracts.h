@@ -2,7 +2,44 @@
 #include <array>
 #include <cerrno>
 #include <chrono>
+#include <future>
 #include <jni.h>
+
+struct AudioEngineContractAccess {
+    static bool readCachedDebug(AudioEngine *engine, AudioDebugData &debug) {
+        std::unique_lock<std::mutex> rebuild(engine->mRebuildLock);
+        auto poll = std::async(std::launch::async, [&] {
+            return audio_engine_get_debug(engine, &debug, sizeof(debug));
+        });
+        const auto status = poll.wait_for(std::chrono::seconds(1));
+        rebuild.unlock();
+        const bool copied = poll.get();
+        return status == std::future_status::ready && copied;
+    }
+};
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeEngineDebugCacheContract(JNIEnv *env, jobject) {
+#define CACHE_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    using Engine = std::unique_ptr<AudioEngine, decltype(&audio_engine_destroy)>;
+    Engine engine(audio_engine_create(std::make_shared<LogSink>(), 44100, 2), audio_engine_destroy);
+    CACHE_CONTRACT(engine);
+    CACHE_CONTRACT(audio_engine_configure(engine.get(), 20, 95, 0, true, true, false, false, false));
+    AudioDebugData initial{}, cached{}, refreshed{};
+    CACHE_CONTRACT(audio_engine_get_debug(engine.get(), &initial, sizeof(initial)));
+    CACHE_CONTRACT(initial.timeline.tunedCushionMs == 20);
+
+    // The producer applies the queued cushion before checking the packet codec.
+    CACHE_CONTRACT(audio_engine_configure(engine.get(), 60, 95, 0, true, true, false, false, false));
+    const uint8_t unusedPacket = 0;
+    audio_engine_decode(engine.get(), &unusedPacket, 1, -1, 1);
+    CACHE_CONTRACT(AudioEngineContractAccess::readCachedDebug(engine.get(), cached));
+    CACHE_CONTRACT(std::memcmp(&initial, &cached, sizeof(initial)) == 0);
+    CACHE_CONTRACT(audio_engine_get_debug(engine.get(), &refreshed, sizeof(refreshed)));
+    CACHE_CONTRACT(refreshed.timeline.tunedCushionMs == 60);
+#undef CACHE_CONTRACT
+    return env->NewStringUTF("engine debug cache contract passed");
+}
 
 namespace {
 thread_local int *pendingConfigAllocationFailures = nullptr;

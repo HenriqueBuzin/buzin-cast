@@ -1667,3 +1667,14 @@ normal and compat DE/AT API28. Each matching JaCoCo report covers 312 of 448
 settings branches, up from 292 in the preceding settings run. The TV editor
 file covers 28 of 77 branches on normal and 26 on compat DE/AT. The suite has
 279 Android cases.
+
+The audio diagnostics contract queues and applies a new engine configuration,
+holds the rebuild lock, and polls from another thread. It verifies the cached
+snapshot is returned while that lock is held and that the next poll sees the
+new cushion. All 30 selected audio contracts passed on normal and compat
+DE/AT API28. Both matching profiles cover all six engine debug branch
+outcomes. Three API22 contracts passed with the same compat DE/AT APK and
+native library as the API28 run. Their combined profile covers all 14 codec
+startup branch outcomes, including the API22 AAC and ALAC paths. The engine
+and its fixture also compiled for ARMv7 API22. The suite has 280 Android
+cases.

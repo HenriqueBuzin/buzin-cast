@@ -165,6 +165,10 @@ struct AudioEngine {
     }
 
 private:
+#ifdef BUZIN_FFMPEG_CONTRACTS
+    friend struct AudioEngineContractAccess;
+#endif
+
     static int ctIndex(int ct) {
         switch (ct) {
             case CT_ALAC:    return 0;

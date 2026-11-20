@@ -9,6 +9,7 @@ object DebugCoverage {
     external fun nativeDump(path: String): Int
     /** Contract fixture is linked only into the instrumented native library. */
     external fun nativeAudioContracts(): String
+    external fun nativeEngineDebugCacheContract(): String
     external fun nativeFfmpegFailureContracts(packet: ByteArray): String
     external fun nativeAacConfigurationContracts(): String
     external fun nativePlatformDecoderFallbackContracts(): String

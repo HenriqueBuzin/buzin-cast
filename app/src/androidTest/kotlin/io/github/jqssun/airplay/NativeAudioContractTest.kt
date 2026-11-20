@@ -49,6 +49,9 @@ class NativeAudioContractTest {
     @Test fun invalidInputsAndPreconfigurationLifecycleAreSafe() =
         decoderContract("audio contracts passed", DebugCoverage::nativeAudioContracts)
 
+    @Test fun readingAudioDiagnosticsDoesNotWaitForEngineRebuild() =
+        decoderContract("engine debug cache contract passed", DebugCoverage::nativeEngineDebugCacheContract)
+
     @Test fun ffmpegAllocationFailuresReleasePartialStateAndTheNextDecoderProducesPcm() {
         assumeTrue("Requires the instrumented coverage APK", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
         val instrumentation = InstrumentationRegistry.getInstrumentation()
