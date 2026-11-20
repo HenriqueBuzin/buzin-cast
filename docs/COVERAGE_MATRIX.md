@@ -2022,3 +2022,10 @@ of the native app binary. Instantiations measured 204/205. The remaining
 instance is the coverage bridge's inline copy of `monoNs` in
 `audio_time.h`. This matched native result includes a selected API22 run
 and the complete API28 suite.
+
+The cached audio diagnostic contract now measures elapsed time with the
+same monotonic clock used by the native audio code. The contract passed
+on normal and compat DE/AT API28. Both LLVM profiles recorded two calls
+to the previously unused coverage-bridge instantiation of `monoNs`.
+The latest full build must
+recalculate all six native metrics with its own matching profiles.

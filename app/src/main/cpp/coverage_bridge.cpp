@@ -403,9 +403,9 @@ struct AudioOutputContractAccess {
             released.wait_for(std::chrono::seconds(2));
         });
         const bool locked = ready.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
-        const auto begin = std::chrono::steady_clock::now();
+        const auto begin = monoNs();
         if (locked) result = output->debugInfo();
-        const auto elapsed = std::chrono::steady_clock::now() - begin;
+        const auto elapsed = std::chrono::nanoseconds(monoNs() - begin);
         release.set_value();
         holder.join();
         return locked && elapsed < std::chrono::milliseconds(500);
