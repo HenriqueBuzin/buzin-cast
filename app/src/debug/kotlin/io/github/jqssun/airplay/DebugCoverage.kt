@@ -12,6 +12,8 @@ object DebugCoverage {
     external fun nativeFfmpegFailureContracts(packet: ByteArray): String
     external fun nativeAacConfigurationContracts(): String
     external fun nativePlatformDecoderFallbackContracts(): String
+    external fun nativePlatformInputBufferContracts(): String
+    external fun nativeDecoderLatencyContracts(): String
     external fun nativeDnsContracts(): String
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
     external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int,

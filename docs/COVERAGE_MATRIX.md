@@ -1442,3 +1442,21 @@ branches. All six selected AAC and ALAC cases passed on the same compat DE/AT
 APK on API22. Combining profiles for that binary covers 13 of 14 branches in
 `startMediaCodec` and 116 of 130 in `audio_decoder.h`. The current suite has
 245 Android cases.
+
+The MediaCodec input contract uses a real dequeued slot and covers a missing
+buffer, insufficient capacity, and rejection when queueing. It checks the
+copied byte count, payload prefix, buffer index, and presentation timestamp.
+The latency contract checks unmatched timestamps and verifies runtime metrics
+with logging disabled. Both hooks are limited to the coverage build.
+
+All 22 selected audio cases passed independently on normal and compat DE/AT
+API28. On the unchanged decoder source in the normal build, coverage
+increased from 10 to 14 of 14 branches in
+`MediaCodecDecoder::decode`, from 2 to 4 of 4 in `LatencyProbe::match`, and
+from 9 to 10 of 10 in `LatencyReporter::record`. The suite has 247 Android
+cases.
+
+The older full run pinned at `1b991d4` failed one compat DE/AT test after the
+platform decoder rejected AAC packet 30. The same test passed in the newer
+22-case regional selection. A full regional pass remains outstanding for
+the current source.

@@ -67,12 +67,45 @@ struct ScopedPlatformCodecFault {
     explicit ScopedPlatformCodecFault(PlatformCodecStage stage) : fault{stage} { activePlatformFault = &fault; }
     ~ScopedPlatformCodecFault() { activePlatformFault = previous; }
 };
+
+// The NDK's input offset type can differ from off_t on 32-bit Android.
+template <typename Offset>
+Offset platformInputOffset(media_status_t (*)(AMediaCodec *, size_t, Offset, size_t, uint64_t, uint32_t));
+using PlatformInputOffset = decltype(platformInputOffset(&AMediaCodec_queueInputBuffer));
+
+enum class PlatformInputCase { Missing, Limited, QueueRejected };
+struct PlatformInputContract {
+    AMediaCodec *codec;
+    PlatformInputCase mode;
+    std::array<uint8_t, 8> buffer{};
+    size_t requested = 0;
+    size_t queued = 0;
+    size_t requestedIndex = 0;
+    size_t queuedIndex = 0;
+    PlatformInputOffset offset = 0;
+    uint64_t time = 0;
+    uint32_t flags = 0;
+    size_t length = 0;
+};
+thread_local PlatformInputContract *activePlatformInput = nullptr;
+
+struct ScopedPlatformInputContract {
+    PlatformInputContract contract;
+    PlatformInputContract *previous = activePlatformInput;
+    ScopedPlatformInputContract(AMediaCodec *codec, PlatformInputCase mode) : contract{codec, mode} {
+        activePlatformInput = &contract;
+    }
+    ~ScopedPlatformInputContract() { activePlatformInput = previous; }
+};
 }
 
 extern "C" media_status_t __real_AMediaCodec_configure(
     AMediaCodec *, const AMediaFormat *, ANativeWindow *, AMediaCrypto *, uint32_t);
 extern "C" media_status_t __real_AMediaCodec_start(AMediaCodec *);
 extern "C" media_status_t __real_AMediaCodec_delete(AMediaCodec *);
+extern "C" uint8_t *__real_AMediaCodec_getInputBuffer(AMediaCodec *, size_t, size_t *);
+extern "C" media_status_t __real_AMediaCodec_queueInputBuffer(
+    AMediaCodec *, size_t, PlatformInputOffset, size_t, uint64_t, uint32_t);
 
 extern "C" media_status_t __wrap_AMediaCodec_configure(
     AMediaCodec *codec, const AMediaFormat *format, ANativeWindow *surface, AMediaCrypto *crypto, uint32_t flags) {
@@ -96,6 +129,33 @@ extern "C" media_status_t __wrap_AMediaCodec_delete(AMediaCodec *codec) {
         ++fault->released;
     }
     return result;
+}
+
+extern "C" uint8_t *__wrap_AMediaCodec_getInputBuffer(AMediaCodec *codec, size_t index, size_t *capacity) {
+    auto *contract = activePlatformInput;
+    if (!contract || contract->codec != codec) return __real_AMediaCodec_getInputBuffer(codec, index, capacity);
+    ++contract->requested;
+    contract->requestedIndex = index;
+    if (contract->mode == PlatformInputCase::Missing) return nullptr;
+    *capacity = contract->mode == PlatformInputCase::Limited ? 4 : contract->buffer.size();
+    return contract->buffer.data();
+}
+
+extern "C" media_status_t __wrap_AMediaCodec_queueInputBuffer(
+    AMediaCodec *codec, size_t index, PlatformInputOffset offset, size_t size, uint64_t time, uint32_t flags) {
+    auto *contract = activePlatformInput;
+    if (!contract || contract->codec != codec) {
+        return __real_AMediaCodec_queueInputBuffer(codec, index, offset, size, time, flags);
+    }
+    // Each case uses one input slot in a fresh codec and releases it on teardown.
+    // Inspect the request without handing synthetic test bytes to the decoder.
+    ++contract->queued;
+    contract->queuedIndex = index;
+    contract->offset = offset;
+    contract->length = size;
+    contract->time = time;
+    contract->flags = flags;
+    return contract->mode == PlatformInputCase::QueueRejected ? AMEDIA_ERROR_UNKNOWN : AMEDIA_OK;
 }
 
 extern "C" AVCodecContext *__real_avcodec_alloc_context3(const AVCodec *);
@@ -246,6 +306,60 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformDecoderFallbackContrac
     FALLBACK_CONTRACT(decoder);
 #undef FALLBACK_CONTRACT
     return env->NewStringUTF("platform decoder fallback contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformInputBufferContracts(JNIEnv *env, jobject) {
+#define INPUT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    LogSink log;
+    LatencyReporter latency("AAC input contract", log);
+    TimelineBuffer timeline(44100, 2, 0, 95);
+    const auto config = codecConfig(CT_AAC_LC, 1024, 44100, 2);
+    INPUT_CONTRACT(config.has_value());
+    const std::array<uint8_t, 6> payload{1, 2, 3, 4, 5, 6};
+    constexpr int64_t pts = 1'234'567'890;
+    for (const auto mode : {PlatformInputCase::Missing, PlatformInputCase::Limited, PlatformInputCase::QueueRejected}) {
+        auto *codec = startMediaCodec(*config, log, false, false);
+        INPUT_CONTRACT(codec);
+        MediaCodecDecoder decoder(codec, timeline, latency);
+        ScopedPlatformInputContract fixture(codec, mode);
+        const auto &input = fixture.contract;
+        INPUT_CONTRACT(!decoder.decode(payload.data(), payload.size(), pts));
+        INPUT_CONTRACT(input.requested == 1);
+        if (mode == PlatformInputCase::Missing) {
+            INPUT_CONTRACT(input.queued == 0);
+        } else {
+            const size_t expected = mode == PlatformInputCase::Limited ? 4 : payload.size();
+            INPUT_CONTRACT(input.queued == 1 && input.flags == 0 && input.time == pts / 1000);
+            INPUT_CONTRACT(input.queuedIndex == input.requestedIndex && input.offset == 0);
+            INPUT_CONTRACT(input.length == expected && memcmp(input.buffer.data(), payload.data(), expected) == 0);
+            INPUT_CONTRACT(input.buffer[expected] == 0);
+        }
+    }
+#undef INPUT_CONTRACT
+    return env->NewStringUTF("platform input buffer contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecoderLatencyContracts(JNIEnv *env, jobject) {
+#define LATENCY_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    LatencyProbe probe;
+    LATENCY_CONTRACT(probe.match(100, 200'000) == -1 && probe.inFlight() == 0);
+    probe.record(100, 110'000);
+    probe.record(200, 210'000);
+    LATENCY_CONTRACT(probe.match(150, 220'000) == -1 && probe.inFlight() == 2);
+    LATENCY_CONTRACT(probe.match(200, 290'000) == 80'000 && probe.inFlight() == 0);
+    LATENCY_CONTRACT(probe.match(100, 300'000) == -1);
+
+    LogSink log;
+    LatencyReporter latency("decode latency contract", log);
+    latency.setEnableLogging(false);
+    latency.setHeld(3);
+    for (int sample = 0; sample < 200; ++sample) latency.record((sample % 2 == 0) ? 1000 : 3000);
+    const auto measured = latency.debugInfo();
+    LATENCY_CONTRACT(measured.meanUs == 2 && measured.maxUs == 3 && measured.held == 3);
+#undef LATENCY_CONTRACT
+    return env->NewStringUTF("decoder latency contracts passed");
 }
 
 extern "C" JNIEXPORT jstring JNICALL

@@ -28,6 +28,12 @@ class NativeAudioContractTest {
     @Test fun aacFallingBackAfterPlatformFailureReleasesBothDecoders() =
         decoderContract("platform decoder fallback contracts passed", DebugCoverage::nativePlatformDecoderFallbackContracts)
 
+    @Test fun platformInputHandlesMissingLimitedAndRejectedBuffers() =
+        decoderContract("platform input buffer contracts passed", DebugCoverage::nativePlatformInputBufferContracts)
+
+    @Test fun decoderLatencySkipsUnmatchedTimestampsAndReportsWithLoggingDisabled() =
+        decoderContract("decoder latency contracts passed", DebugCoverage::nativeDecoderLatencyContracts)
+
     @Test fun invalidInputsAndPreconfigurationLifecycleAreSafe() =
         decoderContract("audio contracts passed", DebugCoverage::nativeAudioContracts)
 
