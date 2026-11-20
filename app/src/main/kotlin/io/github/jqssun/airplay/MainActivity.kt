@@ -212,11 +212,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // never stop mid-session
+        val receiver = service ?: return
+        // The presentation state is refreshed periodically and may be stale at onStop.
         if (!viewModel.pref(Prefs.RUN_IN_BACKGROUND).value && !isChangingConfigurations &&
-            viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
-            viewModel.connectionCount.value == 0 && !viewModel.videoPlaybackActive.value && !viewModel.mirroringActive.value) {
-            viewModel.stopServer()
+            receiver.serverState.value == AirPlayService.ServerState.RUNNING &&
+            receiver.connectionCount.value == 0 && !receiver.videoPlaybackActive.value && !receiver.mirroringActive.value) {
+            receiver.stopServer()
         }
     }
 

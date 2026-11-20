@@ -1946,3 +1946,20 @@ The DE/AT edition of the API28 311-case matrix at `6e77219` passed all
 The updated 320-case API22 compat DE/AT instrumentation run completed with
 one failure in the activity idle-shutdown contract. Both settings cases
 from the previous replay passed in that run.
+
+All four editions completed the API28 311-case matrix at `6e77219`, each
+with 21 native cases and 15 recorded runtime checks. The compat result was
+4661/5972 JVM branches (78.05%) and 900/912 native branches (98.68%).
+The four-edition coverage gate remains open.
+
+The receiver now checks the bound service's current activity during
+`onStop`. An API22 regression begins a connection at the lifecycle stop
+event while the ViewModel snapshot still shows zero connections. This
+reproduced an unintended receiver shutdown with the original APK.
+The local-video scenario also reproduced a decoder error from a released
+surface on API28. Playback surface callbacks on the main thread now
+detach synchronously before the holder releases the surface and reject
+invalid replacements. All four targeted lifecycle and renderer cases
+passed on the compat DE/AT APK on API22 and API28 and on normal API28.
+The API28 profiles cover all seven lines and 10/14 branches of `onStop`.
+The suite has 324 Android cases.

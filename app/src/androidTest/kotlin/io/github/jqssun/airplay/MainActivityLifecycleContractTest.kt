@@ -21,6 +21,7 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -170,7 +171,7 @@ class MainActivityLifecycleContractTest {
         }
     }
 
-    private fun stopped(activity: MainActivity, expected: AirPlayService.ServerState) {
+    private fun stopped(activity: MainActivity, expected: AirPlayService.ServerState, scenario: String = "background") {
         check(cover == null)
         main {
             activity.startActivity(Intent(activity, DebugTvPreviewActivity::class.java)
@@ -183,7 +184,7 @@ class MainActivityLifecycleContractTest {
         }
         main {
             assertEquals(Lifecycle.State.CREATED, activity.lifecycle.currentState)
-            assertEquals(expected, service.serverState.value)
+            assertEquals("Receiver state after $scenario", expected, service.serverState.value)
         }
     }
 
@@ -589,7 +590,7 @@ class MainActivityLifecycleContractTest {
         start(activity)
         main { service.onConnectionInit() }
         keepsScreenOn(activity, true)
-        stopped(activity, AirPlayService.ServerState.RUNNING)
+        stopped(activity, AirPlayService.ServerState.RUNNING, "backgrounding with a connected sender")
         resume(activity)
         main { service.onConnectionDestroy() }
         keepsScreenOn(activity, false)
@@ -599,7 +600,7 @@ class MainActivityLifecycleContractTest {
         instrumentation.context.assets.open("download/sample.mp4").use { input -> file.outputStream().use(input::copyTo) }
         main { service.playLocalVideo(android.net.Uri.fromFile(file).toString()); service.setVideoPlaying(false) }
         keepsScreenOn(activity, true)
-        stopped(activity, AirPlayService.ServerState.RUNNING)
+        stopped(activity, AirPlayService.ServerState.RUNNING, "backgrounding with local video")
         resume(activity)
         main { service.stopVideoPlayback() }
         await("Local video did not stop") { !service.videoPlaybackActive.value }
@@ -611,11 +612,38 @@ class MainActivityLifecycleContractTest {
         keepsScreenOn(activity, false)
         set(Prefs.KEEP_SCREEN_ON, true)
         keepsScreenOn(activity, true)
-        stopped(activity, AirPlayService.ServerState.RUNNING)
+        stopped(activity, AirPlayService.ServerState.RUNNING, "backgrounding with mirroring")
         resume(activity)
         main { service.onMirrorRunning(false) }
         keepsScreenOn(activity, false)
-        stopped(activity, AirPlayService.ServerState.STOPPED)
+        stopped(activity, AirPlayService.ServerState.STOPPED, "backgrounding after mirroring ended")
+        finishActivities()
+    }
+
+    @Test fun aSenderConnectingDuringBackgroundTransitionKeepsTheReceiverRunning() {
+        pipPolicy("ignore")
+        val activity = launch()
+        start(activity)
+        var connectedAtStop = false
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                assertEquals(0, model(activity).connectionCount.value)
+                service.onConnectionInit()
+                connectedAtStop = true
+            }
+        }
+        main { activity.lifecycle.addObserver(observer) }
+        try {
+            stopped(activity, AirPlayService.ServerState.RUNNING, "a sender joining during onStop")
+            assertTrue("The transition did not attach a sender", connectedAtStop)
+        } finally {
+            main {
+                activity.lifecycle.removeObserver(observer)
+                if (connectedAtStop) service.onConnectionDestroy()
+            }
+        }
+        resume(activity)
+        stopped(activity, AirPlayService.ServerState.STOPPED, "the sender disconnecting")
         finishActivities()
     }
 

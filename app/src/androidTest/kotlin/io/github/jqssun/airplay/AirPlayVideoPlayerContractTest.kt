@@ -151,6 +151,34 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun surfaceCallbacksDetachInlineBeforeTheHolderCanReleaseTheBuffer() {
+        val firstTexture = SurfaceTexture(false)
+        val secondTexture = SurfaceTexture(false)
+        val first = Surface(firstTexture)
+        val second = Surface(secondTexture)
+        try {
+            main {
+                renderer.setSurface(first)
+                assertSame(first, playerField("pendingSurface"))
+                renderer.setSurface(second)
+                renderer.clearSurface(first)
+                assertSame(second, playerField("pendingSurface"))
+                renderer.clearSurface(second)
+                assertNull(playerField("pendingSurface"))
+            }
+            second.release()
+            main {
+                renderer.setSurface(second)
+                assertNull(playerField("pendingSurface"))
+            }
+        } finally {
+            second.release()
+            secondTexture.release()
+            first.release()
+            firstTexture.release()
+        }
+    }
+
     @Test fun commandsAndCallbacksFromAReplacedSessionLeaveItsSuccessorIntact() {
         val first = token()
         val url = Uri.fromFile(fixture).toString()

@@ -110,7 +110,7 @@ class AirPlayVideoPlayer(private val context: Context) {
         val sources = DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http))
         val p = ExoPlayer.Builder(context).setMediaSourceFactory(sources).build().also {
             it.addListener(sessionListener)
-            pendingSurface?.let { s -> it.setVideoSurface(s) }
+            pendingSurface?.takeIf(Surface::isValid)?.let { surface -> it.setVideoSurface(surface) }
             it.volume = clientGain
         }
         player = p
@@ -188,16 +188,23 @@ class AirPlayVideoPlayer(private val context: Context) {
         p.seekTo(target)
     }
 
-    fun setSurface(surface: Surface) = mainHandler.post {
-        pendingSurface = surface
-        player?.setVideoSurface(surface)
+    private fun updateSurfaceOnMainThread(action: () -> Unit) {
+        if (Looper.myLooper() == mainHandler.looper) action() else mainHandler.post(action)
     }
 
-    // no-op if a newer surface already replaced this one
-    fun clearSurface(surface: Surface) = mainHandler.post {
-        if (pendingSurface !== surface) return@post
-        pendingSurface = null
-        player?.setVideoSurface(null)
+    fun setSurface(surface: Surface) = updateSurfaceOnMainThread {
+        if (surface.isValid) {
+            pendingSurface = surface
+            player?.setVideoSurface(surface)
+        }
+    }
+
+    fun clearSurface(surface: Surface) = updateSurfaceOnMainThread {
+        // Detach before SurfaceHolder releases the surface on return from its callback.
+        if (pendingSurface === surface) {
+            pendingSurface = null
+            player?.clearVideoSurface(surface)
+        }
     }
 
     fun stop(expected: SessionToken? = null) = mainHandler.post {
