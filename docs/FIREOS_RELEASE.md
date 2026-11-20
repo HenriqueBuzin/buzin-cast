@@ -167,7 +167,23 @@ APKs 48 e 49 caíram ao carregar a biblioteca ARMv7 pelo tradutor
 `libndk_translation.so` da API30. O APK 50 passou nas mesmas condições.
 Uma cópia de diagnóstico com a biblioteca ARM extraída do 48 também
 caiu no carregamento. Isolar apenas a detecção de CPU do OpenSSL permitiu
-carregar a biblioteca e executar o parser. A correção ARMv7/API17 está
-sendo recompilada para as duas fichas, em arquivos separados da matriz
-inicial. A validação em um Fire TV Stick antigo e a licença pela Appstore
+carregar a biblioteca e executar o parser.
+
+## Recompilação ARMv7 dos APKs legados
+
+Os dois APKs foram recompilados, passaram no lint de release e mantiveram
+a assinatura de produção, a API mínima 17 e os códigos 48 e 49. A
+biblioteca ARMv7 deixou de executar a sondagem de CPU ao carregar. A
+biblioteca x86 empacotada é idêntica à dos APKs originais.
+
+- Geral: `f38cd0320b8f63580106abbfa1cd60945800d6924ae5b4e73eb38f55073bbcdb`.
+- DE/AT: `1ef64515613b989065aa34a3606691b09ea4cd6619e6d20b02ace365edd9093f`.
+
+Os dois passaram na API30 com `armeabi-v7a` e `libndk_translation.so`,
+incluindo abertura, resposta RTSP e a interface da edição correspondente.
+Os APKs e os relatórios `corrected-signed.json`,
+`general-api30-armv7/report.json` e `nodownload-api30-armv7/report.json`
+ficam em `outputs/fireos/coordinated/legacy-arm-noasm`.
+
+A validação em um Fire TV Stick antigo e a licença pela Appstore
 continuam pendentes.
