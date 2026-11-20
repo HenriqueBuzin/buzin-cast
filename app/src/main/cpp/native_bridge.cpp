@@ -52,13 +52,17 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     }
     ctx->cb_ctx.require_pin = requirePin ? 1 : 0;
     android_callbacks_fill(&ctx->callbacks, &ctx->cb_ctx);
+    const auto fail = [ctx, env]() -> jlong {
+        raop_destroy(ctx->raop);
+        android_callbacks_destroy(&ctx->cb_ctx, env);
+        delete ctx;
+        return 0;
+    };
 
     ctx->raop = raop_init(&ctx->callbacks);
     if (!ctx->raop) {
         LOGE("raop_init failed");
-        android_callbacks_destroy(&ctx->cb_ctx, env);
-        delete ctx;
-        return 0;
+        return fail();
     }
     ctx->cb_ctx.raop = ctx->raop;
 
@@ -77,10 +81,7 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     env->ReleaseStringUTFChars(keyFile, keyfile_c);
     if (ret < 0) {
         LOGE("raop_init2 failed: %d", ret);
-        raop_destroy(ctx->raop);
-        android_callbacks_destroy(&ctx->cb_ctx, env);
-        delete ctx;
-        return 0;
+        return fail();
     }
 
     if (requirePin) {
@@ -88,10 +89,7 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
         int pin = random_pin();
         if (pin < 0 || pin > 9999) {
             LOGE("Cannot start PIN-protected receiver: random PIN generation failed");
-            raop_destroy(ctx->raop);
-            android_callbacks_destroy(&ctx->cb_ctx, env);
-            delete ctx;
-            return 0;
+            return fail();
         }
         raop_set_plist(ctx->raop, "pin", pin + 10000);
     }
@@ -104,9 +102,10 @@ Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     env->ReleaseStringUTFChars(name, name_c);
     if (!ctx->dnssd) {
         LOGE("dnssd_init failed: %d", dns_err);
-    } else {
-        raop_set_dnssd(ctx->raop, ctx->dnssd);
+        // RAOP request handlers require this context even without mDNS registration.
+        return fail();
     }
+    raop_set_dnssd(ctx->raop, ctx->dnssd);
 
     ctx->log = std::make_shared<LogSink>();
     ctx->log->bind(env, callback);

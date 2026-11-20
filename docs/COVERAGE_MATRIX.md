@@ -1345,3 +1345,13 @@ All 22 selected lifecycle and native receiver cases passed on normal API28.
 The matching native profile covers both outcomes of RAOP initialization
 and 19 of 22 branch outcomes in nativeInit. The suite now has 232 Android
 cases.
+
+The native init contract now forces RAOP allocation, RAOP configuration,
+and DNS-SD allocation to fail separately. DNS-SD failure also aborts
+initialization because RAOP needs its discovery context during requests.
+After each injected failure the service reports the error and releases
+its startup resources. A later attempt starts the receiver.
+
+All 27 selected cases passed on normal API28, including the real JNI
+callback lookup failure test. The matching LLVM report covers all 22
+branch outcomes in nativeInit.

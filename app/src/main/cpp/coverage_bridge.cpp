@@ -29,7 +29,9 @@ extern "C" void __llvm_profile_set_filename(const char *);
 extern "C" int __llvm_profile_write_file(void);
 
 extern "C" int __real_random_pin(void);
+extern "C" raop_t *__real_raop_init(raop_callbacks_t *);
 extern "C" int __real_raop_init2(raop_t *, int, const char *, const char *);
+extern "C" dnssd_t *__real_dnssd_init(const char *, int, const char *, int, int *, unsigned char);
 extern "C" JNIEXPORT jlong JNICALL
 Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     JNIEnv *, jobject, jobject, jbyteArray, jstring, jstring, jboolean, jboolean);
@@ -167,29 +169,51 @@ extern "C" int __wrap_random_pin(void) {
 }
 
 namespace {
-thread_local int *forcedRaopInitCalls = nullptr;
+enum class InitStage { RaopAllocation, RaopConfiguration, DnsAllocation };
+struct InitFailure {
+    InitStage stage;
+    int calls = 0;
+};
+thread_local InitFailure *forcedInitFailure = nullptr;
+
+bool failInitStage(InitStage stage) {
+    if (!forcedInitFailure || forcedInitFailure->stage != stage) return false;
+    ++forcedInitFailure->calls;
+    return true;
+}
+}
+
+extern "C" raop_t *__wrap_raop_init(raop_callbacks_t *callbacks) {
+    return failInitStage(InitStage::RaopAllocation) ? nullptr : __real_raop_init(callbacks);
 }
 
 extern "C" int __wrap_raop_init2(raop_t *raop, int nohold, const char *deviceId, const char *keyFile) {
-    if (!forcedRaopInitCalls) return __real_raop_init2(raop, nohold, deviceId, keyFile);
-    ++*forcedRaopInitCalls;
-    return -1;
+    return failInitStage(InitStage::RaopConfiguration) ? -1 : __real_raop_init2(raop, nohold, deviceId, keyFile);
+}
+
+extern "C" dnssd_t *__wrap_dnssd_init(const char *name, int nameLength, const char *address,
+                                      int addressLength, int *error, unsigned char pin) {
+    if (!failInitStage(InitStage::DnsAllocation)) {
+        return __real_dnssd_init(name, nameLength, address, addressLength, error, pin);
+    }
+    if (error) *error = DNSSD_ERROR_OUTOFMEM;
+    return nullptr;
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_io_github_jqssun_airplay_DebugCoverage_nativeWithRaopInitFailure(JNIEnv *env, jobject, jobject action) {
+Java_io_github_jqssun_airplay_DebugCoverage_nativeWithInitFailure(JNIEnv *env, jobject, jint stage, jobject action) {
     jclass runnable = env->FindClass("java/lang/Runnable");
     if (!runnable) return 0;
     jmethodID run = env->GetMethodID(runnable, "run", "()V");
     env->DeleteLocalRef(runnable);
     if (!run) return 0;
 
-    int calls = 0;
-    auto *previous = forcedRaopInitCalls;
-    forcedRaopInitCalls = &calls;
+    InitFailure failure{static_cast<InitStage>(stage)};
+    auto *previous = forcedInitFailure;
+    forcedInitFailure = &failure;
     env->CallVoidMethod(action, run);
-    forcedRaopInitCalls = previous;
-    return calls;
+    forcedInitFailure = previous;
+    return failure.calls;
 }
 
 extern "C" JNIEXPORT jlong JNICALL

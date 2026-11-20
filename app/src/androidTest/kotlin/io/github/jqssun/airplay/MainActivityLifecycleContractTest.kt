@@ -201,7 +201,7 @@ class MainActivityLifecycleContractTest {
         }
     }
 
-    @Test fun nativePairingInitializationFailureReleasesTheServiceAndAllowsRetry() {
+    @Test fun nativeInitializationFailuresReleaseTheServiceAndAllowRetry() {
         org.junit.Assume.assumeTrue("Requires instrumented native initialization fixture",
             runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
         System.loadLibrary("airplay_native")
@@ -211,12 +211,15 @@ class MainActivityLifecycleContractTest {
             val previous = service.logCallback
             service.logCallback = { message -> messages += message; previous?.invoke(message) }
             try {
-                assertEquals(1, DebugCoverage.nativeWithRaopInitFailure { service.startServer() })
-                assertEquals(AirPlayService.ServerState.ERROR, service.serverState.value)
-                assertTrue(messages.toString(), messages.any { it.contains("Native AirPlay init failed") })
-                for (field in listOf("airPlayReceiver", "wakeLock", "nsdManager")) {
-                    val value = AirPlayService::class.java.getDeclaredField(field).apply { isAccessible = true }.get(service)
-                    assertNull("Resource retained after initialization failure: $field", value)
+                for (stage in DebugCoverage.InitFailure.entries) {
+                    messages.clear()
+                    assertEquals(stage.name, 1, DebugCoverage.withInitFailure(stage) { service.startServer() })
+                    assertEquals(stage.name, AirPlayService.ServerState.ERROR, service.serverState.value)
+                    assertTrue(messages.toString(), messages.any { it.contains("Native AirPlay init failed") })
+                    for (field in listOf("airPlayReceiver", "wakeLock", "nsdManager")) {
+                        val value = AirPlayService::class.java.getDeclaredField(field).apply { isAccessible = true }.get(service)
+                        assertNull("Resource retained after $stage: $field", value)
+                    }
                 }
             } finally {
                 service.logCallback = previous
