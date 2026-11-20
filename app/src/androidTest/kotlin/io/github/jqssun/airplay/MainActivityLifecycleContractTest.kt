@@ -121,6 +121,10 @@ class MainActivityLifecycleContractTest {
             original[pref.key] = if (preferences.contains(pref.key)) pref.read(preferences) else null
             set(pref, value)
         }
+        bindReceiver()
+    }
+
+    private fun bindReceiver() {
         val ready = CountDownLatch(1)
         connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -290,15 +294,24 @@ class MainActivityLifecycleContractTest {
         val hadPort = preferences.contains(portPreference.key)
         val foreground = AirPlayService::class.java.getDeclaredField("foregroundStarted").apply { isAccessible = true }
         val intent = Intent(context, AirPlayService::class.java).setAction(AirPlayService.ACTION_START_SERVER)
-        val activity = launch()
+        // Start with a saved port. Updating it while the service is already
+        // observing preferences can schedule a restart during the RTSP check.
+        val idleService = service
+        context.unbindService(connection)
+        bound = false
+        await("Idle receiver did not stop before port setup") {
+            idleService.lifecycle.currentState == Lifecycle.State.DESTROYED
+        }
         try {
-            val port = ServerSocket(0).use { occupied ->
+            val (port, activity) = ServerSocket(0).use { occupied ->
                 assertTrue(portPreference.write(preferences, occupied.localPort))
+                bindReceiver()
+                val activity = launch()
                 main { ContextCompat.startForegroundService(context, intent) }
                 await("Start action did not report an occupied listener") {
                     model(activity).serverState.value == AirPlayService.ServerState.ERROR && !foreground.getBoolean(service)
                 }
-                occupied.localPort
+                occupied.localPort to activity
             }
             main { ContextCompat.startForegroundService(context, intent) }
             await("Start action did not recover after the port was released") {

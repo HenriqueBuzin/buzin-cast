@@ -1691,3 +1691,12 @@ API28. The matching reports cover 14 of 16 relay dialog branch outcomes,
 compared with three in the frozen run. Both reports also execute all
 instructions in the three TV field update callbacks. The suite has 281
 Android cases.
+
+The ordered settings broadcast tests verify typed values and defaults,
+ignored actions including JVM hash collisions, and rejection before
+persistence. The nine selected contracts passed on normal and DE/AT API28.
+Both reports cover all six JVM metrics for `SettingsReceiver`, including 21
+of 21 branch outcomes. The foreground startup retry test now saves the port
+before binding the service. In the frozen 275-case DE/AT run, a pending
+preference restart closed the RTSP connection during the check. The corrected
+test passed on DE/AT. The suite has 283 Android cases.
