@@ -1206,3 +1206,12 @@ on the IO dispatcher.
 
 All 10 selected playback and profile cases passed on compat API28 in
 4.044 seconds. The complete four-edition verification remains required.
+
+The receiver display test verifies explicit portrait and landscape settings,
+automatic orientation, and custom resolutions above and below the decoder's
+width and height limits. The suite now has 215 Android cases.
+
+All 24 selected service and DACP cases passed on normal API28 with the same
+instrumented build in landscape and portrait. The combined report covers
+17 of 18 branch outcomes and 157 of 159 instructions in
+AirPlayService._displaySize.

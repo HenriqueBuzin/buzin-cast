@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioManager
@@ -400,6 +401,62 @@ class ServiceAudioStateContractTest {
             Prefs.APPROVE_CONNECTIONS.write(prefs, true)
             assertTrue(service.authorizeConnection("AirPlay", "127.0.0.1"))
             assertTrue(service.authorizeConnection("AirPlay", "::1"))
+        }
+    }
+
+    @Test fun advertisedDisplaySizeUsesTheSelectedOrientationAndDecoderBounds() {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val resolution = Prefs.RESOLUTION
+        val original = prefs.getString(resolution.key, null)
+        val displaySize = AirPlayService::class.java.getDeclaredMethod("_displaySize", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        val followsDevice = AirPlayService::class.java.getDeclaredMethod("_orientationFollowsDevice")
+            .apply { isAccessible = true }
+        fun size(clamp: Boolean) = displaySize.invoke(service, clamp)
+
+        main {
+            val (width, height) = service.realDisplaySize()
+            assertTrue(width > 0 && height > 0)
+            val (shortEdge, longEdge) = listOf(width, height).sorted()
+            val portrait = shortEdge to longEdge
+            val landscape = longEdge to shortEdge
+            val automatic = if (service.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                portrait
+            } else {
+                landscape
+            }
+            try {
+                assertTrue(resolution.write(prefs, Prefs.PORTRAIT))
+                assertEquals(portrait, size(true))
+                assertEquals(portrait, size(false))
+                assertEquals(false, followsDevice.invoke(service))
+
+                assertTrue(resolution.write(prefs, Prefs.LANDSCAPE))
+                assertEquals(landscape, size(true))
+                assertEquals(landscape, size(false))
+                assertEquals(false, followsDevice.invoke(service))
+
+                assertTrue(resolution.write(prefs, Prefs.AUTO))
+                assertEquals(automatic, size(false))
+                assertEquals(minOf(automatic.first, 1920) to minOf(automatic.second, 1080), size(true))
+                assertEquals(true, followsDevice.invoke(service))
+
+                assertTrue(resolution.write(prefs, "8000x7000"))
+                assertEquals(8000 to 7000, size(false))
+                assertEquals(1920 to 1080, size(true))
+                assertEquals(false, followsDevice.invoke(service))
+
+                assertTrue(resolution.write(prefs, "640x480"))
+                assertEquals(640 to 480, size(true))
+                assertTrue(resolution.write(prefs, "8000x480"))
+                assertEquals(1920 to 480, size(true))
+                assertTrue(resolution.write(prefs, "640x7000"))
+                assertEquals(640 to 1080, size(true))
+            } finally {
+                val restore = prefs.edit()
+                if (original == null) restore.remove(resolution.key) else restore.putString(resolution.key, original)
+                assertTrue(restore.commit())
+            }
         }
     }
 
