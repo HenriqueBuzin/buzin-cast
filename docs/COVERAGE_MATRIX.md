@@ -1176,3 +1176,14 @@ underrun polling guard. The suite now contains 213 Android cases.
 The 211-case pinned matrix completed all runtime gates for normal and generated
 its report while compat started building. The report measured 70.5111% of
 Android/JVM branch outcomes and 92.0652% of native branch outcomes for that build.
+
+The receiver notification test checks the platform notification returned by the
+service for idle, PIN pairing, and audio playback. It checks artwork, the media
+session token and transport actions. On the recording-enabled edition it arms
+capture, verifies the recording notification takes priority, and sends its
+actual Stop pending intent to return to the media notification.
+
+All 23 service and DACP tests passed on normal and DE/AT in API28 emulators.
+Their matched reports cover 16/18 and 15/18 branch outcomes in
+AirPlayService._buildMediaNotification, respectively. The pinned normal
+211-case report covered 9/18 in this method. The suite now has 214 Android cases.

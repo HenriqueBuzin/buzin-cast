@@ -1,5 +1,7 @@
 package io.github.jqssun.airplay
 
+import android.app.Notification
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
@@ -17,6 +20,7 @@ import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.lifecycle.Lifecycle
+import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.service.AirPlayService
@@ -190,18 +194,22 @@ class ServiceAudioStateContractTest {
         tag.toByteArray(Charsets.US_ASCII) + ByteBuffer.allocate(4).putInt(payload.size).array() + payload
     private fun text(tag: String, value: String) = item(tag, value.toByteArray(Charsets.UTF_8))
 
-    @Test fun metadataAndLosslessArtReachTheRealMediaSessionAndSurvivePartialMetadata() {
-        val data = item("mlit", text("minm", "First title") + text("asar", "Artist") +
-            text("asal", "Album") + text("asgn", "Genre") + item("astm", ByteBuffer.allocate(4).putInt(9000).array()))
+    private fun coverPng(color: Int): ByteArray {
         val bitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
-        val color = Color.rgb(22, 180, 70)
-        val png = try {
+        return try {
             bitmap.eraseColor(color)
             ByteArrayOutputStream().use { stream ->
                 assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
                 stream.toByteArray()
             }
         } finally { bitmap.recycle() }
+    }
+
+    @Test fun metadataAndLosslessArtReachTheRealMediaSessionAndSurvivePartialMetadata() {
+        val data = item("mlit", text("minm", "First title") + text("asar", "Artist") +
+            text("asal", "Album") + text("asgn", "Genre") + item("astm", ByteBuffer.allocate(4).putInt(9000).array()))
+        val color = Color.rgb(22, 180, 70)
+        val png = coverPng(color)
         lateinit var cover: Bitmap
         main {
             service.onMetadata(data)
@@ -283,6 +291,63 @@ class ServiceAudioStateContractTest {
             service.onMirrorRunning(false)
             assertTrue(mediaSession.isActive)
             assertEquals(emptyTrack, service.trackInfo.value)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun notificationTracksPinAudioAndRecordingWithWorkingStopAction() {
+        val builder = AirPlayService::class.java.getDeclaredMethod("buildNotification").apply { isAccessible = true }
+        fun notification() = builder.invoke(service) as Notification
+        fun title(value: Notification) = value.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        fun actions(value: Notification) = value.actions.orEmpty().map { it.title.toString() }
+        var stopCapture: PendingIntent? = null
+        val artwork = coverPng(Color.rgb(22, 180, 70))
+
+        main {
+            val idle = notification()
+            assertEquals(context.getString(R.string.notification_title), title(idle))
+            assertNotNull(idle.contentIntent)
+            assertTrue(idle.flags and Notification.FLAG_ONGOING_EVENT != 0)
+            assertTrue(actions(idle).isEmpty())
+
+            val pin = "4321"
+            service.onDisplayPin(pin)
+            val pairing = notification()
+            assertEquals(context.getString(R.string.notification_pin_title), title(pairing))
+            assertEquals(context.getString(R.string.notification_pin_text, pin),
+                pairing.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+
+            service.onAudioFormat(2, 352, false)
+            assertEquals(context.getString(R.string.notification_title), title(notification()))
+            service.onMetadata(item("mlit", text("minm", "Notification track") +
+                text("asar", "Notification artist") + text("asal", "Notification album")))
+            val playing = notification()
+            assertEquals("Notification track", title(playing))
+            assertEquals("Notification artist", playing.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+            assertEquals("Notification album", playing.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString())
+            assertEquals(mediaSession.sessionToken, MediaStyle.getMediaSession(playing))
+            assertEquals(listOf("Prev", "Pause", "Next"), actions(playing))
+            service.onCoverArt(artwork)
+            val withArtwork = notification()
+            assertEquals("Notification track", title(withArtwork))
+            assertNotNull(if (Build.VERSION.SDK_INT >= 23) withArtwork.getLargeIcon() else withArtwork.largeIcon)
+
+            if (BuildConfig.RECORDING_ENABLED) {
+                service.capture.start()
+                assertTrue("Recording did not arm on the test device", service.capture.state.value.armed)
+                val recording = notification()
+                assertEquals(context.getString(R.string.tools_record_title), title(recording))
+                assertEquals(service.capture.state.value.message,
+                    recording.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+                assertEquals(listOf(context.getString(R.string.tools_record_stop)), actions(recording))
+                assertNull(MediaStyle.getMediaSession(recording))
+                stopCapture = recording.actions.single().actionIntent
+            }
+        }
+        if (BuildConfig.RECORDING_ENABLED) {
+            requireNotNull(stopCapture).send()
+            await("The notification's stop action did not disarm capture") { !service.capture.state.value.armed }
+            main { assertEquals("Notification track", title(notification())) }
         }
     }
 
