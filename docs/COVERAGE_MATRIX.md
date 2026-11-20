@@ -1901,3 +1901,20 @@ compat DE/AT API28 profiles both cover all 12 sizing branches, 166
 instructions, and 14 lines of the sizing lambda. All five checks passed in
 each edition, exercising
 the exact dimensions, the fallback, and the lifetime of the live surface.
+
+The normal edition of the API28 311-case matrix at `6e77219` also passed
+311 Android cases, 21 native cases, and 15 runtime checks. JaCoCo measured
+4662/5972 branches (78.06%), and LLVM measured 904/908 branches (99.56%).
+
+The remote seek feedback contract renders the indicator and checks that
+it stays hidden until shown, replaces its signed offset and target during
+seeks, displays a zero accumulated offset, and removes its accessibility
+text when the overlay closes. It passed on normal and compat DE/AT API28.
+The indicator's rendering lambda covered all four branch outcomes,
+193 instructions, and 25 lines in each edition. The suite has 320 Android
+cases.
+
+The API22 replay of the frozen 311-case compat DE/AT APKs passed all 21
+native cases. Two settings instrumentation cases failed: the audio-delay
+slider range was not verified and the custom-height field could not be
+focused. The replay did not produce an eligible merged coverage report.

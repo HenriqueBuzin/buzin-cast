@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +31,8 @@ import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.jqssun.airplay.ui.DpadSeekIndicator
+import io.github.jqssun.airplay.ui.formatVideoTime
 import io.github.jqssun.airplay.ui.gestures.DoubleTapIndicator
 import io.github.jqssun.airplay.ui.gestures.GestureInfoText
 import io.github.jqssun.airplay.ui.gestures.TapGestureState
@@ -175,6 +178,47 @@ class GestureIndicatorContractTest {
         }
         await("Old gesture information remained accessible") {
             texts()?.let { "Zoom 125%" in it && "Gesture contract alpha" !in it } == true
+        }
+    }
+
+    @Test fun remoteSeekFeedbackShowsSignedOffsetsAndTheRunningTarget() = activity { scenario ->
+        val visible = mutableStateOf(false)
+        val offset = mutableStateOf(10_000L)
+        val position = mutableStateOf(3_590_000L)
+        val ready = "Remote seek test ready"
+        val forward = "+" + context.getString(R.string.seconds_short, 10L)
+        val backward = "-" + context.getString(R.string.seconds_short, 20L)
+        val zero = "+" + context.getString(R.string.seconds_short, 0L)
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                Box(Modifier.fillMaxSize()) {
+                    Text(ready, Modifier.align(Alignment.TopStart))
+                    DpadSeekIndicator(visible.value, offset.value, position.value)
+                }
+            }
+        } }
+        await("Hidden indicator exposed the forward offset") { texts()?.let { ready in it && forward !in it } == true }
+        scenario.onActivity { visible.value = true }
+        await("Forward seek offset and target were not displayed") {
+            texts()?.let { forward in it && formatVideoTime(3_590_000L) in it } == true
+        }
+        scenario.onActivity {
+            offset.value = -20_000L
+            position.value = 3_570_000L
+        }
+        await("Backward seek retained the old offset or target") {
+            texts()?.let { backward in it && formatVideoTime(3_570_000L) in it && forward !in it } == true
+        }
+        scenario.onActivity {
+            offset.value = 0L
+            position.value = 3_600_000L
+        }
+        await("Zero offset and hour-long target were not displayed") {
+            texts()?.let { zero in it && formatVideoTime(3_600_000L) in it && backward !in it } == true
+        }
+        scenario.onActivity { visible.value = false }
+        await("Seek feedback remained accessible after closing") {
+            texts()?.let { ready in it && zero !in it && formatVideoTime(3_600_000L) !in it } == true
         }
     }
 
