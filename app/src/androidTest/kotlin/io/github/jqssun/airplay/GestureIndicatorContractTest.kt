@@ -34,10 +34,14 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ActivityScenario
@@ -45,12 +49,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.ui.DpadSeekIndicator
 import io.github.jqssun.airplay.ui.PlayerButton
+import io.github.jqssun.airplay.ui.VideoControlsBottom
 import io.github.jqssun.airplay.ui.VideoControlsTop
 import io.github.jqssun.airplay.ui.formatVideoTime
 import io.github.jqssun.airplay.ui.gestures.DoubleTapIndicator
 import io.github.jqssun.airplay.ui.gestures.GestureInfoText
 import io.github.jqssun.airplay.ui.gestures.TapGestureState
 import io.github.jqssun.airplay.ui.gestures.VerticalProgressIndicator
+import io.github.jqssun.airplay.ui.gestures.VideoContentScale
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -148,7 +154,7 @@ class GestureIndicatorContractTest {
     }
 
     private fun controlLabel(node: AccessibilityNodeInfo, label: String): Boolean =
-        node.text?.toString() == label || node.contentDescription?.toString() == label
+        node.text?.toString()?.lines()?.contains(label) == true || node.contentDescription?.toString() == label
 
     @Suppress("DEPRECATION")
     private fun activateControl(label: String) {
@@ -378,6 +384,99 @@ class GestureIndicatorContractTest {
         }
         instrumentation.runOnMainSync { showDownload.value = false }
         await("Hidden download still exposed progress") { hasControl(copyLabel) && !hasProgress() }
+    }
+
+    @Test fun playbackBottomControlsToggleTimeAndExposePictureInPictureWhenSupported() = activity { scenario ->
+        val pictureInPicture = mutableStateOf(false)
+        val rotate = AtomicInteger()
+        val lock = AtomicInteger()
+        val scale = AtomicInteger()
+        val picture = AtomicInteger()
+        val elapsed = formatVideoTime(20_000L)
+        val remaining = "-" + formatVideoTime(100_000L)
+        val duration = formatVideoTime(120_000L)
+        val pipLabel = context.getString(R.string.cd_pip)
+        fun hasControl(label: String) = withNode({ controlLabel(it, label) }) { true } == true
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                VideoControlsBottom(
+                    positionMs = 20_000, durationMs = 120_000, contentScale = VideoContentScale.CROP,
+                    isPipSupported = pictureInPicture.value,
+                    onRotateClick = { rotate.incrementAndGet() },
+                    onLockClick = { lock.incrementAndGet() },
+                    onContentScaleClick = { scale.incrementAndGet() },
+                    onPipClick = { picture.incrementAndGet() },
+                    onSeek = {}, onSeekEnd = {},
+                )
+            }
+        } }
+        await("Elapsed time and duration were not rendered") { hasControl(elapsed) && hasControl(duration) }
+        assertFalse("PiP action appeared on a device without support", hasControl(pipLabel))
+        activateControl(elapsed)
+        await("Remaining time was not rendered") { hasControl(remaining) && !hasControl(elapsed) && hasControl(duration) }
+        activateControl(remaining)
+        await("Elapsed time was not restored") { hasControl(elapsed) && !hasControl(remaining) }
+
+        activateControl(context.getString(R.string.cd_rotate))
+        activateControl(context.getString(R.string.cd_lock_controls))
+        activateControl(context.getString(R.string.scale_crop))
+        assertEquals(listOf(1, 1, 1), listOf(rotate.get(), lock.get(), scale.get()))
+        scenario.onActivity { pictureInPicture.value = true }
+        activateControl(pipLabel)
+        assertEquals(1, picture.get())
+    }
+
+    @Test fun playbackSeekBarReportsRemotePositionInAnRtlLayout() = activity { scenario ->
+        val label = "Playback position"
+        val duration = mutableStateOf(0L)
+        val position = mutableStateOf(0L)
+        val focused = AtomicBoolean()
+        val completed = AtomicInteger()
+        val requester = FocusRequester()
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    VideoControlsBottom(
+                        positionMs = position.value, durationMs = duration.value,
+                        contentScale = VideoContentScale.BEST_FIT, isPipSupported = false,
+                        onRotateClick = {}, onLockClick = {}, onContentScaleClick = {}, onPipClick = {},
+                        onSeek = { position.value = it },
+                        onSeekEnd = { completed.incrementAndGet() },
+                        seekBarModifier = Modifier.focusRequester(requester)
+                            .onFocusChanged { focused.set(it.isFocused) }
+                            .semantics { contentDescription = label },
+                    )
+                }
+            }
+        } }
+        await("The seek bar was missing before the duration was known") {
+            withNode({ controlLabel(it, label) }) { true } == true
+        }
+        assertEquals(0, completed.get())
+        scenario.onActivity {
+            duration.value = 120_000
+            position.value = 30_000
+            requester.requestFocus()
+        }
+        await("Seek bar did not receive remote focus") { focused.get() }
+        fun press(direction: Int) {
+            scenario.onActivity { activity ->
+                activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, direction))
+                activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, direction))
+            }
+        }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        var advanced = 0L
+        await("Right did not advance playback in the RTL layout") {
+            instrumentation.runOnMainSync { advanced = position.value }
+            advanced in 30_001L..120_000L && completed.get() == 1
+        }
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        await("Left did not rewind playback in the RTL layout") {
+            var rewound = 0L
+            instrumentation.runOnMainSync { rewound = position.value }
+            rewound in 0L until advanced && completed.get() == 2
+        }
     }
 
     private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }

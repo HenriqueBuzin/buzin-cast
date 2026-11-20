@@ -2029,3 +2029,16 @@ on normal and compat DE/AT API28. Both LLVM profiles recorded two calls
 to the previously unused coverage-bridge instantiation of `monoNs`.
 The latest full build must
 recalculate all six native metrics with its own matching profiles.
+
+The lower player controls now have contracts for elapsed and remaining
+time, rotate, lock, scale, and the availability of the PiP action. The
+seek contract renders an unknown duration, then uses a focused slider in
+an RTL layout to verify that Right advances, Left rewinds, and each
+completed key gesture reports its end. The suite has 327 Android cases.
+Both contracts passed on normal and compat DE/AT API28 and compat DE/AT
+API22. The API28 reports cover all eight branch outcomes for the time
+display, PiP action, known duration, and slider focus.
+
+The normal edition of the API28 324-case matrix at `5e49ea9` passed its
+Android and native cases and runtime checks. JaCoCo measured 4710/5967
+JVM branches and LLVM measured 906/908 app-native branches.
