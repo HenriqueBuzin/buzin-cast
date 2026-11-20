@@ -1549,3 +1549,13 @@ JaCoCo reports cover all 16 branches of the two HEVC decision methods. The
 API30 replay passed both new tests and failed the existing software AVC case
 at 64 × 48. That API30 run remains incomplete. The suite has 258 Android
 cases.
+
+The API30 AVC replay was corrected after querying the emulator's actual
+codec inventory. `OMX.google.h264.decoder` supports 64 × 48 on that emulator
+and reports `isSoftwareOnly=false`. The selector now prefers platform
+software flags where available, then tries known platform software prefixes.
+Each candidate's size support is checked during the search so an incompatible
+earlier candidate cannot hide a compatible one. The updated AVC contract
+verifies a successful 64 × 48 selection and a size beyond the entire AVC
+inventory. All 14 selector cases passed on normal API30 and compat DE/AT
+API22.

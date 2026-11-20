@@ -38,11 +38,12 @@ class DecoderSelectorContractTest {
         val info = requireNotNull(selector.software(DecoderSelector.AVC, 64, 48))
         assertFalse(info.isEncoder)
         assertTrue(info.supportedTypes.any { it.equals(DecoderSelector.AVC, true) })
-        if (Build.VERSION.SDK_INT >= 29) assertTrue(info.isSoftwareOnly)
-        else assertTrue(info.name.lowercase(Locale.ROOT).let {
-            it.startsWith("omx.google.") || it.startsWith("c2.android.") ||
-                (!it.startsWith("omx.") && !it.startsWith("c2."))
-        })
+        val name = info.name.lowercase(Locale.ROOT)
+        val standardSoftwareName = name.startsWith("omx.google.") || name.startsWith("c2.android.")
+        if (Build.VERSION.SDK_INT >= 29) assertTrue(info.isSoftwareOnly || standardSoftwareName)
+        else assertTrue(standardSoftwareName || (!name.startsWith("omx.") && !name.startsWith("c2.")))
+        val caps = info.videoCaps(DecoderSelector.AVC)
+        assertTrue(caps.isSizeSupported(64, 48) || caps.isSizeSupported(48, 64))
         val originalLocale = Locale.getDefault()
         try {
             Locale.setDefault(Locale("tr", "TR"))
@@ -51,10 +52,11 @@ class DecoderSelectorContractTest {
             assertEquals(info.videoCaps(DecoderSelector.AVC).supportedWidths, info.videoCaps(uppercase).supportedWidths)
         } finally { Locale.setDefault(originalLocale) }
         assertNull(selector.software("video/x-buzin-contract-unsupported", 64, 48))
-        val caps = requireNotNull(info.getCapabilitiesForType(DecoderSelector.AVC).videoCapabilities)
-        assertNull(selector.software(DecoderSelector.AVC,
-            caps.supportedWidths.upper + caps.widthAlignment,
-            caps.supportedHeights.upper + caps.heightAlignment))
+        val largestAvcDimension = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.asSequence()
+            .filter { !it.isEncoder && it.supportedTypes.any { mime -> mime.equals(DecoderSelector.AVC, true) } }
+            .map { it.videoCaps(DecoderSelector.AVC) }
+            .maxOf { maxOf(it.supportedWidths.upper, it.supportedHeights.upper) }
+        assertNull(selector.software(DecoderSelector.AVC, largestAvcDimension + 2, largestAvcDimension + 2))
     }
 
     @Test fun selectedCodecsBelongToThePlatformInventoryAndForcedHevcNeverInventsOne() {

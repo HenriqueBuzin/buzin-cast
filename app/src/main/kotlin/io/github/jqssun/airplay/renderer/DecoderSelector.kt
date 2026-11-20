@@ -57,15 +57,23 @@ class DecoderSelector(private val ctx: Context) {
         }
     }
 
-    fun software(mime: String, w: Int, h: Int): MediaCodecInfo? =
-        MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.firstOrNull { info ->
-            !info.isEncoder && info.supportsMime(mime) &&
-                (if (Build.VERSION.SDK_INT >= 29) info.isSoftwareOnly
-                else info.name.lowercase().let {
-                    it.startsWith("omx.google.") || it.startsWith("c2.android.") ||
-                        (!it.startsWith("omx.") && !it.startsWith("c2."))
-                })
-        }?.takeIf { _portraitSafe(w, h, it.videoCaps(mime)::isSizeSupported) }
+    fun software(mime: String, w: Int, h: Int): MediaCodecInfo? {
+        val decoders = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.asSequence()
+            .filter { !it.isEncoder && it.supportsMime(mime) }
+        fun find(qualifies: (MediaCodecInfo) -> Boolean) = decoders.firstOrNull {
+            qualifies(it) && _portraitSafe(w, h, it.videoCaps(mime)::isSizeSupported)
+        }
+
+        // Some Android images omit the software flag from their platform codecs.
+        if (Build.VERSION.SDK_INT >= 29) {
+            return find { it.isSoftwareOnly } ?: find { it.hasPlatformSoftwareName() }
+        }
+        return find { it.hasPlatformSoftwareName() ||
+            (!it.name.startsWith("omx.", true) && !it.name.startsWith("c2.", true)) }
+    }
+
+    private fun MediaCodecInfo.hasPlatformSoftwareName() =
+        name.startsWith("omx.google.", true) || name.startsWith("c2.android.", true)
 
     fun adaptive(info: MediaCodecInfo, mime: String) = !_inList(noAdaptive, info.name) &&
         runCatching { info.getCapabilitiesForType(mime.lowercase(Locale.ROOT)).isFeatureSupported(CodecCapabilities.FEATURE_AdaptivePlayback) }
