@@ -1152,3 +1152,12 @@ All 36 selected normal API28 tests passed in 37.164 seconds. The matched
 native report covers 12/12 branch outcomes and both MC/DC conditions in
 FfmpegDecoder::init. It also covers 10/12 branch outcomes in decode and both
 MC/DC conditions of its input-length guard. The suite now has 212 Android cases.
+
+The software decoder test now supplies an empty frame, a mono frame to the
+stereo receiver, and an unsupported 32-bit PCM frame at the FFmpeg receive
+boundary. Each uses a real compressed input packet. Unexpected frames emit
+no PCM, and the next valid packet decodes with the expected timestamp.
+
+All 36 selected normal API28 cases passed in 44.910 seconds. The matched
+report covers all 44 branch outcomes in FfmpegDecoder, including 12/12 in
+decode and 10/10 in toPcm, and all four mapped MC/DC conditions for the class.

@@ -38,6 +38,13 @@ DecoderAllocationFault *decoderAllocation(DecoderAllocation kind) {
     fault->next = DecoderAllocation::None;
     return fault;
 }
+
+enum class DecodedFrame { Empty, Mono, WideSamples };
+struct TestDecodedFrame {
+    const DecodedFrame kind;
+    bool delivered = false;
+};
+thread_local TestDecodedFrame *activeDecodedFrame = nullptr;
 }
 
 extern "C" AVCodecContext *__real_avcodec_alloc_context3(const AVCodec *);
@@ -48,6 +55,7 @@ extern "C" AVFrame *__real_av_frame_alloc();
 extern "C" void __real_avcodec_free_context(AVCodecContext **);
 extern "C" void __real_av_packet_free(AVPacket **);
 extern "C" void __real_av_frame_free(AVFrame **);
+extern "C" int __real_avcodec_receive_frame(AVCodecContext *, AVFrame *);
 
 extern "C" AVCodecContext *__wrap_avcodec_alloc_context3(const AVCodec *codec) {
     auto *fault = decoderAllocation(DecoderAllocation::Context);
@@ -108,6 +116,32 @@ extern "C" void __wrap_av_frame_free(AVFrame **frame) {
     __real_av_frame_free(frame);
 }
 
+extern "C" int __wrap_avcodec_receive_frame(AVCodecContext *context, AVFrame *frame) {
+    const int result = __real_avcodec_receive_frame(context, frame);
+    auto *replacement = activeDecodedFrame;
+    if (result != 0 || !replacement || replacement->delivered) return result;
+
+    // Consume the actual packet with FFmpeg, then provide an empty frame or a
+    // correctly allocated frame in an output layout the receiver doesn't support.
+    const int samples = frame->nb_samples;
+    const int rate = frame->sample_rate;
+    av_frame_unref(frame);
+    if (replacement->kind != DecodedFrame::Empty) {
+        const auto format = replacement->kind == DecodedFrame::WideSamples ? AV_SAMPLE_FMT_S32P : AV_SAMPLE_FMT_S16P;
+        const int channels = replacement->kind == DecodedFrame::Mono ? 1 : 2;
+        frame->nb_samples = samples;
+        frame->sample_rate = rate;
+        frame->format = format;
+        av_channel_layout_default(&frame->ch_layout, channels);
+        const int bufferResult = av_frame_get_buffer(frame, 0);
+        if (bufferResult < 0) return bufferResult;
+        const int silenceResult = av_samples_set_silence(frame->extended_data, 0, samples, channels, format);
+        if (silenceResult < 0) return silenceResult;
+    }
+    replacement->delivered = true;
+    return 0;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeFfmpegFailureContracts(JNIEnv *env, jobject, jbyteArray input) {
 #define FFMPEG_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
@@ -153,6 +187,23 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeFfmpegFailureContracts(JNIEnv 
     FFMPEG_CONTRACT(captured == 0);
     FFMPEG_CONTRACT(decoder->decode(packet.data(), size, pts));
     FFMPEG_CONTRACT(captured == 352 * 2 && capturedPts == pts);
+
+    int64_t nextPts = pts;
+    for (const auto kind : {DecodedFrame::Empty, DecodedFrame::Mono, DecodedFrame::WideSamples}) {
+        nextPts += 20'000'000;
+        const auto before = captured;
+        TestDecodedFrame replacement{kind};
+        activeDecodedFrame = &replacement;
+        const bool accepted = decoder->decode(packet.data(), size, nextPts);
+        activeDecodedFrame = nullptr;
+        FFMPEG_CONTRACT(replacement.delivered);
+        FFMPEG_CONTRACT(accepted == (kind == DecodedFrame::Empty));
+        FFMPEG_CONTRACT(captured == before);
+
+        nextPts += 20'000'000;
+        FFMPEG_CONTRACT(decoder->decode(packet.data(), size, nextPts));
+        FFMPEG_CONTRACT(captured == before + 352 * 2 && capturedPts == nextPts);
+    }
 #undef FFMPEG_CONTRACT
     return env->NewStringUTF("ffmpeg failure contracts passed");
 }

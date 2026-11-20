@@ -204,6 +204,7 @@ if(BUZIN_COVERAGE)
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
         "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"
         "-Wl,--wrap=avcodec_free_context" "-Wl,--wrap=av_packet_free" "-Wl,--wrap=av_frame_free"
+        "-Wl,--wrap=avcodec_receive_frame"
         "-Wl,--wrap=android_dnssd_get_raop_txt_key" "-Wl,--wrap=android_dnssd_get_raop_txt_val"
         "-Wl,--wrap=android_dnssd_get_airplay_txt_key" "-Wl,--wrap=android_dnssd_get_airplay_txt_val"
         # Oboe's shared-pointer overload. The coverage fixture can close the real stream before start.
