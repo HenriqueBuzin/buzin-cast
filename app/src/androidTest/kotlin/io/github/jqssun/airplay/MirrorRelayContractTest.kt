@@ -20,6 +20,21 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
+internal fun withAuthenticatedRelayPeer(state: MirrorRelay.State, block: (SecureMirrorChannel) -> Unit) {
+    Socket("127.0.0.1", state.port).use { socket ->
+        socket.soTimeout = 15_000
+        val input = DataInputStream(socket.getInputStream())
+        val output = socket.getOutputStream()
+        output.write(SecureMirrorChannel.MAGIC)
+        output.flush()
+        val salt = ByteArray(16).also(input::readFully)
+        val channel = SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(state.code, salt))
+        channel.send("hello".toByteArray())
+        assertArrayEquals("ready".toByteArray(), channel.receive())
+        block(channel)
+    }
+}
+
 /** Real local sockets and authenticated frames, without another TV or sender. */
 @RunWith(AndroidJUnit4::class)
 class MirrorRelayContractTest {
@@ -42,16 +57,7 @@ class MirrorRelayContractTest {
     }
 
     private fun peer(receiver: MirrorRelay, block: (SecureMirrorChannel) -> Unit) {
-        val state = receiver.state.value
-        Socket("127.0.0.1", state.port).use { socket ->
-            socket.soTimeout = 15_000
-            val input = DataInputStream(socket.getInputStream())
-            val output = socket.getOutputStream()
-            output.write(SecureMirrorChannel.MAGIC); output.flush()
-            val salt = ByteArray(16).also(input::readFully)
-            val channel = SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(state.code, salt))
-            channel.send("hello".toByteArray())
-            assertArrayEquals("ready".toByteArray(), channel.receive())
+        withAuthenticatedRelayPeer(receiver.state.value) { channel ->
             await("Receiver did not authenticate") { receiver.state.value.receiving }
             block(channel)
         }

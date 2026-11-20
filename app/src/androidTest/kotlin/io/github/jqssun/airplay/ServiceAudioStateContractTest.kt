@@ -28,6 +28,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.Protocol
 import io.buzincast.core.SessionKind
 import io.buzincast.core.SessionPhase
+import io.buzincast.media.MirrorPacket
+import io.buzincast.media.MirrorPacketCodec
+import io.buzincast.media.SecureMirrorChannel
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.media.MirrorCapture
@@ -420,6 +423,60 @@ class ServiceAudioStateContractTest {
             service.stopVideoPlayback()
             instrumentation.waitForIdleSync()
             assertTrue(file.delete())
+        }
+    }
+
+    private fun sendRelayVideo(channel: SecureMirrorChannel, width: Int, height: Int, timestamp: Long) {
+        // Non-keyframe NAL exercises routing and size changes without a rendering surface.
+        val packet = MirrorPacket.Video(byteArrayOf(0, 0, 0, 1, 1, 0), timestamp, width, height, false)
+        channel.send(MirrorPacketCodec.encode(packet))
+        await("Relay did not present ${width}x$height video") {
+            service.mirroringActive.value && service.videoResolution.value == "${width}x$height"
+        }
+    }
+
+    @Test fun authenticatedRelayOwnsTheMirrorUntilItsEndPacket() = withoutAutoLaunch {
+        main { service.relay.listen() }
+        withAuthenticatedRelayPeer(service.relay.state.value) { channel ->
+            sendRelayVideo(channel, 640, 360, 1_000_000_000)
+            val session = requireNotNull(service.sessionSnapshot())
+            assertEquals(Protocol.RELAY, session.token.protocol)
+            assertEquals(SessionKind.MIRROR, session.kind)
+            assertEquals(SessionPhase.PLAYING, session.phase)
+
+            sendRelayVideo(channel, 360, 640, 1_033_000_000)
+            assertEquals(session, service.sessionSnapshot())
+            assertEquals(360f / 640f, service.videoAspect.value, 0f)
+
+            channel.send(MirrorPacketCodec.encode(MirrorPacket.End))
+            await("Relay end did not release display and session ownership") {
+                !service.relay.state.value.receiving && !service.mirroringActive.value && service.sessionSnapshot() == null
+            }
+        }
+    }
+
+    @Test fun relayTeardownDoesNotClearTheAirPlayMirrorThatReplacedIt() = withoutAutoLaunch {
+        main { service.relay.listen() }
+        withAuthenticatedRelayPeer(service.relay.state.value) { channel ->
+            sendRelayVideo(channel, 640, 360, 1_000_000_000)
+            val relayToken = requireNotNull(service.sessionSnapshot()).token
+            assertEquals(Protocol.RELAY, relayToken.protocol)
+            main {
+                service.onConnectionInit()
+                service.onMirrorRunning(true)
+                service.onVideoSize(1920f, 1080f, 1280f, 720f)
+            }
+            main {
+                val airplay = requireNotNull(service.sessionSnapshot())
+                assertEquals(Protocol.AIRPLAY, airplay.token.protocol)
+                assertNotEquals(relayToken, airplay.token)
+                assertFalse(service.relay.state.value.receiving)
+                assertTrue(service.mirroringActive.value)
+                assertEquals("1280x720", service.videoResolution.value)
+                service.onMirrorRunning(false)
+                service.onConnectionDestroy()
+                assertNull(service.sessionSnapshot())
+            }
         }
     }
 

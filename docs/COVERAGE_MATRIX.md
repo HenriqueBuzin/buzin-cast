@@ -1615,3 +1615,11 @@ All 19 service contracts passed on normal and compat DE/AT API28. Each
 matching profile covers eight of ten video-size branch outcomes and the
 previously uncovered callback that releases the old local player. The
 suite has 269 Android cases.
+
+Two service contracts connect an authenticated relay peer over loopback.
+They verify relay ownership through a display resize, release on the end
+packet, and preservation of the AirPlay mirror through queued relay teardown.
+All 28 selected service and relay tests passed on normal and compat DE/AT
+API28. Each matching JaCoCo report exercises 13 previously uncovered relay
+callback branch outcomes. The video-size callback reaches nine of ten branch
+outcomes in both profiles. The suite has 271 Android cases.
