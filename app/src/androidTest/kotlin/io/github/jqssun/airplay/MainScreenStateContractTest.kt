@@ -2,6 +2,7 @@ package io.github.jqssun.airplay
 
 import android.app.Application
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -13,6 +14,9 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,6 +25,7 @@ import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.audio.TrackInfo
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
 import io.github.jqssun.airplay.ui.MainScreen
+import io.github.jqssun.airplay.ui.BuzinAbout
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.AudioDebug
 import io.github.jqssun.airplay.viewmodel.DebugInfo
@@ -33,7 +38,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Real main-screen dialogs/navigation and rendering, with an unbound ViewModel. */
@@ -208,6 +215,57 @@ class MainScreenStateContractTest {
             block()
         }
         assertEquals("Idle/audio/dialog states unexpectedly created a video surface", 0, surfaces.get())
+    }
+
+    @Test fun aboutOpensLocalLicensesAndKeepsTheDialogWhenNoBrowserIsInstalled() {
+        val shown = mutableStateOf(true)
+        val dismissals = AtomicInteger()
+        val links = CopyOnWriteArrayList<Intent>()
+        val intent = Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
+        ActivityScenario.launch<DebugTvPreviewActivity>(intent).use { scenario ->
+            scenario.onActivity { activity ->
+                val browser = object : ContextWrapper(activity) {
+                    override fun startActivity(intent: Intent) {
+                        links.add(Intent(intent))
+                        if (intent.data?.host == "github.com") throw ActivityNotFoundException()
+                    }
+                }
+                activity.setContent {
+                    AirPlayTheme {
+                        CompositionLocalProvider(LocalContext provides browser) {
+                            if (shown.value) BuzinAbout {
+                                shown.value = false
+                                dismissals.incrementAndGet()
+                            }
+                        }
+                    }
+                }
+            }
+            @Suppress("DEPRECATION")
+            val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+            val aboutVersion = text(R.string.buzin_version, version)
+            await("The About dialog did not show the installed version") { has(aboutVersion) }
+            assertTrue(has("© ${Calendar.getInstance().get(Calendar.YEAR)} Buzin Solutions LTDA"))
+
+            click(text(R.string.buzin_website))
+            await("The website intent was not requested") { links.size == 1 }
+            click(text(R.string.buzin_source))
+            await("The source intent was not requested") { links.size == 2 }
+            assertEquals(listOf(Intent.ACTION_VIEW, Intent.ACTION_VIEW), links.map { it.action })
+            assertEquals(listOf("https://buzin.solutions", "https://github.com/HenriqueBuzin/buzin-cast"),
+                links.map { it.dataString })
+            assertTrue("A missing browser closed the dialog", has(aboutVersion))
+
+            repeat(2) { index ->
+                click(text(R.string.buzin_licenses))
+                await("The license dialog did not open") { has(text(R.string.buzin_back_about)) }
+                if (index == 0) click(text(R.string.buzin_back_about))
+                else instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+                await("Leaving the license dialog did not restore About") { has(aboutVersion) }
+            }
+            click(text(R.string.buzin_close))
+            await("Close did not dismiss About") { dismissals.get() == 1 }
+        }
     }
 
     @Test fun networkActionsFollowAskAndSettingsThenShowGrantedServerErrors() {

@@ -1789,3 +1789,12 @@ selection stays in place until OK, and that activation calls the latest
 selection callback after recomposition. The selected normal and compat DE/AT
 API28 profiles cover all six JVM metrics for `TvSidebar`, including 12 of 12
 branches. The suite has 301 Android cases.
+
+The About contract verifies the installed version and current copyright year,
+the website and source intents, and that a missing browser leaves the dialog
+open. It exercises returning from licenses with the button and Back, then
+closing About. The selected TV profiles for normal and compat DE/AT API28
+execute all 99 lines and 19 methods of `BuzinAbout`, including the link
+fallback. They cover six of eight branch outcomes. The default-version
+fallback and the non-TV focus outcome stay outside this TV selection. The
+suite has 302 Android cases.
