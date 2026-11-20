@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.provider.Settings
 import android.view.WindowManager
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -48,6 +49,7 @@ class MainActivityLifecycleContractTest {
     private var videoFixture: File? = null
     private var previousPipMode: String? = null
     private var previousPipEffectiveMode: Int? = null
+    private var restoreAnimatorScale: (() -> Unit)? = null
     private fun main(block: () -> Unit) = instrumentation.runOnMainSync(block)
     private fun await(message: String, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 20000
@@ -64,6 +66,16 @@ class MainActivityLifecycleContractTest {
     }
     private fun shell(command: String): String = ParcelFileDescriptor.AutoCloseInputStream(
         instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
+
+    private fun animatorScale() =
+        Settings.Global.getString(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE)?.toFloat()
+
+    private fun setAnimatorScale(scale: Float?) {
+        val key = Settings.Global.ANIMATOR_DURATION_SCALE
+        if (scale == null) shell("settings delete global $key")
+        else shell("settings put global $key $scale")
+        await("Animator scale did not become $scale") { animatorScale() == scale }
+    }
     @androidx.annotation.ChecksSdkIntAtLeast(api = 26)
     private fun supportsPip() = Build.VERSION.SDK_INT >= 26 &&
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
@@ -97,6 +109,11 @@ class MainActivityLifecycleContractTest {
     }
 
     @Before fun bindReceiverWithoutStartingIt() {
+        // ActivityScenario waits for the main queue to idle before lifecycle
+        // commands. The running receiver's backdrop animates continuously.
+        val originalScale = animatorScale()
+        restoreAnimatorScale = { setAnimatorScale(originalScale) }
+        setAnimatorScale(0f)
         for ((pref, value) in listOf(Prefs.AUTO_START to false, Prefs.RUN_IN_BACKGROUND to false,
                 Prefs.LAUNCH_ON_CONNECT to false, Prefs.KEEP_SCREEN_ON to true)) {
             original[pref.key] = if (preferences.contains(pref.key)) pref.read(preferences) else null
@@ -158,6 +175,14 @@ class MainActivityLifecycleContractTest {
     }
 
     @After fun cleanup() {
+        try {
+            cleanupReceiver()
+        } finally {
+            restoreAnimatorScale?.invoke()
+        }
+    }
+
+    private fun cleanupReceiver() {
         try {
             scenario?.close(); scenario = null
             if (::service.isInitialized) main {

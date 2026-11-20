@@ -1082,3 +1082,14 @@ All 20 native tests passed under UBSan on the API28 emulator. Exporting the unit
 profile against the matching application library confirmed all three MC/DC
 conditions of the allocation guard in dnssd_init. This result is from the
 native unit run. The complete four-edition cohort has separate runtime gates.
+
+The API28 four-edition attempt at 206 Android cases stopped in the normal
+edition. Its runner reached the 900-second timeout while the framework waited
+for the main queue to idle after the receiver started. The lifecycle fixture now
+sets the system animator scale to zero while exercising the real activity
+transitions and restores the original setting during cleanup.
+
+The normal API28 lifecycle and main-screen selection passed all 12 tests in
+117.152 seconds. This includes the previously stalled idle receiver lifecycle and
+the real PiP round trip. The run verified that the emulator's original animator
+scale of 1.0 was restored after the selection.
