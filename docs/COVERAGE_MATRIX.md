@@ -1140,3 +1140,15 @@ with automatic buffer sizing. The 31-case normal API28 selection passed in
 31.773 seconds. Its matched native report covers 4/4 branch outcomes in
 AudioOutput::start and 17/20 in AudioOutput::openLocked.
 The source suite now contains 211 Android cases.
+
+The FFmpeg contract exercises the real software decoder's context, extra-data,
+packet and frame allocation failures. It verifies that partial decoder resources
+are released, covers an absent decoder and invalid ALAC configuration, and checks
+that malformed packet input is rejected before a valid packet produces 352 stereo
+frames at its supplied timestamp. The fixture is compiled in the production
+decoder translation unit only for coverage builds to avoid extra coverage copies.
+
+All 36 selected normal API28 tests passed in 37.164 seconds. The matched
+native report covers 12/12 branch outcomes and both MC/DC conditions in
+FfmpegDecoder::init. It also covers 10/12 branch outcomes in decode and both
+MC/DC conditions of its input-length guard. The suite now has 212 Android cases.

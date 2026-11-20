@@ -192,6 +192,7 @@ target_link_libraries(airplay_native
 # remain uninstrumented. Release artifacts never enable this option.
 option(BUZIN_COVERAGE "Collect LLVM source coverage for app-owned native code" OFF)
 if(BUZIN_COVERAGE)
+    set_property(SOURCE audio_engine.cpp APPEND PROPERTY COMPILE_DEFINITIONS BUZIN_FFMPEG_CONTRACTS)
       # The fixture also instantiates app-owned inline headers. Instrument that
       # translation unit so the linker cannot choose an uninstrumented weak copy
       # of those production functions. The fixture source stays outside reports.
@@ -200,6 +201,9 @@ if(BUZIN_COVERAGE)
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
+        "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
+        "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"
+        "-Wl,--wrap=avcodec_free_context" "-Wl,--wrap=av_packet_free" "-Wl,--wrap=av_frame_free"
         "-Wl,--wrap=android_dnssd_get_raop_txt_key" "-Wl,--wrap=android_dnssd_get_raop_txt_val"
         "-Wl,--wrap=android_dnssd_get_airplay_txt_key" "-Wl,--wrap=android_dnssd_get_airplay_txt_val"
         # Oboe's shared-pointer overload. The coverage fixture can close the real stream before start.

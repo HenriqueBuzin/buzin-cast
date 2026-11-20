@@ -290,3 +290,7 @@ void audio_engine_decode(AudioEngine *engine, const uint8_t *data, int len, int 
 }
 
 }
+
+#ifdef BUZIN_FFMPEG_CONTRACTS
+#include "../../test/cpp/ffmpeg_failure_contracts.h"
+#endif

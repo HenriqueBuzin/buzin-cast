@@ -1,0 +1,158 @@
+// Included by audio_engine.cpp in coverage builds to exercise the same decoder instantiations.
+#include <array>
+#include <jni.h>
+
+namespace {
+enum class DecoderAllocation { Context, ExtraData, Packet, Frame, None };
+
+struct DecoderAllocationFault {
+    const DecoderAllocation target;
+    DecoderAllocation next = DecoderAllocation::Context;
+    bool rejected = false;
+    AVCodecContext *context = nullptr;
+    AVPacket *packet = nullptr;
+    AVFrame *frame = nullptr;
+
+    bool reject(DecoderAllocation kind) {
+        if (kind != target) return false;
+        rejected = true;
+        return true;
+    }
+};
+
+thread_local DecoderAllocationFault *activeDecoderFault = nullptr;
+
+struct ScopedDecoderAllocationFault {
+    DecoderAllocationFault fault;
+    DecoderAllocationFault *previous = activeDecoderFault;
+    explicit ScopedDecoderAllocationFault(DecoderAllocation target) : fault{target} {
+        activeDecoderFault = &fault;
+    }
+    ~ScopedDecoderAllocationFault() { activeDecoderFault = previous; }
+};
+
+DecoderAllocationFault *decoderAllocation(DecoderAllocation kind) {
+    auto *fault = activeDecoderFault;
+    if (!fault || fault->next != kind) return nullptr;
+    // FFmpeg allocates its own buffers. Leave calls it makes internally alone.
+    fault->next = DecoderAllocation::None;
+    return fault;
+}
+}
+
+extern "C" AVCodecContext *__real_avcodec_alloc_context3(const AVCodec *);
+extern "C" void *__real_av_mallocz(size_t);
+extern "C" int __real_avcodec_open2(AVCodecContext *, const AVCodec *, AVDictionary **);
+extern "C" AVPacket *__real_av_packet_alloc();
+extern "C" AVFrame *__real_av_frame_alloc();
+extern "C" void __real_avcodec_free_context(AVCodecContext **);
+extern "C" void __real_av_packet_free(AVPacket **);
+extern "C" void __real_av_frame_free(AVFrame **);
+
+extern "C" AVCodecContext *__wrap_avcodec_alloc_context3(const AVCodec *codec) {
+    auto *fault = decoderAllocation(DecoderAllocation::Context);
+    if (fault && fault->reject(DecoderAllocation::Context)) return nullptr;
+    auto *context = __real_avcodec_alloc_context3(codec);
+    if (fault) {
+        fault->context = context;
+        fault->next = DecoderAllocation::ExtraData;
+    }
+    return context;
+}
+
+extern "C" void *__wrap_av_mallocz(size_t bytes) {
+    auto *fault = decoderAllocation(DecoderAllocation::ExtraData);
+    return fault && fault->reject(DecoderAllocation::ExtraData) ? nullptr : __real_av_mallocz(bytes);
+}
+
+extern "C" int __wrap_avcodec_open2(AVCodecContext *context, const AVCodec *codec, AVDictionary **options) {
+    const int result = __real_avcodec_open2(context, codec, options);
+    if (activeDecoderFault && activeDecoderFault->context == context && result >= 0) {
+        activeDecoderFault->next = DecoderAllocation::Packet;
+    }
+    return result;
+}
+
+extern "C" AVPacket *__wrap_av_packet_alloc() {
+    auto *fault = decoderAllocation(DecoderAllocation::Packet);
+    auto *packet = fault && fault->reject(DecoderAllocation::Packet) ? nullptr : __real_av_packet_alloc();
+    if (fault) {
+        fault->packet = packet;
+        fault->next = DecoderAllocation::Frame;
+    }
+    return packet;
+}
+
+extern "C" AVFrame *__wrap_av_frame_alloc() {
+    auto *fault = decoderAllocation(DecoderAllocation::Frame);
+    auto *frame = fault && fault->reject(DecoderAllocation::Frame) ? nullptr : __real_av_frame_alloc();
+    if (fault) fault->frame = frame;
+    return frame;
+}
+
+extern "C" void __wrap_avcodec_free_context(AVCodecContext **context) {
+    auto *fault = activeDecoderFault;
+    if (fault && context && *context == fault->context) fault->context = nullptr;
+    __real_avcodec_free_context(context);
+}
+
+extern "C" void __wrap_av_packet_free(AVPacket **packet) {
+    auto *fault = activeDecoderFault;
+    if (fault && packet && *packet == fault->packet) fault->packet = nullptr;
+    __real_av_packet_free(packet);
+}
+
+extern "C" void __wrap_av_frame_free(AVFrame **frame) {
+    auto *fault = activeDecoderFault;
+    if (fault && frame && *frame == fault->frame) fault->frame = nullptr;
+    __real_av_frame_free(frame);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeFfmpegFailureContracts(JNIEnv *env, jobject, jbyteArray input) {
+#define FFMPEG_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    const auto size = input ? env->GetArrayLength(input) : 0;
+    FFMPEG_CONTRACT(size > 0 && size <= 8192);
+    std::vector<uint8_t> packet(size + AV_INPUT_BUFFER_PADDING_SIZE, 0);
+    env->GetByteArrayRegion(input, 0, size, reinterpret_cast<jbyte *>(packet.data()));
+    if (env->ExceptionCheck()) return nullptr;
+
+    LogSink log;
+    LatencyReporter latency("ffmpeg contract", log);
+    TimelineBuffer timeline(44100, 2, 0, 95);
+    const auto config = codecConfig(CT_ALAC, 352, 44100, 2);
+    FFMPEG_CONTRACT(config);
+    for (const auto failure : {DecoderAllocation::Context, DecoderAllocation::ExtraData,
+                               DecoderAllocation::Packet, DecoderAllocation::Frame}) {
+        ScopedDecoderAllocationFault fixture(failure);
+        FFMPEG_CONTRACT(!FfmpegDecoder::make(*config, timeline, latency, log));
+        FFMPEG_CONTRACT(fixture.fault.rejected);
+        FFMPEG_CONTRACT(!fixture.fault.context && !fixture.fault.packet && !fixture.fault.frame);
+    }
+
+    auto invalid = *config;
+    invalid.ffmpegId = AV_CODEC_ID_NONE;
+    FFMPEG_CONTRACT(!FfmpegDecoder::make(invalid, timeline, latency, log));
+    invalid.ffmpegId = AV_CODEC_ID_ALAC;
+    invalid.csdLen = 0;
+    FFMPEG_CONTRACT(!FfmpegDecoder::make(invalid, timeline, latency, log));
+
+    size_t captured = 0;
+    int64_t capturedPts = 0;
+    timeline.capturePcm = [&](const int16_t *, size_t samples, int64_t pts) {
+        captured += samples;
+        capturedPts = pts;
+    };
+    auto decoder = FfmpegDecoder::make(*config, timeline, latency, log);
+    FFMPEG_CONTRACT(decoder);
+    const auto pts = monoNs();
+    FFMPEG_CONTRACT(!decoder->decode(packet.data(), 0, pts));
+    FFMPEG_CONTRACT(!decoder->decode(packet.data(), INT_MAX, pts));
+    std::array<uint8_t, 1 + AV_INPUT_BUFFER_PADDING_SIZE> malformed{};
+    FFMPEG_CONTRACT(!decoder->decode(malformed.data(), 1, pts));
+    FFMPEG_CONTRACT(captured == 0);
+    FFMPEG_CONTRACT(decoder->decode(packet.data(), size, pts));
+    FFMPEG_CONTRACT(captured == 352 * 2 && capturedPts == pts);
+#undef FFMPEG_CONTRACT
+    return env->NewStringUTF("ffmpeg failure contracts passed");
+}
