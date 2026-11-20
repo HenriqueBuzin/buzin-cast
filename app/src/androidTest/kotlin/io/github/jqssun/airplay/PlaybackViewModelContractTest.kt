@@ -13,6 +13,8 @@ import io.github.jqssun.airplay.media.ConnectionApproval
 import io.github.jqssun.airplay.viewmodel.LocalNetworkAccess
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
@@ -199,6 +201,8 @@ class PlaybackViewModelContractTest {
     }
 
     @Test fun aNewDefaultProfileCancelsAnOlderProbeAndRestoresAllTuningDefaults() {
+        val probeStarted = CompletableDeferred<Unit>()
+        val probeFinished = CompletableDeferred<Unit>()
         lateinit var previous: Job
         lateinit var latest: Job
         instrumentation.runOnMainSync {
@@ -210,14 +214,22 @@ class PlaybackViewModelContractTest {
             model.set(Prefs.AUDIO_CUSHION_MS, 750)
             model.set(Prefs.AUDIO_ADAPTIVE_STEP, 0)
             model.set(Prefs.SYNC_CLIENT_VOLUME, false)
-            model.applyProfile("Cinema")
+            model.applyProfile("Cinema") {
+                probeStarted.complete(Unit)
+                try { awaitCancellation() } finally { probeFinished.complete(Unit) }
+            }
             previous = field("profileJob")
+        }
+        await("Cinema did not start its capability probe") { probeStarted.isCompleted && previous.isActive }
+        instrumentation.runOnMainSync {
             model.applyProfile(Prefs.DEFAULT_PROFILE)
             latest = field("profileJob")
             assertNotSame(previous, latest)
             assertTrue("Superseded device probe was not cancelled", previous.isCancelled)
         }
-        await("Profile jobs did not finish after replacement") { previous.isCompleted && latest.isCompleted }
+        await("Profile jobs did not finish after replacement") {
+            probeFinished.isCompleted && previous.isCompleted && latest.isCompleted
+        }
         assertEquals(Prefs.DEFAULT_PROFILE, Prefs.EXPERIENCE_PROFILE.read(preferences))
         assertEquals(Prefs.RESOLUTION.def, Prefs.RESOLUTION.read(preferences))
         assertEquals(Prefs.MAX_FPS.def, Prefs.MAX_FPS.read(preferences))

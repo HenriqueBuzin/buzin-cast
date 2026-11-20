@@ -1196,3 +1196,13 @@ exercise notification presentation. The normal test sends the live Stop action.
 Both API28 editions passed all 23 service and DACP cases. Their matched
 reports cover all 18 branch outcomes and 221 instructions in
 AirPlayService._buildMediaNotification.
+
+The pinned 211-case compat run compiled, passed lint and passed all 20 native
+tests. Its one instrumentation failure came from the profile test assuming a
+device probe would still be pending. The test now waits for a controlled probe
+to start and verifies that it completes cancellation when the default profile
+replaces it. The ordinary entry point continues to read device capabilities
+on the IO dispatcher.
+
+All 10 selected playback and profile cases passed on compat API28 in
+4.044 seconds. The complete four-edition verification remains required.

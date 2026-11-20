@@ -20,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import io.buzincast.core.AsyncLogStore
+import io.buzincast.core.DeviceCapabilities
 import io.buzincast.core.FileLogStorage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -108,13 +109,15 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     }
     fun answerApproval(id: Long, allow: Boolean) { service?.approval?.answer(id,allow) }
     private var profileJob: Job? = null
-    fun applyProfile(name: String) {
+    fun applyProfile(name: String) = applyProfile(name) {
+        withContext(Dispatchers.IO) { io.github.jqssun.airplay.media.DeviceCapabilityProbe.read() }
+    }
+
+    internal fun applyProfile(name: String, readCapabilities: suspend () -> DeviceCapabilities) {
         profileJob?.cancel()
         profileJob = viewModelScope.launch {
             try {
-                val capabilities = if (name == Prefs.DEFAULT_PROFILE) null else withContext(Dispatchers.IO) {
-                    io.github.jqssun.airplay.media.DeviceCapabilityProbe.read()
-                }
+                val capabilities = if (name == Prefs.DEFAULT_PROFILE) null else readCapabilities()
                 io.github.jqssun.airplay.media.ExperienceProfiles.apply(prefs, name, capabilities)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
