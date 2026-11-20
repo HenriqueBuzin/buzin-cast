@@ -1592,3 +1592,16 @@ configuration method and both outcomes of its JNI result. The absent-handle
 test lives in the separate `NativeBridgeContractTest` class. The modified
 audio engine and its fixture also compiled for ARMv7 API22. The suite has
 263 Android cases.
+
+The frozen `0a7158d` full run also verified DE/AT with all 15 runtime
+gates passing. It measured 74.66% JVM branch coverage and 96.96% native
+branch coverage. These figures apply to the 247-case cohort.
+
+Three Android settings tests switch discovery scope in both directions,
+save the device orientation presets, and exercise blank, overflowing, valid,
+and preset frame-rate values through the UI. All nine settings tests passed
+on normal and compat DE/AT API28. The matching JaCoCo profiles cover both
+discovery-summary branches, both frame-rate parsing branches, and all four
+custom FPS editor action branches. Comparison with the identical compiled
+settings class from the 247-case cohort identifies seven newly covered
+branch outcomes in each profile. The suite has 266 Android cases.

@@ -363,6 +363,52 @@ class SettingsScreenStateContractTest {
         }
     }
 
+    @Test fun discoveryScopeSwitchesBetweenUsbAndAllNetworks() = screen {
+        val all = label(R.string.chip_all_networks)
+        val usb = label(R.string.chip_usb_only)
+        val allSummary = label(R.string.setting_discovery_all_desc)
+        val usbSummary = label(R.string.setting_discovery_usb_desc)
+        reveal(allSummary)
+        assertFalse(Prefs.USB_ONLY.read(prefs))
+
+        click(usb)
+        await("USB-only discovery did not persist") { Prefs.USB_ONLY.read(prefs) }
+        reveal(usbSummary)
+
+        click(all)
+        await("All-network discovery did not persist") { !Prefs.USB_ONLY.read(prefs) }
+        reveal(allSummary)
+    }
+
+    @Test fun resolutionPresetsSaveEachDeviceOrientation() = screen {
+        for ((id, value) in listOf(
+            R.string.chip_device_portrait to Prefs.PORTRAIT,
+            R.string.chip_device_landscape to Prefs.LANDSCAPE
+        )) {
+            click(label(id))
+            await("Device orientation preset did not persist: $value") { Prefs.RESOLUTION.read(prefs) == value }
+        }
+        click("1280x720")
+        await("Fixed resolution did not replace the device orientation") { Prefs.RESOLUTION.read(prefs) == "1280x720" }
+    }
+
+    @Test fun customFrameRateRejectsBlankAndOverflowThenReturnsToPreset() {
+        assertTrue(Prefs.MAX_FPS.write(prefs, 48))
+        screen {
+            val fps = label(R.string.setting_max_fps_placeholder)
+            for (invalid in listOf("", "2147483648")) {
+                edit(fps, invalid)
+                done()
+                assertEquals(48, Prefs.MAX_FPS.read(prefs))
+            }
+            edit(fps, "72")
+            done()
+            await("Custom frame rate did not persist") { Prefs.MAX_FPS.read(prefs) == 72 }
+            click("60")
+            await("Preset frame rate did not replace the custom value") { Prefs.MAX_FPS.read(prefs) == 60 }
+        }
+    }
+
     @Test fun standardAndAdvancedSwitchesPersistBothStatesAndRenderTheirSelection() {
         assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
         val controls = listOf(
