@@ -152,6 +152,27 @@ class DecoderSelectorContractTest {
         assertEquals(generic + "omx.qcom" + "c2.qti", prefixes(sdk = 22, adreno = 400))
     }
 
+    @Test fun hevcFallbackRequiresMeasuredAvcInsufficiencyAndAdequateHevc() {
+        val unused = { error("Unexpected capability query") }
+        assertTrue(DecoderSelector.shouldSelectHevc(true, unused, unused, unused))
+        assertTrue(DecoderSelector.shouldSelectHevc(false, { true }, unused, unused))
+        assertFalse(DecoderSelector.shouldSelectHevc(false, { false }, { null }, unused))
+        assertFalse(DecoderSelector.shouldSelectHevc(false, { false }, { true }, unused))
+        assertFalse(DecoderSelector.shouldSelectHevc(false, { false }, { false }, { false }))
+        assertTrue(DecoderSelector.shouldSelectHevc(false, { false }, { false }, { true }))
+    }
+
+    @Test fun hevcTrustRequiresHardwareBeforeAnyPerformanceOrVendorOverride() {
+        val unused = { error("Unexpected capability query") }
+        val generic = "omx.vendor.hevc.decoder"
+        assertFalse(DecoderSelector.shouldTrustHevc("omx.vendor.hevc.sw.decoder", unused, unused, unused, unused))
+        assertFalse(DecoderSelector.shouldTrustHevc(generic, { false }, unused, unused, unused))
+        assertTrue(DecoderSelector.shouldTrustHevc(generic, { true }, { true }, unused, unused))
+        assertTrue(DecoderSelector.shouldTrustHevc(generic, { true }, { false }, { true }, unused))
+        assertTrue(DecoderSelector.shouldTrustHevc(generic, { true }, { false }, { false }, { true }))
+        assertFalse(DecoderSelector.shouldTrustHevc(generic, { true }, { false }, { false }, { false }))
+    }
+
     @Test fun qualcommRetriesKeepOnlyTheKeysAllowedAtEachAttempt() {
         val selector = DecoderSelector(context)
         val pictureOrder = "vendor.qti-ext-dec-picture-order.enable"

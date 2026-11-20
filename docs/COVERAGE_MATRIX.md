@@ -1536,3 +1536,16 @@ current suite has 256 Android cases.
 The full run pinned at `0a7158d` passed compat DE/AT with 247 Android tests,
 21 native cases, and the remaining runtime gates. The edition reached 74.80%
 JVM branch coverage and 96.97% native branch coverage.
+
+The HEVC capability contracts check the decision order for the forced,
+trusted, and measured fallback paths. For automatic fallback, AVC must
+report that it cannot meet the request and HEVC must report that it can.
+The trust contract verifies that software and ineligible hardware cannot
+qualify through a performance class, native low latency, or a vendor match.
+The platform adapter still gets device and capability data from Android.
+
+All 14 selected cases passed on normal and compat DE/AT API28. Matching
+JaCoCo reports cover all 16 branches of the two HEVC decision methods. The
+API30 replay passed both new tests and failed the existing software AVC case
+at 64 × 48. That API30 run remains incomplete. The suite has 258 Android
+cases.

@@ -44,10 +44,17 @@ class DecoderSelector(private val ctx: Context) {
 
     fun hevc(avc: MediaCodecInfo?, w: Int, h: Int, fps: Int, force: Boolean): MediaCodecInfo? {
         val info = _probableSafe(HEVC, -1) ?: return null
-        if (force || _hevcWhitelisted(info)) return info
-        Log.i(TAG, "hevc decoder not whitelisted: ${info.name}")
-        val avcCaps = avc?.videoCaps(AVC) ?: return null
-        return info.takeIf { !_canMeet(avcCaps, w, h, fps) && _canMeet(info.videoCaps(HEVC), w, h, fps) }
+        return info.takeIf {
+            shouldSelectHevc(
+                force = force,
+                trusted = { _hevcWhitelisted(info) },
+                avcMeetsRequest = {
+                    Log.i(TAG, "hevc decoder not whitelisted: ${info.name}")
+                    avc?.videoCaps(AVC)?.let { _canMeet(it, w, h, fps) }
+                },
+                hevcMeetsRequest = { _canMeet(info.videoCaps(HEVC), w, h, fps) },
+            )
+        }
     }
 
     fun software(mime: String, w: Int, h: Int): MediaCodecInfo? =
@@ -135,14 +142,14 @@ class DecoderSelector(private val ctx: Context) {
         runCatching { info.getCapabilitiesForType(mime.lowercase(Locale.ROOT)).isFeatureSupported(CodecCapabilities.FEATURE_LowLatency) }
             .getOrDefault(false)
 
-    private fun _hevcWhitelisted(info: MediaCodecInfo): Boolean = when {
-        "sw" in info.name -> false
-        Build.VERSION.SDK_INT >= 29 && (!info.isHardwareAccelerated || info.isSoftwareOnly) -> false
-        // class 12+ provides 1080p60
-        Build.VERSION.SDK_INT >= 31 && Build.VERSION.MEDIA_PERFORMANCE_CLASS >= 31 -> true
-        _lowLatency(info, HEVC) -> true
-        else -> _inList(hevcWhitelist, info.name)
-    }
+    private fun _hevcWhitelisted(info: MediaCodecInfo): Boolean = shouldTrustHevc(
+        codecName = info.name,
+        hardwareAllowed = { Build.VERSION.SDK_INT < 29 || (info.isHardwareAccelerated && !info.isSoftwareOnly) },
+        // Media performance class 12+ provides 1080p60.
+        performanceClassSupported = { Build.VERSION.SDK_INT >= 31 && Build.VERSION.MEDIA_PERFORMANCE_CLASS >= 31 },
+        nativeLowLatency = { _lowLatency(info, HEVC) },
+        knownVendor = { _inList(hevcWhitelist, info.name) },
+    )
 
     private fun _canMeet(caps: VideoCapabilities, w: Int, h: Int, fps: Int): Boolean {
         if (Build.VERSION.SDK_INT >= 29) {
@@ -183,6 +190,19 @@ class DecoderSelector(private val ctx: Context) {
 
         internal fun isEmulatedDevice(hardware: String, brand: String) =
             hardware == "ranchu" || hardware == "cheets" || brand == "Android-x86"
+
+        internal fun shouldSelectHevc(
+            force: Boolean, trusted: () -> Boolean, avcMeetsRequest: () -> Boolean?, hevcMeetsRequest: () -> Boolean,
+        ): Boolean = force || trusted() || (avcMeetsRequest() == false && hevcMeetsRequest())
+
+        internal fun shouldTrustHevc(
+            codecName: String, hardwareAllowed: () -> Boolean, performanceClassSupported: () -> Boolean,
+            nativeLowLatency: () -> Boolean, knownVendor: () -> Boolean,
+        ): Boolean = when {
+            "sw" in codecName || !hardwareAllowed() -> false
+            performanceClassSupported() || nativeLowLatency() -> true
+            else -> knownVendor()
+        }
 
         internal fun decoderBlacklist(emulator: Boolean, sdk: Int, adreno: Int): List<String> = buildList {
             if (!emulator) {
