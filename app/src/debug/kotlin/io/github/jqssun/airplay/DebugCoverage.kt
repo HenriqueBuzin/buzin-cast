@@ -12,6 +12,8 @@ object DebugCoverage {
     external fun nativeFfmpegFailureContracts(packet: ByteArray): String
     external fun nativeAacConfigurationContracts(): String
     external fun nativePlatformDecoderFallbackContracts(): String
+    external fun nativePreferredDecoderContracts(): String
+    external fun nativeFfmpegLogContracts(): String
     external fun nativePlatformInputBufferContracts(): String
     external fun nativePlatformOutputBufferContracts(): String
     external fun nativeDecoderLatencyContracts(): String

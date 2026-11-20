@@ -69,6 +69,31 @@ struct ScopedPlatformCodecFault {
     ~ScopedPlatformCodecFault() { activePlatformFault = previous; }
 };
 
+struct PreferredCodecContract {
+    size_t namedRequests = 0;
+    size_t defaultRequests = 0;
+    bool deleted = false;
+    AMediaCodec *codec = nullptr;
+};
+thread_local PreferredCodecContract *activePreferredCodec = nullptr;
+
+struct ScopedPreferredCodecContract {
+    PreferredCodecContract codec;
+    ScopedPreferredCodecContract() { activePreferredCodec = &codec; }
+    ~ScopedPreferredCodecContract() { activePreferredCodec = nullptr; }
+};
+
+struct FfmpegLogContract {
+    std::vector<std::pair<int, std::string>> entries;
+};
+thread_local FfmpegLogContract *activeFfmpegLog = nullptr;
+
+struct ScopedFfmpegLogContract {
+    FfmpegLogContract log;
+    ScopedFfmpegLogContract() { activeFfmpegLog = &log; }
+    ~ScopedFfmpegLogContract() { activeFfmpegLog = nullptr; }
+};
+
 // The NDK's input offset type can differ from off_t on 32-bit Android.
 template <typename Offset>
 Offset platformInputOffset(media_status_t (*)(AMediaCodec *, size_t, Offset, size_t, uint64_t, uint32_t));
@@ -127,6 +152,9 @@ extern "C" media_status_t __real_AMediaCodec_configure(
     AMediaCodec *, const AMediaFormat *, ANativeWindow *, AMediaCrypto *, uint32_t);
 extern "C" media_status_t __real_AMediaCodec_start(AMediaCodec *);
 extern "C" media_status_t __real_AMediaCodec_delete(AMediaCodec *);
+extern "C" AMediaCodec *__real_AMediaCodec_createCodecByName(const char *);
+extern "C" AMediaCodec *__real_AMediaCodec_createDecoderByType(const char *);
+extern "C" int __real___android_log_vprint(int, const char *, const char *, va_list);
 extern "C" uint8_t *__real_AMediaCodec_getInputBuffer(AMediaCodec *, size_t, size_t *);
 extern "C" media_status_t __real_AMediaCodec_queueInputBuffer(
     AMediaCodec *, size_t, PlatformInputOffset, size_t, uint64_t, uint32_t);
@@ -149,13 +177,46 @@ extern "C" media_status_t __wrap_AMediaCodec_start(AMediaCodec *codec) {
 
 extern "C" media_status_t __wrap_AMediaCodec_delete(AMediaCodec *codec) {
     auto *fault = activePlatformFault;
+    auto *preferred = activePreferredCodec;
     const bool rejected = fault && fault->rejected == codec;
+    const bool selected = preferred && preferred->codec == codec;
     const auto result = __real_AMediaCodec_delete(codec);
     if (rejected && result == AMEDIA_OK) {
         fault->rejected = nullptr;
         ++fault->released;
     }
+    if (selected && result == AMEDIA_OK) {
+        preferred->codec = nullptr;
+        preferred->deleted = true;
+    }
     return result;
+}
+
+extern "C" AMediaCodec *__wrap_AMediaCodec_createCodecByName(const char *name) {
+    auto *fixture = activePreferredCodec;
+    if (!fixture || strcmp(name, AAC_INPROC_DECODER) != 0) return __real_AMediaCodec_createCodecByName(name);
+    // Most emulators lack the named codec. Supply a real AAC decoder to the
+    // named attempt so configuration and startup still use the platform.
+    ++fixture->namedRequests;
+    fixture->codec = __real_AMediaCodec_createDecoderByType("audio/mp4a-latm");
+    return fixture->codec;
+}
+
+extern "C" AMediaCodec *__wrap_AMediaCodec_createDecoderByType(const char *mime) {
+    auto *fixture = activePreferredCodec;
+    if (!fixture || strcmp(mime, "audio/mp4a-latm") != 0) return __real_AMediaCodec_createDecoderByType(mime);
+    ++fixture->defaultRequests;
+    fixture->codec = __real_AMediaCodec_createDecoderByType(mime);
+    return fixture->codec;
+}
+
+extern "C" int __wrap___android_log_vprint(int priority, const char *tag, const char *format, va_list args) {
+    auto *fixture = activeFfmpegLog;
+    if (!fixture || !tag || strcmp(tag, "ffmpeg") != 0) return __real___android_log_vprint(priority, tag, format, args);
+    std::array<char, 128> buffer{};
+    const int length = vsnprintf(buffer.data(), buffer.size(), format, args);
+    fixture->entries.emplace_back(priority, buffer.data());
+    return length;
 }
 
 extern "C" uint8_t *__wrap_AMediaCodec_getInputBuffer(AMediaCodec *codec, size_t index, size_t *capacity) {
@@ -374,6 +435,41 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformDecoderFallbackContrac
     FALLBACK_CONTRACT(decoder);
 #undef FALLBACK_CONTRACT
     return env->NewStringUTF("platform decoder fallback contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativePreferredDecoderContracts(JNIEnv *env, jobject) {
+#define PREFERRED_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    LogSink log;
+    LatencyReporter latency("AAC preferred contract", log);
+    TimelineBuffer timeline(44100, 2, 0, 95);
+    ScopedPreferredCodecContract fixture;
+    auto decoder = makeDecoder(CT_AAC_LC, 1024, 44100, 2, timeline, latency, log, false, false, false);
+    PREFERRED_CONTRACT(decoder && fixture.codec.codec && !fixture.codec.deleted);
+    if (android_get_device_api_level() >= 23) {
+        PREFERRED_CONTRACT(fixture.codec.namedRequests == 1 && fixture.codec.defaultRequests == 0);
+    } else {
+        PREFERRED_CONTRACT(fixture.codec.namedRequests == 0 && fixture.codec.defaultRequests == 1);
+    }
+    decoder.reset();
+    PREFERRED_CONTRACT(fixture.codec.deleted && !fixture.codec.codec);
+#undef PREFERRED_CONTRACT
+    return env->NewStringUTF("preferred decoder contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeFfmpegLogContracts(JNIEnv *env, jobject) {
+    installFfmpegLogcat();
+    ScopedFfmpegLogContract fixture;
+    av_log(nullptr, AV_LOG_INFO, "filtered %d", 1);
+    av_log(nullptr, AV_LOG_WARNING, "warning %d", 2);
+    av_log(nullptr, AV_LOG_ERROR, "error %d", 3);
+    const std::vector<std::pair<int, std::string>> expected{
+        {ANDROID_LOG_WARN, "warning 2"},
+        {ANDROID_LOG_ERROR, "error 3"},
+    };
+    return env->NewStringUTF(fixture.log.entries == expected
+        ? "FFmpeg log contracts passed" : "FFmpeg priority, message, or filtering differed");
 }
 
 extern "C" JNIEXPORT jstring JNICALL

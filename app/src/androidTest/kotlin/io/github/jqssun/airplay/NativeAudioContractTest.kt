@@ -28,6 +28,12 @@ class NativeAudioContractTest {
     @Test fun aacFallingBackAfterPlatformFailureReleasesBothDecoders() =
         decoderContract("platform decoder fallback contracts passed", DebugCoverage::nativePlatformDecoderFallbackContracts)
 
+    @Test fun aacUsesThePreferredDecoderWhenItStartsAndReleasesItAfterward() =
+        decoderContract("preferred decoder contracts passed", DebugCoverage::nativePreferredDecoderContracts)
+
+    @Test fun ffmpegForwardsWarningsAndErrorsAtTheCorrectAndroidPriority() =
+        decoderContract("FFmpeg log contracts passed", DebugCoverage::nativeFfmpegLogContracts)
+
     @Test fun platformInputHandlesMissingLimitedAndRejectedBuffers() =
         decoderContract("platform input buffer contracts passed", DebugCoverage::nativePlatformInputBufferContracts)
 

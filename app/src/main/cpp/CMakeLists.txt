@@ -206,6 +206,8 @@ if(BUZIN_COVERAGE)
         "-Wl,--wrap=AMediaCodec_getInputBuffer" "-Wl,--wrap=AMediaCodec_queueInputBuffer"
         "-Wl,--wrap=AMediaCodec_dequeueOutputBuffer" "-Wl,--wrap=AMediaCodec_getOutputBuffer"
         "-Wl,--wrap=AMediaCodec_releaseOutputBuffer"
+        "-Wl,--wrap=AMediaCodec_createCodecByName" "-Wl,--wrap=AMediaCodec_createDecoderByType"
+        "-Wl,--wrap=__android_log_vprint"
         "-Wl,--wrap=pthread_setspecific"
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
         "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"

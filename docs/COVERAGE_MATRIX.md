@@ -1480,3 +1480,19 @@ All 23 selected audio cases passed on normal and compat DE/AT API28. The
 matching reports cover all 10 branches of `MediaCodecDecoder::drainLoop`,
 up from 7 of 10, and all 12 MC/DC conditions in `audio_decoder.h`. The suite
 now has 248 Android cases.
+
+The preferred AAC decoder contract supplies a real MediaCodec instance when
+the named decoder is requested in the coverage build, then checks that it
+starts, the MIME fallback is skipped, and the selected instance is released.
+On API22 the contract checks that the named request is skipped and the MIME
+decoder is used. The FFmpeg log contract captures Android log priorities and
+checks warning and error formatting and filtering of informational logs.
+
+All 25 selected audio cases passed on normal and compat DE/AT API28, and
+all 13 selected decoder cases passed on the same compat DE/AT artifacts on
+API22. The normal report covers 10 of 10 branches in `startMediaCodec`.
+The combined compat DE/AT profile covers all 14 branches in that method.
+Both reports cover every line, function, instantiation, region, and MC/DC
+condition in `audio_decoder.h`. The two remaining branch outcomes are the
+destructor's checks for an absent codec and a non-joinable drain thread.
+The current suite has 250 Android cases.
