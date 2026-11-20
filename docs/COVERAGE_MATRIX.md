@@ -2042,3 +2042,10 @@ display, PiP action, known duration, and slider focus.
 The normal edition of the API28 324-case matrix at `5e49ea9` passed its
 Android and native cases and runtime checks. JaCoCo measured 4710/5967
 JVM branches and LLVM measured 906/908 app-native branches.
+
+The queued audio configuration contract now starts real Oboe output
+before feeding AAC, checks that the next decoded packet opens replacement
+output, and verifies that reissuing Start leaves that output active.
+The test still checks the applied cushion and exact PCM timestamps and
+bytes. The normal API28 profile executes both previously missing outcomes
+that stop and restart an active output in `AudioEngine::decode`.

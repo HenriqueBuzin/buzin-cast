@@ -354,9 +354,7 @@ class NativeServerContractTest {
         assertTrue(NativeBridge.nativeServerAudioDebug(handle, buffer))
         assertTrue((0 until buffer.capacity()).any { buffer.get(it) != 90.toByte() })
         assertEquals(90.toByte(), buffer.get(buffer.capacity() - 1))
-        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        NativeBridge.nativeSetDefaultStreamValues(audio.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000,
-            audio.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 192)
+        setDefaultOutputParameters()
         NativeBridge.nativeServerAudioSetClientGain(handle, 0.5f)
         for ((ct, spf) in listOf(2 to 352, 4 to 1024, 8 to 480, 99 to 100, 2 to 0)) NativeBridge.nativeServerAudioFormat(handle, ct, spf)
         assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 50, 95, 0, true, true, false, false, false))
@@ -365,6 +363,14 @@ class NativeServerContractTest {
         assertTrue(NativeBridge.nativeServerAudioDebug(handle, buffer))
         repeat(2) { NativeBridge.nativeServerAudioStop(handle) }
         assertTrue(NativeBridge.nativeServerAudioConfigure(handle, 0, 90, 192, false, false, true, true, true))
+    }
+
+    private fun setDefaultOutputParameters() {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        NativeBridge.nativeSetDefaultStreamValues(
+            audio.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48_000,
+            audio.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 192,
+        )
     }
 
     private fun aacFrames(): List<ByteArray> {
@@ -684,13 +690,19 @@ class NativeServerContractTest {
 
     @Test fun audioRendererAppliesQueuedConfigurationAtTheNextDecodedPacket() {
         val handle = create()
+        setDefaultOutputParameters()
         val renderer = AudioRenderer()
+        val receiver = callbacks.getValue(handle)
+        fun outputsOpened() = receiver.logs.count { it.startsWith("Oboe out:") }
         val initial = AudioConfig(cushionMs = 50, forceSwAlac = true, forceSwAac = true,
             realtimePriority = false, lowLatency = false)
         renderer.updateConfig(initial)
         renderer.attachEngine(handle)
         try {
             renderer.setFormat(4, 1024)
+            renderer.start()
+            assertTrue("Initial playback output did not start", NativeBridge.nativeServerAudioStart(handle))
+            assertEquals(1, outputsOpened())
             NativeBridge.nativeSetCaptureEnabled(handle, true)
             val packet = aacFrames().first()
             val base = System.nanoTime()
@@ -702,11 +714,15 @@ class NativeServerContractTest {
             assertEquals(changed, renderer.config)
             // The control thread queues updates; only the decode thread rebuilds.
             assertEquals(50, requireNotNull(renderer.audioDebug()).tunedCushionMs)
+            assertEquals(1, outputsOpened())
             DebugNativeBridge.nativeFeedAudio(handle, packet, base + 30_000_000)
             val debug = requireNotNull(renderer.audioDebug())
             assertEquals(80, debug.tunedCushionMs)
             assertEquals(0, debug.decodeErrors)
-            val pcm = callbacks.getValue(handle).pcm
+            assertEquals("Reconfiguration did not open replacement output", 2, outputsOpened())
+            assertTrue("Replacement playback output did not stay active", NativeBridge.nativeServerAudioStart(handle))
+            assertEquals("Requesting Start again opened another output", 2, outputsOpened())
+            val pcm = receiver.pcm
             assertEquals(2, pcm.size)
             assertEquals(listOf(base, base + 30_000_000), pcm.map { it.pts })
             assertTrue(pcm.all { record -> record.bytes.size == 4096 && record.bytes.all { it == 0.toByte() } })
