@@ -13,12 +13,16 @@ object NetworkDiagnostics {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = manager.currentNetworkCompat()
         val capabilities = network?.let(manager::getNetworkCapabilities)
-        val ip = Net.lanIpv4()
+        val vpnActive = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        return format(context, running, Net.lanIpv4(), vpnActive)
+    }
+
+    internal fun format(context: Context, running: Boolean, ip: String?, vpnActive: Boolean): String {
         val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
         return buildString {
             appendLine(if (ip == null) context.getString(R.string.diag_no_ipv4) else context.getString(R.string.diag_tv_ip, ip))
             appendLine(context.getString(if (running) R.string.diag_receiver_running else R.string.diag_receiver_stopped))
-            if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) {
+            if (vpnActive) {
                 appendLine(context.getString(R.string.diag_vpn_active))
             }
             if (prefs[Prefs.USB_ONLY]) appendLine(context.getString(R.string.diag_usb_only))

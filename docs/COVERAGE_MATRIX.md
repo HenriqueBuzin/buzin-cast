@@ -1739,3 +1739,12 @@ JVM metrics for `TvFocus` were covered in the selected normal and compat
 DE/AT API28 profiles, including 20 of 20 branch outcomes. The same bytecode
 had 9 and 12 branch outcomes covered in the respective 284-case profiles.
 The suite has 292 Android cases.
+
+Network diagnostics use the same formatter for Android snapshots and
+instrumented cases. The tests check the complete localized output for a
+stopped receiver with no LAN IPv4, a VPN flag, and USB-only mode, and for a
+running LAN receiver.
+They also verify both states of DLNA and FCast. The formatter covers all 12
+branches in the normal and compat DE/AT API28 selections. The full file
+covers 15 of 18 branches, with three remaining in Android network capability
+lookup. The suite has 294 Android cases.
