@@ -169,6 +169,15 @@ def main():
             if not any(node.get('selected') == 'true' and any(child.get('text') == label for child in node.iter('node'))
                        for node in state.iter('node')):
                 raise AssertionError('Active menu selection missing in release: '+label)
+            if label == 'Tools':
+                labels = {node.get('text') for node in state.iter('node')}
+                recording_controls = {'Record mirroring', 'Prepare recording', 'Local recordings'}
+                regional = package.endswith('.deat')
+                if regional and labels & (recording_controls | {'Downloaded videos'}):
+                    raise AssertionError('DE/AT release exposes recording or download controls in Tools')
+                if not regional and 'Prepare recording' not in labels:
+                    raise AssertionError('General release is missing the recording action in Tools')
+                report['tools_edition_ui'] = 'regional controls hidden' if regional else 'recording action shown'
             screenshot(filename)
         click('About BuzinCast');time.sleep(.4)
         state=tree()
