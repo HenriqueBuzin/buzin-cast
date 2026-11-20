@@ -1654,3 +1654,7 @@ tests passed on normal and compat DE/AT API28. The matching JaCoCo reports
 cover all 12 branch outcomes of the size, title, end, and recovery callbacks,
 and 13 of 14 playback snapshot branch outcomes. The suite has 277 Android
 cases.
+
+The `73f1e5e` run verified compat DE/AT with 275 Android cases, 21 native
+cases, and all 15 runtime gates. It covered 4505 of 5896 JVM branches
+(76.41%) and 906 of 922 native branches (98.26%).
