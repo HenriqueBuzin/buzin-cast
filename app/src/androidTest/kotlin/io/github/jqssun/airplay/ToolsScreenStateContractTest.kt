@@ -7,6 +7,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Bundle
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -214,6 +215,115 @@ class ToolsScreenStateContractTest {
     private fun absent(label: String): Boolean {
         val nodes = snapshot() ?: return false
         return nodes.none { it.text == label || it.description == label }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun withRelayNodes(action: (AccessibilityNodeInfo) -> Boolean): Boolean {
+        val automation = instrumentation.uiAutomation
+        val windows = automation.windows
+        try {
+            for (window in windows.sortedByDescending { it.isFocused }) {
+                if (!window.isActive && !window.isFocused) continue
+                val root = window.root ?: continue
+                try {
+                    if (root.refresh() && root.packageName?.toString() == context.packageName && root.childCount > 0)
+                        return action(root)
+                } finally { root.recycle() }
+            }
+        } finally { windows.forEach { it.recycle() } }
+        return false
+    }
+
+    @Suppress("DEPRECATION")
+    private fun withRelayFields(action: (List<AccessibilityNodeInfo>) -> Boolean): Boolean = withRelayNodes { root ->
+        val fields = mutableListOf<AccessibilityNodeInfo>()
+        fun visit(node: AccessibilityNodeInfo) {
+            if (node.className?.toString() == "android.widget.EditText") fields += AccessibilityNodeInfo.obtain(node)
+            repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
+                try { visit(child) } finally { child.recycle() }
+            } }
+        }
+        try {
+            visit(root)
+            fields.size == 3 && action(fields)
+        } finally { fields.forEach { it.recycle() } }
+    }
+
+    private fun relayKey(code: Int) {
+        instrumentation.sendKeyDownUpSync(code)
+        instrumentation.waitForIdleSync()
+    }
+
+    private fun relayFieldFocused(index: Int) = withRelayFields { it[index].isFocused }
+
+    private fun editRelayField(index: Int, key: Int, value: String, normalized: String) {
+        await("Relay field $index did not receive focus") { relayFieldFocused(index) }
+        relayKey(key)
+        val arguments = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
+        }
+        await("Relay field $index did not accept editing") {
+            withRelayFields { it[index].isFocused && it[index].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments) }
+        }
+        await("Relay field $index did not show its normalized value") {
+            withRelayFields { it[index].text?.toString() == normalized }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun relayControlFocused(label: String): Boolean = withRelayNodes { root ->
+        fun hasLabel(node: AccessibilityNodeInfo): Boolean {
+            if (node.text?.toString() == label) return true
+            repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
+                try { if (!child.isFocusable && hasLabel(child)) return true } finally { child.recycle() }
+            } }
+            return false
+        }
+        fun visit(node: AccessibilityNodeInfo): Boolean {
+            if (node.isFocused && hasLabel(node)) return true
+            repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
+                try { if (visit(child)) return true } finally { child.recycle() }
+            } }
+            return false
+        }
+        visit(root)
+    }
+
+    @Test fun relayTvFormKeepsFieldsReadOnlyUntilOkAndRetainsAcceptedValues() = screen {
+        val automation = instrumentation.uiAutomation
+        val flags = automation.serviceInfo.flags
+        automation.serviceInfo = automation.serviceInfo.apply {
+            this.flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        try {
+            val open = text(R.string.tools_relay_connect)
+            val connect = text(R.string.tools_connect)
+            click(open)
+            await("Relay form did not focus the address") { relayFieldFocused(0) }
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Draft before OK")
+            }
+            assertTrue(withRelayFields { !it[0].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) })
+            relayKey(KeyEvent.KEYCODE_DPAD_DOWN)
+            await("Remote Down did not focus the port") { relayFieldFocused(1) }
+            relayKey(KeyEvent.KEYCODE_DPAD_UP)
+            editRelayField(0, KeyEvent.KEYCODE_ENTER, " 127.0.0.1 ", " 127.0.0.1 ")
+            relayKey(KeyEvent.KEYCODE_DPAD_DOWN)
+            editRelayField(1, KeyEvent.KEYCODE_DPAD_CENTER, "x7123!", "7123")
+            relayKey(KeyEvent.KEYCODE_DPAD_DOWN)
+            editRelayField(2, KeyEvent.KEYCODE_DPAD_CENTER, "ABCD-EFGH-IJKL", "ABCD-EFGH-IJKL")
+
+            repeat(10) { if (!relayControlFocused(connect)) relayKey(KeyEvent.KEYCODE_TAB) }
+            assertTrue("The valid relay form did not focus Connect", relayControlFocused(connect))
+            relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
+            await("Submitting the form did not restore focus") { relayControlFocused(open) }
+            relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
+            await("Accepted relay values did not survive reopening") {
+                withRelayFields { fields -> fields.map { it.text?.toString() } == listOf("127.0.0.1", "7123", "ABCD-EFGH-IJKL") }
+            }
+        } finally {
+            automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
+        }
     }
 
     @Test fun receiverCannotStartDuringVideoExistingConnectionsCaptureOrSending() = screen {

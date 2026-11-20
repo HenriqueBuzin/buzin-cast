@@ -1678,3 +1678,16 @@ native library as the API28 run. Their combined profile covers all 14 codec
 startup branch outcomes, including the API22 AAC and ALAC paths. The engine
 and its fixture also compiled for ARMv7 API22. The suite has 280 Android
 cases.
+
+The `73f1e5e` run verified normal with 275 Android cases, 21 native cases,
+and all 15 runtime gates. It covered 4572 of 5976 JVM branches (76.51%) and
+905 of 918 native branches (98.58%).
+
+The Tools TV relay form contract checks read-only fields before editing,
+remote focus movement, port normalization, and retention of accepted values
+after reopening. The isolated ViewModel exercises the form without opening a
+relay connection. All five Tools tests passed on normal and compat DE/AT
+API28. The matching reports cover 14 of 16 relay dialog branch outcomes,
+compared with three in the frozen run. Both reports also execute all
+instructions in the three TV field update callbacks. The suite has 281
+Android cases.
