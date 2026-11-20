@@ -1041,6 +1041,8 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDnsContracts(JNIEnv *env, jobj
     const char name[] = "Buzin DNS \xC3\xA7";
     const std::array<char, 6> hardware{{0x01, 0x23, 0x45, 0x67, static_cast<char>(0x89), static_cast<char>(0xab)}};
     dnssd_destroy(nullptr);
+    DNS_CONTRACT(dnssd_register_raop(nullptr, 7000) == -1);
+    DNS_CONTRACT(dnssd_register_airplay(nullptr, 7000) == -1);
     for (unsigned char pin : {0, 1, 2, 3, 255}) {
         int error = -1;
         Service service(dnssd_init(name, sizeof(name) - 1, hardware.data(), hardware.size(), &error, pin), dnssd_destroy);

@@ -1963,3 +1963,9 @@ invalid replacements. All four targeted lifecycle and renderer cases
 passed on the compat DE/AT APK on API22 and API28 and on normal API28.
 The API28 profiles cover all seven lines and 10/14 branches of `onStop`.
 The suite has 324 Android cases.
+
+The Android DNS-SD shim now returns its existing registration error code
+when the discovery state is absent. Both invalid-state calls are covered
+along with valid records, oversized hardware addresses, and TXT capacity.
+Both API28 profiles, normal and compat DE/AT, cover all 18 RAOP
+registration outcomes and all 14 AirPlay registration outcomes.

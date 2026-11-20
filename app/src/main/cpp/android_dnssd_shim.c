@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <assert.h>
 
 #include "dnssd.h"
 #include "dnssdint.h"
@@ -120,8 +119,8 @@ dnssd_destroy(dnssd_t *dnssd)
 int
 dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
 {
+    if (!dnssd) return -1;
     char features[22] = {0};
-    assert(dnssd);
 
     snprintf(features, sizeof(features), "0x%X,0x%X", dnssd->features1, dnssd->features2);
 
@@ -181,9 +180,9 @@ dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
 int
 dnssd_register_airplay(dnssd_t *dnssd, unsigned short port)
 {
+    if (!dnssd) return -1;
     char device_id[3 * MAX_HWADDR_LEN];
     char features[22] = {0};
-    assert(dnssd);
 
     snprintf(features, sizeof(features), "0x%X,0x%X", dnssd->features1, dnssd->features2);
 
