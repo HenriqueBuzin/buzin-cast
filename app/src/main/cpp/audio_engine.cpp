@@ -10,6 +10,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <string>
 
 #include "audio_engine.h"
@@ -69,7 +70,9 @@ struct AudioEngine {
             return true;
         }
         // engine may be in use: decode() applies the queued config
-        delete mPending.exchange(new AudioConfig(cfg), std::memory_order_release);
+        auto *pending = new (std::nothrow) AudioConfig(cfg);
+        if (!pending) return false;
+        delete mPending.exchange(pending, std::memory_order_release);
         return true;
     }
 

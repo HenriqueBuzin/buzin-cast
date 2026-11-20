@@ -5,6 +5,43 @@
 #include <jni.h>
 
 namespace {
+thread_local int *pendingConfigAllocationFailures = nullptr;
+}
+
+#ifdef __LP64__
+#define NOTHROW_NEW_SYMBOL "_ZnwmRKSt9nothrow_t"
+#else
+#define NOTHROW_NEW_SYMBOL "_ZnwjRKSt9nothrow_t"
+#endif
+extern "C" void *realNothrowNew(size_t, const std::nothrow_t &) noexcept asm("__real_" NOTHROW_NEW_SYMBOL);
+extern "C" void *wrapNothrowNew(size_t, const std::nothrow_t &) noexcept asm("__wrap_" NOTHROW_NEW_SYMBOL);
+#undef NOTHROW_NEW_SYMBOL
+
+extern "C" void *wrapNothrowNew(size_t size, const std::nothrow_t &tag) noexcept {
+    if (pendingConfigAllocationFailures && size == sizeof(AudioConfig) && *pendingConfigAllocationFailures == 0) {
+        ++*pendingConfigAllocationFailures;
+        return nullptr;
+    }
+    return realNothrowNew(size, tag);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_withPendingAudioConfigAllocationFailure(JNIEnv *env, jobject, jobject action) {
+    jclass runnable = env->FindClass("java/lang/Runnable");
+    if (!runnable) return 0;
+    jmethodID run = env->GetMethodID(runnable, "run", "()V");
+    env->DeleteLocalRef(runnable);
+    if (!run) return 0;
+
+    int failures = 0;
+    auto *previous = pendingConfigAllocationFailures;
+    pendingConfigAllocationFailures = &failures;
+    env->CallVoidMethod(action, run);
+    pendingConfigAllocationFailures = previous;
+    return failures;
+}
+
+namespace {
 enum class DecoderAllocation { Context, ExtraData, Packet, Frame, None };
 
 struct DecoderAllocationFault {

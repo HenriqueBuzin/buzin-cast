@@ -19,6 +19,7 @@ object DebugCoverage {
         callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler, hardware: ByteArray, name: String,
         keyFile: String): String
     external fun nativeDiagnosticAudioArrayContracts(bridge: DebugNativeBridge, handle: Long, data: ByteArray): String
+    external fun withPendingAudioConfigAllocationFailure(action: Runnable): Int
     external fun nativePlatformInputBufferContracts(): String
     external fun nativePlatformOutputBufferContracts(): String
     external fun nativeDecoderLatencyContracts(): String

@@ -199,6 +199,12 @@ if(BUZIN_COVERAGE)
       set_source_files_properties(${BRIDGE_SOURCES} coverage_bridge.cpp PROPERTIES
         COMPILE_OPTIONS "-fprofile-instr-generate;-fcoverage-mapping;-fcoverage-mcdc;-fprofile-update=atomic")
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
+    # Wrap the nothrow allocation overload for the ABI's size_t type.
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        target_link_options(airplay_native PRIVATE "-Wl,--wrap=_ZnwmRKSt9nothrow_t")
+    else()
+        target_link_options(airplay_native PRIVATE "-Wl,--wrap=_ZnwjRKSt9nothrow_t")
+    endif()
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
         "-Wl,--wrap=raop_init" "-Wl,--wrap=raop_init2" "-Wl,--wrap=dnssd_init"
         "-Wl,--wrap=raop_set_log_callback" "-Wl,--wrap=__android_log_print"

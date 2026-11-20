@@ -1581,3 +1581,14 @@ verify that an unavailable byte array is neither decoded nor released.
 All 28 selected native bridge and audio cases passed on normal and compat
 DE/AT API28. Each report covers all six RAOP log callback branches and all
 ten debug AAC input branches. The suite has 262 Android cases.
+
+The audio engine now returns a failure to JNI if allocation of a pending
+configuration fails. The existing pending configuration stays in place.
+A scoped allocator failure test verifies that the next real AAC packet
+applies the retained configuration and that another update still works.
+All 29 selected native bridge and audio cases passed on normal and compat
+DE/AT API28. Both profiles cover all four branches of the audio engine
+configuration method and both outcomes of its JNI result. The absent-handle
+test lives in the separate `NativeBridgeContractTest` class. The modified
+audio engine and its fixture also compiled for ARMv7 API22. The suite has
+263 Android cases.

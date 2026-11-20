@@ -301,6 +301,37 @@ class NativeServerContractTest {
         return frames
     }
 
+    @Test fun rejectedAudioConfigurationPreservesThePreviouslyQueuedChange() {
+        val handle = create()
+        val frames = aacFrames()
+        val debug = ByteBuffer.allocateDirect(256).order(ByteOrder.nativeOrder())
+        val base = System.nanoTime()
+        fun configure(cushionMs: Int) = NativeBridge.nativeServerAudioConfigure(
+            handle, cushionMs, 95, 0, true, true, false, false, false
+        )
+        fun tunedCushionMs(): Int {
+            assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
+            return debug.getShort(2).toInt() and 0xffff
+        }
+
+        NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
+        assertTrue(configure(20))
+        assertEquals(20, tunedCushionMs())
+        assertTrue(configure(40))
+        assertEquals(1, DebugCoverage.withPendingAudioConfigAllocationFailure {
+            assertFalse(configure(80))
+        })
+        assertEquals(20, tunedCushionMs())
+
+        NativeBridge.nativeSetCaptureEnabled(handle, true)
+        DebugNativeBridge.nativeFeedAudio(handle, frames[0], base)
+        assertEquals(40, tunedCushionMs())
+        assertTrue(configure(60))
+        DebugNativeBridge.nativeFeedAudio(handle, frames[1], base + 1024L * 1_000_000_000L / 44100)
+        assertEquals(60, tunedCushionMs())
+        assertEquals(2, callbacks.getValue(handle).pcm.size)
+    }
+
     @Test fun softwareAacDecodesExactPcmAcrossReconfigurationAndCaptureToggle() {
         val frames = aacFrames()
         val handle = create()
