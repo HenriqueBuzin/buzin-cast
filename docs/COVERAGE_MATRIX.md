@@ -1269,3 +1269,14 @@ profile covers 13 of 14 outcomes in android_raop_callbacks.c:_get_env.
 Together with the standalone TLS key-creation failure profile for the
 unchanged callback source, all 14 outcomes are covered in the normal APK
 mapping. The suite now has 220 Android cases.
+
+The pinned c13c113 DE/AT run passed 213 of 214 Android cases. The settings
+switch test found the ALAC title during an animated accessibility scroll,
+then lost it before reading the rendered checked state. The settings test
+now scrolls the real screen in overlapping increments and waits for the
+layout before inspecting and clicking each control. The app retains its
+default saved scroll state.
+
+All six Settings cases passed on the updated DE/AT API28 APK at
+1920 x 1080 and density 320. The previously failing switch case passed
+two additional runs on the same APK.

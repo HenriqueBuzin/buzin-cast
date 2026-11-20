@@ -17,6 +17,7 @@ import android.view.Window
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ScrollState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModelStore
@@ -27,6 +28,8 @@ import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.ui.SettingsScreen
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.MainViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -47,6 +50,7 @@ class SettingsScreenStateContractTest {
     private lateinit var model: MainViewModel
     private lateinit var store: ViewModelStore
     private lateinit var logs: AsyncLogStore
+    private lateinit var scrollState: ScrollState
     private var activity: DebugTvPreviewActivity? = null
     private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }
 
@@ -129,18 +133,22 @@ class SettingsScreenStateContractTest {
 
     @Suppress("DEPRECATION")
     private fun reveal(value: String) {
-        for (direction in listOf(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
-        for (attempt in 0 until 30) {
-            val visible = tree { find(it) { node -> node.isVisibleToUser && matches(node, value) }?.let { node ->
-                node.recycle(); true
-            } ?: false } == true
-            if (visible) return
-            val moved = tree { find(it) { node -> node.isScrollable }?.let { node ->
-                try { node.performAction(direction) } finally { node.recycle() }
-            } ?: false } == true
-            if (!moved) break
-            Thread.sleep(120)
-        }
+        fun visible() = tree { root ->
+            find(root) { it.isVisibleToUser && matches(it, value) }?.let { it.recycle(); true } ?: false
+        } == true
+        if (visible()) return
+        // Scroll in overlapping steps and inspect the settled layout. An animated
+        // accessibility page scroll can advance after the title first appears.
+        val step = (scrollState.viewportSize / 2).coerceAtLeast(1)
+        for (direction in listOf(1, -1)) {
+            while (true) {
+                val position = scrollState.value
+                val next = (position + direction * step).coerceIn(0, scrollState.maxValue)
+                if (next == position) break
+                runBlocking(Dispatchers.Main) { scrollState.scrollTo(next) }
+                instrumentation.waitForIdleSync()
+                if (visible()) return
+            }
         }
         fail("Setting not reachable: $value; nodes=${texts()}")
     }
@@ -270,6 +278,7 @@ class SettingsScreenStateContractTest {
             .putExtra("screen", "contract_host").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target ->
                 activity = target
+                scrollState = ScrollState(0)
                 val original = requireNotNull(target.window.callback)
                 target.window.callback = object : Window.Callback by original {
                     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -282,7 +291,7 @@ class SettingsScreenStateContractTest {
                     }
                 }
                 target.setContent { CompositionLocalProvider(LocalContext provides isolated) {
-                    AirPlayTheme { SettingsScreen(model) }
+                    AirPlayTheme { SettingsScreen(model, scrollState) }
                 } }
             }
             await("Settings screen not rendered") { texts()?.any { it.contains(label(R.string.setting_server_name)) } == true }

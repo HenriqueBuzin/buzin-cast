@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -39,7 +40,7 @@ import kotlin.math.roundToInt
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
-fun SettingsScreen(viewModel: MainViewModel) {
+fun SettingsScreen(viewModel: MainViewModel, scrollState: ScrollState = rememberScrollState()) {
     val selectedProfile by viewModel.pref(Prefs.EXPERIENCE_PROFILE).collectAsState()
     val dlnaEnabled by viewModel.pref(Prefs.DLNA_ENABLED).collectAsState()
     val fcastEnabled by viewModel.pref(Prefs.FCAST_ENABLED).collectAsState()
@@ -92,7 +93,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(vertical = 8.dp)
     ) {
         SectionHeader(stringResource(R.string.section_server))
