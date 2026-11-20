@@ -1559,3 +1559,16 @@ earlier candidate cannot hide a compatible one. The updated AVC contract
 verifies a successful 64 × 48 selection and a size beyond the entire AVC
 inventory. All 14 selector cases passed on normal API30 and compat DE/AT
 API22.
+
+The video capability contracts verify that an available performance-point
+result decides the request, including when the advertised list is empty.
+With no advertised data, the selector queries frame rates and retries portrait
+dimensions in landscape order when needed. On API29 and later the tests use
+Android `PerformancePoint` objects to check both resolution and frame rate.
+All 16 selector cases passed on normal API30 and compat DE/AT API28. Their
+JaCoCo reports cover both branches of the decision to use performance-point
+data or the measured fallback. The current suite has 260 Android cases.
+
+The full run pinned at `0a7158d` also verified the normal edition with 247
+Android cases, 21 native cases, and all 15 gates. It reached 75.00% JVM branch
+coverage and 97.28% native branch coverage.

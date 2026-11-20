@@ -160,11 +160,22 @@ class DecoderSelector(private val ctx: Context) {
     )
 
     private fun _canMeet(caps: VideoCapabilities, w: Int, h: Int, fps: Int): Boolean {
-        if (Build.VERSION.SDK_INT >= 29) {
-            val target = VideoCapabilities.PerformancePoint(w, h, fps)
-            caps.supportedPerformancePoints?.let { pts -> return pts.any { it.covers(target) } }
-        }
-        return _portraitSafe(w, h) { cw, ch -> _rateSupported(caps, cw, ch, fps) }
+        val coveredByPerformancePoints = if (Build.VERSION.SDK_INT >= 29) {
+            caps.supportedPerformancePoints?.let { performancePointsCoverRequest(it, w, h, fps) }
+        } else null
+        return canMeetVideoRequest(w, h, coveredByPerformancePoints) { cw, ch -> _rateSupported(caps, cw, ch, fps) }
+    }
+
+    internal fun canMeetVideoRequest(
+        width: Int, height: Int, coveredByPerformancePoints: Boolean?, measuredRateSupported: (Int, Int) -> Boolean,
+    ): Boolean = coveredByPerformancePoints ?: _portraitSafe(width, height, measuredRateSupported)
+
+    @androidx.annotation.RequiresApi(29)
+    internal fun performancePointsCoverRequest(
+        points: List<VideoCapabilities.PerformancePoint>, width: Int, height: Int, fps: Int,
+    ): Boolean {
+        val target = VideoCapabilities.PerformancePoint(width, height, fps)
+        return points.any { it.covers(target) }
     }
 
     private fun _rateSupported(caps: VideoCapabilities, w: Int, h: Int, fps: Int) = try {

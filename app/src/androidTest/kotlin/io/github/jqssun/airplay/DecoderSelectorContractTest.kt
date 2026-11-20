@@ -276,4 +276,37 @@ class DecoderSelectorContractTest {
         assertFalse(privateCall(selector, "_rateSupported", types, caps, 64, 48, Int.MAX_VALUE))
         assertFalse(privateCall(selector, "_canMeet", types, caps, 1_000_000, 1_000_000, 30))
     }
+
+    @Test fun performancePointEvidenceTakesPriorityOverRateEstimates() {
+        val selector = DecoderSelector(context)
+        val unused: (Int, Int) -> Boolean = { _, _ -> error("Performance points already answered this request") }
+        assertTrue(selector.canMeetVideoRequest(1080, 1920, true, unused))
+        assertFalse(selector.canMeetVideoRequest(1080, 1920, false, unused))
+
+        val measurements = mutableListOf<Pair<Int, Int>>()
+        assertTrue(selector.canMeetVideoRequest(1080, 1920, null) { w, h ->
+            measurements += w to h
+            w == 1920 && h == 1080
+        })
+        assertEquals(listOf(1080 to 1920, 1920 to 1080), measurements)
+        assertFalse(selector.canMeetVideoRequest(1920, 1080, null) { _, _ -> false })
+    }
+
+    @Test fun performancePointsCheckResolutionAndFrameRateTogether() {
+        val selector = DecoderSelector(context)
+        if (Build.VERSION.SDK_INT < 29) {
+            val caps = avc().videoCaps(DecoderSelector.AVC)
+            val types = arrayOf<Class<*>>(MediaCodecInfo.VideoCapabilities::class.java,
+                Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!)
+            assertTrue(privateCall(selector, "_canMeet", types, caps, 64, 48, 30))
+            return
+        }
+
+        val small = MediaCodecInfo.VideoCapabilities.PerformancePoint(640, 480, 30)
+        val large = MediaCodecInfo.VideoCapabilities.PerformancePoint(1920, 1080, 60)
+        assertTrue(selector.performancePointsCoverRequest(listOf(small, large), 1920, 1080, 60))
+        assertFalse(selector.performancePointsCoverRequest(listOf(small), 1920, 1080, 30))
+        assertFalse(selector.performancePointsCoverRequest(listOf(large), 1920, 1080, 61))
+        assertFalse(selector.performancePointsCoverRequest(emptyList(), 640, 480, 30))
+    }
 }
