@@ -1,12 +1,16 @@
 package io.github.jqssun.airplay
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.lifecycle.ViewModelStore
@@ -86,10 +90,18 @@ class ToolsScreenStateContractTest {
         fail("$message; visible nodes=$lastNodes")
     }
     @Suppress("DEPRECATION")
-    private fun snapshot(): List<Node>? {
-        val tree = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+    private fun snapshot(requireFocusedWindow: Boolean = false): List<Node>? {
+        val automation = instrumentation.uiAutomation
+        val tree = automation.rootInActiveWindow ?: return null
         try {
-            if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return null
+            if (!tree.refresh() || tree.packageName?.toString() != context.packageName || tree.childCount == 0) return null
+            if (requireFocusedWindow) {
+                val windows = automation.windows
+                val focused = try {
+                    windows.any { it.id == tree.windowId && it.isActive && it.isFocused }
+                } finally { windows.forEach { it.recycle() } }
+                if (!focused) return null
+            }
             val result = mutableListOf<Node>()
             fun visit(node: AccessibilityNodeInfo) {
                 if (node.isVisibleToUser) {
@@ -136,6 +148,26 @@ class ToolsScreenStateContractTest {
         } finally { tree.recycle() }
     }
     private fun click(label: String) { await("No actionable control: $label") { control(label, click = true) } }
+
+    private fun tap(label: String) {
+        lateinit var bounds: Rect
+        await("No visible touch target: $label") {
+            val target = snapshot(requireFocusedWindow = true)
+                ?.firstOrNull { it.text == label && it.enabled && !it.bounds.isEmpty }
+                ?: return@await false
+            bounds = target.bounds
+            true
+        }
+        val downTime = SystemClock.uptimeMillis()
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action,
+                bounds.exactCenterX(), bounds.exactCenterY(), 0)
+            try {
+                event.source = InputDevice.SOURCE_TOUCHSCREEN
+                assertTrue("Touch injection failed for $label", instrumentation.uiAutomation.injectInputEvent(event, true))
+            } finally { event.recycle() }
+        }
+    }
     private fun screen(block: () -> Unit) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
@@ -234,19 +266,40 @@ class ToolsScreenStateContractTest {
     }
 
     @Test fun diagnosticDialogReportsReceiverStateAndDismissesWithCloseAndBack() = screen {
-        for ((running, back) in listOf(false to false, true to true)) {
-            main { state("_serverState", if (running) ServerState.RUNNING else ServerState.STOPPED) }
-            click(text(R.string.tools_connection_diagnostics))
-            val expected = text(if (running) R.string.diag_receiver_running else R.string.diag_receiver_stopped)
-            await("Diagnostic report has wrong receiver status") {
-                snapshot()?.any { it.text.contains(expected) } == true
+        val automation = instrumentation.uiAutomation
+        val flags = automation.serviceInfo.flags
+        automation.serviceInfo = automation.serviceInfo.apply {
+            this.flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        try {
+            for ((running, back) in listOf(false to false, true to true)) {
+                main { state("_serverState", if (running) ServerState.RUNNING else ServerState.STOPPED) }
+                click(text(R.string.tools_connection_diagnostics))
+                val expected = text(if (running) R.string.diag_receiver_running else R.string.diag_receiver_stopped)
+                await("Diagnostic report has wrong receiver status") {
+                    snapshot(requireFocusedWindow = true)?.any { it.text.contains(expected) } == true
+                }
+                if (back) {
+                    instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+                } else tap(text(R.string.buzin_close))
+                val action = if (back) "Back" else "Close"
+                await("Diagnostic dialog did not dismiss with $action") {
+                    val nodes = snapshot() ?: return@await false
+                    nodes.none { it.text == text(R.string.buzin_close) } &&
+                        nodes.any { it.text == text(R.string.tools_connection_diagnostics) }
+                }
             }
-            if (back) {
-                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-            } else click(text(R.string.buzin_close))
-            await("Diagnostic dialog did not dismiss") {
-                absent(text(R.string.buzin_close)) && has(text(R.string.tools_connection_diagnostics))
+        } catch (failure: AssertionError) {
+            automation.takeScreenshot()?.let { image ->
+                try {
+                    File(context.filesDir, "main-contract-failure.png").outputStream().use {
+                        image.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                } finally { image.recycle() }
             }
+            throw failure
+        } finally {
+            automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
         }
     }
 

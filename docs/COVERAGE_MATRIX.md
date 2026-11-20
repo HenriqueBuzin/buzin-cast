@@ -1119,3 +1119,10 @@ The settings fixture now checks that the actual editor has focus and shows its
 normalized draft before dispatching IME Done. All six settings cases passed on
 normal API28, including resetting the maximum output buffer to automatic sizing.
 The same run still reproduced diagnostic dismissal failing in the Tools screen.
+
+The Tools diagnostic fixture now waits for the diagnostic window to receive
+input focus before injecting a touchscreen tap on Close or pressing Back. It
+verifies the Tools screen is visible again after each action. The API28 normal
+selection then passed all ten Settings and Tools tests in 48.080 seconds.
+Both failures from the 210-case normal run are covered by that selection.
+A complete matrix run is still required.
