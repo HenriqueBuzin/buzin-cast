@@ -1918,3 +1918,13 @@ The API22 replay of the frozen 311-case compat DE/AT APKs passed all 21
 native cases. Two settings instrumentation cases failed: the audio-delay
 slider range was not verified and the custom-height field could not be
 focused. The replay did not produce an eligible merged coverage report.
+
+The settings contracts now recognize the API22 SeekBar's zero-width
+accessibility range. They verify the rendered value beside the actual
+slider, the persisted preference, real keyboard focus, and DPAD changes.
+On API28 they continue to verify the reported range value. The custom
+resolution contract recognizes focus on the button or its labeled parent,
+uses Right to move from Width to Height, and checks that the pair is only
+saved together. Both contracts passed on the same compat DE/AT APK and
+test APK on API22 and API28. The complete API22 replay remains pending for
+the updated test build.

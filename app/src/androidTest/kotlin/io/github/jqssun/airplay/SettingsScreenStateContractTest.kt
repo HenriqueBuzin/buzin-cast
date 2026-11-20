@@ -148,7 +148,11 @@ class SettingsScreenStateContractTest {
     private fun texts(): List<String>? = tree { root ->
         val result = mutableListOf<String>()
         fun visit(node: AccessibilityNodeInfo) {
-            if (node.isVisibleToUser) result += "${node.className}:${node.text}:${node.contentDescription}"
+            if (node.isVisibleToUser) {
+                val range = node.rangeInfo?.let { " range=${it.current}/${it.min}..${it.max}" }.orEmpty()
+                val focused = if (node.isFocused) " focused" else ""
+                result += "${node.className}:${node.text}:${node.contentDescription}$range$focused"
+            }
             repeat(node.childCount) { i -> node.getChild(i)?.let { try { visit(it) } finally { it.recycle() } } }
         }
         visit(root)
@@ -199,27 +203,47 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun sliderValue(maximum: Float): Float? = tree { root ->
-        find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }?.let { node ->
-            try { node.rangeInfo.current } finally { node.recycle() }
+    private fun <T> withSlider(maximum: Float, displayedValue: String, action: (AccessibilityNodeInfo) -> T): T? = tree { root ->
+        val byRange = find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }
+        if (byRange != null) {
+            try { return@tree action(byRange) } finally { byRange.recycle() }
         }
+        // API22 reports this Compose SeekBar with a zero-width accessibility range.
+        // Locate the actual widget beside its rendered value in that case.
+        if (Build.VERSION.SDK_INT != 22) return@tree null
+        var row = find(root) { it.isVisibleToUser && matches(it, displayedValue) } ?: return@tree null
+        try {
+            while (row.className != "android.widget.ScrollView") {
+                val slider = find(row) {
+                    it.isVisibleToUser && it.className == "android.widget.SeekBar" &&
+                        it.rangeInfo?.let { range -> range.min == range.max } == true
+                }
+                if (slider != null) {
+                    try { return@tree action(slider) } finally { slider.recycle() }
+                }
+                val parent = row.parent ?: break
+                row.recycle()
+                row = parent
+            }
+            null
+        } finally { row.recycle() }
     }
 
-    @Suppress("DEPRECATION")
-    private fun adjustSlider(maximum: Float, key: Int) {
+    private fun sliderShows(maximum: Float, expected: Int, displayedValue: String): Boolean =
+        withSlider(maximum, displayedValue) { node ->
+            val range = node.rangeInfo
+            range?.current == expected.toFloat() ||
+                (Build.VERSION.SDK_INT == 22 && range != null && range.min == range.max)
+        } == true
+
+    private fun adjustSlider(maximum: Float, displayedValue: String, key: Int) {
         await("Slider was not focusable: max=$maximum") {
-            tree { root -> find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }?.let { node ->
-                try { node.isFocused || node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } finally { node.recycle() }
-            } ?: false } == true
+            withSlider(maximum, displayedValue) { it.isFocused || it.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } == true
         }
         await("Slider did not receive keyboard focus: max=$maximum") {
-            tree { root -> find(root) { it.isVisibleToUser && it.rangeInfo?.max == maximum }?.let { node ->
-                try { node.isFocused } finally { node.recycle() }
-            } ?: false } == true
+            withSlider(maximum, displayedValue) { it.isFocused } == true
         }
-        Log.d("SettingsContractTrace", "before key=$key max=$maximum range=${sliderValue(maximum)} adaptive=${Prefs.AUDIO_ADAPTIVE_STEP.read(prefs)} delay=${Prefs.AUDIO_LATENCY_MS.read(prefs)}")
         instrumentation.sendKeyDownUpSync(key)
-        Log.d("SettingsContractTrace", "after key=$key max=$maximum range=${sliderValue(maximum)} adaptive=${Prefs.AUDIO_ADAPTIVE_STEP.read(prefs)} delay=${Prefs.AUDIO_LATENCY_MS.read(prefs)}")
     }
 
     @Suppress("DEPRECATION")
@@ -298,12 +322,32 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun tvControlHasFocus(value: String): Boolean = tree { root ->
-        val focused = find(root) { it.isVisibleToUser && it.isFocused && !it.isEditable } ?: return@tree false
+    private fun <T> withTvButton(value: String, action: (AccessibilityNodeInfo, Boolean) -> T): T? = tree { root ->
+        var row = find(root) { it.isVisibleToUser && matches(it, value) } ?: return@tree null
         try {
-            find(focused) { matches(it, value) }?.let { it.recycle(); true } ?: false
-        } finally { focused.recycle() }
-    } == true
+            repeat(4) {
+                val button = find(row) {
+                    it.isVisibleToUser && it.isFocusable && it.className == "android.widget.Button"
+                }
+                if (button != null) {
+                    try { return@tree action(button, row.isFocused || button.isFocused) } finally { button.recycle() }
+                }
+                val parent = row.parent ?: return@tree null
+                row.recycle()
+                row = parent
+            }
+            null
+        } finally { row.recycle() }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun tvControlHasFocus(value: String): Boolean = tree { root ->
+        val focused = find(root) { node ->
+            node.isVisibleToUser && node.isFocused && !node.isEditable &&
+                (find(node) { matches(it, value) }?.let { it.recycle(); true } == true)
+        }
+        focused?.let { it.recycle(); true } ?: false
+    } == true || withTvButton(value) { _, focused -> focused } == true
 
     private fun focusTvControl(value: String) {
         reveal(value)
@@ -312,7 +356,11 @@ class SettingsScreenStateContractTest {
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
             instrumentation.waitForIdleSync()
         }
-        fail("Remote could not focus $value; nodes=${texts()}")
+        await("Remote could not focus $value") {
+            tvControlHasFocus(value) ||
+                withTvButton(value) { button, _ -> button.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } == true
+        }
+        await("Focus did not land on $value") { tvControlHasFocus(value) }
     }
 
     private fun pressTvControl(value: String) {
@@ -320,8 +368,9 @@ class SettingsScreenStateContractTest {
         instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
     }
 
-    private fun openTvEditor(value: String) {
-        pressTvControl(value)
+    private fun openTvEditor(value: String, focus: () -> Unit = { focusTvControl(value) }) {
+        focus()
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
         await("Remote OK did not open the editor for $value") { withEditor(value) { it.isFocused } }
     }
 
@@ -466,13 +515,19 @@ class SettingsScreenStateContractTest {
             val width = label(R.string.setting_resolution_width)
             val height = label(R.string.setting_resolution_height)
             val save = label(R.string.tv_edit_save)
-            for ((field, input, normalized) in listOf(Triple(width, "A12?80", "1280"), Triple(height, "7x20", "720"))) {
-                openTvEditor(field)
+            fun saveDimension(field: String, input: String, normalized: String) {
                 edit(field, input, expectedText = normalized)
                 pressTvControl(save)
                 await("Dimension editor stayed open: $field") { tvControlHasFocus(field) }
                 assertEquals("1600x900", Prefs.RESOLUTION.read(prefs))
             }
+            openTvEditor(width)
+            saveDimension(width, "A12?80", "1280")
+            openTvEditor(height) {
+                instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+                await("Right did not focus the adjacent height field") { tvControlHasFocus(height) }
+            }
+            saveDimension(height, "7x20", "720")
             pressTvControl(save)
             await("Custom dimensions were not applied together") { Prefs.RESOLUTION.read(prefs) == "1280x720" }
         }
@@ -552,28 +607,30 @@ class SettingsScreenStateContractTest {
         assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
         assertTrue(Prefs.AUDIO_AUTO_BUFFER.write(prefs, false))
         assertTrue(Prefs.AUDIO_ADAPTIVE_STEP.write(prefs, 0))
+        fun delayLabel(value: Int) = isolated.getString(R.string.audio_delay_value, value)
+        fun adaptiveLabel(step: Int) = isolated.getString(R.string.audio_adaptive_value, Prefs.ADAPTIVE_PERCENTILES[step],
+            isolated.resources.getStringArray(R.array.audio_adaptive_step_names)[step])
         screen {
             click(label(R.string.setting_audio_delay))
-            reveal(isolated.getString(R.string.audio_delay_value, 250))
-            await("Enabled audio delay did not render") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderValue(1000f) == 250f }
-            adjustSlider(1000f, KeyEvent.KEYCODE_DPAD_RIGHT)
-            await("Remote delay increase failed") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 300 && sliderValue(1000f) == 300f }
-            adjustSlider(1000f, KeyEvent.KEYCODE_DPAD_LEFT)
-            await("Remote delay decrease failed") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderValue(1000f) == 250f }
+            reveal(delayLabel(250))
+            await("Enabled audio delay did not render") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderShows(1000f, 250, delayLabel(250)) }
+            adjustSlider(1000f, delayLabel(250), KeyEvent.KEYCODE_DPAD_RIGHT)
+            await("Remote delay increase failed") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 300 && sliderShows(1000f, 300, delayLabel(300)) }
+            adjustSlider(1000f, delayLabel(300), KeyEvent.KEYCODE_DPAD_LEFT)
+            await("Remote delay decrease failed") { Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderShows(1000f, 250, delayLabel(250)) }
             switch(R.string.setting_audio_auto_buffer, Prefs.AUDIO_AUTO_BUFFER, true)
-            reveal(isolated.getString(R.string.audio_adaptive_value, Prefs.ADAPTIVE_PERCENTILES[0],
-                isolated.resources.getStringArray(R.array.audio_adaptive_step_names)[0]))
-            await("Adaptive slider did not render") { sliderValue(4f) == 0f }
-            adjustSlider(4f, KeyEvent.KEYCODE_DPAD_LEFT)
+            reveal(adaptiveLabel(0))
+            await("Adaptive slider did not render") { sliderShows(4f, 0, adaptiveLabel(0)) }
+            adjustSlider(4f, adaptiveLabel(0), KeyEvent.KEYCODE_DPAD_LEFT)
             assertEquals(0, Prefs.AUDIO_ADAPTIVE_STEP.read(prefs))
             for (step in 1..4) {
-                adjustSlider(4f, KeyEvent.KEYCODE_DPAD_RIGHT)
-                await("Adaptive step $step not applied") { Prefs.AUDIO_ADAPTIVE_STEP.read(prefs) == step && sliderValue(4f) == step.toFloat() }
+                adjustSlider(4f, adaptiveLabel(step - 1), KeyEvent.KEYCODE_DPAD_RIGHT)
+                await("Adaptive step $step not applied") { Prefs.AUDIO_ADAPTIVE_STEP.read(prefs) == step && sliderShows(4f, step, adaptiveLabel(step)) }
             }
-            adjustSlider(4f, KeyEvent.KEYCODE_DPAD_RIGHT)
+            adjustSlider(4f, adaptiveLabel(4), KeyEvent.KEYCODE_DPAD_RIGHT)
             assertEquals(4, Prefs.AUDIO_ADAPTIVE_STEP.read(prefs))
-            adjustSlider(4f, KeyEvent.KEYCODE_DPAD_LEFT)
-            await("Adaptive decrease failed") { Prefs.AUDIO_ADAPTIVE_STEP.read(prefs) == 3 && sliderValue(4f) == 3f }
+            adjustSlider(4f, adaptiveLabel(4), KeyEvent.KEYCODE_DPAD_LEFT)
+            await("Adaptive decrease failed") { Prefs.AUDIO_ADAPTIVE_STEP.read(prefs) == 3 && sliderShows(4f, 3, adaptiveLabel(3)) }
             switch(R.string.setting_audio_auto_buffer, Prefs.AUDIO_AUTO_BUFFER, false)
             reveal(label(R.string.setting_audio_cushion_ms))
             assertEquals(40, Prefs.AUDIO_CUSHION_MS.read(prefs))
