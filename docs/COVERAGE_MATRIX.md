@@ -1302,3 +1302,13 @@ All 15 receiver socket integration cases passed on normal API28. On the
 identical application APK, the selected DlnaReceiver report grew from
 91 to 94 out of 126 covered branches and from 108 to 116 out of 121 lines.
 The suite now has 225 Android cases.
+
+The DLNA integration tests now check the ownership and shutdown guards with
+real requests queued on the Android main looper. Seek, pause, play and stop
+do not reach a replacement FCast player. Closing the receiver discards a
+queued load and volume update and closes its listening socket. Repeated
+start calls create one listener.
+
+All 17 receiver integration cases passed on normal API28. On the identical
+application APK, DlnaReceiver coverage grew from 94 to 106 out of 126
+branches. The suite now has 227 Android cases.

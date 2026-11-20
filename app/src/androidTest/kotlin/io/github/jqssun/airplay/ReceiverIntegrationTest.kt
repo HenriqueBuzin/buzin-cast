@@ -21,6 +21,7 @@ import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.ServerSocket
+import java.net.ConnectException
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -149,7 +150,7 @@ class ReceiverIntegrationTest {
             } finally { first.close() }
         }
     }
-    private inner class DlnaControl(private val port: Int) {
+    private inner class DlnaControl(private val port: Int, val receiver: DlnaReceiver) {
         fun request(method: String, path: String, headers: String = "", body: String = ""): String =
             Socket(ip, port).use { socket ->
                 socket.soTimeout = 5000
@@ -188,8 +189,9 @@ class ReceiverIntegrationTest {
         val playback = Playback()
         DlnaReceiver(context, playback, "Buzin integration", { log += it }).use { receiver ->
             receiver.start()
-            val line = log.firstOrNull { it.contains("receiver started on") } ?: error(log.toString())
-            test(playback, DlnaControl(line.substringAfterLast(':').toInt()))
+            receiver.start()
+            val line = log.filter { it.contains("receiver started on") }.singleOrNull() ?: error(log.toString())
+            test(playback, DlnaControl(line.substringAfterLast(':').toInt(), receiver))
         }
     }
 
@@ -333,7 +335,7 @@ class ReceiverIntegrationTest {
         }
     }
 
-    @Test fun dlnaPendingLoadChecksAirPlayOwnershipAgainOnMainThread() = withDlna { playback, control ->
+    private fun whileMainIsGated(block: () -> Unit) {
         val blocked = CountDownLatch(1)
         val resume = CountDownLatch(1)
         val resumedInTime = AtomicBoolean(false)
@@ -344,20 +346,72 @@ class ReceiverIntegrationTest {
         })
         try {
             assertTrue("Main looper did not reach the fixture gate", blocked.await(4, TimeUnit.SECONDS))
-            val response = control.media("http://example.test/queued.mp4")
-            assertTrue(response, response.startsWith("HTTP/1.1 200"))
-            playback.activeConnections = 1
-            playback.mediaOwner = Protocol.AIRPLAY
-            playback.mediaActive = true
+            block()
         } finally {
             resume.countDown()
             instrumentation.waitForIdleSync()
         }
         assertTrue("The SOAP request did not complete while the main looper was gated", resumedInTime.get())
+    }
+
+    @Test fun dlnaPendingLoadChecksAirPlayOwnershipAgainOnMainThread() = withDlna { playback, control ->
+        whileMainIsGated {
+            val response = control.media("http://example.test/queued.mp4")
+            assertTrue(response, response.startsWith("HTTP/1.1 200"))
+            playback.activeConnections = 1
+            playback.mediaOwner = Protocol.AIRPLAY
+            playback.mediaActive = true
+        }
         eventually { control.state() == "STOPPED" }
         assertTrue(playback.requests.isEmpty())
         assertEquals(Protocol.AIRPLAY, playback.mediaOwner)
         assertTrue(playback.mediaActive)
+    }
+
+    @Test fun dlnaQueuedTransportCommandsCannotControlAReplacementPlayer() = withDlna { playback, control ->
+        playback.playbackInfo = PlaybackInfo(durationMs = 60_000)
+        val movie = "http://example.test/owned.mp4"
+        assertTrue(control.media(movie).startsWith("HTTP/1.1 200"))
+        eventually { control.state() == "PLAYING" }
+        whileMainIsGated {
+            control.accepted("Seek", "Unit" to "REL_TIME", "Target" to "0:00:20")
+            control.accepted("Pause")
+            assertEquals("PAUSED_PLAYBACK", control.state())
+            control.accepted("Play", "Speed" to "1")
+            assertEquals("PLAYING", control.state())
+            control.accepted("Stop")
+            assertEquals("STOPPED", control.state())
+            playback.mediaOwner = Protocol.FCAST
+        }
+        assertEquals(listOf(MediaRequest(movie, Protocol.DLNA)), playback.requests)
+        assertTrue(playback.events.toString(), playback.events.all { it == "authorize:DLNA" })
+        assertEquals(Protocol.FCAST, playback.mediaOwner)
+        assertTrue(playback.mediaActive)
+    }
+
+    @Test fun dlnaCloseDiscardsAcceptedButUndeliveredLoadAndVolume() {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val original = audio.getStreamVolume(stream)
+        assertTrue("Expected adjustable emulator media volume", audio.getStreamMaxVolume(stream) > 0 && !audio.isVolumeFixed)
+        val target = if (original == 0) 100 else 0
+        try {
+            withDlna { playback, control ->
+                whileMainIsGated {
+                    assertTrue(control.media("http://example.test/after-close.mp4").startsWith("HTTP/1.1 200"))
+                    assertTrue(control.rendering("SetVolume", "DesiredVolume" to target.toString()).startsWith("HTTP/1.1 200"))
+                    control.receiver.close()
+                    control.receiver.start()
+                }
+                assertTrue(playback.requests.isEmpty())
+                assertEquals(original, audio.getStreamVolume(stream))
+                val failed = runCatching { control.request("GET", "/desc.xml") }.exceptionOrNull()
+                assertTrue("Closed receiver unexpectedly accepted a request: $failed", failed is ConnectException)
+            }
+        } finally {
+            audio.setStreamVolume(stream, original, 0)
+            eventually { audio.getStreamVolume(stream) == original }
+        }
     }
 
     private fun receiveDlnaEvent(server: ServerSocket, path: String, sid: String, seq: Int, status: String = "200 OK"): String =
