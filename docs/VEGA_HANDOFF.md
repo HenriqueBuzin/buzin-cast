@@ -1,5 +1,20 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Controles de fotos DLNA no Vega
+
+O receptor mostra Anterior, Próxima, Apresentação, Girar, Preencher/Ajustar
+e Fechar foto. As setas percorrem os controles e OK ou toque os ativa.
+O visualizador mantém as últimas 20 URLs da sessão, baixa a foto ao
+selecioná-la e avança após cinco segundos durante a apresentação.
+Fechar a foto encerra a exibição e mantém o receptor DLNA disponível.
+
+No VVD ARM64, `tools/test_vega_dlna.py --jpeg …` passou com PNG, JPEG,
+navegação e apresentação pelo controle, metadados UPnP da foto atual,
+fechamento da foto e retorno ao vídeo. Os testes Jest também verificaram
+a geometria do giro e os modos de escala. Lint, TypeScript, 87 testes
+Jest e a validação ABI ARM64, ARMv7 e x86_64 passaram. A conferência
+visual do giro e do preenchimento em TV física segue pendente.
+
 ## Calibração das bordas no Vega
 
 **Configurações → Calibrar bordas** mostra uma moldura de referência.

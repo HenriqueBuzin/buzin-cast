@@ -324,6 +324,28 @@ def main():
         soap('avt', 'SetAVTransportURI', CurrentURI=alternate, CurrentURIMetaData=metadata)
         wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == alternate)
         time.sleep(0.55)
+        soap('avt', 'SetAVTransportURI', CurrentURI=photo_url, CurrentURIMetaData='')
+        wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == photo_url)
+
+        def photo_keys(*names):
+            for name in names:
+                shell('inputd-cli', 'button_press', 'KEY_' + name)
+
+        # Focus starts on Desativar e voltar, below the photo controls.
+        photo_keys('UP', *(['LEFT'] * 5), 'ENTER')
+        wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == alternate)
+        assert soap('avt', 'GetPositionInfo')['TrackMetaData'] == metadata
+        photo_keys('RIGHT', 'ENTER')
+        wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == photo_url)
+        photo_keys('RIGHT', 'ENTER')
+        wait(lambda: transport('PLAYING') and soap('avt', 'GetPositionInfo')['TrackURI'] == alternate)
+        photo_keys('ENTER')
+        # Close the photo and check that the UPnP service still responds.
+        photo_keys(*(['RIGHT'] * 5), 'ENTER')
+        assert transport('STOPPED')
+        result['photoHistoryAndSlideshowByRemote'] = True
+
+        time.sleep(0.55)
         soap('avt', 'SetAVTransportURI', CurrentURI=f'http://127.0.0.1:{MEDIA_PORT}/broken.png', CurrentURIMetaData='')
         wait(lambda: soap('avt', 'GetTransportInfo')['CurrentTransportStatus'] == 'ERROR_OCCURRED')
         time.sleep(0.55)

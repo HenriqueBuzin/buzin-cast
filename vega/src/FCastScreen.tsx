@@ -3,8 +3,8 @@ import TvButton from './TvButton';
 import RecordingButton from './RecordingButton';
 import RelaySenderControls from './RelaySenderControls';
 import ConnectionApprovalPrompt from './ConnectionApprovalPrompt';
-import React, {useEffect, useRef, useState} from 'react';
-import {AppState, Image, StyleSheet, Text, View} from 'react-native';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {AppState, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {createCastV2Receiver} from './castV2Receiver';
 import {createFCastReceiver} from './fcastReceiver';
@@ -14,6 +14,7 @@ import type {ConnectionApprovalRequest} from './connectionApproval';
 import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import type {PlaybackSnapshot} from './playbackSession';
 import VideoViewport from './VideoViewport';
+import DlnaPhotoViewer from './DlnaPhotoViewer';
 
 const titles = {
   fcast: 'FCast v2 experimental',
@@ -26,7 +27,7 @@ const titles = {
 
 export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: keyof typeof titles}) {
   const receiver = useRef<(Pick<ReturnType<typeof createFCastReceiver>, 'attachSurface' | 'detachSurface' | 'togglePause' | 'stop'> &
-    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed' | 'answerApproval'>>) | null>(null);
+    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed' | 'navigatePhoto' | 'closePhoto' | 'answerApproval'>>) | null>(null);
   const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
@@ -37,6 +38,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
   const [pin, setPin] = useState('');
   const [relay, setRelay] = useState<RelayView | null>(null);
   const [focus, setFocus] = useState('back');
+  const movePhoto = useCallback((delta: -1 | 1) => receiver.current?.navigatePhoto?.(delta), []);
   const subtitleMedia = protocol !== 'mirror' && protocol !== 'relay' && !photo && snapshot && ['playing', 'paused'].includes(snapshot.state) ? token : null;
   const subtitles = usePlaybackSubtitles(subtitleMedia);
   useEffect(() => {
@@ -68,19 +70,15 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
     <View style={styles.screen}>
       <Text style={styles.title}>{titles[protocol]}</Text>
       {photo ? (
-        <VideoViewport style={styles.video}>
-          {photo.source && (
-            <Image
-              key={photo.token}
-              style={styles.photo}
-              source={photo.source}
-              resizeMode="contain"
-              aria-label="Foto recebida pelo DLNA"
-              onLoad={() => receiver.current?.photoDisplayed?.(photo.token, true)}
-              onError={() => receiver.current?.photoDisplayed?.(photo.token, false)}
-            />
-          )}
-        </VideoViewport>
+        <DlnaPhotoViewer
+          photo={photo}
+          state={snapshot?.state}
+          blocked={!!approval}
+          viewportStyle={styles.video}
+          onMove={movePhoto}
+          onClose={() => receiver.current?.closePhoto?.()}
+          onDisplayed={(current, success) => receiver.current?.photoDisplayed?.(current, success)}
+        />
       ) : token === null ? (
         <View style={styles.waiting}>
           {(protocol !== 'relay' || !listening || failed) && (
@@ -137,11 +135,8 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           {subtitleMedia !== null && <SubtitleCaption text={subtitles.caption(snapshot?.seconds ?? 0)} />}
         </VideoViewport>
       )}
-      <Text style={styles.details}>
-        {photo
-          ? snapshot?.state === 'error' ? 'Não foi possível exibir a foto.'
-            : snapshot?.state === 'loading' ? 'Carregando foto…' : ''
-          : snapshot
+      {!photo && <Text style={styles.details}>
+        {snapshot
           ? `${
               snapshot.state === 'error'
                 ? 'Falha de reprodução'
@@ -152,7 +147,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
                 : 'Reproduzindo'
             } • ${snapshot.seconds.toFixed(1)} s`
           : ''}
-      </Text>
+      </Text>}
       {approval && (
         <ConnectionApprovalPrompt
           key={approval.id}
@@ -206,7 +201,6 @@ const styles = StyleSheet.create({
   pin: {color: 'white', fontSize: 36, fontWeight: 'bold'},
   waiting: {flex: 1, maxWidth: 820, justifyContent: 'center', gap: 20},
   video: {width: '80%', flex: 1, backgroundColor: 'black'},
-  photo: {width: '100%', height: '100%'},
   details: {
     color: '#B7C9DD',
     fontSize: 20,
