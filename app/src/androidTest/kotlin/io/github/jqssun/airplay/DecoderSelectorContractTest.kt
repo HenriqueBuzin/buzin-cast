@@ -119,6 +119,39 @@ class DecoderSelectorContractTest {
         assertFalse(selector.adaptive(info, "video/x-buzin-contract-unsupported"))
     }
 
+    @Test fun emulatorDetectionAcceptsEachSupportedHardwareOrBrand() {
+        assertTrue(DecoderSelector.isEmulatedDevice("ranchu", "generic"))
+        assertTrue(DecoderSelector.isEmulatedDevice("cheets", "chromeos"))
+        assertTrue(DecoderSelector.isEmulatedDevice("generic", "Android-x86"))
+        assertFalse(DecoderSelector.isEmulatedDevice("qcom", "Amazon"))
+    }
+
+    @Test fun legacySoftwareAndOldAdrenoDecodersAreExcludedAtTheirBoundaries() {
+        val unsafeSoftware = listOf("OMX.qcom.video.decoder.hevcswvdec", "OMX.SEC.hevc.sw.dec")
+        val legacySoftware = listOf("omx.google", "AVCDecoder")
+        assertEquals(unsafeSoftware, DecoderSelector.decoderBlacklist(true, 28, 400))
+        assertEquals(legacySoftware + "OMX.ffmpeg" + unsafeSoftware + "OMX.qcom.video.decoder.hevc",
+            DecoderSelector.decoderBlacklist(false, 28, 399))
+        assertEquals(legacySoftware + unsafeSoftware, DecoderSelector.decoderBlacklist(false, 29, 400))
+    }
+
+    @Test fun hevcPrefixesRespectAndroidAndDeviceSpecificExceptions() {
+        val generic = setOf("omx.exynos", "omx.hisi", "c2.")
+        fun prefixes(hardware: String = "physical", sdk: Int = 28, device: String = "generic",
+                     adreno: Int = 399, fireOs: Boolean = false, renderer: String = "") =
+            DecoderSelector.hevcCodecPrefixes(hardware, sdk, device, adreno, fireOs, renderer).toSet()
+        assertEquals(generic, prefixes(sdk = 25, device = "BRAVIA_test"))
+        assertEquals(generic + "omx.google" + "omx.nvidia", prefixes(hardware = "ranchu", sdk = 26))
+        assertEquals(generic + "omx.nvidia" + "omx.mtk", prefixes(sdk = 26, device = "BRAVIA_test"))
+        for (tablet in listOf("ShieldTablet", "mocha")) assertEquals(generic, prefixes(sdk = 26, device = tablet))
+        assertEquals(generic + "omx.nvidia", prefixes(sdk = 27))
+        assertEquals(generic + "omx.nvidia" + "omx.amlogic" + "omx.realtek", prefixes(sdk = 28))
+        assertEquals(generic + "omx.nvidia" + "omx.realtek", prefixes(device = "SABRINA"))
+        assertEquals(generic + "omx.mtk" + "omx.amlogic", prefixes(sdk = 22, fireOs = true))
+        assertEquals(generic + "omx.mtk", prefixes(sdk = 22, renderer = "powervr rogue"))
+        assertEquals(generic + "omx.qcom" + "c2.qti", prefixes(sdk = 22, adreno = 400))
+    }
+
     @Test fun qualcommRetriesKeepOnlyTheKeysAllowedAtEachAttempt() {
         val selector = DecoderSelector(context)
         val pictureOrder = "vendor.qti-ext-dec-picture-order.enable"

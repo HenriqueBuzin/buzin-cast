@@ -1522,3 +1522,17 @@ The nine selector cases passed on normal API28 and on compat DE/AT API22
 and API28. The policy method covered 27 of 28 branches on API28, and 28 of
 28 when combining the same compat DE/AT APK's profiles across both APIs.
 The current suite has 253 Android cases.
+
+The HEVC device contracts now exercise the selector's allowlist and blocklist
+for emulator families, legacy software codecs, Adreno 399 and 400, Bravia,
+NVIDIA K1 tablets, Sabrina, Fire OS, and PowerVR. They verify the Android 26,
+28, and 29 thresholds using the same prefix policies as the platform selector.
+All 12 selector cases passed on normal API28 and compat DE/AT on API22 and
+API28. All 34 branches of the three device policy methods were covered in
+the normal and combined regional reports. `DecoderSelector.kt` increased
+from 102 to 122 of 188 covered branches in the selected normal run. The
+current suite has 256 Android cases.
+
+The full run pinned at `0a7158d` passed compat DE/AT with 247 Android tests,
+21 native cases, and the remaining runtime gates. The edition reached 74.80%
+JVM branch coverage and 96.97% native branch coverage.

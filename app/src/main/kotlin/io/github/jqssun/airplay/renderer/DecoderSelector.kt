@@ -17,7 +17,7 @@ class DecoderSelector(private val ctx: Context) {
 
     var maxOperatingRate: Boolean? = null
 
-    private val emulator = Build.HARDWARE == "ranchu" || Build.HARDWARE == "cheets" || Build.BRAND == "Android-x86"
+    private val emulator = isEmulatedDevice(Build.HARDWARE, Build.BRAND)
 
     private val glRenderer by lazy {
         runCatching { EglCore().use { GLES20.glGetString(GLES20.GL_RENDERER) ?: "" } }
@@ -33,33 +33,11 @@ class DecoderSelector(private val ctx: Context) {
     }
 
     private val blacklist by lazy {
-        buildList {
-            if (!emulator) {
-                add("omx.google"); add("AVCDecoder")
-                if (Build.VERSION.SDK_INT < 29) add("OMX.ffmpeg")
-            }
-            // software hevc that can crash on streams
-            add("OMX.qcom.video.decoder.hevcswvdec"); add("OMX.SEC.hevc.sw.dec")
-            // adreno 3xx qti hevc broken
-            if (adreno < 400) add("OMX.qcom.video.decoder.hevc")
-        }
+        decoderBlacklist(emulator, Build.VERSION.SDK_INT, adreno)
     }
 
     private val hevcWhitelist by lazy {
-        buildList {
-            if (Build.HARDWARE == "ranchu") add("omx.google")
-            add("omx.exynos")
-            // k1 tablets partially accelerate hevc
-            if (Build.VERSION.SDK_INT >= 26 && Build.DEVICE.lowercase() !in listOf("shieldtablet", "mocha")) add("omx.nvidia")
-            if (Build.VERSION.SDK_INT >= 26 && Build.DEVICE.startsWith("BRAVIA_")) add("omx.mtk")
-            if (Build.VERSION.SDK_INT >= 28 && !Build.DEVICE.equals("sabrina", ignoreCase = true)) add("omx.amlogic")
-            if (Build.VERSION.SDK_INT >= 28) add("omx.realtek")
-            add("omx.hisi")
-            add("c2.")
-            if (adreno >= 400) addAll(qti)
-            if (fireOs) { add("omx.mtk"); add("omx.amlogic") }
-            if ("powervr" in glRenderer) add("omx.mtk")
-        }
+        hevcCodecPrefixes(Build.HARDWARE, Build.VERSION.SDK_INT, Build.DEVICE, adreno, fireOs, glRenderer)
     }
 
     fun avc(): MediaCodecInfo? = _probableSafe(AVC, CodecProfileLevel.AVCProfileHigh) ?: _first(AVC)
@@ -202,6 +180,41 @@ class DecoderSelector(private val ctx: Context) {
             listOf("omx.exynos", "c2.exynos") to mapOf("vendor.rtc-ext-dec-low-latency.enable" to 1),
             listOf("omx.amlogic", "c2.amlogic") to mapOf("vendor.low-latency.enable" to 1),
         )
+
+        internal fun isEmulatedDevice(hardware: String, brand: String) =
+            hardware == "ranchu" || hardware == "cheets" || brand == "Android-x86"
+
+        internal fun decoderBlacklist(emulator: Boolean, sdk: Int, adreno: Int): List<String> = buildList {
+            if (!emulator) {
+                add("omx.google")
+                add("AVCDecoder")
+                if (sdk < 29) add("OMX.ffmpeg")
+            }
+            // These software decoders can crash on HEVC streams.
+            add("OMX.qcom.video.decoder.hevcswvdec")
+            add("OMX.SEC.hevc.sw.dec")
+            if (adreno < 400) add("OMX.qcom.video.decoder.hevc")
+        }
+
+        internal fun hevcCodecPrefixes(
+            hardware: String, sdk: Int, device: String, adreno: Int, fireOs: Boolean, renderer: String,
+        ): List<String> = buildList {
+            if (hardware == "ranchu") add("omx.google")
+            add("omx.exynos")
+            // K1 tablets only partially accelerate HEVC.
+            if (sdk >= 26 && device.lowercase() !in listOf("shieldtablet", "mocha")) add("omx.nvidia")
+            if (sdk >= 26 && device.startsWith("BRAVIA_")) add("omx.mtk")
+            if (sdk >= 28 && !device.equals("sabrina", ignoreCase = true)) add("omx.amlogic")
+            if (sdk >= 28) add("omx.realtek")
+            add("omx.hisi")
+            add("c2.")
+            if (adreno >= 400) addAll(qti)
+            if (fireOs) {
+                add("omx.mtk")
+                add("omx.amlogic")
+            }
+            if ("powervr" in renderer) add("omx.mtk")
+        }
 
         fun MediaCodecInfo.videoCaps(mime: String): VideoCapabilities =
             getCapabilitiesForType(mime.lowercase(Locale.ROOT)).videoCapabilities!!
