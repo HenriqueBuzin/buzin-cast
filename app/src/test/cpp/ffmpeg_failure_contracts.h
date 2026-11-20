@@ -45,6 +45,57 @@ struct TestDecodedFrame {
     bool delivered = false;
 };
 thread_local TestDecodedFrame *activeDecodedFrame = nullptr;
+
+enum class PlatformCodecStage { Configure, Start };
+struct PlatformCodecFault {
+    const PlatformCodecStage stage;
+    AMediaCodec *rejected = nullptr;
+    int failures = 0;
+    int released = 0;
+
+    media_status_t reject(AMediaCodec *codec) {
+        rejected = codec;
+        ++failures;
+        return AMEDIA_ERROR_UNKNOWN;
+    }
+};
+thread_local PlatformCodecFault *activePlatformFault = nullptr;
+
+struct ScopedPlatformCodecFault {
+    PlatformCodecFault fault;
+    PlatformCodecFault *previous = activePlatformFault;
+    explicit ScopedPlatformCodecFault(PlatformCodecStage stage) : fault{stage} { activePlatformFault = &fault; }
+    ~ScopedPlatformCodecFault() { activePlatformFault = previous; }
+};
+}
+
+extern "C" media_status_t __real_AMediaCodec_configure(
+    AMediaCodec *, const AMediaFormat *, ANativeWindow *, AMediaCrypto *, uint32_t);
+extern "C" media_status_t __real_AMediaCodec_start(AMediaCodec *);
+extern "C" media_status_t __real_AMediaCodec_delete(AMediaCodec *);
+
+extern "C" media_status_t __wrap_AMediaCodec_configure(
+    AMediaCodec *codec, const AMediaFormat *format, ANativeWindow *surface, AMediaCrypto *crypto, uint32_t flags) {
+    auto *fault = activePlatformFault;
+    if (fault && fault->stage == PlatformCodecStage::Configure) return fault->reject(codec);
+    return __real_AMediaCodec_configure(codec, format, surface, crypto, flags);
+}
+
+extern "C" media_status_t __wrap_AMediaCodec_start(AMediaCodec *codec) {
+    auto *fault = activePlatformFault;
+    if (fault && fault->stage == PlatformCodecStage::Start) return fault->reject(codec);
+    return __real_AMediaCodec_start(codec);
+}
+
+extern "C" media_status_t __wrap_AMediaCodec_delete(AMediaCodec *codec) {
+    auto *fault = activePlatformFault;
+    const bool rejected = fault && fault->rejected == codec;
+    const auto result = __real_AMediaCodec_delete(codec);
+    if (rejected && result == AMEDIA_OK) {
+        fault->rejected = nullptr;
+        ++fault->released;
+    }
+    return result;
 }
 
 extern "C" AVCodecContext *__real_avcodec_alloc_context3(const AVCodec *);
@@ -140,6 +191,61 @@ extern "C" int __wrap_avcodec_receive_frame(AVCodecContext *context, AVFrame *fr
     }
     replacement->delivered = true;
     return 0;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeAacConfigurationContracts(JNIEnv *env, jobject) {
+#define AAC_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    struct Expected {
+        int type, samples, profile;
+        size_t size;
+        std::array<uint8_t, 4> bytes;
+    };
+    const Expected cases[] = {
+        {CT_AAC_LC, 1024, 2, 2, {0x12, 0x10}},
+        {CT_AAC_LC, 960, 2, 2, {0x12, 0x14}},
+        {CT_AAC_ELD, 512, 39, 4, {0xF8, 0xE8, 0x40, 0x00}},
+        {CT_AAC_ELD, 480, 39, 4, {0xF8, 0xE8, 0x50, 0x00}},
+    };
+    for (const auto &expected : cases) {
+        const auto config = codecConfig(expected.type, expected.samples, 44100, 2);
+        AAC_CONTRACT(config && config->csdLen == expected.size);
+        AAC_CONTRACT(config->aacProfile == expected.profile && config->ffmpegId == AV_CODEC_ID_AAC);
+        AAC_CONTRACT(config->sampleRate == 44100 && config->channels == 2);
+        AAC_CONTRACT(strcmp(config->mime, "audio/mp4a-latm") == 0);
+        AAC_CONTRACT(memcmp(config->csd, expected.bytes.data(), expected.size) == 0);
+    }
+    AAC_CONTRACT(!codecConfig(-1, 1024, 44100, 2));
+#undef AAC_CONTRACT
+    return env->NewStringUTF("AAC configuration contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformDecoderFallbackContracts(JNIEnv *env, jobject) {
+#define FALLBACK_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    LogSink log;
+    LatencyReporter latency("AAC fallback contract", log);
+    TimelineBuffer timeline(44100, 2, 0, 95);
+    for (const auto stage : {PlatformCodecStage::Configure, PlatformCodecStage::Start}) {
+        ScopedPlatformCodecFault platform(stage);
+        ScopedDecoderAllocationFault software(DecoderAllocation::None);
+        auto decoder = makeDecoder(CT_AAC_LC, 1024, 44100, 2, timeline, latency, log, false, false, false);
+        FALLBACK_CONTRACT(platform.fault.failures > 0 && platform.fault.failures == platform.fault.released);
+        FALLBACK_CONTRACT(decoder && software.fault.context && software.fault.frame && software.fault.packet);
+        decoder.reset();
+        FALLBACK_CONTRACT(!software.fault.context && !software.fault.frame && !software.fault.packet);
+    }
+    {
+        ScopedPlatformCodecFault platform(PlatformCodecStage::Configure);
+        ScopedDecoderAllocationFault software(DecoderAllocation::Context);
+        FALLBACK_CONTRACT(!makeDecoder(CT_AAC_LC, 1024, 44100, 2, timeline, latency, log, false, false, false));
+        FALLBACK_CONTRACT(platform.fault.failures > 0 && platform.fault.failures == platform.fault.released);
+        FALLBACK_CONTRACT(software.fault.rejected);
+    }
+    auto decoder = makeDecoder(CT_AAC_LC, 1024, 44100, 2, timeline, latency, log, false, false, false);
+    FALLBACK_CONTRACT(decoder);
+#undef FALLBACK_CONTRACT
+    return env->NewStringUTF("platform decoder fallback contracts passed");
 }
 
 extern "C" JNIEXPORT jstring JNICALL

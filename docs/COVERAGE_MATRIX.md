@@ -1409,3 +1409,23 @@ All 33 selected Android cases passed on normal API28. With identical compiled
 player classes, `AirPlayVideoPlayer.kt` went from 132 to 173 of 173 covered
 lines and from 57 to 96 of 130 covered branches. The current suite has 242
 Android cases.
+
+The AAC configuration contract checks the exact AudioSpecificConfig bytes
+for LC at 960 and 1024 samples and ELD at 480 and 512 samples. The fallback
+contract injects platform configure and start failures independently in the
+coverage build. It verifies release of each rejected platform codec, a
+successful FFmpeg fallback with its own resource cleanup, and a clean failure
+when the software allocation also fails.
+
+The 19 selected native-audio Android cases passed independently on normal
+and compat DE/AT API28. Both LLVM profiles cover all 10 branch outcomes each
+in `codecConfig`, `startCodec`, and `makeDecoder`. The current suite has 244
+Android cases.
+
+Both new cases also passed on API22 using the same compat DE/AT APK and
+test APK. Combining the profiles from that identical native binary raised
+`startMediaCodec` from 8 to 11 of 14 covered branches.
+
+In the separate full run pinned at `1b991d4`, normal passed all 231 Android
+tests, 21 native cases, and the remaining runtime gates. It reached 73.05%
+JVM branch coverage and 95.00% native branch coverage.

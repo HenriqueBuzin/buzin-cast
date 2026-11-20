@@ -202,6 +202,7 @@ if(BUZIN_COVERAGE)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
         "-Wl,--wrap=raop_init" "-Wl,--wrap=raop_init2" "-Wl,--wrap=dnssd_init"
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
+        "-Wl,--wrap=AMediaCodec_configure" "-Wl,--wrap=AMediaCodec_start" "-Wl,--wrap=AMediaCodec_delete"
         "-Wl,--wrap=pthread_setspecific"
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
         "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"

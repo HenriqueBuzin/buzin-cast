@@ -10,6 +10,8 @@ object DebugCoverage {
     /** Contract fixture is linked only into the instrumented native library. */
     external fun nativeAudioContracts(): String
     external fun nativeFfmpegFailureContracts(packet: ByteArray): String
+    external fun nativeAacConfigurationContracts(): String
+    external fun nativePlatformDecoderFallbackContracts(): String
     external fun nativeDnsContracts(): String
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
     external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int,

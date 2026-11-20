@@ -12,15 +12,24 @@ import java.io.DataInputStream
 /** Real native C API boundaries; fixture exists only with -PbuzinCoverage=true. */
 @RunWith(AndroidJUnit4::class)
 class NativeAudioContractTest {
-    @Test fun invalidInputsAndPreconfigurationLifecycleAreSafe() {
+    private fun decoderContract(expected: String, check: () -> String) {
         assumeTrue("Requires the instrumented coverage APK", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
         System.loadLibrary("airplay_native")
         try {
-            assertEquals("audio contracts passed", DebugCoverage.nativeAudioContracts())
+            assertEquals(expected, check())
         } finally {
             DebugCoverage.dump(InstrumentationRegistry.getInstrumentation().targetContext)
         }
     }
+
+    @Test fun aacFrameSizesUseTheExpectedAudioSpecificConfig() =
+        decoderContract("AAC configuration contracts passed", DebugCoverage::nativeAacConfigurationContracts)
+
+    @Test fun aacFallingBackAfterPlatformFailureReleasesBothDecoders() =
+        decoderContract("platform decoder fallback contracts passed", DebugCoverage::nativePlatformDecoderFallbackContracts)
+
+    @Test fun invalidInputsAndPreconfigurationLifecycleAreSafe() =
+        decoderContract("audio contracts passed", DebugCoverage::nativeAudioContracts)
 
     @Test fun ffmpegAllocationFailuresReleasePartialStateAndTheNextDecoderProducesPcm() {
         assumeTrue("Requires the instrumented coverage APK", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
