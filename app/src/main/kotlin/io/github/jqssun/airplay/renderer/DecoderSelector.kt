@@ -87,11 +87,17 @@ class DecoderSelector(private val ctx: Context) {
             .getOrDefault(false)
 
     // most to least risky
-    fun lowLatencyOptions(format: MediaFormat, info: MediaCodecInfo, mime: String, tryNum: Int): Boolean {
+    fun lowLatencyOptions(format: MediaFormat, info: MediaCodecInfo, mime: String, tryNum: Int): Boolean =
+        lowLatencyOptions(format, info.name, tryNum, { _lowLatency(info, mime) }, { adreno })
+
+    internal fun lowLatencyOptions(
+        format: MediaFormat, codecName: String, tryNum: Int,
+        nativeLowLatency: () -> Boolean, adrenoModel: () -> Int,
+    ): Boolean {
         var set = false
         if (tryNum < 1) {
             format.setInteger("low-latency", 1)
-            if (_lowLatency(info, mime)) return true
+            if (nativeLowLatency()) return true
             set = true
         }
         if (tryNum < 2) {
@@ -99,17 +105,17 @@ class DecoderSelector(private val ctx: Context) {
             set = true
         }
         if (tryNum < 3) {
-            val max = maxOperatingRate ?: (_inList(qti, info.name) && adreno != 620)
+            val max = maxOperatingRate ?: (_inList(qti, codecName) && adrenoModel() != 620)
             if (max) format.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE.toInt())
             else format.setInteger(MediaFormat.KEY_PRIORITY, 0)
             set = true
         }
         if (Build.VERSION.SDK_INT >= 26) {
-            if (_inList(qti, info.name)) {
+            if (_inList(qti, codecName)) {
                 if (tryNum < 4) { format.setInteger("vendor.qti-ext-dec-picture-order.enable", 1); set = true }
                 if (tryNum < 5) { format.setInteger("vendor.qti-ext-dec-low-latency.enable", 1); set = true }
             } else if (tryNum < 4) {
-                vendorLowLatency.firstOrNull { (prefixes, _) -> _inList(prefixes, info.name) }?.let { (_, keys) ->
+                vendorLowLatency.firstOrNull { (prefixes, _) -> _inList(prefixes, codecName) }?.let { (_, keys) ->
                     keys.forEach { (k, v) -> format.setInteger(k, v) }
                     set = true
                 }

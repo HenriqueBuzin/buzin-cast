@@ -119,6 +119,62 @@ class DecoderSelectorContractTest {
         assertFalse(selector.adaptive(info, "video/x-buzin-contract-unsupported"))
     }
 
+    @Test fun qualcommRetriesKeepOnlyTheKeysAllowedAtEachAttempt() {
+        val selector = DecoderSelector(context)
+        val pictureOrder = "vendor.qti-ext-dec-picture-order.enable"
+        val lowLatency = "vendor.qti-ext-dec-low-latency.enable"
+        val vendorKeys = Build.VERSION.SDK_INT >= 26
+        val firstUnchangedAttempt = if (vendorKeys) 5 else 3
+        for (codec in listOf("OMX.QCOM.video.decoder.avc", "c2.QTI.avc.decoder")) {
+            for (gpu in listOf(619, 620)) {
+                for (attempt in 0..5) {
+                    val format = MediaFormat.createVideoFormat(DecoderSelector.AVC, 64, 48)
+                    val changed = selector.lowLatencyOptions(format, codec, attempt, { false }, { gpu })
+                    assertEquals(attempt < firstUnchangedAttempt, changed)
+                    assertEquals(attempt < 1, format.containsKey("low-latency"))
+                    assertEquals(attempt < 2, format.containsKey("vdec-lowlatency"))
+                    assertEquals(attempt < 3 && gpu != 620, format.containsKey(MediaFormat.KEY_OPERATING_RATE))
+                    assertEquals(attempt < 3 && gpu == 620, format.containsKey(MediaFormat.KEY_PRIORITY))
+                    assertEquals(vendorKeys && attempt < 4, format.containsKey(pictureOrder))
+                    assertEquals(vendorKeys && attempt < 5, format.containsKey(lowLatency))
+                    if (format.containsKey(pictureOrder)) assertEquals(1, format.getInteger(pictureOrder))
+                    if (format.containsKey(lowLatency)) assertEquals(1, format.getInteger(lowLatency))
+                }
+            }
+        }
+    }
+
+    @Test fun vendorKeysAndNativeLowLatencyAreAppliedOnlyAtTheirSupportedAttempts() {
+        val selector = DecoderSelector(context)
+        data class Vendor(val name: String, val keys: Map<String, Int>)
+        val vendors = listOf(
+            Vendor("omx.hisi.decoder", mapOf(
+                "vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-req" to 1,
+                "vendor.hisi-ext-low-latency-video-dec.video-scene-for-low-latency-rdy" to -1,
+            )),
+            Vendor("C2.EXYNOS.decoder", mapOf("vendor.rtc-ext-dec-low-latency.enable" to 1)),
+            Vendor("c2.amlogic.decoder", mapOf("vendor.low-latency.enable" to 1)),
+        )
+        val knownKeys = vendors.flatMap { it.keys.keys }
+        for ((name, keys) in vendors) {
+            val initial = MediaFormat.createVideoFormat(DecoderSelector.AVC, 64, 48)
+            assertTrue(selector.lowLatencyOptions(initial, name, 0, { true }, { error("Unexpected GPU query") }))
+            assertEquals(1, initial.getInteger("low-latency"))
+            assertFalse(initial.containsKey("vdec-lowlatency"))
+            assertFalse(initial.containsKey(MediaFormat.KEY_PRIORITY))
+            assertTrue(knownKeys.none(initial::containsKey))
+
+            for (attempt in listOf(3, 4)) {
+                val retry = MediaFormat.createVideoFormat(DecoderSelector.AVC, 64, 48)
+                val vendorKeys = Build.VERSION.SDK_INT >= 26 && attempt == 3
+                assertEquals(vendorKeys, selector.lowLatencyOptions(retry, name, attempt,
+                    { error("Unexpected native feature query") }, { error("Unexpected GPU query") }))
+                assertEquals(if (vendorKeys) keys else emptyMap<String, Int>(),
+                    knownKeys.filter(retry::containsKey).associateWith(retry::getInteger))
+            }
+        }
+    }
+
     @Test fun portraitFallbackOnlySwapsDimensionsAfterTheOriginalCheckFails() {
         val selector = DecoderSelector(context)
         data class Case(val width: Int, val height: Int, val supported: Set<Pair<Int, Int>>,

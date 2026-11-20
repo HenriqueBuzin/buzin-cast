@@ -1510,3 +1510,15 @@ APK, test APK, and native binary. `audio_decoder.h` reached 100% on all six
 native metrics in the normal selected run and in the combined compat DE/AT
 profile. These reports cover this decoder source, while the full edition
 reports cover the entire application. The suite has 251 Android cases.
+
+The video decoder contracts now exercise Qualcomm option removal across
+retries, the Adreno 620 operating-rate exception, Hisilicon, Exynos, and
+Amlogic settings, and early return for codecs with native low latency.
+The production selector still queries Android's actual codec capabilities
+and renderer. The tests pass controlled codec names and capability responses
+to the same format configuration code.
+
+The nine selector cases passed on normal API28 and on compat DE/AT API22
+and API28. The policy method covered 27 of 28 branches on API28, and 28 of
+28 when combining the same compat DE/AT APK's profiles across both APIs.
+The current suite has 253 Android cases.
