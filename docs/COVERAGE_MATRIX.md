@@ -1646,3 +1646,11 @@ All four selected lifecycle tests passed on normal and compat DE/AT API28.
 Both JaCoCo profiles cover all ten network-recovery callback branch outcomes
 and five of six foreground start command branch outcomes. The suite has 275
 Android cases.
+
+Two service tests deliver current and replaced player tokens to the playback
+callbacks. They verify that dimensions, title, recovery, progress, and end
+events affect only the current session. All 32 selected service and relay
+tests passed on normal and compat DE/AT API28. The matching JaCoCo reports
+cover all 12 branch outcomes of the size, title, end, and recovery callbacks,
+and 13 of 14 playback snapshot branch outcomes. The suite has 277 Android
+cases.

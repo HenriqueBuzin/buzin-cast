@@ -35,6 +35,7 @@ import io.buzincast.media.SecureMirrorChannel
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.media.MirrorCapture
+import io.github.jqssun.airplay.renderer.PlaybackSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.*
@@ -557,6 +558,87 @@ class ServiceAudioStateContractTest {
                 assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
                 assertEquals(successor, service.sessionSnapshot()?.token)
                 assertTrue(service.videoPlaybackActive.value)
+            }
+        }
+    }
+
+    private fun replaceLocalPlayback(location: String): Pair<SessionToken, SessionToken> {
+        service.playLocalVideo(location)
+        val stale = requireNotNull(service.sessionSnapshot()).token
+        service.playLocalVideo(location)
+        val current = requireNotNull(service.sessionSnapshot()).token
+        assertNotEquals(stale, current)
+        return stale to current
+    }
+
+    @Test fun sizeTitleAndEndCallbacksOnlyAffectTheirOwnPlayer() = withoutAutoLaunch {
+        withLocalVideoFixture { location ->
+            main {
+                val (stale, current) = replaceLocalPlayback(location)
+                val player = service.airPlayVideoPlayer
+                val size = requireNotNull(player.onVideoSize)
+                val title = requireNotNull(player.onTitle)
+                val ended = requireNotNull(player.onEnded)
+                size(current, 640, 480, 4f / 3f)
+                title(current, "Current video")
+
+                size(stale, 1920, 1080, 16f / 9f)
+                title(stale, "Replaced video")
+                ended(stale)
+                assertEquals(640 to 480, service.videoPlaybackSize.value)
+                assertEquals(4f / 3f, service.videoPlaybackAspect.value, 0f)
+                assertEquals("Current video", service.videoTitle.value)
+                assertTrue(service.videoPlaybackActive.value)
+                assertEquals(current, service.sessionSnapshot()?.token)
+
+                title(current, null)
+                assertEquals("", service.videoTitle.value)
+                ended(current)
+                assertFalse(service.videoPlaybackActive.value)
+                assertNull(service.sessionSnapshot())
+            }
+        }
+    }
+
+    @Test fun recoveryAndPlaybackSnapshotsIgnoreReplacedPlayerTokens() = withoutAutoLaunch {
+        withLocalVideoFixture { location ->
+            main {
+                val (stale, current) = replaceLocalPlayback(location)
+                val player = service.airPlayVideoPlayer
+                val recovery = requireNotNull(player.onRecovery)
+                val publish = requireNotNull(player.onPlaybackInfo)
+                val buffering = PlaybackSnapshot(2.5f, -1f, 0f, false, true, buffering = true)
+                recovery(current, "Waiting for playback")
+                assertEquals(SessionPhase.RECOVERING, service.sessionSnapshot()?.phase)
+                publish(current, buffering)
+                assertEquals(0L, service.videoPlaybackInfo.value.durationMs)
+                assertTrue(service.videoPlaybackInfo.value.buffering)
+
+                val ready = PlaybackSnapshot(3.5f, 12.5f, 1.25f, true, true, speed = 1.25f, skipSilence = true)
+                publish(stale, ready)
+                publish(stale, buffering.copy(position = 9f))
+                recovery(stale, "")
+                assertEquals(2500L, service.videoPlaybackInfo.value.positionMs)
+                assertEquals("Waiting for playback", service.networkMessage.value)
+                assertEquals(SessionPhase.RECOVERING, service.sessionSnapshot()?.phase)
+
+                publish(current, ready)
+                recovery(current, "")
+                val published = service.videoPlaybackInfo.value
+                assertEquals(3500L, published.positionMs)
+                assertEquals(12500L, published.durationMs)
+                assertEquals(1.25f, published.speed, 0f)
+                assertTrue(published.playing)
+                assertTrue(published.skipSilence)
+                assertFalse(published.buffering)
+                assertEquals("", service.networkMessage.value)
+                assertEquals(SessionPhase.PLAYING, service.sessionSnapshot()?.phase)
+
+                requireNotNull(player.onEnded)(current)
+                publish(current, buffering.copy(position = 0f))
+                assertFalse(service.videoPlaybackActive.value)
+                assertEquals(published, service.videoPlaybackInfo.value)
+                assertNull(service.sessionSnapshot())
             }
         }
     }
