@@ -1723,3 +1723,10 @@ occupied-port failures. Normal and compat DE/AT API28 covered all six JVM
 metrics for `AirPlayReceiverAdapter`, including 16 of 16 branches compared
 with 13 in the frozen 275-case profiles for the same class. The suite has
 287 Android cases.
+
+Calibration tests check that an unsaved margin survives activity recreation,
+Enter persists it, and both localized hints fit a narrow preview. The
+preview's drawing paint is private, so Kotlin no longer emits an unused
+accessor for the anonymous view. The targeted normal and compat DE/AT
+API28 profiles cover all six JVM metrics for `CalibrationActivity`, including
+16 of 16 branches. The suite has 289 Android cases.

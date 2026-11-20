@@ -21,7 +21,7 @@ class CalibrationActivity : ComponentActivity() {
         androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
             .hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         preview = object : View(this) {
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             override fun onDraw(canvas: Canvas) {
                 canvas.drawColor(Color.rgb(8, 15, 25))
                 val box = DisplayFit.viewport(width, height, width, height, margin)
