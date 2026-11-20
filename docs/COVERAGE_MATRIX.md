@@ -1805,3 +1805,11 @@ second case exercises the ordinary Android UI mode and dismisses About with
 Back. The combined selected profiles cover all six JVM metrics for
 `BuzinAbout` in normal and compat DE/AT on API28, including all six branch
 outcomes. The suite has 303 Android cases.
+
+Connection approval contracts cover grant and denial deadlines, both
+16-entry decision caches, shared requests for identical callers, timeout,
+interruption, and replies from before a receiver restart. The production
+constructor uses Android's monotonic clock and a 25-second request timeout.
+The seven selected contracts cover all six JVM metrics for
+`ConnectionApproval` in normal and compat DE/AT API28, including 44 of 44
+branches. The suite has 308 Android cases.

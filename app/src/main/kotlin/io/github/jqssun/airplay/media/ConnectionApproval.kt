@@ -7,7 +7,12 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** One bounded request; trust is temporary and scoped to protocol + peer IP. */
-class ConnectionApproval(private val notify: () -> Unit) {
+class ConnectionApproval internal constructor(
+    private val elapsedRealtime: () -> Long,
+    private val waitMillis: Long,
+    private val notify: () -> Unit,
+) {
+    constructor(notify: () -> Unit) : this(SystemClock::elapsedRealtime, 25_000, notify)
     data class Request(val id: Long, val protocol: String, val peer: String)
     private data class Pending(val request: Request, val epoch: Long, val latch: CountDownLatch = CountDownLatch(1), var accepted: Boolean = false)
     private val lock = Any()
@@ -24,7 +29,7 @@ class ConnectionApproval(private val notify: () -> Unit) {
         val key = "$protocol:$peer"
         val item = synchronized(lock) {
             if (closed) return false
-            val now = SystemClock.elapsedRealtime()
+            val now = elapsedRealtime()
             grants.entries.removeAll { it.value <= now }
             denied.entries.removeAll { it.value <= now }
             if (denied.containsKey(key)) return false
@@ -33,17 +38,17 @@ class ConnectionApproval(private val notify: () -> Unit) {
             if (current != null && (current.request.protocol != protocol || current.request.peer != peer)) return false
             current ?: Pending(Request(++sequence,protocol,peer.take(128)), epoch).also { pending = it; _request.value = it.request; notify() }
         }
-        val signalled = try { item.latch.await(25,TimeUnit.SECONDS) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); false }
+        val signalled = try { item.latch.await(waitMillis, TimeUnit.MILLISECONDS) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); false }
         synchronized(lock) {
             if (closed || item.epoch != epoch) return false
             if (pending === item) { pending = null; _request.value = null }
-            if (!closed && signalled && item.accepted) {
+            if (signalled && item.accepted) {
                 if (grants.size >= 16) grants.remove(grants.keys.first())
-                grants[key] = SystemClock.elapsedRealtime() + 5 * 60_000
+                grants[key] = elapsedRealtime() + 5 * 60_000
                 return true
             }
             if (denied.size >= 16) denied.remove(denied.keys.first())
-            denied[key] = SystemClock.elapsedRealtime() + 30_000
+            denied[key] = elapsedRealtime() + 30_000
         }
         return false
     }
