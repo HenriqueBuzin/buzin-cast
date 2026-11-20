@@ -1631,3 +1631,18 @@ service and relay tests passed on normal and compat DE/AT API28. The matching
 JaCoCo profiles cover all four relay admission branch outcomes and both
 outcomes of the queued playback ownership check. The suite has 273 Android
 cases.
+
+The frozen `0a7158d` run completed all four editions. Each passed the
+247 Android cases, 21 native cases, and all 15 runtime gates. JVM branch
+coverage ranged from 74.66% to 75.15%, and native branch coverage from
+96.43% to 97.28%. The strict coverage gate remains below target in all
+four reports.
+
+Two lifecycle contracts exercise the foreground start action with a busy
+RTSP port and the service recovery callback for stopped, disabled, USB-only,
+disconnected, and reconnecting LAN states. The reconnecting LAN case checks
+that the service replaces the receiver and responds over RTSP after restart.
+All four selected lifecycle tests passed on normal and compat DE/AT API28.
+Both JaCoCo profiles cover all ten network-recovery callback branch outcomes
+and five of six foreground start command branch outcomes. The suite has 275
+Android cases.

@@ -19,6 +19,7 @@ import android.view.WindowManager
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.exoplayer.ExoPlayer
@@ -31,6 +32,7 @@ import io.buzincast.core.MediaRequest
 import io.buzincast.core.Protocol
 import io.buzincast.core.ReceiverPlaybackPort
 import io.buzincast.core.SessionKind
+import io.github.jqssun.airplay.media.NetworkRecovery
 import io.github.jqssun.airplay.renderer.AirPlayVideoPlayer
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.viewmodel.MainViewModel
@@ -211,6 +213,13 @@ class MainActivityLifecycleContractTest {
         }
     }
 
+    private fun expectRtsp(port: Int) = Socket("127.0.0.1", port).use { socket ->
+        socket.soTimeout = 5_000
+        socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n".toByteArray())
+        val reply = socket.getInputStream().bufferedReader().readLine()
+        assertTrue("Unexpected RTSP response: $reply", reply?.startsWith("RTSP/1.0 200") == true)
+    }
+
     @Test fun nativeInitializationFailuresReleaseTheServiceAndAllowRetry() {
         org.junit.Assume.assumeTrue("Requires instrumented native initialization fixture",
             runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
@@ -245,13 +254,6 @@ class MainActivityLifecycleContractTest {
         val foregroundFlag = AirPlayService::class.java.getDeclaredField("foregroundStarted")
             .apply { isAccessible = true }
         val initialPort = ServerSocket(0).use { it.localPort }
-        fun expectRtsp(port: Int) = Socket("127.0.0.1", port).use { socket ->
-            socket.soTimeout = 5000
-            socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n".toByteArray())
-            val reply = socket.getInputStream().bufferedReader().readLine()
-            assertTrue("Unexpected RTSP response: $reply", reply?.startsWith("RTSP/1.0 200") == true)
-        }
-
         try {
             assertTrue(portPreference.write(preferences, initialPort))
             val activity = launch()
@@ -279,6 +281,83 @@ class MainActivityLifecycleContractTest {
             val restore = preferences.edit()
             if (hadPort) restore.putInt(portPreference.key, savedPort) else restore.remove(portPreference.key)
             assertTrue(restore.commit())
+        }
+    }
+
+    @Test fun foregroundStartActionReleasesAnOccupiedPortFailureAndRetries() {
+        val portPreference = Prefs.SERVER_PORT
+        val savedPort = portPreference.read(preferences)
+        val hadPort = preferences.contains(portPreference.key)
+        val foreground = AirPlayService::class.java.getDeclaredField("foregroundStarted").apply { isAccessible = true }
+        val intent = Intent(context, AirPlayService::class.java).setAction(AirPlayService.ACTION_START_SERVER)
+        val activity = launch()
+        try {
+            val port = ServerSocket(0).use { occupied ->
+                assertTrue(portPreference.write(preferences, occupied.localPort))
+                main { ContextCompat.startForegroundService(context, intent) }
+                await("Start action did not report an occupied listener") {
+                    model(activity).serverState.value == AirPlayService.ServerState.ERROR && !foreground.getBoolean(service)
+                }
+                occupied.localPort
+            }
+            main { ContextCompat.startForegroundService(context, intent) }
+            await("Start action did not recover after the port was released") {
+                model(activity).serverState.value == AirPlayService.ServerState.RUNNING && foreground.getBoolean(service)
+            }
+            expectRtsp(port)
+        } finally {
+            main { service.stopServer() }
+            val restore = preferences.edit()
+            if (hadPort) restore.putInt(portPreference.key, savedPort) else restore.remove(portPreference.key)
+            assertTrue(restore.commit())
+        }
+    }
+
+    @Test fun networkRecoveryRestartsOnlyAnOptedInRunningLanReceiver() {
+        for ((pref, value) in listOf(Prefs.NETWORK_RECOVERY to true, Prefs.USB_ONLY to false)) {
+            original[pref.key] = if (preferences.contains(pref.key)) pref.read(preferences) else null
+            if (pref.read(preferences) != value) set(pref, value)
+        }
+        val watcher = AirPlayService::class.java.getDeclaredField("networkRecovery").apply { isAccessible = true }
+        val changed = NetworkRecovery::class.java.getDeclaredField("changed").apply { isAccessible = true }
+        val receiver = AirPlayService::class.java.getDeclaredField("airPlayReceiver").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val networkChanged = changed.get(watcher.get(service)) as (Boolean) -> Unit
+        val activity = launch()
+
+        main {
+            networkChanged(true)
+            assertEquals(context.getString(R.string.network_available), service.networkMessage.value)
+            assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
+            assertNull(receiver.get(service))
+        }
+        start(activity)
+        val lanReceiver = requireNotNull(receiver.get(service))
+        main {
+            networkChanged(false)
+            assertEquals(context.getString(R.string.network_waiting), service.networkMessage.value)
+            assertSame(lanReceiver, receiver.get(service))
+            set(Prefs.NETWORK_RECOVERY, false)
+            networkChanged(true)
+            assertEquals(context.getString(R.string.network_available), service.networkMessage.value)
+            assertSame(lanReceiver, receiver.get(service))
+            set(Prefs.NETWORK_RECOVERY, true)
+            networkChanged(true)
+            assertEquals(context.getString(R.string.network_recovered), service.networkMessage.value)
+            assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            assertNotSame(lanReceiver, requireNotNull(receiver.get(service)))
+        }
+        expectRtsp(Prefs.SERVER_PORT.read(preferences))
+        val recoveredReceiver = requireNotNull(receiver.get(service))
+        set(Prefs.USB_ONLY, true)
+        await("USB-only restart did not replace the LAN receiver") {
+            service.serverState.value == AirPlayService.ServerState.RUNNING && receiver.get(service) !== recoveredReceiver
+        }
+        main {
+            val usbReceiver = requireNotNull(receiver.get(service))
+            networkChanged(true)
+            assertEquals(context.getString(R.string.network_available), service.networkMessage.value)
+            assertSame(usbReceiver, receiver.get(service))
         }
     }
 
