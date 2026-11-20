@@ -235,6 +235,50 @@ struct ScopedAudioStreamClosure {
     ScopedAudioStreamClosure() { audioStreamClosure = &closed; }
     ~ScopedAudioStreamClosure() { audioStreamClosure = previous; }
 };
+
+// Exercise diagnostic values that a particular emulator may never report.
+class DiagnosticOboeStream final : public oboe::AudioStream {
+public:
+    DiagnosticOboeStream(const oboe::AudioStreamBuilder &builder, oboe::AudioApi api)
+        : AudioStream(builder), mApi(api) {
+        mFramesPerBurst = 192;
+        mBufferSizeInFrames = 192;
+        mBufferCapacityInFrames = 384;
+    }
+
+    oboe::AudioApi getAudioApi() const override { return mApi; }
+    oboe::StreamState getState() override { return mState; }
+    oboe::Result requestStart() override { mState = oboe::StreamState::Started; return oboe::Result::OK; }
+    oboe::Result requestStop() override { mState = oboe::StreamState::Stopped; return oboe::Result::OK; }
+    oboe::Result requestPause() override { return oboe::Result::ErrorUnimplemented; }
+    oboe::Result requestFlush() override { return oboe::Result::ErrorUnimplemented; }
+    oboe::Result waitForStateChange(oboe::StreamState, oboe::StreamState *state, int64_t) override {
+        *state = mState;
+        return oboe::Result::OK;
+    }
+    oboe::Result close() override { mState = oboe::StreamState::Closed; return oboe::Result::OK; }
+    bool isXRunCountSupported() const override { return mFirstPoll; }
+    oboe::ResultWithValue<int32_t> getXRunCount() override {
+        if (!mFirstPoll) return oboe::ResultWithValue<int32_t>(oboe::Result::ErrorUnimplemented);
+        mFirstPoll = false;
+        return oboe::ResultWithValue<int32_t>(41);
+    }
+
+private:
+    void updateFramesWritten() override {}
+    void updateFramesRead() override {}
+    const oboe::AudioApi mApi;
+    oboe::StreamState mState = oboe::StreamState::Open;
+    bool mFirstPoll = true;
+};
+
+thread_local const oboe::AudioApi *diagnosticAudioApi = nullptr;
+struct ScopedAudioDiagnostics {
+    const oboe::AudioApi api;
+    const oboe::AudioApi *previous = diagnosticAudioApi;
+    explicit ScopedAudioDiagnostics(oboe::AudioApi value) : api(value) { diagnosticAudioApi = &api; }
+    ~ScopedAudioDiagnostics() { diagnosticAudioApi = previous; }
+};
 }
 
 // Run the real builder, then emulate losing the opened stream before it starts.
@@ -246,6 +290,10 @@ extern "C" oboe::Result wrapOboeOpenStream(
     asm("__wrap__ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE");
 extern "C" oboe::Result wrapOboeOpenStream(
     oboe::AudioStreamBuilder *builder, std::shared_ptr<oboe::AudioStream> &stream) {
+    if (diagnosticAudioApi) {
+        stream = std::make_shared<DiagnosticOboeStream>(*builder, *diagnosticAudioApi);
+        return oboe::Result::OK;
+    }
     // OpenSL ES retains readable buffer metadata after close. Android API 28
     // AAudio's MMAP query dereferences the native stream even after close.
     if (audioStreamClosure) builder->setAudioApi(oboe::AudioApi::OpenSLES);
@@ -257,13 +305,22 @@ extern "C" oboe::Result wrapOboeOpenStream(
     return result;
 }
 
+extern "C" bool realOboeIsMMapUsed(oboe::AudioStream *)
+    asm("__real__ZN4oboe14OboeExtensions10isMMapUsedEPNS_11AudioStreamE");
+extern "C" bool wrapOboeIsMMapUsed(oboe::AudioStream *)
+    asm("__wrap__ZN4oboe14OboeExtensions10isMMapUsedEPNS_11AudioStreamE");
+extern "C" bool wrapOboeIsMMapUsed(oboe::AudioStream *stream) {
+    return diagnosticAudioApi ? *diagnosticAudioApi == oboe::AudioApi::AAudio : realOboeIsMMapUsed(stream);
+}
+
 // Deliberately invokes the real post-close callback; no physical disconnection
 // is simulated at the OS level, and all opened emulator streams are closed.
 extern "C" JNIEXPORT jstring JNICALL
-Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, jobject, jint scenario) {
+Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, jobject, jint scenario, jobject listener) {
 #define OUTPUT_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
     auto timeline = std::make_shared<TimelineBuffer>(44100, 2, 50, 95);
     auto log = std::make_shared<LogSink>();
+    if (listener) log->bind(env, listener);
     const bool automaticLowLatency = scenario == 4;
     auto output = AudioOutput::create(scenario == 2 ? -1 : 44100, 2,
                                      automaticLowLatency ? 0 : 192, automaticLowLatency, timeline, log);
@@ -337,6 +394,22 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
         OUTPUT_CONTRACT(stream->getBufferSizeInFrames() <= stream->getBufferCapacityInFrames());
         output->stop();
         OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
+    } else if (scenario == 5) {
+        for (const auto api : {oboe::AudioApi::Unspecified, oboe::AudioApi::AAudio}) {
+            {
+                ScopedAudioDiagnostics diagnostics(api);
+                OUTPUT_CONTRACT(output->start());
+            }
+            auto stream = AudioOutputContractAccess::stream(output);
+            OUTPUT_CONTRACT(stream && stream->getState() == oboe::StreamState::Started);
+            OUTPUT_CONTRACT(stream->isXRunCountSupported());
+            OUTPUT_CONTRACT(output->debugInfo().xrun == 41);
+            OUTPUT_CONTRACT(!stream->isXRunCountSupported());
+            OUTPUT_CONTRACT(output->debugInfo().xrun == 41);
+            output->stop();
+            OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
+            OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
+        }
     } else {
         OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
     }

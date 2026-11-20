@@ -1,6 +1,7 @@
 package io.github.jqssun.airplay
 
 import android.content.Context
+import io.github.jqssun.airplay.bridge.LogListener
 import java.io.File
 
 /** Explicit checkpoint: force-stop does not run Java or native shutdown hooks. */
@@ -13,7 +14,7 @@ object DebugCoverage {
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
     external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int,
         attachSinkAfterFirstDecode: Boolean = false): Array<ByteArray>
-    external fun nativeOutputContracts(scenario: Int): String
+    external fun nativeOutputContracts(scenario: Int, log: LogListener? = null): String
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     external fun nativeCallbackInitContracts(mode: Int): String
     external fun nativeCreatePartialServer(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): Long

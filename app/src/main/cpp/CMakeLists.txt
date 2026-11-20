@@ -208,7 +208,8 @@ if(BUZIN_COVERAGE)
         "-Wl,--wrap=android_dnssd_get_raop_txt_key" "-Wl,--wrap=android_dnssd_get_raop_txt_val"
         "-Wl,--wrap=android_dnssd_get_airplay_txt_key" "-Wl,--wrap=android_dnssd_get_airplay_txt_val"
         # Oboe's shared-pointer overload. The coverage fixture can close the real stream before start.
-        "-Wl,--wrap=_ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE")
+        "-Wl,--wrap=_ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE"
+        "-Wl,--wrap=_ZN4oboe14OboeExtensions10isMMapUsedEPNS_11AudioStreamE")
 endif()
 
 # Keep upstream C libraries in their declared dialect; app-owned C uses C23.

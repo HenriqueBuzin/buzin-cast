@@ -1161,3 +1161,18 @@ no PCM, and the next valid packet decodes with the expected timestamp.
 All 36 selected normal API28 cases passed in 44.910 seconds. The matched
 report covers all 44 branch outcomes in FfmpegDecoder, including 12/12 in
 decode and 10/10 in toPcm, and all four mapped MC/DC conditions for the class.
+
+The diagnostic output contract supplies controlled Oboe responses for an
+unidentified backend and for AAudio reporting MMAP. The Kotlin receiver checks
+the actual emitted log messages. A failed underrun query must retain the last
+successful value. The suite also exercises real playback and reopening on the
+emulator in its other cases.
+
+All 37 selected normal API28 cases passed in 39.960 seconds. The matched
+report covers all 42 branch outcomes in AudioOutput and OboeCallbacks. It also
+covers both mapped MC/DC conditions in the MMAP decision and both in the
+underrun polling guard. The suite now contains 213 Android cases.
+
+The 211-case pinned matrix completed all runtime gates for normal and generated
+its report while compat started building. The report measured 70.5111% of
+Android/JVM branch outcomes and 92.0652% of native branch outcomes for that build.
