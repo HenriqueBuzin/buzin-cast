@@ -1398,3 +1398,14 @@ receiver integration tests passed on normal API28. The FCast receiver and its
 update callback have identical compiled bytes across the two selected runs.
 Together they went from 125 to 154 covered branches out of 208. The current
 suite has 239 Android cases.
+
+Three Media3 contracts exercise paused local playback with surface replacement,
+seeking, speed, and subtitle changes, then verify that the renderer reports a
+missing local file to its owning session. The session replacement contract
+delivers late callbacks through the old listener and a recoverable error
+through the active listener to verify ownership and retry notification.
+
+All 33 selected Android cases passed on normal API28. With identical compiled
+player classes, `AirPlayVideoPlayer.kt` went from 132 to 173 of 173 covered
+lines and from 57 to 96 of 130 covered branches. The current suite has 242
+Android cases.
