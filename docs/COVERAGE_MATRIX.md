@@ -1882,3 +1882,15 @@ The first verified edition of the API28 311-case matrix at `6e77219` is
 compat DE/AT. All 311 Android cases, 21 native cases, and 15 runtime checks
 passed. JaCoCo measured 4591/5892 branches (77.92%) and LLVM measured
 905/912 branches (99.23%). The strict coverage gate remains open.
+
+The playback surface contract measures real buffers for best fit, stretch,
+crop in both aspect directions, and native-pixel sizing. It checks the
+best-fit fallback before dimensions arrive and keeps the same surface while
+changing modes. Two other contracts verify the four scale labels and icons
+and the playback clock across the one-hour boundary. All five surface and
+display cases passed in normal and compat DE/AT API28. Sizing covered 12/13
+branches, up from 3/13 in the 295-case profiles. The remaining sizing branch
+is the compiler-generated `NoWhenBranchMatchedException` default for an
+exhaustive enum dispatch inside Compose. The labels, icons, and clock covered
+all 10 branch outcomes across their three methods. The suite now has 319
+Android cases.
