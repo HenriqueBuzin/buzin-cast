@@ -320,6 +320,7 @@ class NativeServerContractTest {
 
     @Test fun platformAacDecodesPcmOnItsDrainThreadAndStopsCaptureCleanly() {
         val frames = aacFrames()
+        val instrumented = runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess
         for (fast in listOf(false, true)) {
             val handle = create()
             val callback = callbacks.getValue(handle)
@@ -328,6 +329,11 @@ class NativeServerContractTest {
             NativeBridge.nativeSetCaptureEnabled(handle, true)
             val base = System.nanoTime() / 1000 * 1000
             fun pts(index: Int) = (base + index * 1024L * 1_000_000_000L / 44100) / 1000 * 1000
+            fun feed(index: Int) {
+                val packet = frames[index % frames.size]
+                if (instrumented) DebugCoverage.nativeFeedAwaitingCodecInput(DebugNativeBridge, handle, packet, pts(index))
+                else DebugNativeBridge.nativeFeedAudio(handle, packet, pts(index))
+            }
             val frameDelayMs = (1024L * 1000 + 44100 - 1) / 44100
             val packetDebug = ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder())
             fun assertAccepted(index: Int) {
@@ -339,11 +345,11 @@ class NativeServerContractTest {
             // decoder lookahead can release every frame of the original fixture.
             val supplied = frames.size + 8
             for (index in 0 until supplied) {
-                if (index == 0 && runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) {
+                if (index == 0 && instrumented) {
                     val attempts = DebugCoverage.nativeFeedWithInputNotReady(DebugNativeBridge,
                         handle, frames[index % frames.size], pts(index), 1)
                     assertEquals("Startup input did not recover from transient unavailability", 2, attempts)
-                } else DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
+                } else feed(index)
                 assertAccepted(index)
                 // Feed at the fixture's 1024/44100-second packet duration. A
                 // 10ms interval is over twice real time and can fill codec input
@@ -367,7 +373,7 @@ class NativeServerContractTest {
                 assertFalse("Lollipop attempted the optional named decoder", callback.logs.any { it.contains("c2.android.inproc.aac.decoder") })
             NativeBridge.nativeSetCaptureEnabled(handle, false)
             repeat(8) { index ->
-                DebugNativeBridge.nativeFeedAudio(handle, frames[index], pts(supplied + index))
+                feed(supplied + index)
                 assertAccepted(supplied + index)
                 Thread.sleep(frameDelayMs)
             }
@@ -413,7 +419,7 @@ class NativeServerContractTest {
         val supplied = frames.size + 8
         val frameDelayMs = (1024L * 1000 + 44100 - 1) / 44100
         for (index in 1 until supplied) {
-            DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
+            DebugCoverage.nativeFeedAwaitingCodecInput(DebugNativeBridge, handle, frames[index % frames.size], pts(index))
             rejected(2)
             Thread.sleep(frameDelayMs)
         }

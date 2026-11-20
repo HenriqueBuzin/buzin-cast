@@ -1460,3 +1460,11 @@ The older full run pinned at `1b991d4` failed one compat DE/AT test after the
 platform decoder rejected AAC packet 30. The same test passed in the newer
 22-case regional selection. A full regional pass remains outstanding for
 the current source.
+
+The offline PCM fixture now lets the emulator wait up to 500 ms for a free
+MediaCodec input slot. It still requires every submitted fixture packet to be
+accepted and checks the decoded samples, frame sizes, and timestamps. The
+separate startup and live-budget test still injects unavailable input with
+the original timeouts and checks that the startup retry ends once the codec
+accepts a packet. All 22 selected cases passed on compat DE/AT API28 after
+the fixture adjustment.

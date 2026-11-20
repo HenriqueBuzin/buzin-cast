@@ -63,12 +63,14 @@ struct ScopedPinResult {
     explicit ScopedPinResult(int result) : value{result}, previous(activePinResult) { activePinResult = &value; }
     ~ScopedPinResult() { activePinResult = previous; }
 };
-struct InputBufferContract { int remaining = 1; int calls = 0; };
+struct InputBufferContract { int remaining; int64_t minimumWaitUs; int calls = 0; };
 thread_local InputBufferContract *activeInputBuffer = nullptr;
 struct ScopedInputBuffer {
     InputBufferContract value;
     InputBufferContract *previous = activeInputBuffer;
-    explicit ScopedInputBuffer(int failures) : value{failures} { activeInputBuffer = &value; }
+    explicit ScopedInputBuffer(int failures, int64_t minimumWaitUs = 0) : value{failures, minimumWaitUs} {
+        activeInputBuffer = &value;
+    }
     ~ScopedInputBuffer() { activeInputBuffer = previous; }
 };
 struct TxtRecordContract { dnssd_t *owner; bool raop; int part; int hits = 0; };
@@ -133,13 +135,16 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeDiscoveryMapWithMissingPart(
 extern "C" ssize_t __wrap_AMediaCodec_dequeueInputBuffer(AMediaCodec *codec, int64_t timeoutUs) {
     if (activeInputBuffer) {
         ++activeInputBuffer->calls;
-        __android_log_print(ANDROID_LOG_DEBUG, "NativeInputContract", "input call=%d timeoutUs=%lld forcedRemaining=%d",
-            activeInputBuffer->calls, static_cast<long long>(timeoutUs), activeInputBuffer->remaining);
+        if (activeInputBuffer->minimumWaitUs == 0) {
+            __android_log_print(ANDROID_LOG_DEBUG, "NativeInputContract", "input call=%d timeoutUs=%lld forcedRemaining=%d",
+                activeInputBuffer->calls, static_cast<long long>(timeoutUs), activeInputBuffer->remaining);
+        }
         if (activeInputBuffer->remaining > 0) {
             --activeInputBuffer->remaining;
             std::this_thread::sleep_for(std::chrono::microseconds(std::clamp<int64_t>(timeoutUs, 0, 100000)));
             return AMEDIACODEC_INFO_TRY_AGAIN_LATER;
         }
+        timeoutUs = std::max(timeoutUs, activeInputBuffer->minimumWaitUs);
     }
     const ssize_t result = __real_AMediaCodec_dequeueInputBuffer(codec, timeoutUs);
     if (result < 0) __android_log_print(ANDROID_LOG_WARN, "NativeInputContract",
@@ -158,6 +163,15 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeFeedWithInputNotReady(
     ScopedInputBuffer forced(failures);
     Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(env, bridge, handle, data, ptsNs);
     return forced.value.calls;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeFeedAwaitingCodecInput(
+        JNIEnv *env, jobject, jobject bridge, jlong handle, jbyteArray data, jlong ptsNs) {
+    // PCM verification feeds an offline fixture. Let the host emulator's
+    // decoder drain a busy queue while keeping live input's budget separate.
+    ScopedInputBuffer playbackFixture(0, 500'000);
+    Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(env, bridge, handle, data, ptsNs);
 }
 
 // Only the instrumented library links this wrapper. Ordinary calls, including

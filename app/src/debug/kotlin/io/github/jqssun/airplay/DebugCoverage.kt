@@ -31,6 +31,8 @@ object DebugCoverage {
         name: String, keyFile: String, result: Int): Long
     external fun nativeFeedWithInputNotReady(bridge: DebugNativeBridge, handle: Long,
         data: ByteArray, ptsNs: Long, failures: Int): Int
+    external fun nativeFeedAwaitingCodecInput(bridge: DebugNativeBridge, handle: Long,
+        data: ByteArray, ptsNs: Long)
     external fun nativeDiscoveryMapWithMissingPart(bridge: io.github.jqssun.airplay.bridge.NativeBridge,
         handle: Long, raop: Boolean, part: Int): Map<String, String>?
     fun dump(context: Context) {
