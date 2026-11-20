@@ -15,6 +15,10 @@ object DebugCoverage {
     external fun nativePreferredDecoderContracts(): String
     external fun nativeDecoderDrainStartupContracts(): String
     external fun nativeFfmpegLogContracts(): String
+    external fun nativeRaopLogContracts(bridge: io.github.jqssun.airplay.bridge.NativeBridge,
+        callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler, hardware: ByteArray, name: String,
+        keyFile: String): String
+    external fun nativeDiagnosticAudioArrayContracts(bridge: DebugNativeBridge, handle: Long, data: ByteArray): String
     external fun nativePlatformInputBufferContracts(): String
     external fun nativePlatformOutputBufferContracts(): String
     external fun nativeDecoderLatencyContracts(): String

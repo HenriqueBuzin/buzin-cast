@@ -127,6 +127,23 @@ class NativeServerContractTest {
         assertTrue(callback.logs.isEmpty())
     }
 
+    @Test fun raopLoggerKeepsMessageTextAndUsesTheMatchingAndroidPriority() {
+        org.junit.Assume.assumeTrue("Requires coverage-only log fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        val key = File.createTempFile("native-log-contract-", ".pem", context.cacheDir).also { keys += it }
+        assertEquals("RAOP log contracts passed", DebugCoverage.nativeRaopLogContracts(NativeBridge, Callbacks(),
+            byteArrayOf(16, 32, 48, 64, 80, 96), "Log Contract", key.absolutePath))
+    }
+
+    @Test fun diagnosticAudioDoesNotReleaseAnArrayThatCouldNotBeAcquired() {
+        org.junit.Assume.assumeTrue("Requires coverage-only JNI array fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        val handle = create()
+        assertEquals("diagnostic audio array contracts passed",
+            DebugCoverage.nativeDiagnosticAudioArrayContracts(DebugNativeBridge, handle, byteArrayOf(1)))
+        assertTrue(callbacks.getValue(handle).pcm.isEmpty())
+    }
+
     @Test fun invalidPinResultsAbortInitializationAndValidBoundariesRecover() {
         org.junit.Assume.assumeTrue("Requires coverage-only PIN fault fixture",
             runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)

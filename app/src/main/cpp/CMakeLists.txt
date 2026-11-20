@@ -201,6 +201,7 @@ if(BUZIN_COVERAGE)
     target_sources(airplay_native PRIVATE coverage_bridge.cpp)
     target_link_options(airplay_native PRIVATE -fprofile-instr-generate "-Wl,--wrap=random_pin"
         "-Wl,--wrap=raop_init" "-Wl,--wrap=raop_init2" "-Wl,--wrap=dnssd_init"
+        "-Wl,--wrap=raop_set_log_callback" "-Wl,--wrap=__android_log_print"
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
         "-Wl,--wrap=AMediaCodec_configure" "-Wl,--wrap=AMediaCodec_start" "-Wl,--wrap=AMediaCodec_delete"
         "-Wl,--wrap=AMediaCodec_getInputBuffer" "-Wl,--wrap=AMediaCodec_queueInputBuffer"

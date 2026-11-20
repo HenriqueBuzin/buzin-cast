@@ -1572,3 +1572,12 @@ data or the measured fallback. The current suite has 260 Android cases.
 The full run pinned at `0a7158d` also verified the normal edition with 247
 Android cases, 21 native cases, and all 15 gates. It reached 75.00% JVM branch
 coverage and 97.28% native branch coverage.
+
+The native bridge contracts exercise the actual RAOP log callback installed
+at receiver initialization. They verify Android priorities for error, warning,
+notice, info, and debug logs and check that message text preserves literal
+percent signs. The debug AAC input contract uses a synthetic JNI table to
+verify that an unavailable byte array is neither decoded nor released.
+All 28 selected native bridge and audio cases passed on normal and compat
+DE/AT API28. Each report covers all six RAOP log callback branches and all
+ten debug AAC input branches. The suite has 262 Android cases.

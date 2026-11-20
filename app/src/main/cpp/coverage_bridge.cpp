@@ -4,6 +4,8 @@
 #include <array>
 #include <cerrno>
 #include <condition_variable>
+#include <cstdarg>
+#include <cstdio>
 #include <memory>
 #include <cstdlib>
 #include <cstring>
@@ -24,6 +26,7 @@
 extern "C" {
 #include <libavcodec/defs.h>
 #include "dnssd.h"
+#include "logger.h"
 #include "android_dnssd_shim.h"
 #include "android_raop_callbacks.h"
 }
@@ -34,6 +37,7 @@ extern "C" int __real_random_pin(void);
 extern "C" raop_t *__real_raop_init(raop_callbacks_t *);
 extern "C" int __real_raop_init2(raop_t *, int, const char *, const char *);
 extern "C" dnssd_t *__real_dnssd_init(const char *, int, const char *, int, int *, unsigned char);
+extern "C" void __real_raop_set_log_callback(raop_t *, raop_log_callback_t, void *);
 extern "C" JNIEXPORT jlong JNICALL
 Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
     JNIEnv *, jobject, jobject, jbyteArray, jstring, jstring, jboolean, jboolean);
@@ -52,6 +56,27 @@ extern "C" JNIEXPORT jobject JNICALL
 Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords(JNIEnv *, jobject, jlong);
 
 namespace {
+struct RaopLogContract {
+    raop_log_callback_t callback = nullptr;
+    void *context = nullptr;
+    bool recording = false;
+    std::vector<std::pair<int, std::string>> entries;
+};
+thread_local RaopLogContract *activeRaopLog = nullptr;
+
+struct ScopedRaopLogContract {
+    RaopLogContract log;
+    RaopLogContract *previous = activeRaopLog;
+    ScopedRaopLogContract() { activeRaopLog = &log; }
+    ~ScopedRaopLogContract() { activeRaopLog = previous; }
+};
+
+struct DiagnosticAudioArrayContract {
+    int acquireCalls = 0;
+    int releaseCalls = 0;
+};
+thread_local DiagnosticAudioArrayContract *activeDiagnosticAudio = nullptr;
+
 struct PinResultContract {
     int result;
     int calls = 0;
@@ -89,6 +114,86 @@ bool missingTxtPart(dnssd_t *owner, int index, bool raop, int part) {
     }
     return false;
 }
+}
+
+extern "C" void __wrap_raop_set_log_callback(raop_t *raop, raop_log_callback_t callback, void *context) {
+    if (activeRaopLog) {
+        activeRaopLog->callback = callback;
+        activeRaopLog->context = context;
+    }
+    __real_raop_set_log_callback(raop, callback, context);
+}
+
+extern "C" int __wrap___android_log_print(int priority, const char *tag, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int result;
+    if (activeRaopLog && activeRaopLog->recording && tag && strcmp(tag, "AirPlayNative") == 0) {
+        std::array<char, 128> message{};
+        result = vsnprintf(message.data(), message.size(), format, args);
+        activeRaopLog->entries.emplace_back(priority, message.data());
+    } else {
+        result = __android_log_vprint(priority, tag, format, args);
+    }
+    va_end(args);
+    return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeRaopLogContracts(
+        JNIEnv *env, jobject, jobject bridge, jobject callback, jbyteArray hardware, jstring name, jstring keyFile) {
+    ScopedRaopLogContract fixture;
+    const jlong handle = Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit(
+        env, bridge, callback, hardware, name, keyFile, JNI_FALSE, JNI_FALSE);
+    if (env->ExceptionCheck()) return nullptr;
+    if (!handle) return env->NewStringUTF("RAOP log contract could not initialize receiver");
+
+    auto &log = fixture.log;
+    using Logger = std::unique_ptr<logger_t, decltype(&logger_destroy)>;
+    Logger logger(logger_init(), logger_destroy);
+    if (!log.callback || !logger) {
+        Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy(env, bridge, handle);
+        return env->NewStringUTF("RAOP log contract could not acquire the installed logger");
+    }
+    logger_set_callback(logger.get(), log.callback, log.context);
+    logger_set_level(logger.get(), LOGGER_DEBUG);
+    log.recording = true;
+    logger_log(logger.get(), LOGGER_ERR, "%s", "error %1");
+    logger_log(logger.get(), LOGGER_WARNING, "%s", "warning %2");
+    logger_log(logger.get(), LOGGER_NOTICE, "%s", "notice %3");
+    logger_log(logger.get(), LOGGER_INFO, "%s", "info %4");
+    logger_log(logger.get(), LOGGER_DEBUG, "%s", "debug %5");
+    log.recording = false;
+    Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy(env, bridge, handle);
+
+    const std::vector<std::pair<int, std::string>> expected{
+        {ANDROID_LOG_ERROR, "error %1"}, {ANDROID_LOG_WARN, "warning %2"},
+        {ANDROID_LOG_INFO, "notice %3"}, {ANDROID_LOG_INFO, "info %4"}, {ANDROID_LOG_DEBUG, "debug %5"},
+    };
+    return env->NewStringUTF(log.entries == expected ? "RAOP log contracts passed" : "RAOP message or priority differed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDiagnosticAudioArrayContracts(
+        JNIEnv *env, jobject, jobject bridge, jlong handle, jbyteArray data) {
+    // Use a synthetic JNI table to report acquisition failure without changing ART.
+    JNINativeInterface functions{};
+    functions.GetArrayLength = [](JNIEnv *, jarray) -> jsize { return 1; };
+    functions.GetByteArrayElements = [](JNIEnv *, jbyteArray, jboolean *) -> jbyte * {
+        ++activeDiagnosticAudio->acquireCalls;
+        return nullptr;
+    };
+    functions.ReleaseByteArrayElements = [](JNIEnv *, jbyteArray, jbyte *, jint) {
+        ++activeDiagnosticAudio->releaseCalls;
+    };
+    JNIEnv fixtureEnv{};
+    fixtureEnv.functions = &functions;
+    DiagnosticAudioArrayContract fixture;
+    activeDiagnosticAudio = &fixture;
+    Java_io_github_jqssun_airplay_DebugNativeBridge_nativeFeedAudio(&fixtureEnv, bridge, handle, data, 1);
+    activeDiagnosticAudio = nullptr;
+    return env->NewStringUTF(fixture.acquireCalls == 1 && fixture.releaseCalls == 0
+        ? "diagnostic audio array contracts passed" : "Diagnostic AAC input accessed an unavailable array");
 }
 
 extern "C" const char *__wrap_android_dnssd_get_raop_txt_key(dnssd_t *owner, int index) {
