@@ -1783,3 +1783,9 @@ when removed, and respects caller-supplied playback dimensions. The selected
 normal and compat DE/AT API28 profiles cover all six JVM metrics for
 `VideoSurfaceView`, including 10 of 10 branches compared with 9 in both
 284-case profiles. The suite has 300 Android cases.
+
+The TV sidebar contract verifies that D-pad navigation moves focus while the
+selection stays in place until OK, and that activation calls the latest
+selection callback after recomposition. The selected normal and compat DE/AT
+API28 profiles cover all six JVM metrics for `TvSidebar`, including 12 of 12
+branches. The suite has 301 Android cases.
