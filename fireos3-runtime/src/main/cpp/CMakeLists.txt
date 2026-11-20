@@ -12,6 +12,9 @@ if(ANDROID_ABI STREQUAL "x86" AND CMAKE_SYSTEM_VERSION VERSION_LESS "18")
     # openssl-cmake treats an existing install prefix as immutable, even when
     # CFLAGS changed. Do not accidentally reuse its former TLS-guard build.
     set(receiver_binary_dir production-core-global-stack-guard)
+elseif(ANDROID_ABI STREQUAL "armeabi-v7a" AND CMAKE_SYSTEM_VERSION VERSION_LESS "18")
+    # Use a separate OpenSSL build prefix for the software-only ARM variant.
+    set(receiver_binary_dir production-core-arm-no-asm)
 endif()
 
 set(BUZIN_RAOP_CORE_ONLY ON)
