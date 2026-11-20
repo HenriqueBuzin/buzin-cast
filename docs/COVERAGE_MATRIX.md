@@ -1868,3 +1868,17 @@ The existing AAC integration contract exercises the same limit through the
 decoder. Both cases passed on normal and compat DE/AT API28. Each LLVM
 profile covered all 14 branch outcomes and both MC/DC conditions in
 `DelayTracker::observe`. The suite now has 313 Android cases.
+
+Three player remote-key contracts exercise select and directional keys with the
+controls hidden, visible, and locked. They check that focus navigation remains
+available, that hidden controls send signed seek feedback, that certain keys
+reveal or unlock controls, and that media keys update playback or consume the
+event. All three passed on normal and compat DE/AT API28. JaCoCo measured
+50/50 branches, 239/239 instructions, 43/43 lines, and 26/26 complexity in
+`handlePlayerKeyEvent` for both editions. The 295-case API28 profiles covered
+28/50 branches in that method. The suite now has 316 Android cases.
+
+The first verified edition of the API28 311-case matrix at `6e77219` is
+compat DE/AT. All 311 Android cases, 21 native cases, and 15 runtime checks
+passed. JaCoCo measured 4591/5892 branches (77.92%) and LLVM measured
+905/912 branches (99.23%). The strict coverage gate remains open.

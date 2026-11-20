@@ -5,11 +5,14 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
 import android.os.SystemClock
+import android.view.KeyEvent
+import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.media.ConnectionApproval
+import io.github.jqssun.airplay.ui.handlePlayerKeyEvent
 import io.github.jqssun.airplay.viewmodel.LocalNetworkAccess
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import kotlinx.coroutines.Job
@@ -96,6 +99,77 @@ class PlaybackViewModelContractTest {
             assertEquals(2L, model.videoOverlayTick.value)
             model.stopVideoPlayback()
         }
+    }
+
+    private data class PlayerKeyOutcome(
+        val consumed: Boolean,
+        val showControls: Int = 0,
+        val unlockControls: Int = 0,
+        val seekOffsets: List<Long> = emptyList(),
+    )
+
+    private fun remoteKey(
+        code: Int,
+        visible: Boolean = true,
+        locked: Boolean = false,
+        playPauseFocused: Boolean = false,
+        action: Int = KeyEvent.ACTION_DOWN,
+    ): PlayerKeyOutcome {
+        var shown = 0
+        var unlocked = 0
+        val seeks = mutableListOf<Long>()
+        val consumed = handlePlayerKeyEvent(
+            ComposeKeyEvent(KeyEvent(action, code)), visible, locked, playPauseFocused, 10_000L,
+            model, showControls = { shown++ }, unlockControls = { unlocked++ }, onDpadSeek = { seeks.add(it) },
+        )
+        return PlayerKeyOutcome(consumed, shown, unlocked, seeks)
+    }
+
+    @Test fun lockedRemoteKeysRevealControlsBeforeUnlocking() = instrumentation.runOnMainSync {
+        val selectKeys = listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER)
+        for (key in selectKeys) {
+            assertEquals(PlayerKeyOutcome(true, showControls = 1), remoteKey(key, visible = false, locked = true))
+            assertEquals(PlayerKeyOutcome(true, unlockControls = 1), remoteKey(key, locked = true))
+            assertEquals(PlayerKeyOutcome(false), remoteKey(key, locked = true, action = KeyEvent.ACTION_UP))
+        }
+        assertEquals(PlayerKeyOutcome(false, showControls = 1), remoteKey(KeyEvent.KEYCODE_DPAD_LEFT, locked = true))
+        assertEquals(PlayerKeyOutcome(false, showControls = 1), remoteKey(KeyEvent.KEYCODE_MEDIA_PAUSE, locked = true))
+        assertTrue(model.videoPlaying.value)
+    }
+
+    @Test fun remoteNavigationSeeksOnlyWhileControlsAreHidden() = instrumentation.runOnMainSync {
+        for ((key, offset) in listOf(KeyEvent.KEYCODE_DPAD_LEFT to -10_000L, KeyEvent.KEYCODE_DPAD_RIGHT to 10_000L)) {
+            assertEquals(PlayerKeyOutcome(true, seekOffsets = listOf(offset)), remoteKey(key, visible = false))
+            assertEquals(PlayerKeyOutcome(false, showControls = 1), remoteKey(key))
+        }
+        for (key in listOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)) {
+            assertEquals(PlayerKeyOutcome(true, showControls = 1), remoteKey(key, visible = false))
+            assertEquals(PlayerKeyOutcome(false, showControls = 1), remoteKey(key))
+        }
+        assertEquals(PlayerKeyOutcome(false), remoteKey(KeyEvent.KEYCODE_BACK))
+    }
+
+    @Test fun remoteSelectionAndMediaButtonsRespectFocusAndPlaybackState() = instrumentation.runOnMainSync {
+        state("_videoPlaybackActive", true)
+        val handled = PlayerKeyOutcome(true, showControls = 1)
+        val selectKeys = listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER)
+        for (key in selectKeys) {
+            assertEquals(handled, remoteKey(key, visible = false, playPauseFocused = true))
+            assertEquals(PlayerKeyOutcome(false), remoteKey(key))
+            assertTrue(model.videoPlaying.value)
+            assertEquals(handled, remoteKey(key, playPauseFocused = true))
+            assertFalse(model.videoPlaying.value)
+            assertEquals(handled, remoteKey(KeyEvent.KEYCODE_MEDIA_PLAY))
+        }
+        assertEquals(handled, remoteKey(KeyEvent.KEYCODE_MEDIA_PAUSE))
+        assertFalse(model.videoPlaying.value)
+        assertEquals(handled, remoteKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+        assertTrue(model.videoPlaying.value)
+        assertEquals(handled, remoteKey(KeyEvent.KEYCODE_SPACE))
+        assertFalse(model.videoPlaying.value)
+        assertEquals(handled, remoteKey(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD))
+        assertEquals(handled, remoteKey(KeyEvent.KEYCODE_MEDIA_REWIND))
+        assertEquals(PlayerKeyOutcome(true), remoteKey(KeyEvent.KEYCODE_MEDIA_STOP))
     }
 
     @Test fun playbackSpeedClampsAndSilenceSettingsRemainAvailableWhileDisconnected() {
