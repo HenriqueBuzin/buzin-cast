@@ -13,6 +13,7 @@ object DebugCoverage {
     external fun nativeAacConfigurationContracts(): String
     external fun nativePlatformDecoderFallbackContracts(): String
     external fun nativePreferredDecoderContracts(): String
+    external fun nativeDecoderDrainStartupContracts(): String
     external fun nativeFfmpegLogContracts(): String
     external fun nativePlatformInputBufferContracts(): String
     external fun nativePlatformOutputBufferContracts(): String

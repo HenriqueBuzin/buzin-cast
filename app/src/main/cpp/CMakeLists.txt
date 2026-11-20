@@ -209,6 +209,7 @@ if(BUZIN_COVERAGE)
         "-Wl,--wrap=AMediaCodec_createCodecByName" "-Wl,--wrap=AMediaCodec_createDecoderByType"
         "-Wl,--wrap=__android_log_vprint"
         "-Wl,--wrap=pthread_setspecific"
+        "-Wl,--wrap=pthread_create"
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
         "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"
         "-Wl,--wrap=avcodec_free_context" "-Wl,--wrap=av_packet_free" "-Wl,--wrap=av_frame_free"

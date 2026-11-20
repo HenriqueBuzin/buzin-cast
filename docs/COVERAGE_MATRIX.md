@@ -1496,3 +1496,17 @@ Both reports cover every line, function, instantiation, region, and MC/DC
 condition in `audio_decoder.h`. The two remaining branch outcomes are the
 destructor's checks for an absent codec and a non-joinable drain thread.
 The current suite has 250 Android cases.
+
+`MediaCodecDecoder` now owns the started platform codec before launching its
+drain thread. If thread creation fails, the codec is stopped and released
+during construction unwinding, and decoder selection proceeds to FFmpeg.
+Successful construction guarantees a joinable worker, which is joined before
+the codec owner releases it. The regression forces `pthread_create` to return
+`EAGAIN` and verifies platform and software resource cleanup.
+
+All 26 selected audio cases passed on normal and compat DE/AT API28. All
+14 selected decoder cases passed on API22 using the identical compat DE/AT
+APK, test APK, and native binary. `audio_decoder.h` reached 100% on all six
+native metrics in the normal selected run and in the combined compat DE/AT
+profile. These reports cover this decoder source, while the full edition
+reports cover the entire application. The suite has 251 Android cases.

@@ -18,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -209,38 +210,42 @@ static inline std::optional<CodecConfig> codecConfig(int ct, int spf, int sample
 #ifndef BUZIN_SOFTWARE_AUDIO_ONLY
 class MediaCodecDecoder : public Decoder {
 public:
+    struct StopAndDelete {
+        void operator()(AMediaCodec *codec) const noexcept {
+            AMediaCodec_stop(codec);
+            AMediaCodec_delete(codec);
+        }
+    };
+    using Codec = std::unique_ptr<AMediaCodec, StopAndDelete>;
+
     // takes ownership of already-created+started codec
-    MediaCodecDecoder(AMediaCodec *codec, TimelineBuffer &timeline, LatencyReporter &lat)
-        : mCodec(codec), mTimeline(timeline), mLat(lat) {
-        mDrainRun.store(true, std::memory_order_relaxed);
-        mDrainThread = std::thread(&MediaCodecDecoder::drainLoop, this);
-    }
+    MediaCodecDecoder(Codec codec, TimelineBuffer &timeline, LatencyReporter &lat)
+        : mCodec(std::move(codec)), mTimeline(timeline), mLat(lat),
+          mDrainThread(&MediaCodecDecoder::drainLoop, this) {}
 
     ~MediaCodecDecoder() override {
         // stop drain thread before touching the codec it reads from
-        if (mDrainThread.joinable()) {
-            mDrainRun.store(false, std::memory_order_relaxed);
-            mDrainThread.join();
-        }
-        if (mCodec) { AMediaCodec_stop(mCodec); AMediaCodec_delete(mCodec); }
+        mDrainRun.store(false, std::memory_order_relaxed);
+        mDrainThread.join();
     }
 
     bool decode(const uint8_t *data, size_t len, int64_t ptsNs) override {
-        ssize_t ii = AMediaCodec_dequeueInputBuffer(mCodec, 5000);
+        auto *codec = mCodec.get();
+        ssize_t ii = AMediaCodec_dequeueInputBuffer(codec, 5000);
         // Codec startup can outlast the live stream's 5ms input budget. Allow
         // one bounded warmup wait before the first buffer, never for live input.
         if (ii == AMEDIACODEC_INFO_TRY_AGAIN_LATER && !mInputReady)
-            ii = AMediaCodec_dequeueInputBuffer(mCodec, 95000);
+            ii = AMediaCodec_dequeueInputBuffer(codec, 95000);
         if (ii < 0) return false;
         mInputReady = true;
         size_t cap = 0;
-        uint8_t *in = AMediaCodec_getInputBuffer(mCodec, (size_t)ii, &cap);
+        uint8_t *in = AMediaCodec_getInputBuffer(codec, (size_t)ii, &cap);
         if (!in) return false;
         const size_t n = len < cap ? len : cap;
         memcpy(in, data, n);
         mProbe.record((int64_t)(ptsNs / 1000), monoNs());
         // still queue packets that are too large, but truncate them and report as error
-        return AMediaCodec_queueInputBuffer(mCodec, (size_t)ii, 0, n, (uint64_t)(ptsNs / 1000), 0) ==
+        return AMediaCodec_queueInputBuffer(codec, (size_t)ii, 0, n, (uint64_t)(ptsNs / 1000), 0) ==
                    AMEDIA_OK && n == len;
     }
 
@@ -248,32 +253,33 @@ private:
     static constexpr int64_t DRAIN_TIMEOUT_US = 20000;
 
     void drainLoop() {
+        auto *codec = mCodec.get();
         AMediaCodecBufferInfo info;
         while (mDrainRun.load(std::memory_order_relaxed)) {
-            ssize_t oi = AMediaCodec_dequeueOutputBuffer(mCodec, &info, DRAIN_TIMEOUT_US);
+            ssize_t oi = AMediaCodec_dequeueOutputBuffer(codec, &info, DRAIN_TIMEOUT_US);
             if (oi < 0) continue;  // timeout / format / buffers changed
             size_t osz = 0;
-            uint8_t *out = AMediaCodec_getOutputBuffer(mCodec, (size_t)oi, &osz);
+            uint8_t *out = AMediaCodec_getOutputBuffer(codec, (size_t)oi, &osz);
             if (out && info.size > 0) {
                 mTimeline.write((const int16_t *)(out + info.offset),
                                 (size_t)info.size / sizeof(int16_t),
                                 (int64_t)info.presentationTimeUs * 1000);
             }
             const int64_t nowNs = monoNs();
-            AMediaCodec_releaseOutputBuffer(mCodec, (size_t)oi, false);
+            AMediaCodec_releaseOutputBuffer(codec, (size_t)oi, false);
             const int64_t lat = mProbe.match((int64_t)info.presentationTimeUs, nowNs);
             if (lat >= 0) mLat.record(lat);
             mLat.setHeld(mProbe.inFlight());
         }
     }
 
-    AMediaCodec *mCodec;  // owned
+    Codec mCodec;
     TimelineBuffer &mTimeline;
     LatencyReporter &mLat;
     LatencyProbe mProbe;
-    std::thread mDrainThread;
-    std::atomic<bool> mDrainRun{false};
+    std::atomic<bool> mDrainRun{true};
     bool mInputReady = false;  // producer-thread only
+    std::thread mDrainThread;
 };
 #endif
 
@@ -472,8 +478,13 @@ static inline std::unique_ptr<Decoder> makeDecoder(int ct, int spf, int sampleRa
     }
 #ifndef BUZIN_SOFTWARE_AUDIO_ONLY
     if (!forceSw) {
-        if (AMediaCodec *codec = startMediaCodec(*c, log, realtimePriority, lowLatency))
-            return std::make_unique<MediaCodecDecoder>(codec, timeline, lat);
+        if (MediaCodecDecoder::Codec codec{startMediaCodec(*c, log, realtimePriority, lowLatency)}) {
+            try {
+                return std::make_unique<MediaCodecDecoder>(std::move(codec), timeline, lat);
+            } catch (const std::system_error &error) {
+                log.warn("%s decoder drain thread failed: %s", c->mime, error.what());
+            }
+        }
     }
 #endif
     if (auto sw = FfmpegDecoder::make(*c, timeline, lat, log)) {

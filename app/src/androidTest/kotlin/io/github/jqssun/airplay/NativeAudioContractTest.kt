@@ -31,6 +31,9 @@ class NativeAudioContractTest {
     @Test fun aacUsesThePreferredDecoderWhenItStartsAndReleasesItAfterward() =
         decoderContract("preferred decoder contracts passed", DebugCoverage::nativePreferredDecoderContracts)
 
+    @Test fun platformDrainStartupFailureReleasesCodecAndFallsBackToFfmpeg() =
+        decoderContract("decoder drain startup contracts passed", DebugCoverage::nativeDecoderDrainStartupContracts)
+
     @Test fun ffmpegForwardsWarningsAndErrorsAtTheCorrectAndroidPriority() =
         decoderContract("FFmpeg log contracts passed", DebugCoverage::nativeFfmpegLogContracts)
 

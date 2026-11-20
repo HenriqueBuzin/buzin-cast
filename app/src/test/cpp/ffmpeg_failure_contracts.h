@@ -1,5 +1,6 @@
 // Included by audio_engine.cpp in coverage builds to exercise the same decoder instantiations.
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <jni.h>
 
@@ -74,6 +75,8 @@ struct PreferredCodecContract {
     size_t defaultRequests = 0;
     bool deleted = false;
     AMediaCodec *codec = nullptr;
+    bool failThread = false;
+    bool threadRejected = false;
 };
 thread_local PreferredCodecContract *activePreferredCodec = nullptr;
 
@@ -155,6 +158,7 @@ extern "C" media_status_t __real_AMediaCodec_delete(AMediaCodec *);
 extern "C" AMediaCodec *__real_AMediaCodec_createCodecByName(const char *);
 extern "C" AMediaCodec *__real_AMediaCodec_createDecoderByType(const char *);
 extern "C" int __real___android_log_vprint(int, const char *, const char *, va_list);
+extern "C" int __real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
 extern "C" uint8_t *__real_AMediaCodec_getInputBuffer(AMediaCodec *, size_t, size_t *);
 extern "C" media_status_t __real_AMediaCodec_queueInputBuffer(
     AMediaCodec *, size_t, PlatformInputOffset, size_t, uint64_t, uint32_t);
@@ -217,6 +221,16 @@ extern "C" int __wrap___android_log_vprint(int priority, const char *tag, const 
     const int length = vsnprintf(buffer.data(), buffer.size(), format, args);
     fixture->entries.emplace_back(priority, buffer.data());
     return length;
+}
+
+extern "C" int __wrap_pthread_create(
+    pthread_t *thread, const pthread_attr_t *attr, void *(*start)(void *), void *arg) {
+    auto *fixture = activePreferredCodec;
+    if (fixture && fixture->codec && fixture->failThread && !fixture->threadRejected) {
+        fixture->threadRejected = true;
+        return EAGAIN;
+    }
+    return __real_pthread_create(thread, attr, start, arg);
 }
 
 extern "C" uint8_t *__wrap_AMediaCodec_getInputBuffer(AMediaCodec *codec, size_t index, size_t *capacity) {
@@ -458,6 +472,26 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePreferredDecoderContracts(JNIE
 }
 
 extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDecoderDrainStartupContracts(JNIEnv *env, jobject) {
+    LogSink log;
+    LatencyReporter latency("AAC drain startup contract", log);
+    TimelineBuffer timeline(44100, 2, 0, 95);
+    ScopedPreferredCodecContract platform;
+    platform.codec.failThread = true;
+    ScopedDecoderAllocationFault software(DecoderAllocation::None);
+    auto decoder = makeDecoder(CT_AAC_LC, 1024, 44100, 2, timeline, latency, log, false, false, false);
+    if (!platform.codec.threadRejected || !platform.codec.deleted || platform.codec.codec) {
+        return env->NewStringUTF("Platform codec was not released after its drain thread failed to start");
+    }
+    if (!decoder || !software.fault.context || !software.fault.packet || !software.fault.frame) {
+        return env->NewStringUTF("FFmpeg decoder did not start after the platform drain thread failed");
+    }
+    decoder.reset();
+    return env->NewStringUTF(!software.fault.context && !software.fault.packet && !software.fault.frame
+        ? "decoder drain startup contracts passed" : "FFmpeg fallback was not released");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeFfmpegLogContracts(JNIEnv *env, jobject) {
     installFfmpegLogcat();
     ScopedFfmpegLogContract fixture;
@@ -485,7 +519,7 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformInputBufferContracts(J
     for (const auto mode : {PlatformInputCase::Missing, PlatformInputCase::Limited, PlatformInputCase::QueueRejected}) {
         auto *codec = startMediaCodec(*config, log, false, false);
         INPUT_CONTRACT(codec);
-        MediaCodecDecoder decoder(codec, timeline, latency);
+        MediaCodecDecoder decoder(MediaCodecDecoder::Codec(codec), timeline, latency);
         ScopedPlatformInputContract fixture(codec, mode);
         const auto &input = fixture.contract;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
@@ -530,7 +564,7 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformOutputBufferContracts(
     DRAIN_CONTRACT(codec);
     ScopedPlatformOutputContract fixture(codec);
     {
-        MediaCodecDecoder decoder(codec, timeline, latency);
+        MediaCodecDecoder decoder(MediaCodecDecoder::Codec(codec), timeline, latency);
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
         while (fixture.output.released.load(std::memory_order_acquire) < fixture.output.releases.size() &&
                std::chrono::steady_clock::now() < deadline) {
