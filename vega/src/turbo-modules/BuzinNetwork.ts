@@ -28,6 +28,13 @@ export interface BuzinNetwork extends KeplerTurboModule {
   startRecordingExport: (name: string) => string;
   getRecordingExportState: () => string;
   stopRecordingExport: () => void;
+  startMediaDownload: (url: string) => void;
+  cancelMediaDownload: () => void;
+  getMediaDownloadState: () => string;
+  listMediaDownloads: () => string;
+  getMediaDownloadUrl: (name: string) => string;
+  removeMediaDownload: (name: string) => void;
+  startDownloadExport: (name: string) => string;
   getAirPlayVideoState: () => string;
   stopAirPlayAudio: () => void;
   getAirPlayAudioState: () => string;

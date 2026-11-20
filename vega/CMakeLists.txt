@@ -36,7 +36,7 @@ include(cmake/AirPlayCore.cmake)
 include(cmake/AlacDecoder.cmake)
 apmf_add_idl_import_library(BuzinAudioIdl PACKAGES com.amazon.kepler.audio)
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/AlacAudioPlayer.cpp)
-target_link_libraries(BuzinNetwork PRIVATE BuzinAudioIdl BuzinAlacDecoder BuzinVideoOutput)
+target_link_libraries(BuzinNetwork PRIVATE BuzinAudioIdl BuzinAlacDecoder BuzinVideoOutput BuzinMediaDownload)
 target_sources(BuzinNetwork PRIVATE kepler/turbo-modules/ProtocolProbe.cpp
   kepler/turbo-modules/AirPlaySession.cpp
   "${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/android_dnssd_shim.c")

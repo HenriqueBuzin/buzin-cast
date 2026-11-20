@@ -158,6 +158,16 @@ lock npm. Licenças e créditos seguem em `vega/assets/raw/licenses` e
 `vega/assets/raw/third-party-notices.txt`, incluídos no pacote. O player W3C e
 os codecs são fornecidos pelo Vega; os termos Amazon continuam aplicáveis.
 
+### Vega — download de vídeos
+
+A configuração atual de `vega/cmake/AlacDecoder.cmake` também compila a
+remultiplexação de MP4, HLS e DASH para downloads. FFmpeg 9.0.2 usa
+`--enable-version3` e o OpenSSL já incluído para HTTPS. A libxml2 2.15.4 é
+fixada por SHA-256, compilada estaticamente para ler manifestos DASH e
+distribuída com sua licença MIT. As licenças FFmpeg LGPL 3.0 e libxml2
+acompanham os assets Vega. O downloader usa a cadeia de confiança da TV
+e restringe as origens e segmentos a HTTP(S).
+
 ### Vega — ALAC por software e saída PCM — 18 de novembro de 2026
 
 O Vega agora compila estaticamente somente o decoder ALAC e libavutil do

@@ -1,29 +1,31 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import TvButton from './TvButton';
 import RecordingExportScreen from './RecordingExportScreen';
 import Network from './turbo-modules/BuzinNetwork';
+import DownloadButton from './DownloadButton';
 
 type Entry = {name: string; bytes: number};
 
-export default function RecordingLibrary({onBack, onPlay}: {
+export default function RecordingLibrary({onBack, onPlay, downloads = false}: {
   onBack: () => void;
   onPlay: (title: string, url: string) => void;
+  downloads?: boolean;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [message, setMessage] = useState('');
   const [focused, setFocused] = useState('back');
   const [confirm, setConfirm] = useState('');
   const [exportName, setExportName] = useState('');
-  function refresh() {
+  const refresh = useCallback(() => {
     try {
-      const parsed: Entry[] = JSON.parse(Network.listMirrorRecordings());
+      const parsed: Entry[] = JSON.parse(downloads ? Network.listMediaDownloads() : Network.listMirrorRecordings());
       if (!Array.isArray(parsed)) {throw new Error('Invalid recording library');}
       setEntries(parsed);
       setMessage('');
     } catch {setMessage('Não foi possível consultar a Biblioteca.');}
-  }
-  useEffect(() => {refresh();}, []);
+  }, [downloads]);
+  useEffect(() => {refresh();}, [refresh]);
 
   function button(id: string, label: string, action: () => void, primary = false) {
     return (
@@ -35,13 +37,14 @@ export default function RecordingLibrary({onBack, onPlay}: {
     );
   }
   if (exportName) {
-    return <RecordingExportScreen name={exportName} onBack={() => setExportName('')} />;
+    return <RecordingExportScreen name={exportName} download={downloads} onBack={() => setExportName('')} />;
   }
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Biblioteca de gravações</Text>
+      <Text style={styles.title}>{downloads ? 'Biblioteca de downloads' : 'Biblioteca de gravações'}</Text>
+      {downloads && <DownloadButton onSaved={refresh} />}
       {!!message && <Text style={styles.details} aria-live="polite">{message}</Text>}
-      {!entries.length && !message && <Text style={styles.details}>Nenhuma gravação salva.</Text>}
+      {!entries.length && !message && <Text style={styles.details}>{downloads ? 'Nenhum vídeo baixado.' : 'Nenhuma gravação salva.'}</Text>}
       <ScrollView style={styles.list} contentContainerStyle={styles.rows}>
         {entries.map(({name, bytes}) => (
           <View key={name} style={styles.row}>
@@ -52,15 +55,18 @@ export default function RecordingLibrary({onBack, onPlay}: {
                   {button(name + 'cancel', 'Cancelar', () => setConfirm(''), true)}
                   {button(name + 'delete', 'Confirmar exclusão', () => {
                     setConfirm('');
-                    try {Network.removeMirrorRecording(name); refresh();}
-                    catch {setMessage('Não foi possível excluir a gravação.');}
+                    try {
+                      if (downloads) {Network.removeMediaDownload(name);}
+                      else {Network.removeMirrorRecording(name);}
+                      refresh();
+                    } catch {setMessage(downloads ? 'Não foi possível excluir o vídeo.' : 'Não foi possível excluir a gravação.');}
                   })}
                 </>
               ) : (
                 <>
                   {button(name + 'play', 'Reproduzir', () => {
-                    try {onPlay(name, Network.getMirrorRecordingUrl(name));}
-                    catch {setMessage('Não foi possível abrir a gravação.');}
+                    try {onPlay(name, downloads ? Network.getMediaDownloadUrl(name) : Network.getMirrorRecordingUrl(name));}
+                    catch {setMessage(downloads ? 'Não foi possível abrir o vídeo.' : 'Não foi possível abrir a gravação.');}
                   }, !confirm && name === entries[0].name)}
                   {button(name + 'export', 'Exportar', () => setExportName(name))}
                   {button(name + 'remove', 'Excluir', () => setConfirm(name))}

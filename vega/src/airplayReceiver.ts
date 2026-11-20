@@ -24,6 +24,7 @@ export function createAirPlayReceiver(
   let port = 0;
   let closed = false;
   let ownsMedia = false;
+  let downloadUrl = '';
   let snapshot: PlaybackSnapshot | null = null;
   let lastPlay = -Infinity;
   let relay: RelayView | undefined;
@@ -34,6 +35,7 @@ export function createAirPlayReceiver(
     ++token;
     const hadMedia = ownsMedia;
     ownsMedia = false;
+    downloadUrl = '';
     snapshot = null;
     try {if (hadMedia) {player?.pause();}} catch { /* native release still follows on stop */ }
     if (!closed) {onReady(null); onChange(null);}
@@ -136,6 +138,7 @@ export function createAirPlayReceiver(
           lastPlay = Date.now();
           endMedia(); ownsMedia = true;
           session.load(request);
+          if (mode === 'url') {downloadUrl = request.url;}
           onReady(token);
         } else if (event.kind === 'stop') {
           endMedia(); publish();
@@ -161,6 +164,10 @@ export function createAirPlayReceiver(
   tick = setInterval(() => {if (port) {try {publish();} catch {fail();}}}, 250);
   return {
     get port() {return port;},
+    getDownloadUrl() {
+      const duration = player?.duration ?? 0;
+      return Number.isFinite(duration) && duration > 0 ? downloadUrl : '';
+    },
     attachSurface(current: number, handle: string) {if (current === token && ownsMedia) {session?.attachSurface(handle);}},
     detachSurface(current: number, handle: string) {if (current === token) {session?.detachSurface(handle);}},
     togglePause() {if (ownsMedia && mode === 'url') {session?.togglePause();}},

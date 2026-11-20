@@ -15,6 +15,7 @@ import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} f
 import type {PlaybackSnapshot} from './playbackSession';
 import VideoViewport from './VideoViewport';
 import DlnaPhotoViewer from './DlnaPhotoViewer';
+import DownloadButton from './DownloadButton';
 
 const titles = {
   fcast: 'FCast v2 experimental',
@@ -27,7 +28,8 @@ const titles = {
 
 export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () => void; protocol?: keyof typeof titles}) {
   const receiver = useRef<(Pick<ReturnType<typeof createFCastReceiver>, 'attachSurface' | 'detachSurface' | 'togglePause' | 'stop'> &
-    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed' | 'navigatePhoto' | 'closePhoto' | 'answerApproval'>>) | null>(null);
+    Partial<Pick<ReturnType<typeof createDlnaReceiver>, 'photoDisplayed' | 'navigatePhoto' | 'closePhoto' | 'answerApproval'>> &
+    Partial<Pick<ReturnType<typeof createAirPlayReceiver>, 'getDownloadUrl'>>) | null>(null);
   const [port, setPort] = useState(46899);
   const [token, setToken] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<PlaybackSnapshot | null>(null);
@@ -160,6 +162,12 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
       {subtitleMedia !== null && <SubtitleNotice link={subtitles.link} message={subtitles.message} />}
       <View style={styles.actions}>
         {protocol === 'mirror' && listening && !failed && <RecordingButton disabled={!!approval} />}
+        {protocol === 'airplay' && listening && !failed && (
+          <DownloadButton
+            blocked={!!approval}
+            url={snapshot && ['playing', 'paused'].includes(snapshot.state) ? receiver.current?.getDownloadUrl?.() : undefined}
+          />
+        )}
         {subtitleMedia !== null && <SubtitleButton label={subtitles.label} onPress={subtitles.select} />}
         {(token === null || protocol === 'mirror' || protocol === 'relay' ? ['back'] : ['pause', 'back']).map((id) => (
           <TvButton

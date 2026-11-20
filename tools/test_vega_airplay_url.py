@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real AirPlay URL -> native UxPlay -> Vega player test, on VVD only."""
 import argparse
+import base64
 from concurrent.futures import ThreadPoolExecutor
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +28,7 @@ def main():
     parser.add_argument('--live', action='store_true', help='Check startup and release without seeking in an unindexed MP4')
     parser.add_argument('--volume', action='store_true', help='Verify RTSP gain and mute reach the active Vega player')
     parser.add_argument('--approval', action='store_true', help='Approve the actual HTTP play request with TV controls')
+    parser.add_argument('--download', choices=['mp4', 'hls', 'dash'], help='Save the active on-demand video and verify its MP4')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/vega-airplay-url')
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
@@ -42,8 +44,17 @@ def main():
     log_stream = None
     log_output = None
     media_requests = []
+    created_downloads = set()
+    before_downloads = None
+    hold_download = threading.Event()
+    download_requested = threading.Event()
+    release_download = threading.Event()
 
     content = args.media_file.read_bytes()
+    location = {'hls': 'movie.m3u8', 'dash': 'movie.mpd'}.get(args.download, 'playback-sample.mp4')
+    fixture_dir = ROOT / 'fireos3-probe/src/main/assets/download_formats'
+    adaptive_types = {'.m3u8': 'application/vnd.apple.mpegurl', '.mpd': 'application/dash+xml',
+                      '.ts': 'video/mp2t', '.mp4': 'video/mp4', '.m4s': 'video/iso.segment'}
 
     class Media(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -53,11 +64,22 @@ def main():
         def do_GET(self):
             self.serve(True)
         def serve(self, body):
-            if self.path != '/playback-sample.mp4':
+            filename = self.path.removeprefix('/')
+            if filename == 'playback-sample.mp4':
+                source = content
+                content_type = 'video/mp4'
+            elif args.download in {'hls', 'dash'} and re.fullmatch(r'[A-Za-z0-9.-]+', filename):
+                fixture = fixture_dir / filename
+                content_type = adaptive_types.get(fixture.suffix)
+                if not content_type or not fixture.is_file():
+                    self.send_error(404)
+                    return
+                source = fixture.read_bytes()
+            else:
                 self.send_error(404)
                 return
             byte_range = self.headers.get('Range')
-            start, end = 0, len(content) - 1
+            start, end = 0, len(source) - 1
             if byte_range:
                 match = re.fullmatch(r'bytes=(\d+)-(\d*)', byte_range)
                 if not match:
@@ -68,17 +90,21 @@ def main():
                 if start > end:
                     self.send_error(416)
                     return
-            media_requests.append({'body': body, 'range': byte_range})
+            downloader = self.headers.get('User-Agent', '').startswith('Lavf')
+            media_requests.append({'file': filename, 'body': body, 'range': byte_range, 'download': downloader})
+            if body and hold_download.is_set() and downloader:
+                download_requested.set()
+                release_download.wait(15)
             self.send_response(206 if byte_range else 200)
-            self.send_header('Content-Type', 'video/mp4')
+            self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(end - start + 1))
             self.send_header('Accept-Ranges', 'bytes')
             if byte_range:
-                self.send_header('Content-Range', f'bytes {start}-{end}/{len(content)}')
+                self.send_header('Content-Range', f'bytes {start}-{end}/{len(source)}')
             self.end_headers()
             if body:
                 try:
-                    self.wfile.write(content[start:end + 1])
+                    self.wfile.write(source[start:end + 1])
                 except (BrokenPipeError, ConnectionResetError):
                     pass
 
@@ -94,6 +120,14 @@ def main():
 
     def shell(*command):
         return run('exec', 'vda', '-s', args.serial, 'shell', *command)
+
+    def download_files():
+        files = shell('-c', COMPONENT, 'if test -d /data/downloads; then ls /data/downloads; fi')
+        return set(re.findall(r'^Download-\d{13,}-[A-Za-z0-9]{6}\.mp4$', files, re.M))
+
+    def partial_download_exists():
+        files = shell('-c', COMPONENT, 'ls -a /data/downloads')
+        return bool(re.search(r'^\.download-\d{13,}-[A-Za-z0-9]{6}$', files, re.M))
 
     def request(method, path, body=b''):
         client.request(method, path, body, {'Content-Type': 'text/parameters', 'X-Apple-Session-ID': '00112233-4455-6677-8899-aabbccddeeff'})
@@ -186,7 +220,7 @@ def main():
         client = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
         client.response_class = AirPlayResponse
         start = 0 if args.live else 1
-        play = f'Content-Location: http://127.0.0.1:40881/playback-sample.mp4\r\nStart-Position: {start}\r\n'.encode()
+        play = f'Content-Location: http://127.0.0.1:40881/{location}\r\nStart-Position: {start}\r\n'.encode()
         if args.approval:
             with ThreadPoolExecutor(max_workers=1) as pool:
                 waiting = pool.submit(request, 'POST', '/play', play)
@@ -218,6 +252,49 @@ def main():
             if abs(held['position'] - paused['position']) > 0.3:
                 raise RuntimeError('Paused clock advanced')
             result['checks']['paused'] = held
+            if args.download:
+                before_downloads = download_files()
+                if args.download == 'mp4':
+                    hold_download.set()
+                for key in ('KEY_LEFT', 'KEY_LEFT', 'KEY_LEFT', 'KEY_ENTER'):
+                    shell('inputd-cli', 'button_press', key)
+                if args.download == 'mp4':
+                    if not download_requested.wait(5) or not partial_download_exists():
+                        raise RuntimeError('The media worker did not start the cancellable download')
+                    assert download_files() == before_downloads
+                    shell('inputd-cli', 'button_press', 'KEY_ENTER')
+                    deadline = time.monotonic() + 5
+                    while partial_download_exists():
+                        if time.monotonic() >= deadline:
+                            raise RuntimeError('Cancelling did not discard the partial MP4')
+                        time.sleep(0.2)
+                    assert download_files() == before_downloads
+                    hold_download.clear()
+                    release_download.set()
+                    # A temporarily disabled button can lose native TV focus.
+                    for key in ('KEY_RIGHT',) * 4 + ('KEY_LEFT',) * 3 + ('KEY_ENTER',):
+                        shell('inputd-cli', 'button_press', key)
+                    result['checks']['cancelledDownloadRemovedPartial'] = True
+                for _ in range(15):
+                    created_downloads = download_files() - before_downloads
+                    if created_downloads:
+                        break
+                    time.sleep(0.5)
+                if len(created_downloads) != 1:
+                    raise RuntimeError('The TV download action did not publish exactly one MP4')
+                name = next(iter(created_downloads))
+                downloaded = args.output / 'downloaded.mp4'
+                binary = subprocess.run([sdk, 'exec', 'vda', '-s', args.serial, 'shell', '-c', COMPONENT,
+                                         'base64', f'/data/downloads/{name}'], check=True, capture_output=True, timeout=30)
+                downloaded.write_bytes(base64.b64decode(binary.stdout))
+                probe = subprocess.run(['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(downloaded)],
+                                       check=True, capture_output=True, timeout=20)
+                data = json.loads(probe.stdout)
+                codecs = {stream['codec_type']: stream['codec_name'] for stream in data['streams']}
+                assert codecs == {'video': 'h264', 'audio': 'aac'} and float(data['format']['duration']) >= 7.5
+                subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-xerror', '-i', str(downloaded), '-f', 'null', '-'],
+                               check=True, capture_output=True, timeout=30)
+                result['checks']['downloaded'] = {'input': args.download, 'codecs': codecs, 'duration': float(data['format']['duration'])}
             request('POST', '/scrub?position=3')
             result['checks']['seek'] = wait(lambda value: abs(value.get('position', 0) - 3) < 0.4)
             request('POST', '/rate?value=1')
@@ -239,18 +316,24 @@ def main():
         result['passed'] = True
         print(json.dumps(result, indent=2))
     except Exception as error:
-        result.update(passed=False, error=str(error), mediaRequests=len(media_requests))
+        result.update(passed=False, error=str(error), mediaRequests=media_requests)
         try:
             result['playbackDiagnostic'] = json.loads(shell('-c', COMPONENT, 'cat', '/data/playback-state.json'))
         except Exception:
             pass
         try:
             (args.output / 'receiver.log').write_text(shell('loggingctl', 'log', '-v', 'com.buzincast.tv'))
-            shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
         except Exception:
             pass
         raise
     finally:
+        release_download.set()
+        if before_downloads is not None:
+            try:
+                for name in download_files() - before_downloads:
+                    shell('-c', COMPONENT, 'rm', '-f', f'/data/downloads/{name}')
+            except (RuntimeError, subprocess.TimeoutExpired) as cleanup_error:
+                result['downloadCleanupError'] = str(cleanup_error)
         if saved_approval is not None:
             restore = f'printf {saved_approval} > /data/dlna-approval' if saved_approval else 'rm -f /data/dlna-approval'
             shell('-c', COMPONENT, restore)
@@ -274,6 +357,11 @@ def main():
                 pass
         server.shutdown()
         server.server_close()
+        if result.get('passed') is False:
+            try:
+                shell('vlcm', 'terminate-app', '--pkg-id', 'com.buzincast.tv')
+            except RuntimeError:
+                pass
         (args.output / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
         (args.output / 'commands.json').write_text(json.dumps(history, indent=2) + '\n')
 

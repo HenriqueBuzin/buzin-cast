@@ -18,6 +18,7 @@
 namespace BuzinNetworkTurboModule {
 BuzinNetwork::BuzinNetwork() : audio([] {return std::make_unique<AirPlayAudioPlayer>();}),
   recording("/data/recordings"),
+  downloads("/data/downloads"),
   video([this] {return std::make_unique<Fmp4VideoOutput>(&recording, &relaySender);}) {}
 BuzinNetwork::~BuzinNetwork() noexcept = default;
 std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/receiver-name"); }
@@ -45,8 +46,8 @@ void BuzinNetwork::startMirrorRecording() {
   recording.arm();
 }
 void BuzinNetwork::stopMirrorRecording() {recording.stop();}
-std::string BuzinNetwork::listMirrorRecordings() {
-  const auto entries = recording.list();
+namespace {
+std::string formatMediaEntries(const auto& entries) {
   std::ostringstream output;
   output << '[';
   for (size_t i = 0; i < entries.size(); ++i) {
@@ -56,6 +57,8 @@ std::string BuzinNetwork::listMirrorRecordings() {
   output << ']';
   return output.str();
 }
+}
+std::string BuzinNetwork::listMirrorRecordings() {return formatMediaEntries(recording.list());}
 std::string BuzinNetwork::getMirrorRecordingUrl(std::string name) {return recording.url(name);}
 void BuzinNetwork::removeMirrorRecording(std::string name) {recording.remove(name);}
 std::string BuzinNetwork::startRecordingExport(std::string name) {
@@ -63,6 +66,18 @@ std::string BuzinNetwork::startRecordingExport(std::string name) {
 }
 std::string BuzinNetwork::getRecordingExportState() {return recordingExport.state();}
 void BuzinNetwork::stopRecordingExport() {recordingExport.stop();}
+void BuzinNetwork::startMediaDownload(std::string url) {downloads.start(url);}
+void BuzinNetwork::cancelMediaDownload() {downloads.cancel();}
+std::string BuzinNetwork::getMediaDownloadState() {
+  const auto state = downloads.status();
+  return "{\"phase\":\"" + state.phase + "\",\"percent\":" + std::to_string(state.percent) + '}';
+}
+std::string BuzinNetwork::listMediaDownloads() {return formatMediaEntries(downloads.list());}
+std::string BuzinNetwork::getMediaDownloadUrl(std::string name) {return "file://" + downloads.path(name);}
+void BuzinNetwork::removeMediaDownload(std::string name) {downloads.remove(name);}
+std::string BuzinNetwork::startDownloadExport(std::string name) {
+  return recordingExport.start(name, downloads.path(name));
+}
 
 std::string BuzinNetwork::startRelayReceiver() {
   const auto endpoint = relayReceiver.start();

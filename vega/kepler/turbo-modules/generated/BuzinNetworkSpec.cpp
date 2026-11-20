@@ -44,6 +44,13 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("startRecordingExport", &BuzinNetworkSpec::startRecordingExport);
   methodAggregator.addMethod("getRecordingExportState", &BuzinNetworkSpec::getRecordingExportState);
   methodAggregator.addMethod("stopRecordingExport", &BuzinNetworkSpec::stopRecordingExport);
+  methodAggregator.addMethod("startMediaDownload", &BuzinNetworkSpec::startMediaDownload);
+  methodAggregator.addMethod("cancelMediaDownload", &BuzinNetworkSpec::cancelMediaDownload);
+  methodAggregator.addMethod("getMediaDownloadState", &BuzinNetworkSpec::getMediaDownloadState);
+  methodAggregator.addMethod("listMediaDownloads", &BuzinNetworkSpec::listMediaDownloads);
+  methodAggregator.addMethod("getMediaDownloadUrl", &BuzinNetworkSpec::getMediaDownloadUrl);
+  methodAggregator.addMethod("removeMediaDownload", &BuzinNetworkSpec::removeMediaDownload);
+  methodAggregator.addMethod("startDownloadExport", &BuzinNetworkSpec::startDownloadExport);
   methodAggregator.addMethod("getAirPlayVideoState", &BuzinNetworkSpec::getAirPlayVideoState);
   methodAggregator.addMethod("stopAirPlayAudio", &BuzinNetworkSpec::stopAirPlayAudio);
   methodAggregator.addMethod("getAirPlayAudioState", &BuzinNetworkSpec::getAirPlayAudioState);

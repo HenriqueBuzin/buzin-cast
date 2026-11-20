@@ -58,6 +58,13 @@ public:
   virtual std::string startRecordingExport(std::string name) = 0;
   virtual std::string getRecordingExportState() = 0;
   virtual void stopRecordingExport() = 0;
+  virtual void startMediaDownload(std::string url) = 0;
+  virtual void cancelMediaDownload() = 0;
+  virtual std::string getMediaDownloadState() = 0;
+  virtual std::string listMediaDownloads() = 0;
+  virtual std::string getMediaDownloadUrl(std::string name) = 0;
+  virtual void removeMediaDownload(std::string name) = 0;
+  virtual std::string startDownloadExport(std::string name) = 0;
   virtual std::string getAirPlayVideoState() = 0;
   virtual void stopAirPlayAudio() = 0;
   virtual std::string getAirPlayAudioState() = 0;

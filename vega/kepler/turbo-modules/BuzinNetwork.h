@@ -17,6 +17,7 @@
 #include "AirPlayVideoWorker.h"
 #include "MirrorRecording.h"
 #include "RecordingExport.h"
+#include "MediaDownload.h"
 #include "RelayReceiver.h"
 #include "RelaySender.h"
 
@@ -45,6 +46,13 @@ public:
   std::string startRecordingExport(std::string name) override;
   std::string getRecordingExportState() override;
   void stopRecordingExport() override;
+  void startMediaDownload(std::string url) override;
+  void cancelMediaDownload() override;
+  std::string getMediaDownloadState() override;
+  std::string listMediaDownloads() override;
+  std::string getMediaDownloadUrl(std::string name) override;
+  void removeMediaDownload(std::string name) override;
+  std::string startDownloadExport(std::string name) override;
   std::string getAirPlayVideoState() override;
   std::string startRelayReceiver() override;
   std::string getRelayReceiverState() override;
@@ -94,6 +102,7 @@ private:
   AirPlayAudioWorker audio;
   MirrorRecording recording;
   RecordingExport recordingExport;
+  MediaDownload downloads;
   RelayReceiver relayReceiver;
   RelaySender relaySender;
   AirPlayVideoWorker video;

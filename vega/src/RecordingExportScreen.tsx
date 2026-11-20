@@ -5,14 +5,14 @@ import Network from './turbo-modules/BuzinNetwork';
 
 const status: Record<string, string> = {
   ready: 'Abra o endereço no navegador de um aparelho na mesma rede.',
-  sending: 'Enviando gravação…',
+  sending: 'Enviando vídeo…',
   sent: 'Envio concluído.',
   expired: 'O endereço expirou. Abra a exportação novamente.',
-  error: 'Não foi possível exportar a gravação.',
+  error: 'Não foi possível exportar o vídeo.',
   closed: 'Exportação encerrada.',
 };
 
-export default function RecordingExportScreen({name, onBack}: {name: string; onBack: () => void}) {
+export default function RecordingExportScreen({name, onBack, download = false}: {name: string; onBack: () => void; download?: boolean}) {
   const [link, setLink] = useState('');
   const [phase, setPhase] = useState('ready');
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function RecordingExportScreen({name, onBack}: {name: string; onB
       }
     }
     try {
-      setLink(Network.startRecordingExport(name));
+      setLink(download ? Network.startDownloadExport(name) : Network.startRecordingExport(name));
       opened = true;
       timer = setInterval(() => {
         try {
@@ -49,11 +49,11 @@ export default function RecordingExportScreen({name, onBack}: {name: string; onB
       }
     });
     return () => {listener.remove(); close();};
-  }, [name]);
+  }, [download, name]);
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Exportar gravação</Text>
+      <Text style={styles.title}>{download ? 'Exportar vídeo baixado' : 'Exportar gravação'}</Text>
       <Text style={styles.details}>{name}</Text>
       <Text aria-live="polite" style={styles.details}>{status[phase]}</Text>
       {phase === 'ready' && !!link && <Text selectable style={styles.link}>{link}</Text>}

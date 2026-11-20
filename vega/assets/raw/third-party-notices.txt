@@ -6,14 +6,16 @@ Componentes do núcleo de protocolo incorporados nesta build Vega:
 - UxPlay 1.73.7, https://github.com/FDH2/UxPlay (GPL v3 e avisos internos).
 - RPiPlay crypto helpers: Florian Draschbacher, Jaslo Ziska (GPL v3).
 - HTTP/RAOP library: Juho Vähä-Herttua e contribuidores (LGPL 2.1+).
-- FFmpeg 9.0.2, https://ffmpeg.org (LGPL 2.1+), ALAC decoder only.
+- FFmpeg 9.0.2, https://ffmpeg.org (LGPL 3.0+ nesta build), áudio, MP4 e downloads.
   Pinned source: app/src/main/cpp/third_party/ffmpeg; configure flags in
-  vega/cmake/AlacDecoder.cmake. License: licenses/FFmpeg-LGPL-2.1.txt.
+  vega/cmake/AlacDecoder.cmake. License: licenses/FFmpeg-LGPL-3.0.txt.
 - libplist 2.8.0, https://github.com/libimobiledevice/libplist (LGPL 2.1+).
 - libcnary: avisos e licença em licenses/libcnary.txt.
 - llhttp: licença MIT em licenses/llhttp-MIT.txt.
 - PlayFair: licença e créditos em licenses/playfair.txt.
 - OpenSSL 3.5.9 LTS, https://github.com/openssl/openssl (Apache 2.0).
+- libxml2 2.15.4, https://download.gnome.org/sources/libxml2/ (MIT).
+  DASH manifest parsing. License: licenses/libxml2-MIT.txt.
 
 Licenças integrais em assets/raw/licenses.
 As fontes e alterações Buzin Cast estão em https://github.com/HenriqueBuzin/buzin-cast.

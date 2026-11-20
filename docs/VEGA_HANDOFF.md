@@ -1,5 +1,25 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Download de vídeos AirPlay no Vega
+
+**Estado do port → Testar AirPlay por URL → Baixar vídeo** salva um MP4
+a partir de um vídeo sob demanda, enquanto o player estiver disponível.
+O worker remultiplexa o vídeo e o áudio compatíveis com MP4, usando
+HTTP(S) para MP4, HLS ou DASH. O botão informa progresso e permite
+cancelar. Um arquivo parcial só fica no sandbox durante o trabalho.
+
+**Mídia → Biblioteca de downloads** permite acompanhar ou cancelar o
+download, reproduzir o MP4, exportá-lo para outro aparelho na rede ou
+excluí-lo após confirmar. Conversão de codecs e validação em Fire TV
+Vega física seguem pendentes.
+
+No VVD ARM64, `tools/test_vega_airplay_url.py --download` verificou MP4,
+HLS e DASH pelo controle. O FFmpeg decodificou por completo cada MP4
+gerado (H.264/AAC). O teste MP4 também cancelou uma requisição durante a
+transferência, verificou a limpeza do arquivo parcial e baixou novamente.
+Lint, TypeScript, 89 testes Jest e a validação ABI ARM64, ARMv7 e x86_64
+passaram.
+
 ## Controles de fotos DLNA no Vega
 
 O receptor mostra Anterior, Próxima, Apresentação, Girar, Preencher/Ajustar

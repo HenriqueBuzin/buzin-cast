@@ -18,13 +18,14 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'calibration' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording' | 'relay'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'calibration' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording' | 'downloads' | 'download' | 'relay'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const goLibrary = useCallback(() => setPage('recordings'), []);
+  const goDownloads = useCallback(() => setPage('downloads'), []);
   const goMedia = useCallback(() => setPage('media'), []);
   const goSettings = useCallback(() => setPage('settings'), []);
-  const [recording, setRecording] = useState<{title: string; url: string}>();
+  const [savedVideo, setSavedVideo] = useState<{title: string; url: string}>();
   const [selected, setSelected] = useState('status');
   const [focused, setFocused] = useState('status');
   const [report, setReport] = useState('');
@@ -39,14 +40,20 @@ export default function App() {
         }
         if (page === 'calibration') {
           goSettings();
+        } else if (page === 'download') {
+          goDownloads();
+        } else if (page === 'recording') {
+          goLibrary();
+        } else if (page === 'downloads' || page === 'recordings') {
+          goMedia();
         } else {
-          setPage(page === 'recording' ? 'recordings' : page === 'recordings' ? 'media' : 'home');
+          goHome();
         }
         return true;
       },
     );
     return () => subscription.remove();
-  }, [goSettings, page]);
+  }, [goDownloads, goHome, goLibrary, goMedia, goSettings, page]);
 
   if (page === 'calibration') {
     return <CalibrationScreen onBack={goSettings} />;
@@ -76,14 +83,14 @@ export default function App() {
     return <FCastScreen onBack={goHome} protocol="dlna" />;
   }
 
-  if (page === 'recordings') {
-    return <RecordingLibrary onBack={goMedia} onPlay={(title, url) => {
-      setRecording({title, url});
-      setPage('recording');
+  if (page === 'recordings' || page === 'downloads') {
+    return <RecordingLibrary downloads={page === 'downloads'} onBack={goMedia} onPlay={(title, url) => {
+      setSavedVideo({title, url});
+      setPage(page === 'downloads' ? 'download' : 'recording');
     }} />;
   }
-  if (page === 'recording') {
-    return <PlaybackScreen onBack={goLibrary} recording={recording} />;
+  if (page === 'recording' || page === 'download') {
+    return <PlaybackScreen onBack={page === 'download' ? goDownloads : goLibrary} recording={savedVideo} />;
   }
   if (page === 'playback') {
     return <PlaybackScreen onBack={goHome} />;
@@ -260,6 +267,7 @@ export default function App() {
               true,
             )}
           {page === 'media' && action('recordings', 'Biblioteca de gravações', goLibrary, false)}
+          {page === 'media' && action('downloads', 'Biblioteca de downloads', goDownloads, false)}
           {action('back', 'Voltar', goHome, page === 'about')}
         </View>
       )}
