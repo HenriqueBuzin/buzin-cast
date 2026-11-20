@@ -7,6 +7,10 @@
 class AirPlayAudioWorker;
 class AirPlayVideoWorker;
 
+struct AirPlayMirrorOptions {
+  int width = 1920, height = 1080, fps = 30, startupCushionMs = 0;
+};
+
 struct AirPlayEvent {
   enum class Kind {Audio, Video, PlayUrl, MirrorUrl, Seek, Rate, Volume, Pin, Stop, FlushAudio, FlushVideo, Reset, Feedback, Ready};
   Kind kind = Kind::Stop;
@@ -28,7 +32,7 @@ public:
   uint16_t start(const std::string& keyPath, const std::string& name,
                  const std::string& identity, bool loopbackOnly = true,
                  AirPlayAudioWorker* audio = nullptr, AirPlayVideoWorker* video = nullptr,
-                 bool requireApproval = false);
+                 bool requireApproval = false, AirPlayMirrorOptions options = {});
   void stop() noexcept;
   std::string pollApproval();
   void answerApproval(double requestId, bool allow);

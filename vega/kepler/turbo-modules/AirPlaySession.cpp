@@ -75,7 +75,7 @@ AirPlaySession::AirPlaySession() : impl(std::make_unique<Impl>()) {}
 AirPlaySession::~AirPlaySession() {stop();}
 uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& name,
                              const std::string& identity, bool loopbackOnly, AirPlayAudioWorker* audio,
-                             AirPlayVideoWorker* video, bool requireApproval) {
+                             AirPlayVideoWorker* video, bool requireApproval, AirPlayMirrorOptions options) {
   if (impl->receiver) throw std::runtime_error("AirPlay session already running");
   validateReceiverName(name);
   unsigned int octets[6]; char trailing;
@@ -188,11 +188,16 @@ uint16_t AirPlaySession::start(const std::string& keyPath, const std::string& na
   try {
     // Startup of either worker is covered by the same rollback as transport.
     if (audio) audio->start();
-    if (video) video->start(true);
+    if (video) video->start(true, options.fps, options.startupCushionMs);
     impl->receiver = raop_init(&callbacks);
     if (!impl->receiver || raop_init2(impl->receiver, advertise ? 0 : 1, identity.c_str(), keyPath.c_str()) != 0)
       throw std::runtime_error("Could not initialize AirPlay session");
     raop_set_log_level(impl->receiver, 0);
+    if (video &&
+        (raop_set_plist(impl->receiver, "width", options.width) ||
+         raop_set_plist(impl->receiver, "height", options.height) ||
+         raop_set_plist(impl->receiver, "maxFPS", options.fps)))
+      throw std::runtime_error("Could not configure AirPlay mirror mode");
     if (advertise) {
       const int pin = random_pin();
       if (pin < 0 || pin > 9999) throw std::runtime_error("Could not generate AirPlay PIN");

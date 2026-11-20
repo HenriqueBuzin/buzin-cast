@@ -28,7 +28,7 @@ public:
   ~AirPlayVideoWorker();
   AirPlayVideoWorker(const AirPlayVideoWorker&) = delete;
   AirPlayVideoWorker& operator=(const AirPlayVideoWorker&) = delete;
-  void start(bool acceptReconnects = false);
+  void start(bool acceptReconnects = false, int maxFps = 30, int startupCushionMs = 0);
   void stop() noexcept;
   void format(int width, int height) noexcept;
   void sample(const uint8_t* bytes, size_t length, bool h265, uint64_t localNtpNs) noexcept;

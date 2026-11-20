@@ -6,6 +6,7 @@ import {
   VideoDecoderConfig,
 } from '@amazon-devices/keplermediadescriptor';
 import {getMediaReport} from '../src/mediaCapabilities';
+import {chooseMirrorVideoMode} from '../src/experienceProfiles';
 import Network from '../src/turbo-modules/BuzinNetwork';
 
 jest.mock(
@@ -50,4 +51,24 @@ test('uma consulta interrompida não grava um relatório parcial de suporte', ()
     });
   expect(getMediaReport).toThrow('media service unavailable');
   expect(Network.recordMediaCapabilities).not.toHaveBeenCalled();
+});
+
+test('consulta H.264 na ordem do perfil e recua quando o SDK não confirma o primeiro modo', () => {
+  const query = jest.spyOn(KeplerMediaDescriptor, 'queryMediaCapabilitiesSync')
+    .mockReturnValueOnce([]).mockReturnValueOnce(new Array(1));
+  expect(chooseMirrorVideoMode('presentation')).toEqual({width: 1920, height: 1080, fps: 30});
+  const configs = query.mock.calls.map(([config]) => config as VideoDecoderConfig);
+  expect(configs.map(config => config.videoFormat.frameRate)).toEqual([60, 30]);
+  expect(configs.map(config => config.videoFormat.resolution)).toEqual([
+    {width: 1920, height: 1080}, {width: 1920, height: 1080},
+  ]);
+  expect(configs.every(config => config.mediaFormat.mimeType === CodecMimeType.MIME_H264)).toBe(true);
+});
+
+test('mantém o modo existente no Padrão e usa HD 30 sem resposta do SDK', () => {
+  const query = jest.spyOn(KeplerMediaDescriptor, 'queryMediaCapabilitiesSync')
+    .mockImplementation(() => {throw new Error('Media service unavailable');});
+  expect(chooseMirrorVideoMode('default')).toEqual({width: 1920, height: 1080, fps: 30});
+  expect(query).not.toHaveBeenCalled();
+  expect(chooseMirrorVideoMode('games')).toEqual({width: 1280, height: 720, fps: 30});
 });

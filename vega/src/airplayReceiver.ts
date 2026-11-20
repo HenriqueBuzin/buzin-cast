@@ -3,6 +3,7 @@ import type {VideoPlayer} from '@amazon-devices/react-native-w3cmedia';
 import Network from './turbo-modules/BuzinNetwork';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
 import {number, object, playRequest} from './fcastProtocol';
+import {chooseMirrorVideoMode, isExperienceProfile} from './experienceProfiles';
 import type {ConnectionApprovalRequest} from './connectionApproval';
 
 export type RelayView = {address: string; code: string; phase: string};
@@ -88,8 +89,12 @@ export function createAirPlayReceiver(
         }
         relay = {address, code, phase: 'waiting'};
         onRelay?.(relay);
+      } else if (mode === 'mirror') {
+        const selected = Network.getExperienceProfile();
+        const {width, height, fps} = chooseMirrorVideoMode(isExperienceProfile(selected) ? selected : 'default');
+        port = Network.startAirPlayVideo(width, height, fps);
       } else {
-        port = mode === 'mirror' ? Network.startAirPlayVideo() : Network.startAirPlayUrl();
+        port = Network.startAirPlayUrl();
       }
       clearTimeout(deadline);
       publish();

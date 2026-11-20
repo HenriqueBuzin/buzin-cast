@@ -24,7 +24,19 @@ std::string BuzinNetwork::getReceiverName() { return readReceiverName("/data/rec
 void BuzinNetwork::setReceiverName(std::string name) { writeReceiverName("/data/receiver-name", name); }
 double BuzinNetwork::startAirPlayUrl() {return startAirPlayReceiver(false);}
 double BuzinNetwork::startAirPlayAudio() {return startAirPlayReceiver(true);}
-double BuzinNetwork::startAirPlayVideo() {return startAirPlayReceiver(false,true);}
+std::string BuzinNetwork::getExperienceProfile() {return readExperienceProfile("/data/experience-profile");}
+void BuzinNetwork::setExperienceProfile(std::string profile) {writeExperienceProfile("/data/experience-profile", profile);}
+double BuzinNetwork::startAirPlayVideo(double width, double height, double fps) {
+  const bool fullHd = width == 1920 && height == 1080;
+  const bool hd = width == 1280 && height == 720;
+  if ((!fullHd && !hd) || (fps != 30 && fps != 60))
+    throw std::invalid_argument("Invalid AirPlay mirror mode");
+  const auto profile = getExperienceProfile();
+  const int cushion = profile == "games" ? 25 : profile == "default" ? 0 : 80;
+  return startAirPlayReceiver(false, true, {
+    static_cast<int>(width), static_cast<int>(height), static_cast<int>(fps), cushion,
+  });
+}
 std::string BuzinNetwork::getMirrorRecordingState() {return recording.state();}
 void BuzinNetwork::startMirrorRecording() {
   if (!videoModeActive) throw std::runtime_error("Open AirPlay mirroring before recording");
@@ -104,7 +116,7 @@ std::string BuzinNetwork::getAirPlayAudioState() {
   if (!report) throw std::runtime_error("Could not record native audio observation");
   return json;
 }
-double BuzinNetwork::startAirPlayReceiver(bool audioMode, bool videoMode) {
+double BuzinNetwork::startAirPlayReceiver(bool audioMode, bool videoMode, AirPlayMirrorOptions options) {
   std::string identity;
   std::ifstream saved("/data/airplay-identity");
   if (saved) std::getline(saved, identity);
@@ -122,10 +134,16 @@ double BuzinNetwork::startAirPlayReceiver(bool audioMode, bool videoMode) {
       throw std::runtime_error("Could not save local AirPlay identity");
   }
   const auto port = airplay.start("/data/airplay.key", getReceiverName(), identity, false,
-    audioMode ? &audio : nullptr, videoMode ? &video : nullptr, getConnectionApproval());
+    audioMode ? &audio : nullptr, videoMode ? &video : nullptr, getConnectionApproval(), options);
   videoModeActive = videoMode;
   std::ofstream report(videoMode ? "/data/airplay-video-port.json" : audioMode ? "/data/airplay-audio-port.json" : "/data/airplay-port.json", std::ios::trunc);
-  report << "{\"port\":" << port << "}"; report.close();
+  report << "{\"port\":" << port;
+  if (videoMode) {
+    report << ",\"width\":" << options.width << ",\"height\":" << options.height
+           << ",\"fps\":" << options.fps << ",\"startupCushionMs\":" << options.startupCushionMs;
+  }
+  report << '}';
+  report.close();
   if (!report) {airplay.stop(); throw std::runtime_error("Could not record AirPlay listener state");}
   return port;
 }

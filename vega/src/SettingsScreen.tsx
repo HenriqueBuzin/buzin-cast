@@ -2,6 +2,8 @@ import TvButton from './TvButton';
 import React, {useState} from 'react';
 import {StyleSheet, Text, TextInput, View} from 'react-native';
 import Network from './turbo-modules/BuzinNetwork';
+import {experienceProfiles, isExperienceProfile} from './experienceProfiles';
+import type {ExperienceProfile} from './experienceProfiles';
 
 export default function SettingsScreen({onBack}: {onBack: () => void}) {
   const [name, setName] = useState(() => {
@@ -10,6 +12,12 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
   const [message, setMessage] = useState('');
   const [approval, setApproval] = useState<boolean | null>(() => {
     try {return Network.getConnectionApproval();} catch {return null;}
+  });
+  const [profile, setProfile] = useState<ExperienceProfile | null>(() => {
+    try {
+      const saved = Network.getExperienceProfile();
+      return isExperienceProfile(saved) ? saved : 'default';
+    } catch {return null;}
   });
   const [focus, setFocus] = useState('name');
   return (
@@ -46,6 +54,27 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
         }}>
         <Text style={styles.label}>Aprovar conexões dos receptores {approval === null ? '· indisponível' : approval ? '· ativado' : '· desativado'}</Text>
       </TvButton>
+      <Text style={styles.text}>Perfil de espelhamento AirPlay</Text>
+      <View style={styles.actions} aria-label="Perfil de espelhamento AirPlay">
+        {(Object.entries(experienceProfiles) as [ExperienceProfile, string][]).map(([key, label]) => (
+          <TvButton key={key} role="radio" aria-label={label}
+            accessibilityHint="Aplica o perfil ao próximo espelhamento AirPlay"
+            accessibilityState={{checked: profile === key, disabled: profile === null}}
+            disabled={profile === null}
+            onFocus={() => setFocus(key)}
+            onBlur={() => setFocus(current => current === key ? '' : current)}
+            style={[styles.button, profile === key && styles.selected, focus === key && styles.focused]}
+            onPress={() => {
+              try {
+                Network.setExperienceProfile(key);
+                setProfile(key);
+                setMessage('Perfil salvo para o próximo espelhamento.');
+              } catch {setMessage('Não foi possível salvar o perfil.');}
+            }}>
+            <Text style={styles.label}>{label}</Text>
+          </TvButton>
+        ))}
+      </View>
       <Text style={styles.text} aria-live="polite">{message}</Text>
       <View style={styles.actions}>
         {['save', 'back'].map((id) => (
@@ -79,8 +108,9 @@ const styles = StyleSheet.create({
   title: {fontSize: 28, color: 'white', marginBottom: 24},
   text: {fontSize: 20, color: '#B7C9DD', marginVertical: 12},
   input: {width: 600, maxWidth: '90%', color: 'white', fontSize: 24, padding: 16, borderWidth: 3, borderColor: '#B7C9DD', borderRadius: 12},
-  actions: {flexDirection: 'row', gap: 24},
+  actions: {flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 24},
   button: {paddingVertical: 12, paddingHorizontal: 28, borderWidth: 3, borderColor: 'transparent', backgroundColor: '#18334F', borderRadius: 12},
+  selected: {backgroundColor: '#245578'},
   focused: {borderColor: '#69D8FF'},
   label: {fontSize: 24, color: 'white'},
 });

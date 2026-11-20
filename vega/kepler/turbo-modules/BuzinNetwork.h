@@ -31,7 +31,9 @@ public:
   void setReceiverName(std::string name) override;
   double startAirPlayUrl() override;
   double startAirPlayAudio() override;
-  double startAirPlayVideo() override;
+  std::string getExperienceProfile() override;
+  void setExperienceProfile(std::string profile) override;
+  double startAirPlayVideo(double width, double height, double fps) override;
   std::string getMirrorRecordingState() override;
   void startMirrorRecording() override;
   void stopMirrorRecording() override;
@@ -86,7 +88,7 @@ public:
   void recordPlaybackState(std::string state, double seconds) override;
   std::string recordMediaCapabilities(double h264, double hevc, double aac) override;
 private:
-  double startAirPlayReceiver(bool audioMode, bool videoMode = false);
+  double startAirPlayReceiver(bool audioMode, bool videoMode = false, AirPlayMirrorOptions options = {});
   AirPlayAudioWorker audio;
   MirrorRecording recording;
   RecordingExport recordingExport;

@@ -31,6 +31,7 @@ struct AirPlayVideoWorker::Impl {
   bool clearParametersPending = false;
   size_t inFlightBytes = 0, heldBytes = 0, heldCount = 0;
   int audioSamples = 0;
+  int maxFps = 30, startupCushionMs = 0;
 
   // Called with mutex held; cancel never joins the media worker. Keep this
   // ordering so a late cancellation cannot stop the next generation's output.
@@ -71,7 +72,10 @@ struct AirPlayVideoWorker::Impl {
   void run() noexcept {
     std::shared_ptr<VideoSampleSink> sink;
     uint64_t outputGeneration = 0, epoch = 0;
-    int64_t lastPts = -1;
+    int64_t lastPts = -1, firstVideoPts = -1, lastVideoEnd = -1;
+    int64_t firstAudioTicks = -1;
+    std::string pendingUrl;
+    const auto defaultDuration = int64_t(1000000 / maxFps);
     int outputAudioSamples = 0;
     int64_t lastAudioTicks = -1;
     bool prepared = false, draining = false;
@@ -79,6 +83,7 @@ struct AirPlayVideoWorker::Impl {
     std::deque<Event> pendingVideo, pendingAudio;
     auto connectionDeadline = std::chrono::steady_clock::now();
     auto avDeadline = connectionDeadline;
+    auto bufferDeadline = connectionDeadline;
     auto clearPending = [&] {
       pendingVideo.clear();
       pendingAudio.clear();
@@ -94,7 +99,9 @@ struct AirPlayVideoWorker::Impl {
         std::lock_guard lock(mutex); observation.output = state; observation.released = state.released;
         if (!state.released) throw std::runtime_error("Video output release was not confirmed");
       }
-      prepared = draining = false; epoch = 0; lastPts = -1;
+      prepared = draining = false; epoch = 0;
+      pendingUrl.clear();
+      lastPts = firstVideoPts = lastVideoEnd = firstAudioTicks = -1;
       outputAudioSamples = 0;
       lastAudioTicks = -1;
     };
@@ -138,7 +145,9 @@ struct AirPlayVideoWorker::Impl {
       outputAudioSamples = samples;
       epoch = firstNtp;
       outputGeneration = generation;
-      connectionDeadline = std::chrono::steady_clock::now()+std::chrono::seconds(15);
+      const auto now = std::chrono::steady_clock::now();
+      connectionDeadline = now + std::chrono::seconds(15);
+      bufferDeadline = now + std::chrono::milliseconds(250);
       return url;
     };
     auto publish = [&](uint64_t generation, std::string url) {
@@ -146,12 +155,26 @@ struct AirPlayVideoWorker::Impl {
       if (closing || generation != observation.generation || !observation.error.empty()) sink->cancel();
       else command = AirPlayVideoCommand{AirPlayVideoCommand::Kind::Play,generation,std::move(url)};
     };
+    auto publishBuffered = [&](uint64_t generation, bool force = false) {
+      if (pendingUrl.empty() || firstVideoPts < 0 || (outputAudioSamples && firstAudioTicks < 0)) return;
+      const auto bufferedVideo = lastVideoEnd - firstVideoPts;
+      const auto bufferedAudio = lastAudioTicks - firstAudioTicks + outputAudioSamples;
+      const auto minAudio = (startupCushionMs * 44100 + 999) / 1000;
+      const bool enough = bufferedVideo >= startupCushionMs * 1000 &&
+          (!outputAudioSamples || bufferedAudio >= minAudio);
+      if (force || enough || sink->state().queuedBytes >= 4 * 1024 * 1024) {
+        publish(generation, std::move(pendingUrl));
+        pendingUrl.clear();
+      }
+    };
     auto ptsUs = [&](const Event& sample) {
       return static_cast<int64_t>((sample.ntp-epoch)/1000);
     };
     auto writeVideo = [&](const Event& frame, int64_t pts, int64_t duration) {
       sink->append(frame.bytes,pts,pts,duration);
       lastPts = pts;
+      if (firstVideoPts < 0) firstVideoPts = pts;
+      lastVideoEnd = pts + duration;
       std::lock_guard lock(mutex);
       ++observation.accepted;
     };
@@ -166,6 +189,7 @@ struct AirPlayVideoWorker::Impl {
           if (lastAudioTicks >= 0) ticks = std::max(ticks,expected);
           const auto timeUs = ticks/44100*1000000 + (ticks%44100*1000000+22050)/44100;
           sink->appendAudio(sample.bytes,timeUs);
+          if (firstAudioTicks < 0) firstAudioTicks = ticks;
           lastAudioTicks = ticks;
           std::lock_guard lock(mutex);
           ++observation.audioAccepted;
@@ -176,11 +200,10 @@ struct AirPlayVideoWorker::Impl {
       ++observation.audioDropped;
     };
     auto drainAv = [&](uint64_t generation, int samples, bool final) {
-      std::string newUrl;
       if (!prepared) {
         if (pendingAudio.empty() || pendingVideo.size() < (final ? 1u : 2u)) return;
-        newUrl = prepare(generation,std::min(pendingAudio.front().ntp,pendingVideo.front().ntp),samples);
-        if (newUrl.empty()) return;
+        pendingUrl = prepare(generation,std::min(pendingAudio.front().ntp,pendingVideo.front().ntp),samples);
+        if (pendingUrl.empty()) return;
       }
       while (!cancelled(generation) &&
              ((!pendingVideo.empty() && (final || pendingVideo.size() >= 2)) || !pendingAudio.empty())) {
@@ -189,17 +212,14 @@ struct AirPlayVideoWorker::Impl {
                            (lastAudioTicks >= 0 && pendingVideo.front().ntp <= pendingAudio.front().ntp))) {
           const auto pts = ptsUs(pendingVideo.front());
           const auto duration = pendingVideo.size() >= 2
-            ? std::min<int64_t>(ptsUs(pendingVideo[1])-pts,1000000) : 33333;
+            ? std::min<int64_t>(ptsUs(pendingVideo[1])-pts,1000000) : defaultDuration;
           writeVideo(pendingVideo.front(),pts,duration);
           discardFront(pendingVideo);
         } else {
           writeAudio(pendingAudio.front());
           discardFront(pendingAudio);
         }
-        if (!newUrl.empty() && lastPts >= 0 && lastAudioTicks >= 0) {
-          publish(generation,std::move(newUrl));
-          newUrl.clear();
-        }
+        publishBuffered(generation);
       }
     };
     try {
@@ -252,7 +272,11 @@ struct AirPlayVideoWorker::Impl {
               } else if (event.kind == Kind::End) {
                 if (samples) drainAv(event.generation,samples,true);
                 if (!cancelled(event.generation)) {
-                  if (prepared) {sink->finish(); draining = true;}
+                  if (prepared) {
+                    sink->finish();
+                    publishBuffered(event.generation, true);
+                    draining = true;
+                  }
                   else {
                     clearPending();
                     std::lock_guard lock(mutex);
@@ -302,8 +326,7 @@ struct AirPlayVideoWorker::Impl {
                   } else {
                     if (!event.ntp) throw std::invalid_argument("Missing local video timestamp");
                     if (!prepared) {
-                      auto url = prepare(event.generation,event.ntp,0);
-                      if (!url.empty()) publish(event.generation,std::move(url));
+                      pendingUrl = prepare(event.generation,event.ntp,0);
                     }
                     if (prepared && !cancelled(event.generation)) {
                       const auto delta = event.ntp >= epoch ? (event.ntp-epoch)/1000 : std::numeric_limits<uint64_t>::max();
@@ -313,9 +336,10 @@ struct AirPlayVideoWorker::Impl {
                         const auto pts = static_cast<int64_t>(delta);
                         // UxPlay supplies PTS, not decode timestamps/durations.
                         // Low-delay frames use DTS=PTS and observed cadence; the
-                        // initial frame uses 30 Hz until a second PTS arrives.
-                        const auto duration = lastPts < 0 ? int64_t(33333) : std::min<int64_t>(pts-lastPts,1000000);
+                        // initial frame uses the advertised cadence.
+                        const auto duration = lastPts < 0 ? defaultDuration : std::min<int64_t>(pts-lastPts,1000000);
                         writeVideo(event,pts,duration);
+                        publishBuffered(event.generation);
                       }
                     }
                   }
@@ -340,6 +364,8 @@ struct AirPlayVideoWorker::Impl {
           if (!closing && generation == observation.generation) errorLocked("mirrorTrackTimeout");
         }
         if (prepared && !cancelled(outputGeneration)) {
+          // Some senders stop emitting frames when the mirrored screen is static.
+          publishBuffered(outputGeneration, std::chrono::steady_clock::now() >= bufferDeadline);
           const auto state = sink->state();
           {
             std::lock_guard lock(mutex); observation.output = state; observation.released = state.released;
@@ -373,7 +399,9 @@ struct AirPlayVideoWorker::Impl {
 AirPlayVideoWorker::AirPlayVideoWorker(std::function<std::unique_ptr<VideoSampleSink>()> factory)
   : impl(std::make_unique<Impl>()) {impl->factory = std::move(factory);}
 AirPlayVideoWorker::~AirPlayVideoWorker() {stop();}
-void AirPlayVideoWorker::start(bool acceptReconnects) {
+void AirPlayVideoWorker::start(bool acceptReconnects, int maxFps, int startupCushionMs) {
+  if (maxFps < 1 || maxFps > 60 || startupCushionMs < 0 || startupCushionMs > 200)
+    throw std::invalid_argument("Invalid video startup policy");
   stop();
   std::lock_guard lock(impl->mutex);
   if (!impl->observation.released) throw std::runtime_error("Previous native video release was not confirmed");
@@ -381,6 +409,8 @@ void AirPlayVideoWorker::start(bool acceptReconnects) {
   impl->observation = {}; impl->observation.generation = generation; impl->observation.phase = "waiting";
   impl->command.reset(); impl->inputEnded = false; impl->closing = false; impl->audioSamples = 0;
   impl->acceptReconnects = acceptReconnects;
+  impl->maxFps = maxFps;
+  impl->startupCushionMs = startupCushionMs;
   impl->clearParametersPending = false;
   try {impl->worker = std::thread([this] {impl->run();});}
   catch (...) {impl->closing = true; impl->observation.phase = "error"; impl->observation.error = "videoWorkerStartFailure"; throw;}

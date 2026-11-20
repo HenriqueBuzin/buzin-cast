@@ -35,11 +35,14 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--vpkg', required=True, type=Path)
     parser.add_argument('--video', action='store_true', help='Test video worker ownership; no Apple media negotiation or rendering proof')
+    parser.add_argument('--profiles', action='store_true', help='Select all mirror profiles with the TV control and verify RTSP /info')
     parser.add_argument('--approval', action='store_true', help='Check TV approval before RTSP dispatch')
     parser.add_argument('--output', type=Path, default=Path('build/vega-airplay-audio'))
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
         parser.error('Only VVD is allowed')
+    if args.profiles and not args.video:
+        parser.error('--profiles requires --video')
     args.output.mkdir(parents=True, exist_ok=True)
     sdk = shutil.which('vega')
     history, cycles, forwards = [], [], []
@@ -47,6 +50,14 @@ def main():
     report = {'passed': False, 'physicalValidation': False, 'mode': mode, 'mediaNegotiation': False, 'visualValidation': False}
     client = None
     saved_approval = None
+    saved_profile = None
+    observed_profiles = {}
+    profiles = {
+        'default': (0, {(1920, 1080, 30)}),
+        'cinema': (80, {(1920, 1080, 30), (1280, 720, 30)}),
+        'presentation': (80, {(1920, 1080, 60), (1920, 1080, 30), (1280, 720, 60), (1280, 720, 30)}),
+        'games': (25, {(1280, 720, 60), (1280, 720, 30)}),
+    }
 
     def run(*command, timeout=30):
         result = subprocess.run([sdk, *command], capture_output=True, text=True, timeout=timeout)
@@ -72,9 +83,10 @@ def main():
         raise RuntimeError(f'Native {mode} observation did not match: {last}')
 
     def request(method, sequence, body=b'', path='/audio', content_type='text/parameters', status=200):
+        type_header = f'Content-Type: {content_type}\r\n' if content_type else ''
         client.sendall(
             f'{method} rtsp://127.0.0.1{path} RTSP/1.0\r\nCSeq: {sequence}\r\n'
-            f'Content-Type: {content_type}\r\nContent-Length: {len(body)}\r\n\r\n'.encode() + body)
+            f'{type_header}Content-Length: {len(body)}\r\n\r\n'.encode() + body)
         response = b''
         while b'\r\n\r\n' not in response:
             packet = client.recv(4096)
@@ -106,6 +118,25 @@ def main():
             shell('inputd-cli', 'button_press', 'KEY_ENTER')
             waiting.result(timeout=5)
 
+    def press_tv(name):
+        shell('inputd-cli', 'button_press', 'KEY_' + name)
+
+    def choose_profile(index, profile):
+        for _ in range(5):
+            press_tv('LEFT')
+        for name in ('RIGHT', 'RIGHT', 'RIGHT', 'RIGHT', 'DOWN', 'ENTER', 'UP', 'LEFT', 'LEFT', 'LEFT'):
+            press_tv(name)
+        for _ in range(index):
+            press_tv('RIGHT')
+        press_tv('ENTER')
+        saved = shell('-c', COMPONENT, 'cat', '/data/experience-profile')
+        if saved != profile:
+            raise RuntimeError(f'TV control did not save the selected profile {profile}')
+        press_tv('BACK')
+        press_tv('UP')
+        for _ in range(4):
+            press_tv('LEFT')
+
     try:
         devices = run('exec', 'vda', 'devices')
         if not re.search(rf'^{re.escape(args.serial)}\s+device\b', devices, re.M):
@@ -119,8 +150,17 @@ def main():
                 raise RuntimeError('Unexpected approval preference')
             saved_approval = saved
             shell('-c', COMPONENT, 'printf 1 > /data/dlna-approval')
+        if args.profiles:
+            saved = shell('-c', COMPONENT, 'if test -f /data/experience-profile; then cat /data/experience-profile; fi')
+            if saved and saved not in profiles:
+                raise RuntimeError('Unexpected existing experience profile')
+            saved_profile = saved
         first_identity = None
-        for cycle in range(-2 if args.approval else 0, 2):
+        last_cycle = 3 if args.profiles else 1
+        for cycle in range(-2 if args.approval else 0, last_cycle + 1):
+            profile = list(profiles)[cycle] if args.profiles and cycle >= 0 else ''
+            if profile:
+                choose_profile(cycle, profile)
             shell('-c', COMPONENT, 'rm', '-f', f'/data/airplay-{mode}-port.json', f'/data/airplay-{mode}-state.json')
             for key in ['KEY_ENTER', *(['KEY_DOWN'] * (3 if args.video else 2)), 'KEY_ENTER']:
                 shell('inputd-cli', 'button_press', key)
@@ -128,7 +168,8 @@ def main():
             port = None
             while time.monotonic() < deadline:
                 try:
-                    port = json.loads(shell('-c', COMPONENT, 'cat', f'/data/airplay-{mode}-port.json'))['port']
+                    listener = json.loads(shell('-c', COMPONENT, 'cat', f'/data/airplay-{mode}-port.json'))
+                    port = listener['port']
                     break
                 except (RuntimeError, json.JSONDecodeError):
                     time.sleep(0.2)
@@ -167,6 +208,14 @@ def main():
                 report['refusedAndCached'] = True
                 continue
             waiting = observation(lambda value: value.get('phase') == 'waiting')
+            if profile:
+                display, = plistlib.loads(request('GET', 9, path='/info', content_type=None))['displays']
+                selected = (display['width'], display['height'], display['maxFPS'])
+                advertised = (listener['width'], listener['height'], listener['fps'])
+                cushion, allowed = profiles[profile]
+                if selected != advertised or selected not in allowed or listener['startupCushionMs'] != cushion:
+                    raise RuntimeError('AirPlay advertised an unexpected profile')
+                observed_profiles[profile] = {'mode': selected, 'startupCushionMs': cushion}
             if args.video:
                 txt = {}
                 for index, key in enumerate(('txtAirPlay', 'txtRAOP'), start=7):
@@ -204,7 +253,7 @@ def main():
                 request('SET_PARAMETER', 5, b'volume: -144.000000\r\n')
                 muted = observation(lambda value: value.get('volumeDb') == -144)
                 cycle_result = {'gain': gain, 'muted': muted}
-            shell('inputd-cli', 'button_press', 'KEY_BACK' if cycle == 0 else 'KEY_HOMEPAGE')
+            shell('inputd-cli', 'button_press', 'KEY_HOMEPAGE' if cycle == last_cycle else 'KEY_BACK')
             stopped = observation(lambda value: value.get('phase') == 'stopped' and value.get('released') is True)
             if args.video and stopped.get('advertising') is not False:
                 raise RuntimeError('The receiver kept advertising after shutdown')
@@ -213,6 +262,8 @@ def main():
             client.close(); client = None
             cycles.append({**cycle_result, 'waiting': waiting, 'stopped': stopped,
                            'controlSocketClosed': True, 'rtspIdentityVerified': args.video})
+        if observed_profiles:
+            report['experienceProfiles'] = observed_profiles
         report.update(passed=True, cycles=cycles, approvalAfterReopen=args.approval)
         print(json.dumps(report, indent=2))
     except Exception as error:
@@ -223,6 +274,9 @@ def main():
             client.close()
         if saved_approval is not None:
             restore = f'printf {saved_approval} > /data/dlna-approval' if saved_approval else 'rm -f /data/dlna-approval'
+            shell('-c', COMPONENT, restore)
+        if saved_profile is not None:
+            restore = f'printf {saved_profile} > /data/experience-profile' if saved_profile else 'rm -f /data/experience-profile'
             shell('-c', COMPONENT, restore)
         for port in forwards:
             try:

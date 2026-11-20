@@ -1,5 +1,11 @@
 # Retomada — 19 de novembro de 2026
 
+## Perfis AirPlay no Vega
+
+Configurações salva Padrão, Cinema, Apresentação e Jogos. O AirPlay
+anuncia a resolução e o limite de quadros do perfil e aplica o buffer
+inicial no player. Veja [Retomada Vega](VEGA_HANDOFF.md).
+
 ## Envio da retransmissão Buzin no Vega
 
 A tela de espelhamento pode encaminhar H.264 e PCM a outro Buzin Cast

@@ -24,7 +24,7 @@ DLNA experimental anuncia por SSDP. O menu também oferece Cast V2 experimental.
   segundos incluída no pacote. Imagem visível, pausa/retomada, fim da amostra,
   reabertura e liberação no segundo plano passaram no VVD. Som audível e
   sincronismo com emissores físicos ainda não foram medidos.
-- Lint sem avisos, TypeScript e 81 testes Jest passaram.
+- Lint sem avisos, TypeScript e 84 testes Jest passaram.
 - FCast v2 experimental aceita um controlador na porta TCP 46899 e anuncia
   `_fcast._tcp.local` com TXT `v=2` e `appName=Buzin Cast`. Lint, TypeScript e
   build Release das três ABIs passaram após a integração. A descoberta ainda
@@ -117,6 +117,15 @@ espelhamento H.264 para outro Buzin Cast. Informe o IP, a porta e o código
 exibidos no receptor. O envio começa no próximo quadro-chave, com áudio
 convertido para PCM. **Parar retransmissão** encerra o envio e a reprodução
 local continua.
+
+**Configurações → Perfil de espelhamento AirPlay** salva Padrão,
+Cinema, Apresentação ou Jogos. O próximo receptor anuncia ao emissor a
+resolução e o limite de quadros do perfil. O Vega consulta os modos
+H.264 do dispositivo e usa 720p a 30 fps nos perfis personalizados
+quando a consulta não confirma nenhum modo. Cinema e Apresentação
+miram 80 ms de mídia antes de abrir o player. Jogos usa 25 ms. Um
+quadro estático pode aparecer sem esperar a próxima imagem.
+O Padrão mantém o modo anterior de 1080p a 30 fps.
 
 ## Ambiente e build
 

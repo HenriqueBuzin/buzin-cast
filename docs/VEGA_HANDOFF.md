@@ -1,5 +1,27 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Perfis de espelhamento AirPlay no Vega
+
+**Configurações → Perfil de espelhamento AirPlay** salva Padrão,
+Cinema, Apresentação ou Jogos. Ao abrir o espelhamento, o Vega consulta
+H.264 nas combinações de resolução e FPS do perfil e anuncia o modo
+escolhido no RTSP `/info`. Padrão mantém 1080p a 30 fps. Uma consulta
+sem resposta usa 720p a 30 fps nos três perfis personalizados.
+[SDK Vega Media Descriptor](https://developer.amazon.com/docs/vega-api/2.0/README.amazon-devices_keplermediadescriptor).
+
+O worker usa uma meta inicial de 80 ms de mídia em Cinema e Apresentação
+e de 25 ms em Jogos. O player também pode abrir após 250 ms com o
+quadro estático disponível. A latência real e o comportamento adaptativo
+de áudio equivalentes ao Fire OS ainda precisam de validação e trabalho.
+
+No VVD ARM64, `tools/test_vega_airplay_audio.py --video --profiles`
+selecionou e salvou os quatro perfis pelo controle e verificou resolução
+e FPS na resposta RTSP real. `tools/test_vega_msse_video.py
+--profile-cushion` verificou a liberação do player após os quadros
+previstos para 0, 25 e 80 ms e confirmou o caso do quadro estático.
+Lint, TypeScript, 84 testes Jest e a validação ABI ARM64, ARMv7 e
+x86_64 passaram.
+
 ## Envio da retransmissão Buzin no Vega
 
 **Estado do port → Testar vídeo AirPlay → Retransmitir** conecta o Vega ao

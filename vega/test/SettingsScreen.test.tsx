@@ -2,10 +2,12 @@ import React from 'react';
 import {fireEvent, render} from '@testing-library/react-native';
 import SettingsScreen from '../src/SettingsScreen';
 import Network from '../src/turbo-modules/BuzinNetwork';
+jest.mock('../src/mediaCapabilities', () => ({supportsH264Mode: jest.fn()}));
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
   __esModule: true,
   default: {getReceiverName: jest.fn(() => 'Living room'), setReceiverName: jest.fn(),
-    getConnectionApproval: jest.fn(() => false), setConnectionApproval: jest.fn()},
+    getConnectionApproval: jest.fn(() => false), setConnectionApproval: jest.fn(),
+    getExperienceProfile: jest.fn(() => 'default'), setExperienceProfile: jest.fn()},
 }));
 afterEach(() => jest.clearAllMocks());
 test('edita e salva o nome, preservando a tela em falha de armazenamento', () => {
@@ -36,4 +38,21 @@ test('salva a aprovação DLNA e mantém o estado se a escrita falhar', () => {
   jest.mocked(Network.setConnectionApproval).mockImplementationOnce(() => {throw new Error('disk full');});
   fireEvent.press(approval());
   expect(approval().props.accessibilityState.checked).toBe(true);
+});
+
+test('preserva o perfil marcado entre foco, mudança, falha na escrita e reabertura', () => {
+  const screen = render(<SettingsScreen onBack={jest.fn()} />);
+  expect(screen.getByRole('radio', {name: 'Padrão'}).props.accessibilityState.checked).toBe(true);
+  fireEvent(screen.getByRole('radio', {name: 'Cinema'}), 'focus');
+  expect(screen.getByRole('radio', {name: 'Padrão'}).props.accessibilityState.checked).toBe(true);
+  fireEvent.press(screen.getByRole('radio', {name: 'Jogos'}));
+  expect(Network.setExperienceProfile).toHaveBeenCalledWith('games');
+  expect(screen.getByRole('radio', {name: 'Jogos'}).props.accessibilityState.checked).toBe(true);
+  jest.mocked(Network.setExperienceProfile).mockImplementationOnce(() => {throw new Error('disk full');});
+  fireEvent.press(screen.getByRole('radio', {name: 'Apresentação'}));
+  expect(screen.getByRole('radio', {name: 'Jogos'}).props.accessibilityState.checked).toBe(true);
+  screen.unmount();
+  jest.mocked(Network.getExperienceProfile).mockReturnValueOnce('games');
+  const reopened = render(<SettingsScreen onBack={jest.fn()} />);
+  expect(reopened.getByRole('radio', {name: 'Jogos'}).props.accessibilityState.checked).toBe(true);
 });

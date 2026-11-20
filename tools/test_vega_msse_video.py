@@ -161,6 +161,7 @@ def main():
     modes.add_argument('--mux', action='store_true', help='Verify native lossless video fMP4 remuxing')
     modes.add_argument('--av-mux', action='store_true', help='Verify native A/V fMP4 and the shared timeline')
     modes.add_argument('--mirror-reconnect', action='store_true', help='Verify encrypted mirror media EOF and a second connection')
+    modes.add_argument('--profile-cushion', action='store_true', help='Verify mirror startup pacing and the static-frame fallback')
     parser.add_argument('--audio-profile', choices=AUDIO_PROFILES, default='lc')
     parser.add_argument('--profile', choices=['baseline', 'high'], default='baseline')
     parser.add_argument('--mime', choices=['video/avc', 'video/h264'], default='video/avc')
@@ -173,7 +174,7 @@ def main():
     if not re.fullmatch(r'emulator-\d+', args.serial):
         parser.error('Only VVD is allowed')
     remuxing = args.mux or args.av_mux
-    args.annex_b = args.annex_b or remuxing or args.mirror_reconnect
+    args.annex_b = args.annex_b or remuxing or args.mirror_reconnect or args.profile_cushion
     args.output.mkdir(parents=True, exist_ok=True)
     history = []
     result = {'passed': False, 'physicalValidation': False, 'surfaceAttached': False}
@@ -201,7 +202,9 @@ def main():
         shell('cat > /data/buzin-msse-video-probe', payload=args.runner.read_bytes())
         shell('cat > /data/buzin-msse-video.bin', payload=fixture)
         shell('chmod', '700', '/data/buzin-msse-video-probe')
-        if args.mirror_reconnect:
+        if args.profile_cushion:
+            mode = '--profile-cushion'
+        elif args.mirror_reconnect:
             mode = '--mirror-reconnect'
         elif args.av_mux:
             mode = '--av-transcode' if args.audio_profile == 'alac-aac' else '--av-mux'
@@ -210,6 +213,14 @@ def main():
         output = shell(*(['env', 'GST_DEBUG=6', 'GST_DEBUG_FILE=/data/buzin-video-gst.log'] if args.gst_debug else []), 'timeout', '55', '/data/buzin-msse-video-probe', '/data/buzin-msse-video.bin', mode, timeout=60)
         (args.output / 'runner.log').write_text(output)
         cycles = [json.loads(line) for line in output.splitlines() if line.startswith('{')]
+        if args.profile_cushion:
+            expected = [(30, 0, 1), (30, 25, 1), (60, 25, 2), (30, 80, 3)]
+            observed = [(c['fps'], c['cushionMs'], c['framesBeforePlay']) for c in cycles[:-1]]
+            if observed != expected or cycles[-1] != {'staticFrameReleased': True}:
+                raise RuntimeError('Mirror startup did not follow the configured profile')
+            result.update(passed=True, profileCushion=True, cycles=cycles)
+            print(json.dumps(result, indent=2))
+            return
         if len(cycles) != 2 or any(c.get('released') is not True for c in cycles):
             raise RuntimeError('Two native video playback cycles were not observed')
         if args.av_mux and any(c.get('workerOwned') is not True or c.get('audioPackets') != len(audio_packets) for c in cycles):

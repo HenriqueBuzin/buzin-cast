@@ -5,10 +5,11 @@ import {createAirPlayReceiver} from '../src/airplayReceiver';
 import {createPlaybackSession} from '../src/playbackSession';
 import Network from '../src/turbo-modules/BuzinNetwork';
 const {URL: StandardURL} = jest.requireActual<{URL: typeof URL}>('url');
+jest.mock('../src/mediaCapabilities', () => ({supportsH264Mode: jest.fn()}));
 jest.mock('../src/playbackSession', () => ({createPlaybackSession: jest.fn()}));
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({__esModule: true, default: {
   startAirPlayUrl: jest.fn(() => 7001), stopAirPlayUrl: jest.fn(),
-  startAirPlayVideo: jest.fn(() => 7002),
+  startAirPlayVideo: jest.fn(() => 7002), getExperienceProfile: jest.fn(() => 'default'),
   pollAirPlayCommand: jest.fn(), updateAirPlayState: jest.fn(),
   startRelayReceiver: jest.fn(() => '{"address":"192.0.2.10:7003","code":"ABCDEFGH2345"}'),
   getRelayReceiverState: jest.fn(() => 'waiting'), pollRelayCommand: jest.fn(), stopRelayReceiver: jest.fn(),
@@ -69,7 +70,7 @@ test('URL inválida encerra o receptor sem entregar arquivos locais ao player', 
 
 test('vídeo nativo troca URLs locais sem bloquear mudanças rápidas de formato', () => {
   const {receiver, send, media, failed, onPin} = setup('mirror');
-  expect(Network.startAirPlayVideo).toHaveBeenCalledTimes(1);
+  expect(Network.startAirPlayVideo).toHaveBeenCalledWith(1920, 1080, 30);
   expect(Network.startAirPlayUrl).not.toHaveBeenCalled();
   const url = `http://127.0.0.1:43210/${'a'.repeat(64)}.mp4`;
   send('pin', 42);

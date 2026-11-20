@@ -59,6 +59,29 @@ void writeReceiverName(const std::string& path, const std::string& name) {
   writeSetting(path, name);
 }
 
+namespace {
+bool validProfile(const std::string& profile) {
+  return profile == "default" || profile == "cinema" || profile == "presentation" || profile == "games";
+}
+}
+
+std::string readExperienceProfile(const std::string& path) {
+  errno = 0;
+  std::ifstream input(path, std::ios::binary);
+  if (!input && errno == ENOENT) return "default";
+  if (!input) throw std::runtime_error("Could not read experience profile");
+  char bytes[13];
+  input.read(bytes, sizeof(bytes));
+  if (input.bad()) throw std::runtime_error("Could not read experience profile");
+  const std::string profile(bytes, static_cast<size_t>(input.gcount()));
+  return validProfile(profile) ? profile : "default";
+}
+
+void writeExperienceProfile(const std::string& path, const std::string& profile) {
+  if (!validProfile(profile)) throw std::invalid_argument("Invalid experience profile");
+  writeSetting(path, profile);
+}
+
 bool readApprovalSetting(const std::string& path) {
   errno = 0;
   std::ifstream input(path, std::ios::binary);

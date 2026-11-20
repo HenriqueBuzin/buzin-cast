@@ -5,8 +5,19 @@ import {
   KeplerMediaDescriptor,
   MediaFormat,
   VideoDecoderConfig,
+  VideoFormat,
 } from '@amazon-devices/keplermediadescriptor';
 import Network from './turbo-modules/BuzinNetwork';
+
+export function supportsH264Mode({width, height, fps}: {width: number; height: number; fps: number}) {
+  const config = new VideoDecoderConfig();
+  config.mediaFormat = new MediaFormat(CodecMimeType.MIME_H264);
+  const format = new VideoFormat();
+  format.resolution = {width, height};
+  format.frameRate = fps;
+  config.videoFormat = format;
+  return KeplerMediaDescriptor.queryMediaCapabilitiesSync(config).length > 0;
+}
 
 // A capability match does not prove successful playback or hardware decoding.
 // The SDK may also return an empty array on a platform query error.

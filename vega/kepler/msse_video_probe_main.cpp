@@ -120,6 +120,49 @@ int main(int argc, char** argv) {
       }
     }
     if (input.peek() != EOF) throw std::runtime_error("Unexpected fixture trailing data");
+    if (mode == "--profile-cushion") {
+      if (frames.size() < 3 || !frames.front().keyframe) throw std::runtime_error("Need an initial IDR fixture");
+      struct Scenario {int fps, cushion, frames;};
+      for (const auto policy : {Scenario{30,0,1}, Scenario{30,25,1}, Scenario{60,25,2}, Scenario{30,80,3}}) {
+        AirPlayVideoWorker worker([] {return std::make_unique<FileVideoOutput>(false);});
+        worker.start(false, policy.fps, policy.cushion);
+        worker.format(width, height);
+        for (int i = 0; i < policy.frames; ++i) {
+          const auto& frame = frames[i];
+          worker.sample(frame.data.data(), frame.data.size(), false,
+                        1000000000 + static_cast<uint64_t>(i) * (1000000000 / policy.fps));
+          const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+          while (worker.state().accepted < static_cast<unsigned>(i + 1)) {
+            if (!worker.healthy() || std::chrono::steady_clock::now() >= deadline)
+              throw std::runtime_error("Video profile fixture frame was not accepted");
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+          }
+          std::this_thread::sleep_for(std::chrono::milliseconds(35));
+          AirPlayVideoCommand command;
+          const bool play = worker.poll(command) && command.kind == AirPlayVideoCommand::Kind::Play;
+          if (play != (i + 1 == policy.frames)) throw std::runtime_error("Profile did not gate startup by queued video");
+        }
+        worker.stop();
+        std::cout << "{\"fps\":" << policy.fps << ",\"cushionMs\":" << policy.cushion
+                  << ",\"framesBeforePlay\":" << policy.frames << "}" << std::endl;
+      }
+      AirPlayVideoWorker quiet([] {return std::make_unique<FileVideoOutput>(false);});
+      quiet.start(false, 30, 80);
+      quiet.format(width, height);
+      quiet.sample(frames.front().data.data(), frames.front().data.size(), false, 1000000000);
+      AirPlayVideoCommand command;
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      while (!quiet.poll(command)) {
+        if (!quiet.healthy() || std::chrono::steady_clock::now() >= deadline)
+          throw std::runtime_error("A static mirror frame did not reach the player");
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+      if (command.kind != AirPlayVideoCommand::Kind::Play || quiet.state().accepted != 1)
+        throw std::runtime_error("Static mirror fallback published an unexpected result");
+      quiet.stop();
+      std::cout << "{\"staticFrameReleased\":true}" << std::endl;
+      return 0;
+    }
     if (mode == "--mirror-reconnect") {
       AirPlayVideoWorker worker([] {return std::make_unique<Fmp4VideoOutput>();});
       worker.start(true);
