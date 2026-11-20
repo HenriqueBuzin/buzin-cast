@@ -135,6 +135,43 @@ class NativeServerContractTest {
         assertEquals(0L, key.length())
     }
 
+    @Test fun bridgeCanStartStopAndChangeHlsWithoutPublishingDiscovery() {
+        org.junit.Assume.assumeTrue("Requires coverage-only bridge discovery fixture",
+            runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
+        val handle = create()
+        val requestedPort = port()
+        val address = InetSocketAddress("127.0.0.1", requestedPort)
+        NativeBridge.nativeSetHlsEnabled(handle, false)
+        assertTrue(DebugCoverage.withBridgeDiscoveryDetached(handle) {
+            assertNull(NativeBridge.nativeGetRaopTxtRecords(handle))
+            assertNull(NativeBridge.nativeGetAirplayTxtRecords(handle))
+            NativeBridge.nativeSetHlsEnabled(handle, true)
+            try {
+                assertEquals(requestedPort, NativeBridge.nativeStart(handle, requestedPort))
+                Socket().use { it.connect(address, 2000) }
+                assertNull(NativeBridge.nativeGetRaopTxtRecords(handle))
+            } finally {
+                NativeBridge.nativeStop(handle)
+            }
+            assertThrows(ConnectException::class.java) { Socket().use { it.connect(address, 2000) } }
+        })
+
+        assertTrue(requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(handle)).isEmpty())
+        assertEquals(requestedPort, NativeBridge.nativeStart(handle, requestedPort))
+        try {
+            val records = requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(handle))
+            assertFalse(feature(records, 0))
+            assertFalse(feature(records, 4))
+        } finally {
+            NativeBridge.nativeStop(handle)
+        }
+        NativeBridge.nativeSetHlsEnabled(handle, true)
+        assertEquals(requestedPort, NativeBridge.nativeStart(handle, requestedPort))
+        val restored = requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(handle))
+        assertTrue(feature(restored, 0))
+        assertTrue(feature(restored, 4))
+    }
+
     @Test fun partialServerRejectsUnavailableChildrenAndDestroysItsCallbackBinding() {
         org.junit.Assume.assumeTrue("Requires coverage-only partial-server fixture",
             runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)

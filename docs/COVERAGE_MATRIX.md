@@ -1813,3 +1813,12 @@ constructor uses Android's monotonic clock and a 25-second request timeout.
 The seven selected contracts cover all six JVM metrics for
 `ConnectionApproval` in normal and compat DE/AT API28, including 44 of 44
 branches. The suite has 308 Android cases.
+
+The discovery-detachment contract keeps a real native listener and
+temporarily hides its DNS records from the JNI bridge. It verifies opening
+and closing the port, changing HLS while discovery is unavailable, and
+restoring its advertised HLS flags. The selected normal and compat DE/AT
+API28 profiles execute both outcomes of the discovery guard in start, stop,
+and HLS configuration. The 295-case profiles had zero executions of the
+unavailable-discovery outcome at all three guards. The fixture is linked
+in coverage builds. The suite has 309 Android cases.

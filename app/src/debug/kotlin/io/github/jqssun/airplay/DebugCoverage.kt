@@ -33,6 +33,7 @@ object DebugCoverage {
     external fun nativeCallbackFaultContracts(scenario: Int, failure: Int): String
     external fun nativeCallbackInitContracts(mode: Int): String
     external fun nativeCreatePartialServer(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): Long
+    external fun withBridgeDiscoveryDetached(handle: Long, action: Runnable): Boolean
     // Order matches InitStage in coverage_bridge.cpp.
     enum class InitFailure { RAOP_ALLOCATION, RAOP_CONFIGURATION, DNS_ALLOCATION }
     fun withInitFailure(stage: InitFailure, action: Runnable) = nativeWithInitFailure(stage.ordinal, action)

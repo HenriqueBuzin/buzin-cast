@@ -368,6 +368,26 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeCreatePartialServer(
     return reinterpret_cast<jlong>(ctx.release());
 }
 
+// Exercise the bridge's optional discovery guards while UxPlay retains its
+// borrowed DNS record pointer. The caller keeps the server alive until return.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_withBridgeDiscoveryDetached(
+        JNIEnv *env, jobject, jlong handle, jobject action) {
+    auto *ctx = reinterpret_cast<server_ctx_t *>(handle);
+    if (!ctx || !ctx->raop || !ctx->dnssd) return JNI_FALSE;
+    jclass runnable = env->FindClass("java/lang/Runnable");
+    if (!runnable) return JNI_FALSE;
+    jmethodID run = env->GetMethodID(runnable, "run", "()V");
+    env->DeleteLocalRef(runnable);
+    if (!run) return JNI_FALSE;
+
+    dnssd_t *discovery = ctx->dnssd;
+    ctx->dnssd = nullptr;
+    env->CallVoidMethod(action, run);
+    ctx->dnssd = discovery;
+    return JNI_TRUE;
+}
+
 // Access owns references under the production lock; no stream state is faked.
 struct AudioOutputContractAccess {
     static bool debugWhileLocked(const std::shared_ptr<AudioOutput> &output,
