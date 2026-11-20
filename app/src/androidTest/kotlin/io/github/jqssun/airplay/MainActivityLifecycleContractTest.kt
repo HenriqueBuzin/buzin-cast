@@ -1,5 +1,6 @@
 package io.github.jqssun.airplay
 
+import android.app.Activity
 import android.app.AppOpsManager
 import android.content.ComponentName
 import android.content.Context
@@ -13,16 +14,16 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.provider.Settings
 import android.view.WindowManager
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
-import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.viewmodel.MainViewModel
@@ -44,12 +45,13 @@ class MainActivityLifecycleContractTest {
     private lateinit var service: AirPlayService
     private lateinit var connection: ServiceConnection
     private var bound = false
-    private var scenario: ActivityScenario<MainActivity>? = null
+    private val activityToken = System.nanoTime().toString()
+    private val activityMonitor get() = ActivityLifecycleMonitorRegistry.getInstance()
+    private var cover: DebugTvPreviewActivity? = null
     private val original = linkedMapOf<String, Boolean?>()
     private var videoFixture: File? = null
     private var previousPipMode: String? = null
     private var previousPipEffectiveMode: Int? = null
-    private var restoreAnimatorScale: (() -> Unit)? = null
     private fun main(block: () -> Unit) = instrumentation.runOnMainSync(block)
     private fun await(message: String, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 20000
@@ -67,15 +69,6 @@ class MainActivityLifecycleContractTest {
     private fun shell(command: String): String = ParcelFileDescriptor.AutoCloseInputStream(
         instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
 
-    private fun animatorScale() =
-        Settings.Global.getString(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE)?.toFloat()
-
-    private fun setAnimatorScale(scale: Float?) {
-        val key = Settings.Global.ANIMATOR_DURATION_SCALE
-        if (scale == null) shell("settings delete global $key")
-        else shell("settings put global $key $scale")
-        await("Animator scale did not become $scale") { animatorScale() == scale }
-    }
     @androidx.annotation.ChecksSdkIntAtLeast(api = 26)
     private fun supportsPip() = Build.VERSION.SDK_INT >= 26 &&
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
@@ -109,11 +102,6 @@ class MainActivityLifecycleContractTest {
     }
 
     @Before fun bindReceiverWithoutStartingIt() {
-        // ActivityScenario waits for the main queue to idle before lifecycle
-        // commands. The running receiver's backdrop animates continuously.
-        val originalScale = animatorScale()
-        restoreAnimatorScale = { setAnimatorScale(originalScale) }
-        setAnimatorScale(0f)
         for ((pref, value) in listOf(Prefs.AUTO_START to false, Prefs.RUN_IN_BACKGROUND to false,
                 Prefs.LAUNCH_ON_CONNECT to false, Prefs.KEEP_SCREEN_ON to true)) {
             original[pref.key] = if (preferences.contains(pref.key)) pref.read(preferences) else null
@@ -133,58 +121,87 @@ class MainActivityLifecycleContractTest {
         main { assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value) }
     }
 
-    private fun launch(): ActivityScenario<MainActivity> {
-        val activity = ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        scenario = activity
-        await("MainActivity did not install its service callbacks") {
-            service.logCallback != null && service.pinCallback != null
+    private fun launch(): MainActivity {
+        var activity: MainActivity? = null
+        main {
+            context.startActivity(Intent(context, MainActivity::class.java)
+                .putExtra("lifecycle_contract_owner", activityToken)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
-        return activity
+        await("MainActivity did not install its service callbacks") {
+            activity = resumedActivity<MainActivity>()
+            activity != null && service.logCallback != null && service.pinCallback != null
+        }
+        return requireNotNull(activity)
     }
+
+    // The receiver can continue rendering while the lifecycle advances. Observe
+    // the instrumented Android stages instead of waiting for global UI idleness.
+    private inline fun <reified T : Activity> resumedActivity(): T? =
+        activityMonitor.getActivitiesInStage(Stage.RESUMED).filterIsInstance<T>()
+            .singleOrNull { it.intent?.getStringExtra("lifecycle_contract_owner") == activityToken }
+
     private fun model(activity: MainActivity) = ViewModelProvider(activity)[MainViewModel::class.java]
-    private fun start(activity: ActivityScenario<MainActivity>) {
+    private fun start(activity: MainActivity) {
         main { service.startServer() }
         await("Receiver did not start: ${service.serverState.value}") {
             service.serverState.value == AirPlayService.ServerState.RUNNING
         }
-        var viewModel: MainViewModel? = null
-        activity.onActivity { viewModel = model(it) }
         await("Activity did not observe the running receiver") {
-            viewModel!!.serverState.value == AirPlayService.ServerState.RUNNING
+            model(activity).serverState.value == AirPlayService.ServerState.RUNNING
         }
     }
-    private fun stopped(activity: ActivityScenario<MainActivity>, expected: AirPlayService.ServerState) {
-        activity.moveToState(Lifecycle.State.CREATED)
-        assertEquals(Lifecycle.State.CREATED, activity.state)
-        main { assertEquals(expected, service.serverState.value) }
-    }
-    private fun close(activity: ActivityScenario<MainActivity>) {
-        activity.close()
-        scenario = null
-    }
-    private fun keepsScreenOn(activity: ActivityScenario<MainActivity>, expected: Boolean) {
-        val deadline = SystemClock.elapsedRealtime() + 15000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            var actual = !expected
-            activity.onActivity { actual = it.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0 }
-            if (actual == expected) return
-            Thread.sleep(25)
+
+    private fun stopped(activity: MainActivity, expected: AirPlayService.ServerState) {
+        check(cover == null)
+        main {
+            activity.startActivity(Intent(activity, DebugTvPreviewActivity::class.java)
+                .putExtra("screen", "contract_host")
+                .putExtra("lifecycle_contract_owner", activityToken))
         }
-        fail("Keep-screen-on flag did not become $expected")
+        await("The foreground activity did not stop MainActivity") {
+            cover = resumedActivity<DebugTvPreviewActivity>()
+            cover != null && activityMonitor.getLifecycleStageOf(activity) == Stage.STOPPED
+        }
+        main {
+            assertEquals(Lifecycle.State.CREATED, activity.lifecycle.currentState)
+            assertEquals(expected, service.serverState.value)
+        }
+    }
+
+    private fun resume(activity: MainActivity) {
+        val foreground = requireNotNull(cover)
+        main { foreground.finish() }
+        await("MainActivity did not resume when the foreground activity finished") {
+            foreground.isDestroyed && activityMonitor.getLifecycleStageOf(activity) == Stage.RESUMED
+        }
+        cover = null
+    }
+
+    private fun finishActivities() {
+        // Also find a replacement activity if recreation failed before the test
+        // could save its reference.
+        var open = emptyList<Activity>()
+        main {
+            open = Stage.entries.filter { it != Stage.DESTROYED }
+                .flatMap(activityMonitor::getActivitiesInStage)
+                .filter { it.intent?.getStringExtra("lifecycle_contract_owner") == activityToken }
+            open.forEach(Activity::finish)
+        }
+        await("The lifecycle test's activities were not destroyed") { open.all { it.isDestroyed } }
+        cover = null
+    }
+
+    private fun keepsScreenOn(activity: MainActivity, expected: Boolean) {
+        await("Keep-screen-on flag did not become $expected") {
+            val set = activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+            set == expected
+        }
     }
 
     @After fun cleanup() {
         try {
-            cleanupReceiver()
-        } finally {
-            restoreAnimatorScale?.invoke()
-        }
-    }
-
-    private fun cleanupReceiver() {
-        try {
-            scenario?.close(); scenario = null
+            finishActivities()
             if (::service.isInitialized) main {
                 service.logCallback = null; service.pinCallback = null
                 service.stopServer()
@@ -214,22 +231,21 @@ class MainActivityLifecycleContractTest {
     @Test fun configurationRecreationKeepsTheIdleReceiverAndReplacesOnlyItsOwnCallbacks() {
         val activity = launch()
         start(activity)
-        lateinit var before: MainActivity
         lateinit var retained: MainViewModel
-        activity.onActivity { before = it; retained = model(it) }
+        main { retained = model(activity) }
         val previousPin = service.pinCallback
         main { service.onDisplayPin("2468") }
         assertEquals("2468", retained.pinCode.value)
-        activity.recreate()
-        activity.onActivity {
-            assertNotSame(before, it)
-            assertSame(retained, model(it))
+        main { activity.recreate() }
+        await("Android did not replace the recreated activity") {
+            activity.isDestroyed && resumedActivity<MainActivity>() != null
         }
+        main { assertSame(retained, model(requireNotNull(resumedActivity<MainActivity>()))) }
         await("Recreated activity did not replace the old callback") { service.pinCallback !== previousPin && service.pinCallback != null }
         main { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
         val logs = MainViewModel::class.java.getDeclaredField("logStore").apply { isAccessible = true }
             .get(retained) as AsyncLogStore
-        close(activity)
+        finishActivities()
         main {
             assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
             assertNull(service.logCallback); assertNull(service.pinCallback)
@@ -238,13 +254,13 @@ class MainActivityLifecycleContractTest {
     }
 
     @Test fun destructionPreservesCallbacksInstalledByAnotherOwner() {
-        val activity = launch()
+        launch()
         val logs = mutableListOf<String>()
         val pins = mutableListOf<String?>()
         val replacementLog: (String) -> Unit = { logs += it }
         val replacementPin: (String?) -> Unit = { pins += it }
         main { service.logCallback = replacementLog; service.pinCallback = replacementPin }
-        close(activity)
+        finishActivities()
         main {
             assertSame(replacementLog, service.logCallback)
             assertSame(replacementPin, service.pinCallback)
@@ -260,12 +276,12 @@ class MainActivityLifecycleContractTest {
         start(activity)
         keepsScreenOn(activity, false)
         stopped(activity, AirPlayService.ServerState.STOPPED)
-        activity.moveToState(Lifecycle.State.RESUMED)
-        activity.onActivity {
+        resume(activity)
+        main {
             assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
-            assertFalse(model(it).pref(Prefs.AUTO_START).value)
+            assertFalse(model(activity).pref(Prefs.AUTO_START).value)
         }
-        close(activity)
+        finishActivities()
     }
 
     @Test fun backgroundPreferenceKeepsTheRunningReceiverAcrossStopAndResume() {
@@ -273,9 +289,9 @@ class MainActivityLifecycleContractTest {
         val activity = launch()
         start(activity)
         stopped(activity, AirPlayService.ServerState.RUNNING)
-        activity.moveToState(Lifecycle.State.RESUMED)
-        activity.onActivity { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
-        close(activity)
+        resume(activity)
+        main { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
+        finishActivities()
         main { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
     }
 
@@ -288,7 +304,7 @@ class MainActivityLifecycleContractTest {
         main { service.onConnectionInit() }
         keepsScreenOn(activity, true)
         stopped(activity, AirPlayService.ServerState.RUNNING)
-        activity.moveToState(Lifecycle.State.RESUMED)
+        resume(activity)
         main { service.onConnectionDestroy() }
         keepsScreenOn(activity, false)
 
@@ -298,7 +314,7 @@ class MainActivityLifecycleContractTest {
         main { service.playLocalVideo(android.net.Uri.fromFile(file).toString()); service.setVideoPlaying(false) }
         keepsScreenOn(activity, true)
         stopped(activity, AirPlayService.ServerState.RUNNING)
-        activity.moveToState(Lifecycle.State.RESUMED)
+        resume(activity)
         main { service.stopVideoPlayback() }
         await("Local video did not stop") { !service.videoPlaybackActive.value }
         keepsScreenOn(activity, false)
@@ -310,11 +326,11 @@ class MainActivityLifecycleContractTest {
         set(Prefs.KEEP_SCREEN_ON, true)
         keepsScreenOn(activity, true)
         stopped(activity, AirPlayService.ServerState.RUNNING)
-        activity.moveToState(Lifecycle.State.RESUMED)
+        resume(activity)
         main { service.onMirrorRunning(false) }
         keepsScreenOn(activity, false)
         stopped(activity, AirPlayService.ServerState.STOPPED)
-        close(activity)
+        finishActivities()
     }
 
     @Test fun pictureInPictureRoundTripKeepsTheSessionAndReturnsToTheSameActivity() {
@@ -322,27 +338,26 @@ class MainActivityLifecycleContractTest {
         val activity = launch()
         start(activity)
         if (!supportsPip()) {
-            activity.onActivity { it.enterPip(); assertFalse(it.isInPip.value) }
-            close(activity)
+            main { activity.enterPip(); assertFalse(activity.isInPip.value) }
+            finishActivities()
             return
         }
-        lateinit var owner: MainActivity
-        activity.onActivity { owner = it }
         main { service.onConnectionInit() }
         keepsScreenOn(activity, true)
-        activity.onActivity { it.enterPip() }
-        await("Android did not enter PiP") { owner.isInPip.value && owner.isInPictureInPictureMode }
+        main { activity.enterPip() }
+        await("Android did not enter PiP") { activity.isInPip.value && activity.isInPictureInPictureMode }
         main { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
         // A lifecycle resume request alone does not expand Android's pinned
         // task. Reopen the existing activity, as a launcher action does.
         main { context.startActivity(Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
-        await("PiP did not return to the full activity") { !owner.isInPip.value && !owner.isInPictureInPictureMode }
-        assertEquals(Lifecycle.State.RESUMED, activity.state)
-        activity.onActivity { assertSame(owner, it) }
+        await("PiP did not return to the same resumed activity") {
+            !activity.isInPip.value && !activity.isInPictureInPictureMode && resumedActivity<MainActivity>() === activity
+        }
+        main { assertEquals(Lifecycle.State.RESUMED, activity.lifecycle.currentState) }
         main { service.onConnectionDestroy() }
         keepsScreenOn(activity, false)
-        close(activity)
+        finishActivities()
         main { assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value) }
     }
 
@@ -386,7 +401,7 @@ class MainActivityLifecycleContractTest {
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
             await("Right on receiver volume did not restore the media stream one step") { audio.getStreamVolume(stream) == raised }
             pointerGesture(receiverBounds.left.toFloat() - 24, touchY, touchY - receiverBounds.height() * 2f)
-            activity.onActivity { assertFalse(model(it).clientVolumeAdjustable.value) }
+            main { assertFalse(model(activity).clientVolumeAdjustable.value) }
             awaitVolumeControl(R.string.volume_client) { node ->
                 if (Build.VERSION.SDK_INT >= 24) {
                     assertFalse(node.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id })
@@ -398,7 +413,7 @@ class MainActivityLifecycleContractTest {
                 if (service.connectionCount.value > 0) service.onConnectionDestroy()
                 audio.setStreamVolume(stream, originalVolume, 0)
             }
-            close(activity)
+            finishActivities()
         }
     }
 

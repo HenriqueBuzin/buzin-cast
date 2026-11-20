@@ -1105,3 +1105,12 @@ Audio received for the mirrored screen stays in mirror mode. The normal API28
 service and DACP selection passed all 22 tests in 5.383 seconds. Its matching
 report covers 4/4 branches in onMirrorRunning and 9/12 in _setAudioOnly.
 The source suite now contains 210 Android cases.
+
+The full normal API28 run showed that disabling animations alone moved the
+lifecycle stall to a later idle wait. The fixture now drives actual Android
+activity operations and waits for their observed lifecycle stages. It leaves
+the system animator scale alone. All seven lifecycle cases passed within a
+210-case normal instrumentation run, including the previous stall, stop/resume,
+configuration recreation and PiP. The run reached its end in 362.033 seconds
+with two failures elsewhere, in settings buffer editing and diagnostic dialog
+dismissal, so the complete edition remains unverified.
