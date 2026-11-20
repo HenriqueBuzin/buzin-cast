@@ -1605,3 +1605,13 @@ discovery-summary branches, both frame-rate parsing branches, and all four
 custom FPS editor action branches. Comparison with the identical compiled
 settings class from the 247-case cohort identifies seven newly covered
 branch outcomes in each profile. The suite has 266 Android cases.
+
+Three bound-service contracts verify that invalid video dimensions preserve
+the display state, a valid mirror takes over from the relay listener, and
+orientation changes preserve the AirPlay session token. They also verify
+that audio and track metadata survive the first of two disconnects and
+that a mirror releases previous local playback without losing ownership.
+All 19 service contracts passed on normal and compat DE/AT API28. Each
+matching profile covers eight of ten video-size branch outcomes and the
+previously uncovered callback that releases the old local player. The
+suite has 269 Android cases.

@@ -10,6 +10,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioManager
+import android.net.Uri
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -24,6 +25,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.buzincast.core.Protocol
+import io.buzincast.core.SessionKind
+import io.buzincast.core.SessionPhase
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.media.MirrorCapture
@@ -34,6 +38,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.nio.ByteBuffer
 import java.net.InetAddress
 import java.net.SocketException
@@ -66,6 +71,20 @@ class ServiceAudioStateContractTest {
     private fun main(block: () -> Unit) = instrumentation.runOnMainSync(block)
     private fun playback() = requireNotNull(publishedPlayback.get()) { "No published playback state" }
     private fun metadata() = requireNotNull(controller.metadata) { "No published metadata" }
+    private fun withoutAutoLaunch(block: () -> Unit) {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val key = Prefs.LAUNCH_ON_CONNECT.key
+        val original = prefs.takeIf { it.contains(key) }?.let(Prefs.LAUNCH_ON_CONNECT::read)
+        assertTrue(prefs.edit().putBoolean(key, false).commit())
+        try {
+            block()
+        } finally {
+            val editor = prefs.edit()
+            if (original == null) editor.remove(key) else editor.putBoolean(key, original)
+            assertTrue(editor.commit())
+        }
+    }
+
     private fun await(message: String, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 15000
         while (SystemClock.elapsedRealtime() < deadline) {
@@ -297,6 +316,110 @@ class ServiceAudioStateContractTest {
             service.onMirrorRunning(false)
             assertTrue(mediaSession.isActive)
             assertEquals(emptyTrack, service.trackInfo.value)
+        }
+    }
+
+    @Test fun mirrorSizeRejectsInvalidDimensionsAndUpdatesAnOwnedSession() = withoutAutoLaunch {
+        main {
+            val initialResolution = service.videoResolution.value
+            val initialAspect = service.videoAspect.value
+            for ((width, height) in listOf(0f to 1080f, 1920f to 0f)) {
+                service.onVideoSize(1920f, 1080f, width, height)
+                assertNull(service.sessionSnapshot())
+                assertFalse(service.mirroringActive.value)
+                assertEquals(initialResolution, service.videoResolution.value)
+                assertEquals(initialAspect, service.videoAspect.value, 0f)
+            }
+
+            service.relay.listen()
+            assertTrue(service.relay.state.value.listening)
+            service.onConnectionInit()
+            service.onDisplayPin("1234")
+            val pins = mutableListOf<String?>()
+            service.pinCallback = { pins.add(it) }
+            service.onMirrorRunning(true)
+            service.onVideoSize(1920f, 1080f, 1280f, 720f)
+            val first = requireNotNull(service.sessionSnapshot())
+            assertEquals(Protocol.AIRPLAY, first.token.protocol)
+            assertEquals(SessionKind.MIRROR, first.kind)
+            assertEquals(SessionPhase.PLAYING, first.phase)
+            assertFalse(service.relay.state.value.listening)
+            assertEquals(listOf("1234", null), pins)
+            assertTrue(service.mirroringActive.value)
+            assertEquals("1280x720", service.videoResolution.value)
+
+            service.onVideoSize(1080f, 1920f, 720f, 1280f)
+            assertEquals(first.token, service.sessionSnapshot()?.token)
+            assertEquals("720x1280", service.videoResolution.value)
+            assertEquals(720f / 1280f, service.videoAspect.value, 0f)
+            service.onMirrorRunning(false)
+            service.onConnectionDestroy()
+            assertFalse(service.mirroringActive.value)
+            assertNull(service.sessionSnapshot())
+        }
+    }
+
+    @Test fun onlyTheFinalSenderDisconnectClearsSharedAudioState() = withoutAutoLaunch {
+        main {
+            service.onConnectionInit()
+            service.onConnectionInit()
+            service.onAudioFormat(2, 352, false)
+            service.onMetadata(item("mlit", text("minm", "Shared audio")))
+            service.onProgress(0, 44100, 44100 * 60L)
+            val session = requireNotNull(service.sessionSnapshot())
+            assertEquals(SessionKind.AUDIO, session.kind)
+            assertEquals(SessionPhase.PLAYING, session.phase)
+            assertEquals(2, service.connectionCount.value)
+
+            service.onConnectionDestroy()
+            assertEquals(1, service.connectionCount.value)
+            assertEquals(session, service.sessionSnapshot())
+            assertEquals("Shared audio", service.trackInfo.value.title)
+            assertEquals(1000L, service.positionMs.value)
+            assertEquals(60000L, service.durationMs.value)
+            assertTrue(service.audioOnly.value)
+            assertTrue(mediaSession.isActive)
+
+            service.onConnectionDestroy()
+            assertEquals(0, service.connectionCount.value)
+            assertNull(service.sessionSnapshot())
+            assertEquals("", service.trackInfo.value.title)
+            assertEquals(0L, service.positionMs.value)
+            assertEquals(0L, service.durationMs.value)
+            assertFalse(service.audioOnly.value)
+            assertFalse(mediaSession.isActive)
+        }
+    }
+
+    @Test fun airplayMirroringReleasesThePreviousLocalPlaybackWithoutDroppingMirrorOwnership() = withoutAutoLaunch {
+        val file = File.createTempFile("mirror-handoff-", ".mp4", context.cacheDir)
+        try {
+            instrumentation.context.assets.open("download/sample.mp4").use { input -> file.outputStream().use(input::copyTo) }
+            main {
+                service.playLocalVideo(Uri.fromFile(file).toString())
+                service.setVideoPlaying(false)
+                assertTrue(service.videoPlaybackActive.value)
+                assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
+                service.onConnectionInit()
+                service.onMirrorRunning(true)
+                service.onVideoSize(1920f, 1080f, 1280f, 720f)
+                assertEquals(Protocol.AIRPLAY, service.sessionSnapshot()?.token?.protocol)
+                assertEquals(SessionKind.MIRROR, service.sessionSnapshot()?.kind)
+            }
+            await("Previous local player did not release") { !service.videoPlaybackActive.value }
+            main {
+                assertNull(service.networkPlaybackOwner)
+                assertEquals(SessionKind.MIRROR, service.sessionSnapshot()?.kind)
+                assertTrue(service.mirroringActive.value)
+                assertFalse(mediaSession.isActive)
+                service.onMirrorRunning(false)
+                service.onConnectionDestroy()
+                assertNull(service.sessionSnapshot())
+            }
+        } finally {
+            service.stopVideoPlayback()
+            instrumentation.waitForIdleSync()
+            assertTrue(file.delete())
         }
     }
 
