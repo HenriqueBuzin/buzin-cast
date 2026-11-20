@@ -59,6 +59,8 @@ class Suite:
             raise ValueError("Only an emulator-<port> serial is allowed; physical TVs are forbidden")
         self.args = args
         self.package = args.package
+        if getattr(args, "diagnostic_networks", False) and not (args.coverage and args.apk and args.test_apk):
+            raise ValueError("Diagnostic network coverage requires both APKs and --coverage")
         if self.package == "com.buzincast.tv.deat" and not args.no_download:
             raise ValueError("DE/AT must be tested with --no-download")
         self.out = Path(args.output)
@@ -526,35 +528,79 @@ class Suite:
         self.results.append({"test":"C++ unit concurrency and timing", "passed":True,"cases":cases})
         print(f"PASS C++ unit tests ({cases} cases, UBSan)", flush=True)
 
-    def instrumentation(self):
-        apk=str(Path(self.args.test_apk).resolve())
-        if self.args.adb.lower().endswith(".exe") and os.name!="nt":
-            apk=subprocess.check_output(["wslpath","-w",apk],text=True).strip()
-        self.adb("install", "--no-streaming", "-r", apk)
+    def run_instrumentation(self, transcript, test_class=None, network=None):
+        if self.args.coverage:
+            self.adb("shell", "run-as", self.package, "rm", "-f", "files/coverage/android.ec", "files/coverage/native.profraw")
         # adb command timeout is intentionally higher for the complete test runner.
         command=[self.args.adb,"-s",self.args.serial,"shell","am","instrument","-w", "-r"]
-        if self.args.test_class:
+        if test_class:
             # adb shell parses the remote command; quote a possible Class#method selector.
             import shlex
-            command.extend(["-e", "class", shlex.quote(self.args.test_class)])
+            command.extend(["-e", "class", shlex.quote(test_class)])
+        if network:
+            command.extend(["-e", "networkDiagnosticState", network])
         command.append(self.package+".test/androidx.test.runner.AndroidJUnitRunner")
         # Stream progress so a timeout/nonzero exit preserves the last started
         # test without turning partial execution into passing evidence.
         timeout = getattr(self.args, "instrumentation_timeout", 900)
         if timeout <= 0:
             raise ValueError("Instrumentation timeout must be positive")
-        transcript = self.out/"instrumentation.txt"
         with transcript.open("wb") as progress:
             subprocess.run(command, stdout=progress, stderr=subprocess.STDOUT, timeout=timeout, check=True)
         output=transcript.read_text(encoding="utf-8",errors="replace")
         validate_instrumentation_output(output,require_all=self.args.coverage)
-        self.results.append({"test":"Android socket integration", "passed":True, "runner":output})
         if self.args.coverage:
-            self.checkpoint += 1
-            for filename in ("android.ec", "native.profraw"):
-                target=self.out/"coverage"/f"{self.checkpoint}-{filename}"
-                target.parent.mkdir(parents=True,exist_ok=True)
-                target.write_bytes(self.adb("exec-out","run-as",self.package,"cat","files/coverage/"+filename,binary=True))
+            self.instrumentation_checkpoint()
+        return output
+
+    def instrumentation_checkpoint(self):
+        self.checkpoint += 1
+        for filename in ("android.ec", "native.profraw"):
+            target=self.out/"coverage"/f"{self.checkpoint}-{filename}"
+            target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes(self.adb("exec-out","run-as",self.package,"cat","files/coverage/"+filename,binary=True))
+
+    def instrumentation(self):
+        apk=str(Path(self.args.test_apk).resolve())
+        if self.args.adb.lower().endswith(".exe") and os.name!="nt":
+            apk=subprocess.check_output(["wslpath","-w",apk],text=True).strip()
+        self.adb("install", "--no-streaming", "-r", apk)
+        output = self.run_instrumentation(self.out/"instrumentation.txt", self.args.test_class)
+        self.results.append({"test":"Android socket integration", "passed":True, "runner":output})
+
+    def diagnostic_networks(self):
+        selection = BASE + "NetworkDiagnosticsContractTest#publicReportMatchesTheDefaultAndroidNetwork"
+        states = {"wifi": "wifi_on", "data": "mobile_data"}
+        initial = {radio: self.adb("shell", "settings", "get", "global", key).strip() for radio, key in states.items()}
+        assert set(initial.values()) <= {"0", "1"}, f"Unrecognized emulator radio state: {initial}"
+        assert "Active default network: none" not in self.adb("shell", "dumpsys", "connectivity"), "The test needs an online emulator"
+        operations = self.adb("shell", "cmd", "appops", "get", self.package, "ACTIVATE_VPN")
+        mode = re.search(r"^ACTIVATE_VPN: (\w+)", operations, re.MULTILINE)
+        vpn_mode = mode.group(1) if mode else "default"
+        diagnostic = {}
+        self.adb("shell", "am", "force-stop", self.package)
+        try:
+            self.adb("shell", "cmd", "appops", "set", self.package, "ACTIVATE_VPN", "allow")
+            diagnostic["vpn"] = self.run_instrumentation(self.out/"diagnostic-vpn.txt", selection, "vpn")
+        finally:
+            self.adb("shell", "am", "force-stop", self.package)
+            self.adb("shell", "cmd", "appops", "set", self.package, "ACTIVATE_VPN", vpn_mode)
+        try:
+            for radio in states:
+                self.adb("shell", "svc", radio, "disable")
+            self.wait(lambda: "Active default network: none" in self.adb("shell", "dumpsys", "connectivity"),
+                      "Test emulator still has a default network")
+            diagnostic["offline"] = self.run_instrumentation(self.out/"diagnostic-offline.txt", selection, "offline")
+        finally:
+            self.adb("shell", "am", "force-stop", self.package)
+            for radio, enabled in initial.items():
+                self.adb("shell", "svc", radio, "enable" if enabled == "1" else "disable")
+        self.wait(lambda: "Active default network: none" not in self.adb("shell", "dumpsys", "connectivity"),
+                  "Test emulator default network did not recover")
+        assert all("OK (1 test)" in transcript for transcript in diagnostic.values()), diagnostic
+        entry = next(result for result in self.results if result["test"] == "Android socket integration")
+        entry["diagnostic_networks"] = diagnostic
+        print("PASS Android VPN and offline diagnostics", flush=True)
 
     def run(self):
         self.adb("wait-for-device")
@@ -598,6 +644,8 @@ class Suite:
                 self.results.append({"test":name,"passed":True,"seconds":round(time.monotonic()-start,2)})
                 self.collect_coverage()
                 print("PASS "+name,flush=True)
+            if getattr(self.args, "diagnostic_networks", False):
+                self.diagnostic_networks()
         finally:
             (self.out/"results.json").write_text(json.dumps(self.results,indent=2,ensure_ascii=False),encoding="utf-8")
             (self.out/"logcat.txt").write_text(self.adb("logcat","-d","-t","1500"),encoding="utf-8")
@@ -618,6 +666,7 @@ if __name__=="__main__":
     parser.add_argument("--instrumentation-timeout",type=positive_seconds,default=900,
                         help="Maximum seconds for the complete Android test suite (default: 900); partial progress is retained on failure")
     parser.add_argument("--coverage", action="store_true", help="Require Android and native coverage checkpoints after every scenario")
+    parser.add_argument("--diagnostic-networks", action="store_true", help="Add VPN and offline coverage on a disposable emulator")
     parser.add_argument("--output",default="build/emulator-checks")
     parser.add_argument("--case",action="append",help="Run matching case descriptions; repeat to select multiple cases")
     parser.add_argument("--extended",action="store_true",help="Include additional scenarios still under validation; see docs/WORK_CHECKPOINT.md")

@@ -1760,3 +1760,10 @@ emulator. The debug-only service exposes a VPN transport to the app's package
 and closes its tunnel after checking the report. For normal and compat DE/AT
 API28, the connected, VPN, and offline profiles from the same APK pairs cover
 all six JVM metrics for `NetworkDiagnostics`, including 18 of 18 branches.
+
+The full matrix collector now runs the Android VPN and offline scenarios on
+API 23 and newer, after the UI checks. It records each transcript and profile
+against the installed APK pair and restores the emulator's network settings.
+The relay form now sends Down from a valid pairing code to Connect. The
+targeted compat test passed on API28 after the previous 284-case compat run
+failed to reach Connect using Tab.

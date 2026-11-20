@@ -149,6 +149,7 @@ private fun RelayConnectDialog(
     val addressFocus = remember { FocusRequester() }
     val portFocus = remember { FocusRequester() }
     val codeFocus = remember { FocusRequester() }
+    val confirmFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val tv = isTv()
     val valid = address.isNotBlank() && (port.toIntOrNull() ?: 0) in 1..65535 &&
@@ -172,7 +173,11 @@ private fun RelayConnectDialog(
                         keyboardType = KeyboardType.Number,
                         onNext = { codeFocus.requestFocus() })
                     TvFormTextField(stringResource(R.string.tools_pairing_code), code, { code = it.take(14) },
-                        Modifier.weight(0.66f).focusRequester(codeFocus).focusProperties { up = portFocus; left = portFocus },
+                        Modifier.weight(0.66f).focusRequester(codeFocus).focusProperties {
+                            up = portFocus
+                            left = portFocus
+                            if (valid) down = confirmFocus
+                        },
                         imeAction = ImeAction.Done,
                         onDone = { connect() })
                     }
@@ -192,7 +197,7 @@ private fun RelayConnectDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = ::connect, enabled = valid, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_connect)) } },
+        confirmButton = { TextButton(onClick = ::connect, enabled = valid, modifier = Modifier.focusRequester(confirmFocus).dpadFocus()) { Text(stringResource(R.string.tools_connect)) } },
         dismissButton = { TextButton(onClick = ::dismiss, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tv_edit_cancel)) } },
     )
     LaunchedEffect(Unit) { addressFocus.requestFocusUntilLanded(); if (!tv) keyboard?.show() }

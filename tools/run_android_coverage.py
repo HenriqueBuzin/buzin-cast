@@ -220,6 +220,8 @@ def main():
             command = [sys.executable, root / "tools/test_emulator.py", "--serial", args.serial, "--adb", adb, "--apk", snapshot/"inputs/app.apk", "--test-apk", snapshot/"inputs/test.apk", "--native-tests", snapshot/"inputs/native_core_tests", "--coverage", "--extended", "--package", package, "--output", profiles]
             if regional:
                 command.append("--no-download")
+            if api >= 23:
+                command.append("--diagnostic-networks")
             run(command, report / "runtime.log")
             for execution_name in ("core.exec","domain.exec"):
                 shutil.copyfile(snapshot/execution_name,profiles/"coverage"/execution_name)

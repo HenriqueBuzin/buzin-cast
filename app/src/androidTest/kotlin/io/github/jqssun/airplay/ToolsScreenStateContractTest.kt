@@ -313,8 +313,8 @@ class ToolsScreenStateContractTest {
             relayKey(KeyEvent.KEYCODE_DPAD_DOWN)
             editRelayField(2, KeyEvent.KEYCODE_DPAD_CENTER, "ABCD-EFGH-IJKL", "ABCD-EFGH-IJKL")
 
-            repeat(10) { if (!relayControlFocused(connect)) relayKey(KeyEvent.KEYCODE_TAB) }
-            assertTrue("The valid relay form did not focus Connect", relayControlFocused(connect))
+            relayKey(KeyEvent.KEYCODE_DPAD_DOWN)
+            await("Remote Down did not focus Connect in the valid relay form") { relayControlFocused(connect) }
             relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
             await("Submitting the form did not restore focus") { relayControlFocused(open) }
             relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
