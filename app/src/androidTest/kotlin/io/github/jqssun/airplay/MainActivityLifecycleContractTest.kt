@@ -647,6 +647,34 @@ class MainActivityLifecycleContractTest {
         finishActivities()
     }
 
+    @Test fun disconnectingTheActivityBindingDoesNotStopTheReceiverOrEnterPictureInPicture() {
+        pipPolicy("allow")
+        val activity = launch()
+        start(activity)
+        main { service.onConnectionInit() }
+        keepsScreenOn(activity, true)
+        val binding = MainActivity::class.java.getDeclaredField("connection").apply { isAccessible = true }
+            .get(activity) as ServiceConnection
+        val receiver = Intent(context, AirPlayService::class.java)
+        val component = requireNotNull(receiver.component)
+        main {
+            binding.onServiceDisconnected(component)
+            assertEquals("The presentation snapshot still has the last connection", 1, model(activity).connectionCount.value)
+            instrumentation.callActivityOnUserLeaving(activity)
+            assertFalse("A disconnected activity entered PiP", activity.isInPip.value)
+        }
+        try {
+            stopped(activity, AirPlayService.ServerState.RUNNING, "backgrounding while disconnected from the receiver")
+        } finally {
+            main { binding.onServiceConnected(component, service.LocalBinder()) }
+        }
+        resume(activity)
+        main { service.onConnectionDestroy() }
+        keepsScreenOn(activity, false)
+        stopped(activity, AirPlayService.ServerState.STOPPED, "backgrounding after reconnecting to an idle receiver")
+        finishActivities()
+    }
+
     @Test fun playbackControlsStayWithTheOwnerAcrossFcastAirplayAndLocalHandoffs() {
         val activity = launch()
         start(activity)

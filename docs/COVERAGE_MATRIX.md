@@ -1996,3 +1996,29 @@ The compat DE/AT API22 instrumentation suite at `ab239e5` passed all
 324 cases, including discovery settings, both custom dimensions, idle
 shutdown, and playback surface lifetime. The complete matched
 four-edition coverage matrix remains pending.
+
+The six lifecycle cases for `d227a50` also passed with the identical normal
+APK pair on API36. The merged API28/API36 JaCoCo profile covered all four
+branch outcomes in `onUserLeaveHint` and seven of eight in
+`_shouldAutoPip`.
+
+The binding-loss regression delivers the activity's ServiceConnection
+callback while the receiver remains active and the ViewModel still reports
+the previous connection. It verifies that leaving the activity keeps the
+receiver running without entering PiP, then reconnects and verifies idle
+shutdown. All seven selected cases passed on normal and compat DE/AT on
+API28. Both profiles covered all 10 branch outcomes and all six lines in
+`onStop`. The suite now has 325 Android cases.
+
+The compat DE/AT edition of the API28 324-case matrix at `5e49ea9` passed
+the 324 Android cases, 21 native cases, and 15 recorded runtime checks.
+JaCoCo measured 4639/5887 JVM branches and LLVM measured 909/912 native
+branches before merging any API22 profiles.
+
+Two API22 codec cases replayed that edition's exact APK pair. Combining
+their LLVM profile with the complete API28 measurements covered all 912
+branches, 203 functions, 1751 lines, 171 MC/DC conditions, and 1500 regions
+of the native app binary. Instantiations measured 204/205. The remaining
+instance is the coverage bridge's inline copy of `monoNs` in
+`audio_time.h`. This matched native result includes a selected API22 run
+and the complete API28 suite.
