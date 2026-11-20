@@ -1894,3 +1894,10 @@ is the compiler-generated `NoWhenBranchMatchedException` default for an
 exhaustive enum dispatch inside Compose. The labels, icons, and clock covered
 all 10 branch outcomes across their three methods. The suite now has 319
 Android cases.
+
+Reading the composition density before the scale dispatch keeps the
+modifier choice independent of composition-local reads. The normal and
+compat DE/AT API28 profiles both cover all 12 sizing branches, 166
+instructions, and 14 lines of the sizing lambda. All five checks passed in
+each edition, exercising
+the exact dimensions, the fallback, and the lifetime of the live surface.

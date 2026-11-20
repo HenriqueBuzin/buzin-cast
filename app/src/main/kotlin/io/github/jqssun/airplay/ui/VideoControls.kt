@@ -421,6 +421,7 @@ fun VideoContentFrame(
     BoxWithConstraints(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val w = maxWidth
         val h = maxHeight
+        val density = LocalDensity.current
         val fit = if (w / h > aspect) Modifier.requiredSize(h * aspect, h) else Modifier.requiredSize(w, w / aspect)
         val sizeModifier = when (contentScale) {
             VideoContentScale.BEST_FIT -> fit
@@ -428,7 +429,7 @@ fun VideoContentFrame(
             VideoContentScale.CROP ->
                 if (w / h > aspect) Modifier.requiredSize(w, w / aspect) else Modifier.requiredSize(h * aspect, h)
             VideoContentScale.HUNDRED_PERCENT -> videoSizePx?.let { (pxW, pxH) ->
-                with(LocalDensity.current) { Modifier.requiredSize(pxW.toDp(), pxH.toDp()) }
+                with(density) { Modifier.requiredSize(pxW.toDp(), pxH.toDp()) }
             } ?: fit
         }
         content(
