@@ -1187,3 +1187,12 @@ All 23 service and DACP tests passed on normal and DE/AT in API28 emulators.
 Their matched reports cover 16/18 and 15/18 branch outcomes in
 AirPlayService._buildMediaNotification, respectively. The pinned normal
 211-case report covered 9/18 in this method. The suite now has 214 Android cases.
+
+The media notification test now exercises an absent session and an adapter
+that returns no session token. Both cases keep the track title and omit
+transport actions. The DE/AT test supplies an in-memory recording status to
+exercise notification presentation. The normal test sends the live Stop action.
+
+Both API28 editions passed all 23 service and DACP cases. Their matched
+reports cover all 18 branch outcomes and 221 instructions in
+AirPlayService._buildMediaNotification.

@@ -25,6 +25,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
+import io.github.jqssun.airplay.media.MirrorCapture
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -42,6 +44,9 @@ import java.util.concurrent.atomic.AtomicReference
 class ServiceAudioStateContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
+    private val mediaSessionField by lazy {
+        AirPlayService::class.java.getDeclaredField("mediaSession").apply { isAccessible = true }
+    }
     private lateinit var service: AirPlayService
     private lateinit var mediaSession: MediaSessionCompat
     private lateinit var controller: MediaControllerCompat
@@ -87,8 +92,7 @@ class ServiceAudioStateContractTest {
         service = requireNotNull(value.get()) { "Unexpected service binder" }
         main {
             assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
-            val field = AirPlayService::class.java.getDeclaredField("mediaSession").apply { isAccessible = true }
-            mediaSession = requireNotNull(field.get(service) as? MediaSessionCompat)
+            mediaSession = requireNotNull(mediaSessionField.get(service) as? MediaSessionCompat)
             controller = MediaControllerCompat(context, mediaSession.sessionToken)
             controller.registerCallback(callback, Handler(Looper.getMainLooper()))
         }
@@ -294,12 +298,20 @@ class ServiceAudioStateContractTest {
         }
     }
 
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "UNCHECKED_CAST")
     @Test fun notificationTracksPinAudioAndRecordingWithWorkingStopAction() {
         val builder = AirPlayService::class.java.getDeclaredMethod("buildNotification").apply { isAccessible = true }
         fun notification() = builder.invoke(service) as Notification
         fun title(value: Notification) = value.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         fun actions(value: Notification) = value.actions.orEmpty().map { it.title.toString() }
+        fun recordingNotification(state: MirrorCapture.State): PendingIntent {
+            val recording = notification()
+            assertEquals(context.getString(R.string.tools_record_title), title(recording))
+            assertEquals(state.message, recording.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+            assertEquals(listOf(context.getString(R.string.tools_record_stop)), actions(recording))
+            assertNull(MediaStyle.getMediaSession(recording))
+            return recording.actions.single().actionIntent
+        }
         var stopCapture: PendingIntent? = null
         val artwork = coverPng(Color.rgb(22, 180, 70))
 
@@ -332,16 +344,45 @@ class ServiceAudioStateContractTest {
             assertEquals("Notification track", title(withArtwork))
             assertNotNull(if (Build.VERSION.SDK_INT >= 23) withArtwork.getLargeIcon() else withArtwork.largeIcon)
 
+            val sessionWithoutToken = object : MediaSessionCompat(context, "notification-contract") {
+                var hideToken = false
+                override fun getSessionToken(): MediaSessionCompat.Token? =
+                    if (hideToken) null else super.getSessionToken()
+            }
+            try {
+                // A session can be absent, or its adapter can fail to supply the token.
+                sessionWithoutToken.hideToken = true
+                for (unavailable in listOf(null, sessionWithoutToken)) {
+                    mediaSessionField.set(service, unavailable)
+                    val withoutControls = notification()
+                    assertEquals("Notification track", title(withoutControls))
+                    assertNull(MediaStyle.getMediaSession(withoutControls))
+                    assertTrue(actions(withoutControls).isEmpty())
+                }
+            } finally {
+                mediaSessionField.set(service, mediaSession)
+                sessionWithoutToken.release()
+            }
+
             if (BuildConfig.RECORDING_ENABLED) {
                 service.capture.start()
                 assertTrue("Recording did not arm on the test device", service.capture.state.value.armed)
-                val recording = notification()
-                assertEquals(context.getString(R.string.tools_record_title), title(recording))
-                assertEquals(service.capture.state.value.message,
-                    recording.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
-                assertEquals(listOf(context.getString(R.string.tools_record_stop)), actions(recording))
-                assertNull(MediaStyle.getMediaSession(recording))
-                stopCapture = recording.actions.single().actionIntent
+                stopCapture = recordingNotification(service.capture.state.value)
+            } else {
+                // Exercise presentation with an in-memory snapshot in the regional APK.
+                val field = MirrorCapture::class.java.getDeclaredField("mutable").apply { isAccessible = true }
+                val state = field.get(service.capture) as MutableStateFlow<MirrorCapture.State>
+                val original = state.value
+                val armed = MirrorCapture.State(armed = true, message = "Recording notification fixture")
+                try {
+                    assertFalse(service.capture.active())
+                    state.value = armed
+                    recordingNotification(armed)
+                    assertFalse(service.capture.active())
+                } finally {
+                    state.value = original
+                }
+                assertEquals("Notification track", title(notification()))
             }
         }
         if (BuildConfig.RECORDING_ENABLED) {
