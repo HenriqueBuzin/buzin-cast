@@ -1839,3 +1839,16 @@ at zero and keeps the existing upper limit. Both selected editions passed
 reports 14 of 14 branch outcomes in `DelayTracker::observe` in the native
 unit executable and 13 of 14 in the selected APK runs. The unit executable
 also compiled for ARMv7 API22.
+
+The decoder takes a queued configuration with one atomic exchange. The
+concurrent AAC contract verifies that a settings writer can queue changes
+while the decoder delivers every PCM timestamp and that the next packet
+applies the final 80 ms cushion. All four selected cases passed in normal
+and compat DE/AT on API28. LLVM reports both outcomes of the exchange in
+each edition: five packets consumed a configuration and 352 found none.
+The suite has 311 Android cases.
+
+The complete API28 matrix at `972df96` verified all four editions with
+295 Android cases, 21 native cases, and all 15 runtime checks each. JVM
+branch coverage ranged from 77.60% to 77.94%. Native branch coverage ranged
+from 97.94% to 98.80%.

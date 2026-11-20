@@ -23,6 +23,9 @@ import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 
 /** Real initialized JNI contexts; the callbacks never open UI or publish NSD services. */
 @RunWith(AndroidJUnit4::class)
@@ -414,6 +417,49 @@ class NativeServerContractTest {
         DebugNativeBridge.nativeFeedAudio(handle, frames[1], base + 1024L * 1_000_000_000L / 44100)
         assertEquals(60, tunedCushionMs())
         assertEquals(2, callbacks.getValue(handle).pcm.size)
+    }
+
+    @Test fun concurrentAudioConfigurationsKeepDecodingAndApplyTheFinalCushion() {
+        val handle = create()
+        val frames = aacFrames()
+        fun configure(cushionMs: Int) = NativeBridge.nativeServerAudioConfigure(
+            handle, cushionMs, 95, 0, forceSwAlac = true, forceSwAac = true,
+            realtimePriority = false, lowLatency = false, benchmarkLog = false,
+        )
+        NativeBridge.nativeServerAudioFormat(handle, 4, 1024)
+        assertTrue(configure(20))
+        NativeBridge.nativeSetCaptureEnabled(handle, true)
+
+        val firstPts = System.nanoTime()
+        fun pts(index: Int) = firstPts + index * 1024L * 1_000_000_000L / 44100
+        fun feed(index: Int) = DebugNativeBridge.nativeFeedAudio(handle, frames[index % frames.size], pts(index))
+
+        val begin = CountDownLatch(1)
+        val updates = FutureTask {
+            assertTrue(begin.await(5, TimeUnit.SECONDS))
+            repeat(80) { assertTrue(configure(30 + it % 20)) }
+        }
+        val settingsWriter = Thread(updates)
+        settingsWriter.start()
+        try {
+            begin.countDown()
+            for (index in frames.indices) feed(index)
+            updates.get(5, TimeUnit.SECONDS)
+        } finally {
+            settingsWriter.join(5_000)
+            if (settingsWriter.isAlive) {
+                handles.remove(handle)
+                fail("A live settings writer still owns the native engine")
+            }
+        }
+
+        assertTrue(configure(80))
+        feed(frames.size)
+        val debug = ByteBuffer.allocateDirect(64).order(ByteOrder.nativeOrder())
+        assertTrue(NativeBridge.nativeServerAudioDebug(handle, debug))
+        assertEquals(80, debug.getShort(2).toInt() and 0xffff)
+        assertEquals(0, debug.getInt(34))
+        assertEquals((0..frames.size).map(::pts), callbacks.getValue(handle).pcm.map { it.pts })
     }
 
     @Test fun adaptiveAudioCushionStaysBoundedWhenAnAacPacketArrivesLate() {

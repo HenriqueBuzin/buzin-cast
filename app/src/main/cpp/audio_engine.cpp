@@ -133,16 +133,14 @@ struct AudioEngine {
     // touches decoder: must not run concurrently with stop()
     void decode(const uint8_t *data, size_t len, int ct, int64_t ptsNs) {
         if (!mTimeline) return;
-        if (mPending.load(std::memory_order_relaxed)) {
-            if (AudioConfig *raw = mPending.exchange(nullptr, std::memory_order_acquire)) {
-                std::unique_ptr<AudioConfig> c(raw);
-                mDecoder = {};
-                std::lock_guard<std::mutex> lk(mRebuildLock);
-                if (mOutputActive) mOutput->stop();
-                mOutput.reset();
-                initInternals(*c);
-                mOutputActive = mRunning ? mOutput->start() : false;
-            }
+        if (AudioConfig *raw = mPending.exchange(nullptr, std::memory_order_acquire)) {
+            std::unique_ptr<AudioConfig> c(raw);
+            mDecoder = {};
+            std::lock_guard<std::mutex> lk(mRebuildLock);
+            if (mOutputActive) mOutput->stop();
+            mOutput.reset();
+            initInternals(*c);
+            mOutputActive = mRunning ? mOutput->start() : false;
         }
 
         const int ci = ctIndex(ct);
