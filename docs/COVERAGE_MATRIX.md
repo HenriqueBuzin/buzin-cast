@@ -1860,3 +1860,11 @@ builds. Both DNS-SD contracts passed on normal and compat DE/AT API28.
 LLVM measured all six branch outcomes of `_txt_set` in both editions.
 The matched 295-case profiles missed the existing-key update and the
 new-key rejection. The suite now has 312 Android cases.
+
+The adaptive delay contract uses explicit packet and arrival timestamps.
+It verifies the initial cushion, a lower latency becoming the new baseline,
+the ceiling after a later jitter spike, and the fixed cushion ignoring jitter.
+The existing AAC integration contract exercises the same limit through the
+decoder. Both cases passed on normal and compat DE/AT API28. Each LLVM
+profile covered all 14 branch outcomes and both MC/DC conditions in
+`DelayTracker::observe`. The suite now has 313 Android cases.

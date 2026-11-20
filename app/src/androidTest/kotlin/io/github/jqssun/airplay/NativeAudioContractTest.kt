@@ -46,6 +46,9 @@ class NativeAudioContractTest {
     @Test fun decoderLatencySkipsUnmatchedTimestampsAndReportsWithLoggingDisabled() =
         decoderContract("decoder latency contracts passed", DebugCoverage::nativeDecoderLatencyContracts)
 
+    @Test fun adaptiveDelayFollowsTheFastestPacketAndCapsLaterJitter() =
+        decoderContract("adaptive delay contract passed", DebugCoverage::nativeAdaptiveDelayContract)
+
     @Test fun invalidInputsAndPreconfigurationLifecycleAreSafe() =
         decoderContract("audio contracts passed", DebugCoverage::nativeAudioContracts)
 

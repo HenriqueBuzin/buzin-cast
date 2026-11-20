@@ -23,6 +23,7 @@
 #include "audio_output.h"
 #include "log_sink.h"
 #include "native_server_context.h"
+#include "timeline_buffer.h"
 extern "C" {
 #include <libavcodec/defs.h>
 #include "dnssd.h"
@@ -982,6 +983,29 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeAudioContracts(JNIEnv *env, jo
     AUDIO_CONTRACT(audio_engine_configure(engine.get(), 50, 95, 0, true, true, false, false, false));
 #undef AUDIO_CONTRACT
     return env->NewStringUTF("audio contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeAdaptiveDelayContract(JNIEnv *env, jobject) {
+    constexpr int64_t packetDurationNs = 10'000'000;
+    constexpr int64_t secondNs = 1'000'000'000;
+    // With one channel at 1 kHz, one millisecond is one sample.
+    DelayTracker tracker(1000, 1, 0, 95);
+    tracker.observe(secondNs, 2 * secondNs, packetDurationNs);
+    if (tracker.target() != 15) return env->NewStringUTF("initial jitter must be zero");
+
+    // A faster second packet lowers the latency baseline by one second.
+    tracker.observe(2 * secondNs, 2 * secondNs, packetDurationNs);
+    if (tracker.target() != 15) return env->NewStringUTF("lower latency must become the new baseline");
+
+    // The original latency is now a one-second spike relative to that baseline.
+    tracker.observe(3 * secondNs, 4 * secondNs, packetDurationNs);
+    if (tracker.target() != 1000) return env->NewStringUTF("jitter cushion must stop at one second");
+
+    DelayTracker fixedTracker(1000, 1, 20, 95);
+    fixedTracker.observe(secondNs, 4 * secondNs, packetDurationNs);
+    if (fixedTracker.target() != 20) return env->NewStringUTF("fixed cushion must ignore jitter");
+    return env->NewStringUTF("adaptive delay contract passed");
 }
 
 extern "C" const char *android_dnssd_txt_capacity_contract(void);
