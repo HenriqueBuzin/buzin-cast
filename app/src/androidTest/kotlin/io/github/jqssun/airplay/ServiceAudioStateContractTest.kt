@@ -477,6 +477,47 @@ class ServiceAudioStateContractTest {
         assertEquals(square, size(square, Configuration.ORIENTATION_PORTRAIT))
     }
 
+    @Test fun networkIdentityKeepsValidPreferencesAndReplacesInvalidFallbackAddresses() {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val key = Prefs.FALLBACK_MAC_ADDRESS
+        val saved = prefs.getString(key, null)
+        val read = AirPlayService::class.java.getDeclaredMethod("persistedRandomMac").apply { isAccessible = true }
+        fun fallback() = read.invoke(service) as ByteArray
+
+        main {
+            try {
+                val valid = "02:01:AB:CD:EF:FF"
+                assertTrue(prefs.edit().putString(key, valid).commit())
+                assertArrayEquals(byteArrayOf(2, 1, -85, -51, -17, -1), fallback())
+                assertEquals(valid, prefs.getString(key, null))
+
+                for (invalid in listOf(null, "00:00:00:00:00:00", "02:00:00:00:00:00", "12:34:56:78:9a",
+                    "12:34:56:78:9a:100", "1:34:56:78:9a:bc", "12:34:56:78:9a:zz")) {
+                    assertTrue(prefs.edit().putString(key, invalid).commit())
+                    val generated = fallback()
+                    assertEquals(6, generated.size)
+                    assertEquals(0x0a, generated[0].toInt() and 0x0f)
+                    val stored = prefs.getString(key, null)
+                    assertEquals(generated.joinToString(":") { "%02x".format(it) }, stored)
+                    assertArrayEquals(generated, fallback())
+                    assertEquals(stored, prefs.getString(key, null))
+                }
+            } finally {
+                assertTrue(prefs.edit().putString(key, saved).commit())
+            }
+        }
+    }
+
+    @Test fun receiverRejectsMissingAndPlaceholderHardwareAddresses() {
+        val method = AirPlayService::class.java.getDeclaredMethod("isUsableMac", ByteArray::class.java)
+            .apply { isAccessible = true }
+        for (invalid in listOf(null, ByteArray(5), ByteArray(6), byteArrayOf(2, 0, 0, 0, 0, 0))) {
+            assertEquals(false, method.invoke(service, invalid))
+        }
+        assertEquals(true, method.invoke(service, byteArrayOf(2, 0, 0, 0, 0, 1)))
+        assertEquals(true, method.invoke(service, byteArrayOf(-86, -69, -52, -35, -18, -1)))
+    }
+
     @Test fun senderVolumeStepsFollowFeedbackAndStopAtTargetOrOvershoot() {
         val prefs = context.getSharedPreferences(Prefs.NAME, 0)
         val key = Prefs.SYNC_CLIENT_VOLUME.key

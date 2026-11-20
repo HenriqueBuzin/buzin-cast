@@ -1208,7 +1208,6 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
         // fall back to stable per-install random address
         return persistedRandomMac()
-            ?: byteArrayOf(0xAA.toByte(), 0xBB.toByte(), 0xCC.toByte(), 0xDD.toByte(), 0xEE.toByte(), 0xFF.toByte())
     }
 
     private fun isUsableMac(mac: ByteArray?): Boolean =
@@ -1216,17 +1215,12 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
             mac.any { it != 0.toByte() } &&
             !(mac[0] == 0x02.toByte() && mac.drop(1).all { it == 0.toByte() })
 
-    private fun persistedRandomMac(): ByteArray? {
+    private fun persistedRandomMac(): ByteArray {
         macFromString(prefs.getString(Prefs.FALLBACK_MAC_ADDRESS, null))
             ?.takeIf { isUsableMac(it) }?.let { return it }
-        repeat(10) {
-            val mac = randomAaiMac()
-            if (isUsableMac(mac)) {
-                prefs.edit().putString(Prefs.FALLBACK_MAC_ADDRESS, macToString(mac)).apply()
-                return mac
-            }
+        return randomAaiMac().also { mac ->
+            prefs.edit().putString(Prefs.FALLBACK_MAC_ADDRESS, macToString(mac)).apply()
         }
-        return null
     }
 
     // random locally-administered unicast MAC in AAI SLAP quadrant
@@ -1239,10 +1233,8 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     private fun macToString(mac: ByteArray): String = mac.joinToString(":") { "%02x".format(it) }
 
     private fun macFromString(s: String?): ByteArray? {
-        if (s == null) return null
-        return try {
-            s.split(":").map { it.toInt(16).toByte() }.toByteArray()
-        } catch (e: Exception) { null }
+        if (s == null || !MAC_ADDRESS_FORMAT.matches(s)) return null
+        return s.split(':').map { it.toInt(16).toByte() }.toByteArray()
     }
 
     private fun createNotificationChannel() {
@@ -1350,6 +1342,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
 
     companion object {
         private const val TAG = "AirPlayService"
+        private val MAC_ADDRESS_FORMAT = Regex("[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5}")
         private const val CLIENT_VOL_EPS = 0.033f
         private const val CLIENT_VOL_MAX_STEPS = 32
         private const val CLIENT_VOL_TIMEOUT_MS = 800L

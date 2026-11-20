@@ -1312,3 +1312,14 @@ start calls create one listener.
 All 17 receiver integration cases passed on normal API28. On the identical
 application APK, DlnaReceiver coverage grew from 94 to 106 out of 126
 branches. The suite now has 227 Android cases.
+
+The receiver now validates each stored fallback MAC as six two-digit hex
+octets before decoding it. Existing valid identities are kept. Invalid
+values receive a new persisted AAI unicast identity. Its first octet
+guarantees that it passes the zero and placeholder checks.
+
+All 27 selected service and DACP cases passed on normal API28. The matched
+report covers all 24 branches and 160 JVM instructions across the five
+validation, persistence, generation and conversion methods. Hardware
+interface enumeration is measured separately. The suite now has 229 Android
+cases.
