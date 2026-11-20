@@ -1730,3 +1730,12 @@ preview's drawing paint is private, so Kotlin no longer emits an unused
 accessor for the anonymous view. The targeted normal and compat DE/AT
 API28 profiles cover all six JVM metrics for `CalibrationActivity`, including
 16 of 16 branches. The suite has 289 Android cases.
+
+The TV focus contracts verify the retry budget when a target is absent,
+confirmation before or after a frame, and transfers between attached
+controls in Compose. One transfer forces a transient failure in the target's
+focus properties, then verifies that the next attempt moves focus. All six
+JVM metrics for `TvFocus` were covered in the selected normal and compat
+DE/AT API28 profiles, including 20 of 20 branch outcomes. The same bytecode
+had 9 and 12 branch outcomes covered in the respective 284-case profiles.
+The suite has 292 Android cases.
