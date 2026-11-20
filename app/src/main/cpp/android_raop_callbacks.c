@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
 #include <android/log.h>
 #include "android_raop_callbacks.h"
 #include "audio_engine.h"
@@ -430,7 +429,8 @@ static void _video_wait_ready(void *cls) {
     ts.tv_sec += 10; // hold for max 10s
     pthread_mutex_lock(&ctx->playback_info_lock);
     while (!ctx->play_ready) {
-        if (pthread_cond_timedwait(&ctx->play_ready_cond, &ctx->playback_info_lock, &ts) == ETIMEDOUT) break;
+        // Timeout or a condition-variable error ends the wait.
+        if (pthread_cond_timedwait(&ctx->play_ready_cond, &ctx->playback_info_lock, &ts) != 0) break;
     }
     pthread_mutex_unlock(&ctx->playback_info_lock);
 }

@@ -1248,3 +1248,13 @@ allocation and delivery. An unreferenced static callback stub was removed.
 All 15 callback cases passed on normal API28. LLVM coverage from the
 matching APK library shows all 6 admission and all 28 PCM callback branch
 outcomes. The suite now has 219 Android cases.
+
+The native video ready wait preserves one absolute deadline across wakeups.
+It now releases the playback lock and returns on any condition-variable
+error, including a timeout. The native unit contract exercises a wakeup
+without readiness followed by readiness, timeout, and another error.
+
+All 21 native unit cases passed on API28. The previous implementation failed
+only the new case when the wait returned EINVAL. With the corrected build,
+the unit profile mapped to the normal APK library covers all four branch
+outcomes in android_raop_callbacks.c:_video_wait_ready.

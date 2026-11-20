@@ -27,11 +27,16 @@ static void dnssdAllocationFailuresReleasePartialState() {
 #ifdef BUZIN_CLOCK_CONTRACTS
 #include "timeline_clock_contracts.h"
 #endif
-#ifdef BUZIN_CALLBACK_KEY_CONTRACTS
+#ifdef BUZIN_CALLBACK_CONTRACTS
 extern "C" int callbackThreadKeyCreationFailureStatus(void);
+extern "C" int callbackVideoWaitStatus(void);
 static void callbackThreadKeyCreationFailureBlocksAttachment() {
     const int status = callbackThreadKeyCreationFailureStatus();
     if (status) throw std::runtime_error("TLS key contract failed at line " + std::to_string(status));
+}
+static void callbackVideoWaitKeepsItsDeadlineAndExitsCleanly() {
+    const int status = callbackVideoWaitStatus();
+    if (status) throw std::runtime_error("Video wait contract failed at line " + std::to_string(status));
 }
 #endif
 
@@ -223,8 +228,9 @@ int main() {
 #ifdef BUZIN_DNSSD_ALLOC_CONTRACTS
         ,{"DNS-SD allocation failures release partial state",dnssdAllocationFailuresReleasePartialState}
 #endif
-#ifdef BUZIN_CALLBACK_KEY_CONTRACTS
+#ifdef BUZIN_CALLBACK_CONTRACTS
         ,{"TLS key creation failure blocks JVM attachment",callbackThreadKeyCreationFailureBlocksAttachment}
+        ,{"Video wait preserves its deadline and releases its lock",callbackVideoWaitKeepsItsDeadlineAndExitsCleanly}
 #endif
     };
     int failures=0;
