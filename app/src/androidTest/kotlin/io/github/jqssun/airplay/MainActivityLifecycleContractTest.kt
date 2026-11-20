@@ -733,9 +733,17 @@ class MainActivityLifecycleContractTest {
             finishActivities()
             return
         }
-        main { service.onConnectionInit() }
-        keepsScreenOn(activity, true)
-        main { activity.enterPip() }
+        main {
+            assertEquals(0, model(activity).connectionCount.value)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                instrumentation.callActivityOnUserLeaving(activity)
+                assertFalse("An idle receiver entered PiP", activity.isInPictureInPictureMode)
+            }
+            service.onConnectionInit()
+            assertEquals("The ViewModel must still be awaiting its next poll", 0, model(activity).connectionCount.value)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) instrumentation.callActivityOnUserLeaving(activity)
+            else activity.enterPip()
+        }
         await("Android did not enter PiP") { activity.isInPip.value && activity.isInPictureInPictureMode }
         main { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
         // A lifecycle resume request alone does not expand Android's pinned

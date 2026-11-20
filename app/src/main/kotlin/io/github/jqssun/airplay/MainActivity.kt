@@ -195,10 +195,14 @@ class MainActivity : ComponentActivity() {
         return builder.build()
     }
 
-    private fun _shouldAutoPip(): Boolean =
-        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
-            viewModel.serverState.value == AirPlayService.ServerState.RUNNING &&
-            (viewModel.connectionCount.value > 0 || viewModel.videoPlaybackActive.value || viewModel.mirroringActive.value)
+    private fun AirPlayService.hasActiveStream(): Boolean =
+        connectionCount.value > 0 || videoPlaybackActive.value || mirroringActive.value
+
+    private fun _shouldAutoPip(): Boolean {
+        val receiver = service ?: return false
+        return packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+            receiver.serverState.value == AirPlayService.ServerState.RUNNING && receiver.hasActiveStream()
+    }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
@@ -215,8 +219,7 @@ class MainActivity : ComponentActivity() {
         val receiver = service ?: return
         // The presentation state is refreshed periodically and may be stale at onStop.
         if (!viewModel.pref(Prefs.RUN_IN_BACKGROUND).value && !isChangingConfigurations &&
-            receiver.serverState.value == AirPlayService.ServerState.RUNNING &&
-            receiver.connectionCount.value == 0 && !receiver.videoPlaybackActive.value && !receiver.mirroringActive.value) {
+            receiver.serverState.value == AirPlayService.ServerState.RUNNING && !receiver.hasActiveStream()) {
             receiver.stopServer()
         }
     }

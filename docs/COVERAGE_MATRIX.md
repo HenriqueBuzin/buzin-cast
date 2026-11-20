@@ -1982,3 +1982,17 @@ and automatic ALAC PCM contracts. LLVM covered both outcomes of the
 device-API guard and both outcomes of the Lollipop ALAC fallback decision
 in `startMediaCodec`. The merged profile uses the exact same native
 binary and APK pair across the two devices.
+
+Automatic picture-in-picture now checks the bound receiver's current
+session. The API28 round-trip contract first leaves an idle receiver and
+then starts a sender and issues the leave callback on the same main-thread
+turn, while the ViewModel still reports no connections. It verifies that
+the active receiver enters PiP and returns to the same activity. The
+selected shutdown and PiP cases passed on normal and compat DE/AT API28.
+Both profiles cover all six branches of the shared active-stream
+decision and nine of ten branches in `onStop`.
+
+The compat DE/AT API22 instrumentation suite at `ab239e5` passed all
+324 cases, including discovery settings, both custom dimensions, idle
+shutdown, and playback surface lifetime. The complete matched
+four-edition coverage matrix remains pending.
