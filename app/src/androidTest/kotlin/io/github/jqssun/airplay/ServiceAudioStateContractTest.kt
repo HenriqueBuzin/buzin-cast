@@ -460,6 +460,23 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun automaticDisplaySizingHandlesPhysicalPanelsInEitherOrientation() {
+        val landscape = 1920 to 1080
+        val portrait = 1080 to 1920
+        val square = 1080 to 1080
+        fun size(panel: Pair<Int, Int>, orientation: Int) =
+            receiverDisplaySize(Prefs.AUTO, orientation, panel, clamp = false) {
+                error("Unclamped display sizing must not query decoder capabilities")
+            }
+
+        for (panel in listOf(landscape, portrait)) {
+            assertEquals(landscape, size(panel, Configuration.ORIENTATION_LANDSCAPE))
+            assertEquals(portrait, size(panel, Configuration.ORIENTATION_PORTRAIT))
+        }
+        assertEquals(square, size(square, Configuration.ORIENTATION_LANDSCAPE))
+        assertEquals(square, size(square, Configuration.ORIENTATION_PORTRAIT))
+    }
+
     @Test fun senderVolumeStepsFollowFeedbackAndStopAtTargetOrOvershoot() {
         val prefs = context.getSharedPreferences(Prefs.NAME, 0)
         val key = Prefs.SYNC_CLIENT_VOLUME.key

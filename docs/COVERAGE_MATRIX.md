@@ -1215,3 +1215,14 @@ All 24 selected service and DACP cases passed on normal API28 with the same
 instrumented build in landscape and portrait. The combined report covers
 17 of 18 branch outcomes and 157 of 159 instructions in
 AirPlayService._displaySize.
+
+Android display mode reports the physical panel dimensions even when the
+emulator configuration rotates. The display calculation now takes the panel
+dimensions and Android orientation as inputs. Instrumentation exercises
+landscape, portrait, and square panels from a single emulator while the service
+test still checks the live configuration and decoder limits.
+
+All 25 selected service and DACP cases passed on normal API28. The matched
+report covers all 18 branches and 143 instructions in receiverDisplaySize
+and all 23 instructions in the AirPlayService._displaySize delegate. The suite
+now has 216 Android cases.

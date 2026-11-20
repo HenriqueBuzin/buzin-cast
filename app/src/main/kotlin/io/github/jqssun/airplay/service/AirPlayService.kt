@@ -44,6 +44,7 @@ import io.github.jqssun.airplay.get
 import io.github.jqssun.airplay.hasLocalNetwork
 import io.github.jqssun.airplay.observe
 import io.github.jqssun.airplay.realDisplaySize
+import io.github.jqssun.airplay.receiverDisplaySize
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.audio.DacpPlayer
 import io.github.jqssun.airplay.audio.DmapParser
@@ -591,24 +592,13 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
     private fun _orientationFollowsDevice(): Boolean =
         prefs[Prefs.RESOLUTION] == Prefs.AUTO
 
-    private fun _displaySize(clamp: Boolean = true): Pair<Int, Int> {
-        val res = prefs[Prefs.RESOLUTION]
-        val portrait = when (res) {
-            Prefs.PORTRAIT -> true
-            Prefs.LANDSCAPE -> false
-            else -> resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-        }
-        val (rawW, rawH) = realDisplaySize()
-        val device = if (portrait != rawH >= rawW) rawH to rawW else rawW to rawH
-        if (res == Prefs.PORTRAIT || res == Prefs.LANDSCAPE) return device
-        val (w, h) = if (res.contains("x")) {
-            res.split("x").let { it[0].toInt() to it[1].toInt() }
-        } else device
-        if (!clamp) return w to h
-        // strict decoders black-screen past their limits; advertised size is only upper bound for senders
-        val (maxW, maxH) = videoRenderer.maxResolution()
-        return w.coerceAtMost(maxW) to h.coerceAtMost(maxH)
-    }
+    private fun _displaySize(clamp: Boolean = true): Pair<Int, Int> = receiverDisplaySize(
+        prefs[Prefs.RESOLUTION],
+        resources.configuration.orientation,
+        realDisplaySize(),
+        clamp,
+        videoRenderer::maxResolution,
+    )
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
