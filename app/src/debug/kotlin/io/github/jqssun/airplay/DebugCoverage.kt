@@ -13,6 +13,7 @@ object DebugCoverage {
     external fun nativeAacConfigurationContracts(): String
     external fun nativePlatformDecoderFallbackContracts(): String
     external fun nativePlatformInputBufferContracts(): String
+    external fun nativePlatformOutputBufferContracts(): String
     external fun nativeDecoderLatencyContracts(): String
     external fun nativeDnsContracts(): String
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String

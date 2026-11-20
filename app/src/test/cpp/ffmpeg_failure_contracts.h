@@ -1,5 +1,6 @@
 // Included by audio_engine.cpp in coverage builds to exercise the same decoder instantiations.
 #include <array>
+#include <chrono>
 #include <jni.h>
 
 namespace {
@@ -97,6 +98,29 @@ struct ScopedPlatformInputContract {
     }
     ~ScopedPlatformInputContract() { activePlatformInput = previous; }
 };
+
+struct PlatformOutputContract {
+    AMediaCodec *codec;
+    std::array<int16_t, 6> buffer{99, 98, 1, -1, 2, -2};
+    size_t next = 0;
+    std::array<size_t, 3> releases{};
+    std::atomic<size_t> released{0};
+    bool requestedRender = false;
+};
+std::mutex platformOutputMutex;
+PlatformOutputContract *activePlatformOutput = nullptr;
+
+struct ScopedPlatformOutputContract {
+    PlatformOutputContract output;
+    explicit ScopedPlatformOutputContract(AMediaCodec *codec) : output{codec} {
+        std::lock_guard<std::mutex> lock(platformOutputMutex);
+        activePlatformOutput = &output;
+    }
+    ~ScopedPlatformOutputContract() {
+        std::lock_guard<std::mutex> lock(platformOutputMutex);
+        activePlatformOutput = nullptr;
+    }
+};
 }
 
 extern "C" media_status_t __real_AMediaCodec_configure(
@@ -106,6 +130,9 @@ extern "C" media_status_t __real_AMediaCodec_delete(AMediaCodec *);
 extern "C" uint8_t *__real_AMediaCodec_getInputBuffer(AMediaCodec *, size_t, size_t *);
 extern "C" media_status_t __real_AMediaCodec_queueInputBuffer(
     AMediaCodec *, size_t, PlatformInputOffset, size_t, uint64_t, uint32_t);
+extern "C" ssize_t __real_AMediaCodec_dequeueOutputBuffer(AMediaCodec *, AMediaCodecBufferInfo *, int64_t);
+extern "C" uint8_t *__real_AMediaCodec_getOutputBuffer(AMediaCodec *, size_t, size_t *);
+extern "C" media_status_t __real_AMediaCodec_releaseOutputBuffer(AMediaCodec *, size_t, bool);
 
 extern "C" media_status_t __wrap_AMediaCodec_configure(
     AMediaCodec *codec, const AMediaFormat *format, ANativeWindow *surface, AMediaCrypto *crypto, uint32_t flags) {
@@ -156,6 +183,47 @@ extern "C" media_status_t __wrap_AMediaCodec_queueInputBuffer(
     contract->time = time;
     contract->flags = flags;
     return contract->mode == PlatformInputCase::QueueRejected ? AMEDIA_ERROR_UNKNOWN : AMEDIA_OK;
+}
+
+extern "C" ssize_t __wrap_AMediaCodec_dequeueOutputBuffer(
+    AMediaCodec *codec, AMediaCodecBufferInfo *info, int64_t timeoutUs) {
+    {
+        std::lock_guard<std::mutex> lock(platformOutputMutex);
+        auto *output = activePlatformOutput;
+        if (output && output->codec == codec && output->next < output->releases.size()) {
+            const size_t index = output->next++;
+            // Missing buffer, zero-size buffer, then valid PCM with a nonzero offset.
+            *info = AMediaCodecBufferInfo{4, index == 1 ? 0 : 8, 100'000 + static_cast<int64_t>(index) * 20'000, 0};
+            return static_cast<ssize_t>(index);
+        }
+    }
+    return __real_AMediaCodec_dequeueOutputBuffer(codec, info, timeoutUs);
+}
+
+extern "C" uint8_t *__wrap_AMediaCodec_getOutputBuffer(AMediaCodec *codec, size_t index, size_t *capacity) {
+    {
+        std::lock_guard<std::mutex> lock(platformOutputMutex);
+        auto *output = activePlatformOutput;
+        if (output && output->codec == codec) {
+            *capacity = sizeof(output->buffer);
+            return index == 0 ? nullptr : reinterpret_cast<uint8_t *>(output->buffer.data());
+        }
+    }
+    return __real_AMediaCodec_getOutputBuffer(codec, index, capacity);
+}
+
+extern "C" media_status_t __wrap_AMediaCodec_releaseOutputBuffer(AMediaCodec *codec, size_t index, bool render) {
+    {
+        std::lock_guard<std::mutex> lock(platformOutputMutex);
+        auto *output = activePlatformOutput;
+        if (output && output->codec == codec && index < output->releases.size()) {
+            ++output->releases[index];
+            output->requestedRender |= render;
+            output->released.fetch_add(1, std::memory_order_release);
+            return AMEDIA_OK;
+        }
+    }
+    return __real_AMediaCodec_releaseOutputBuffer(codec, index, render);
 }
 
 extern "C" AVCodecContext *__real_avcodec_alloc_context3(const AVCodec *);
@@ -324,7 +392,12 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformInputBufferContracts(J
         MediaCodecDecoder decoder(codec, timeline, latency);
         ScopedPlatformInputContract fixture(codec, mode);
         const auto &input = fixture.contract;
-        INPUT_CONTRACT(!decoder.decode(payload.data(), payload.size(), pts));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        // This contract starts at an acquired slot. A separate test checks
+        // the attempt count and timeout for a codec that has not warmed up.
+        do {
+            INPUT_CONTRACT(!decoder.decode(payload.data(), payload.size(), pts));
+        } while (input.requested == 0 && std::chrono::steady_clock::now() < deadline);
         INPUT_CONTRACT(input.requested == 1);
         if (mode == PlatformInputCase::Missing) {
             INPUT_CONTRACT(input.queued == 0);
@@ -338,6 +411,44 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformInputBufferContracts(J
     }
 #undef INPUT_CONTRACT
     return env->NewStringUTF("platform input buffer contracts passed");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativePlatformOutputBufferContracts(JNIEnv *env, jobject) {
+#define DRAIN_CONTRACT(condition) do { if (!(condition)) return env->NewStringUTF(#condition); } while (false)
+    static std::mutex fixtureMutex;
+    std::lock_guard<std::mutex> runFixture(fixtureMutex);
+    LogSink log;
+    LatencyReporter latency("AAC drain contract", log);
+    TimelineBuffer timeline(44100, 2, 0, 95);
+    std::vector<int64_t> timestamps;
+    std::vector<int16_t> samples;
+    timeline.capturePcm = [&](const int16_t *pcm, size_t count, int64_t pts) {
+        timestamps.push_back(pts);
+        samples.insert(samples.end(), pcm, pcm + count);
+    };
+
+    const auto config = codecConfig(CT_AAC_LC, 1024, 44100, 2);
+    DRAIN_CONTRACT(config.has_value());
+    auto *codec = startMediaCodec(*config, log, false, false);
+    DRAIN_CONTRACT(codec);
+    ScopedPlatformOutputContract fixture(codec);
+    {
+        MediaCodecDecoder decoder(codec, timeline, latency);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (fixture.output.released.load(std::memory_order_acquire) < fixture.output.releases.size() &&
+               std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    } // Join the drain thread before examining PCM and released slot counts.
+    const std::array<size_t, 3> expectedReleases{1, 1, 1};
+    const std::vector<int64_t> expectedTimestamps{140'000'000};
+    const std::vector<int16_t> expectedSamples{1, -1, 2, -2};
+    DRAIN_CONTRACT(fixture.output.releases == expectedReleases && !fixture.output.requestedRender);
+    DRAIN_CONTRACT(timestamps == expectedTimestamps && samples == expectedSamples);
+    DRAIN_CONTRACT(latency.debugInfo().held == 0);
+#undef DRAIN_CONTRACT
+    return env->NewStringUTF("platform output buffer contracts passed");
 }
 
 extern "C" JNIEXPORT jstring JNICALL

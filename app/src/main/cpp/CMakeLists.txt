@@ -204,6 +204,8 @@ if(BUZIN_COVERAGE)
         "-Wl,--wrap=AMediaCodec_dequeueInputBuffer"
         "-Wl,--wrap=AMediaCodec_configure" "-Wl,--wrap=AMediaCodec_start" "-Wl,--wrap=AMediaCodec_delete"
         "-Wl,--wrap=AMediaCodec_getInputBuffer" "-Wl,--wrap=AMediaCodec_queueInputBuffer"
+        "-Wl,--wrap=AMediaCodec_dequeueOutputBuffer" "-Wl,--wrap=AMediaCodec_getOutputBuffer"
+        "-Wl,--wrap=AMediaCodec_releaseOutputBuffer"
         "-Wl,--wrap=pthread_setspecific"
         "-Wl,--wrap=avcodec_alloc_context3" "-Wl,--wrap=av_mallocz" "-Wl,--wrap=avcodec_open2"
         "-Wl,--wrap=av_packet_alloc" "-Wl,--wrap=av_frame_alloc"

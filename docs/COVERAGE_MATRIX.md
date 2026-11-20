@@ -1468,3 +1468,15 @@ separate startup and live-budget test still injects unavailable input with
 the original timeouts and checks that the startup retry ends once the codec
 accepts a packet. All 22 selected cases passed on compat DE/AT API28 after
 the fixture adjustment.
+
+The MediaCodec drain contract substitutes three output records in the
+coverage build. The drain thread releases the missing, empty, and valid
+buffers exactly once, and only the valid buffer reaches the PCM tap. The
+test checks the byte offset and timestamp as well as the decoded samples.
+The input-buffer contract also waits for codec warmup before checking what
+happens after a slot is acquired.
+
+All 23 selected audio cases passed on normal and compat DE/AT API28. The
+matching reports cover all 10 branches of `MediaCodecDecoder::drainLoop`,
+up from 7 of 10, and all 12 MC/DC conditions in `audio_decoder.h`. The suite
+now has 248 Android cases.

@@ -31,6 +31,9 @@ class NativeAudioContractTest {
     @Test fun platformInputHandlesMissingLimitedAndRejectedBuffers() =
         decoderContract("platform input buffer contracts passed", DebugCoverage::nativePlatformInputBufferContracts)
 
+    @Test fun platformDrainReleasesMissingAndEmptyBuffersAndCopiesValidPcm() =
+        decoderContract("platform output buffer contracts passed", DebugCoverage::nativePlatformOutputBufferContracts)
+
     @Test fun decoderLatencySkipsUnmatchedTimestampsAndReportsWithLoggingDisabled() =
         decoderContract("decoder latency contracts passed", DebugCoverage::nativeDecoderLatencyContracts)
 
