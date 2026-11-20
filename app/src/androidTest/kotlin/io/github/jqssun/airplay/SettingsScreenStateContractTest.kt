@@ -191,36 +191,50 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun edit(value: String, input: String) {
-        reveal(value)
-        await("No editable setting: $value") {
-            tree { root ->
-                var node = find(root) { it.isVisibleToUser && matches(it, value) } ?: return@tree false
-                try {
-                    repeat(5) {
-                        val editor = find(node) { it.isVisibleToUser && it.isEditable }
-                        if (editor != null) {
-                            try {
-                                if (!editor.isFocused && !editor.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) return@tree false
-                                val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, input) }
-                                return@tree editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-                            } finally { editor.recycle() }
-                        }
-                        val parent = node.parent ?: return@tree false
-                        node.recycle(); node = parent
+    private fun withEditor(value: String, action: (AccessibilityNodeInfo) -> Boolean): Boolean =
+        tree { root ->
+            var node = find(root) { it.isVisibleToUser && matches(it, value) } ?: return@tree false
+            try {
+                repeat(5) {
+                    val editor = find(node) { it.isVisibleToUser && it.isEditable }
+                    if (editor != null) {
+                        try { return@tree editor.refresh() && action(editor) } finally { editor.recycle() }
                     }
+                    val parent = node.parent ?: return@tree false
+                    node.recycle(); node = parent
+                }
+                false
+            } finally { node.recycle() }
+        } == true
+
+    private fun edit(value: String, input: String, expectedText: String = input) {
+        reveal(value)
+        await("Editor did not receive focus: $value") {
+            withEditor(value) { editor ->
+                if (editor.isFocused) true else {
+                    editor.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
                     false
-                } finally { node.recycle() }
-            } == true
+                }
+            }
         }
-        instrumentation.waitForIdleSync()
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, input)
+        }
+        await("Editor did not accept the text: $value") {
+            withEditor(value) { editor ->
+                editor.isFocused && editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            }
+        }
+        await("Editor did not show the new text: $value") {
+            withEditor(value) { it.isFocused && it.text?.toString().orEmpty() == expectedText }
+        }
     }
 
     private fun done() {
         var delivered = false
         instrumentation.runOnMainSync {
             fun visit(view: View): Boolean {
-                if (view.onCheckIsTextEditor()) {
+                if (view.hasFocus() && view.onCheckIsTextEditor()) {
                     val connection = view.onCreateInputConnection(EditorInfo())
                     if (connection != null) return connection.performEditorAction(EditorInfo.IME_ACTION_DONE)
                 }
@@ -282,12 +296,12 @@ class SettingsScreenStateContractTest {
     @Test fun numericPortRejectsInvalidValuesThenNormalizesAndCommitsValidDigits() = screen {
         val port = label(R.string.setting_server_port)
         for (invalid in listOf("", "0", "9999999")) {
-            edit(port, invalid)
+            edit(port, invalid, expectedText = invalid.take(6))
             done()
             assertEquals(7000, Prefs.SERVER_PORT.read(prefs))
             assertFalse("Invalid port was persisted", prefs.contains(Prefs.SERVER_PORT.key))
         }
-        edit(port, "A70?01b")
+        edit(port, "A70?01b", expectedText = "7001")
         done()
         await("Normalized valid port did not persist") { Prefs.SERVER_PORT.read(prefs) == 7001 }
     }

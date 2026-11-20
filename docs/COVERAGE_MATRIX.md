@@ -1114,3 +1114,8 @@ the system animator scale alone. All seven lifecycle cases passed within a
 configuration recreation and PiP. The run reached its end in 362.033 seconds
 with two failures elsewhere, in settings buffer editing and diagnostic dialog
 dismissal, so the complete edition remains unverified.
+
+The settings fixture now checks that the actual editor has focus and shows its
+normalized draft before dispatching IME Done. All six settings cases passed on
+normal API28, including resetting the maximum output buffer to automatic sizing.
+The same run still reproduced diagnostic dismissal failing in the Tools screen.
