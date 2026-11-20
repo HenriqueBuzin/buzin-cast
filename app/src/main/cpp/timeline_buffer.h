@@ -80,14 +80,13 @@ private:
 class DelayTracker {
 public:
     // staticCushionMs > 0: fixed cushion, tuner disabled
-    // staticCushionMs <= 0: tune between MIN_CUSHION_MS and MAX_CUSHION_MS
+    // staticCushionMs <= 0: start at zero and tune up to MAX_CUSHION_MS
     DelayTracker(int sampleRate, int channels, int staticCushionMs, int percentilePct)
         : mSampleRate(sampleRate), mChannels(channels),
           mAdaptive(staticCushionMs <= 0),
-          mFloor(msToSamples(sampleRate, channels, mAdaptive ? MIN_CUSHION_MS : staticCushionMs)),
           mCeil(msToSamples(sampleRate, channels, mAdaptive ? MAX_CUSHION_MS : staticCushionMs)),
           mPercentilePct(percentilePct),
-          mTuned(mFloor) {}
+          mTuned(mAdaptive ? 0 : mCeil) {}
 
     // ptsNs: packet presentation time; arrivalNs: local arrival time; durNs: packet duration
     void observe(int64_t ptsNs, int64_t arrivalNs, int64_t durNs) {
@@ -95,15 +94,17 @@ public:
 
         const int64_t raw = arrivalNs - ptsNs; // arrival latency
         // jitter = latency relative to min latency seen so far (mBaseNs)
-        if (!mHaveBase) { mBaseNs = raw; mHaveBase = true; }
-        else if (raw < mBaseNs) mBaseNs = raw;
-        // creep mBaseNs up slowly: counters clock drift and one freak fast packet
-        else mBaseNs += (raw - mBaseNs) >> BASE_CREEP_SHIFT;
-        int64_t rel = raw - mBaseNs;
-        if (rel < 0) rel = 0;
-
-        int bin = (int)(rel / BUCKET_NS);
-        if (bin >= NBUCKETS) bin = NBUCKETS - 1;
+        if (!mHaveBase || raw < mBaseNs) {
+            mBaseNs = raw;
+            mHaveBase = true;
+        }
+        // The base is at or below raw. Keep the difference wide and unsigned
+        // until it has been bounded to the histogram's last bucket.
+        const uint64_t drift = static_cast<uint64_t>(raw) - static_cast<uint64_t>(mBaseNs);
+        const uint64_t creep = drift >> BASE_CREEP_SHIFT;
+        mBaseNs += static_cast<int64_t>(creep); // follow slow clock drift
+        const uint64_t jitter = drift - creep;
+        const auto bin = std::min(jitter / BUCKET_NS, uint64_t{NBUCKETS - 1});
 
         // decay: each bin bleeds 1/2^FORGET_SHIFT per packet, current bin topped up by
         // ONE/2^FORGET_SHIFT, so total converges to ONE
@@ -124,7 +125,6 @@ public:
         const int64_t marginNs = std::max(durNs, mOutputBufferNs.load(std::memory_order_relaxed));
         const int64_t targetNs = (int64_t)(b + 1) * BUCKET_NS + marginNs;
         size_t samples = (size_t)(targetNs * mSampleRate / NS_PER_SEC) * mChannels;
-        if (samples < mFloor) samples = mFloor;
         if (samples > mCeil) samples = mCeil;
         mTuned.store(samples, std::memory_order_relaxed);
     }
@@ -148,7 +148,6 @@ private:
         return (size_t)sampleRate * ms / 1000 * channels;
     }
 
-    static constexpr int MIN_CUSHION_MS = 0;             // algorithm already enforces effective floor
     static constexpr int MAX_CUSHION_MS = 1000;
     static constexpr int BUCKET_MS = 5;                  // histogram granularity
     static constexpr int NBUCKETS = MAX_CUSHION_MS / BUCKET_MS;
@@ -160,7 +159,6 @@ private:
     const int mSampleRate;
     const int mChannels;
     const bool mAdaptive;                // false = fixed cushion (tuner disabled)
-    const size_t mFloor;
     const size_t mCeil;
     const int mPercentilePct;            // arrival-delay percentile cushion targets
     std::atomic<size_t> mTuned;

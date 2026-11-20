@@ -1830,3 +1830,12 @@ destructor directly detaches the stored JVM because pthread calls it only
 for a non-null thread-specific value. The normal and compat DE/AT API28
 profiles run the destructor through real callbacks and the counted fixture.
 All 12 selected cases pass on each edition. The suite has 310 Android cases.
+
+Adaptive audio jitter now keeps its timing difference wide until the
+histogram bucket is bounded. The native regression verifies a 180-day
+clock gap saturates at the configured ceiling. Adaptive buffering starts
+at zero and keeps the existing upper limit. Both selected editions passed
+21 native UBSan cases and three Android AAC contracts on API28. LLVM
+reports 14 of 14 branch outcomes in `DelayTracker::observe` in the native
+unit executable and 13 of 14 in the selected APK runs. The unit executable
+also compiled for ARMv7 API22.

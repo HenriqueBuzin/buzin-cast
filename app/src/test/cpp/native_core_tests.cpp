@@ -73,11 +73,18 @@ static void fixedAndAdaptiveJitter() {
     CHECK(adaptive.target()>initial && adaptive.target()<=adaptive.ceil());
     adaptive.reanchor(); adaptive.observe(100,200,10000000); CHECK(adaptive.target()<=adaptive.ceil());
     DelayTracker extreme(1000,1,0,95);
+    CHECK(extreme.target()==0);
     extreme.observe(1000000000,1000000000,10000000);
     CHECK(extreme.target()==15);
     // A multi-second arrival spike saturates the histogram and cushion ceiling.
     extreme.observe(1010000000,4010000000,10000000);
     CHECK(extreme.ceil()==1000 && extreme.target()==extreme.ceil());
+
+    DelayTracker longClockGap(1000,1,0,95);
+    constexpr int64_t clockGap = 180 * 24 * 60 * 60 * NS_PER_SEC;
+    longClockGap.observe(1,1,10000000);
+    longClockGap.observe(2,2+clockGap,10000000);
+    CHECK(longClockGap.target()==longClockGap.ceil());
 }
 static void pcmUnderrunAndReprime() {
     TimelineBuffer timeline(1000,1,0,95); int16_t input[]={1,2,3,4}, output[4]{};
