@@ -6,6 +6,7 @@ import PlaybackScreen from './PlaybackScreen';
 import RecordingLibrary from './RecordingLibrary';
 import FCastScreen from './FCastScreen';
 import SettingsScreen from './SettingsScreen';
+import CalibrationScreen from './CalibrationScreen';
 import AirPlayAudioScreen from './AirPlayAudioScreen';
 import {
   BackHandler,
@@ -17,11 +18,12 @@ import {
 
 export default function App() {
   const [page, setPage] = useState<
-    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording' | 'relay'
+    'home' | 'status' | 'about' | 'media' | 'playback' | 'fcast' | 'settings' | 'calibration' | 'airplay' | 'airplayAudio' | 'airplayVideo' | 'dlna' | 'castv2' | 'recordings' | 'recording' | 'relay'
   >('home');
   const goHome = useCallback(() => setPage('home'), []);
   const goLibrary = useCallback(() => setPage('recordings'), []);
   const goMedia = useCallback(() => setPage('media'), []);
+  const goSettings = useCallback(() => setPage('settings'), []);
   const [recording, setRecording] = useState<{title: string; url: string}>();
   const [selected, setSelected] = useState('status');
   const [focused, setFocused] = useState('status');
@@ -35,12 +37,20 @@ export default function App() {
         if (page === 'home') {
           return false;
         }
-        setPage(page === 'recording' ? 'recordings' : page === 'recordings' ? 'media' : 'home');
+        if (page === 'calibration') {
+          goSettings();
+        } else {
+          setPage(page === 'recording' ? 'recordings' : page === 'recordings' ? 'media' : 'home');
+        }
         return true;
       },
     );
     return () => subscription.remove();
-  }, [page]);
+  }, [goSettings, page]);
+
+  if (page === 'calibration') {
+    return <CalibrationScreen onBack={goSettings} />;
+  }
 
   if (page === 'airplayAudio') {
     return <AirPlayAudioScreen onBack={goHome} />;
@@ -167,10 +177,12 @@ export default function App() {
           )}
           {action('about', 'Sobre', () => setPage('about'), false)}
           {action('fcast', 'Ativar FCast', () => setPage('fcast'), false)}
-          {action('settings', 'Configurações', () => setPage('settings'), false)}
+          {action('settings', 'Configurações', goSettings, false)}
       </View>
       {page === 'settings' ? (
-        <View style={styles.settings}><SettingsScreen onBack={goHome} /></View>
+        <View style={styles.settings}>
+          <SettingsScreen onBack={goHome} onCalibration={() => setPage('calibration')} />
+        </View>
       ) : page !== 'home' && (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>

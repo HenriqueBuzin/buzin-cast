@@ -33,6 +33,8 @@ public:
   double startAirPlayAudio() override;
   std::string getExperienceProfile() override;
   void setExperienceProfile(std::string profile) override;
+  double getVideoMargin() override;
+  void setVideoMargin(double percent) override;
   double startAirPlayVideo(double width, double height, double fps) override;
   std::string getMirrorRecordingState() override;
   void startMirrorRecording() override;

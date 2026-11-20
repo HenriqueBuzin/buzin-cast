@@ -15,6 +15,8 @@ import {getMediaReport} from '../src/mediaCapabilities';
 jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
   __esModule: true,
   default: {
+    getVideoMargin: jest.fn(() => 2),
+    setVideoMargin: jest.fn(),
     recordMediaCapabilities: jest.fn(),
     getReport: jest.fn(
       () =>
@@ -60,6 +62,37 @@ test('Voltar fecha a página interna e permite sair a partir do início', () => 
   screen.unmount();
   expect(remove).toHaveBeenCalled();
   listener.mockRestore();
+});
+
+test('calibra da tela de configurações e persiste somente ao salvar', () => {
+  let onBack: (() => boolean | null | undefined) | undefined;
+  const listener = jest.spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, callback) => {
+      onBack = callback;
+      return {remove: jest.fn()};
+    });
+  try {
+    const screen = render(<App />);
+    const press = (name: string) => fireEvent.press(screen.getByRole('button', {name}));
+    press('Configurações');
+    press('Calibrar bordas');
+    press('Aumentar');
+    expect(screen.getByText('Margem de 3% em cada borda')).toBeTruthy();
+    act(() => expect(onBack?.()).toBe(true));
+    expect(Network.setVideoMargin).not.toHaveBeenCalled();
+    press('Calibrar bordas');
+    expect(screen.getByText('Margem de 2% em cada borda')).toBeTruthy();
+    press('Diminuir');
+    jest.mocked(Network.setVideoMargin).mockImplementationOnce(() => {throw new Error('disk full');});
+    press('Salvar margem');
+    expect(screen.getByRole('alert')).toBeTruthy();
+    press('Salvar margem');
+    expect(Network.setVideoMargin).toHaveBeenLastCalledWith(1);
+    expect(screen.getByRole('button', {name: 'Calibrar bordas'})).toBeTruthy();
+    screen.unmount();
+  } finally {
+    listener.mockRestore();
+  }
 });
 
 test('exibe o resultado do módulo e informa uma falha nativa ao usuário', () => {

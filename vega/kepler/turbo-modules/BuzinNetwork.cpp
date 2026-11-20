@@ -26,6 +26,8 @@ double BuzinNetwork::startAirPlayUrl() {return startAirPlayReceiver(false);}
 double BuzinNetwork::startAirPlayAudio() {return startAirPlayReceiver(true);}
 std::string BuzinNetwork::getExperienceProfile() {return readExperienceProfile("/data/experience-profile");}
 void BuzinNetwork::setExperienceProfile(std::string profile) {writeExperienceProfile("/data/experience-profile", profile);}
+double BuzinNetwork::getVideoMargin() {return readVideoMargin("/data/video-margin");}
+void BuzinNetwork::setVideoMargin(double percent) {writeVideoMargin("/data/video-margin", percent);}
 double BuzinNetwork::startAirPlayVideo(double width, double height, double fps) {
   const bool fullHd = width == 1920 && height == 1080;
   const bool hd = width == 1280 && height == 720;

@@ -5,6 +5,7 @@ import {AppState, StyleSheet, Text, View} from 'react-native';
 import {KeplerVideoSurfaceView} from '@amazon-devices/react-native-w3cmedia';
 import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import {createPlaybackSession, PlaybackSnapshot} from './playbackSession';
+import VideoViewport from './VideoViewport';
 
 export default function PlaybackScreen({onBack, recording}: {
   onBack: () => void;
@@ -46,7 +47,7 @@ export default function PlaybackScreen({onBack, recording}: {
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>{recording?.title ?? 'Teste de reprodução local'}</Text>
-      <View style={styles.video}>
+      <VideoViewport style={styles.video}>
         {ready && (
           <KeplerVideoSurfaceView
             style={StyleSheet.absoluteFill}
@@ -60,7 +61,7 @@ export default function PlaybackScreen({onBack, recording}: {
           />
         )}
         {activeMedia && <SubtitleCaption text={subtitles.caption(snapshot.seconds)} />}
-      </View>
+      </VideoViewport>
       <Text style={styles.status}>
         {labels[snapshot.state]} • {snapshot.seconds.toFixed(1)} s
       </Text>

@@ -1,5 +1,6 @@
 #include "ReceiverSettings.h"
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <stdexcept>
@@ -80,6 +81,25 @@ std::string readExperienceProfile(const std::string& path) {
 void writeExperienceProfile(const std::string& path, const std::string& profile) {
   if (!validProfile(profile)) throw std::invalid_argument("Invalid experience profile");
   writeSetting(path, profile);
+}
+
+int readVideoMargin(const std::string& path) {
+  constexpr int defaultMargin = 2;
+  std::ifstream input(path, std::ios::binary);
+  if (!input) return defaultMargin;
+  char bytes[3];
+  input.read(bytes, sizeof(bytes));
+  if (input.bad()) return defaultMargin;
+  const std::string value(bytes, static_cast<size_t>(input.gcount()));
+  if (value == "10") return 10;
+  if (value.size() == 1 && value[0] >= '0' && value[0] <= '9') return value[0] - '0';
+  return defaultMargin;
+}
+
+void writeVideoMargin(const std::string& path, double percent) {
+  if (!(percent >= 0 && percent <= 10) || std::floor(percent) != percent)
+    throw std::invalid_argument("Video margin must be a whole percentage from 0 to 10");
+  writeSetting(path, std::to_string(static_cast<int>(percent)));
 }
 
 bool readApprovalSetting(const std::string& path) {

@@ -39,6 +39,8 @@ public:
   virtual double startAirPlayAudio() = 0;
   virtual std::string getExperienceProfile() = 0;
   virtual void setExperienceProfile(std::string profile) = 0;
+  virtual double getVideoMargin() = 0;
+  virtual void setVideoMargin(double percent) = 0;
   virtual double startAirPlayVideo(double width, double height, double fps) = 0;
   virtual std::string startRelayReceiver() = 0;
   virtual std::string getRelayReceiverState() = 0;

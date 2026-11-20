@@ -13,6 +13,7 @@ import {createDlnaReceiver, DlnaPhotoView} from './dlnaReceiver';
 import type {ConnectionApprovalRequest} from './connectionApproval';
 import {SubtitleButton, SubtitleCaption, SubtitleNotice, usePlaybackSubtitles} from './PlaybackSubtitles';
 import type {PlaybackSnapshot} from './playbackSession';
+import VideoViewport from './VideoViewport';
 
 const titles = {
   fcast: 'FCast v2 experimental',
@@ -67,7 +68,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
     <View style={styles.screen}>
       <Text style={styles.title}>{titles[protocol]}</Text>
       {photo ? (
-        <View style={styles.video}>
+        <VideoViewport style={styles.video}>
           {photo.source && (
             <Image
               key={photo.token}
@@ -79,7 +80,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
               onError={() => receiver.current?.photoDisplayed?.(photo.token, false)}
             />
           )}
-        </View>
+        </VideoViewport>
       ) : token === null ? (
         <View style={styles.waiting}>
           {(protocol !== 'relay' || !listening || failed) && (
@@ -121,7 +122,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
           <Text style={styles.details}>Voltar desativa este receptor.</Text>
         </View>
       ) : (
-        <View style={styles.video}>
+        <VideoViewport style={styles.video}>
           <KeplerVideoSurfaceView
             key={token}
             style={StyleSheet.absoluteFill}
@@ -134,7 +135,7 @@ export default function FCastScreen({onBack, protocol = 'fcast'}: {onBack: () =>
             }
           />
           {subtitleMedia !== null && <SubtitleCaption text={subtitles.caption(snapshot?.seconds ?? 0)} />}
-        </View>
+        </VideoViewport>
       )}
       <Text style={styles.details}>
         {photo

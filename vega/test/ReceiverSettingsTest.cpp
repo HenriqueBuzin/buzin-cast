@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <unistd.h>
 void check(bool value) {if (!value) throw std::runtime_error("Receiver settings assertion failed");}
@@ -40,7 +41,20 @@ int main() {
     bool approvalRejected = false;
     try {readApprovalSetting(approval);} catch (const std::runtime_error&) {approvalRejected = true;}
     check(approvalRejected);
+    const auto margin = std::string(folder) + "/video-margin";
+    check(readVideoMargin(margin) == 2);
+    writeVideoMargin(margin, 0);
+    check(readVideoMargin(margin) == 0);
+    writeVideoMargin(margin, 10);
+    check(readVideoMargin(margin) == 10);
+    for (double value : {-1.0, 11.0, 2.5, std::numeric_limits<double>::quiet_NaN()}) {
+      bool rejected = false;
+      try {writeVideoMargin(margin, value);} catch (const std::invalid_argument&) {rejected = true;}
+      check(rejected && readVideoMargin(margin) == 10);
+    }
+    {std::ofstream corrupt(margin); corrupt << "10x";}
+    check(readVideoMargin(margin) == 2);
     std::filesystem::remove_all(folder);
   } catch (...) {std::filesystem::remove_all(folder); throw;}
-  std::cout << "Receiver name: default, persistence, UTF-8 validation, failed write and recovery passed\n";
+  std::cout << "Receiver settings: defaults, persistence, validation and recovery passed\n";
 }

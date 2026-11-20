@@ -9,6 +9,8 @@ export interface BuzinNetwork extends KeplerTurboModule {
   startAirPlayAudio: () => number;
   getExperienceProfile: () => string;
   setExperienceProfile: (profile: string) => void;
+  getVideoMargin: () => number;
+  setVideoMargin: (percent: number) => void;
   startAirPlayVideo: (width: number, height: number, fps: number) => number;
   startRelayReceiver: () => string;
   getRelayReceiverState: () => string;

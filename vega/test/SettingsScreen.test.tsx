@@ -12,7 +12,7 @@ jest.mock('../src/turbo-modules/BuzinNetwork', () => ({
 afterEach(() => jest.clearAllMocks());
 test('edita e salva o nome, preservando a tela em falha de armazenamento', () => {
   const back = jest.fn();
-  const screen = render(<SettingsScreen onBack={back} />);
+  const screen = render(<SettingsScreen onBack={back} onCalibration={jest.fn()} />);
   const input = screen.getByLabelText('Nome do receptor');
   expect(input.props.value).toBe('Living room');
   fireEvent.changeText(input, '  Sala  ');
@@ -29,7 +29,7 @@ test('edita e salva o nome, preservando a tela em falha de armazenamento', () =>
 });
 
 test('salva a aprovação DLNA e mantém o estado se a escrita falhar', () => {
-  const screen = render(<SettingsScreen onBack={jest.fn()} />);
+  const screen = render(<SettingsScreen onBack={jest.fn()} onCalibration={jest.fn()} />);
   const approval = () => screen.getByRole('switch', {name: 'Aprovar conexões dos receptores'});
   expect(approval().props.accessibilityState.checked).toBe(false);
   fireEvent.press(approval());
@@ -41,7 +41,7 @@ test('salva a aprovação DLNA e mantém o estado se a escrita falhar', () => {
 });
 
 test('preserva o perfil marcado entre foco, mudança, falha na escrita e reabertura', () => {
-  const screen = render(<SettingsScreen onBack={jest.fn()} />);
+  const screen = render(<SettingsScreen onBack={jest.fn()} onCalibration={jest.fn()} />);
   expect(screen.getByRole('radio', {name: 'Padrão'}).props.accessibilityState.checked).toBe(true);
   fireEvent(screen.getByRole('radio', {name: 'Cinema'}), 'focus');
   expect(screen.getByRole('radio', {name: 'Padrão'}).props.accessibilityState.checked).toBe(true);
@@ -53,6 +53,6 @@ test('preserva o perfil marcado entre foco, mudança, falha na escrita e reabert
   expect(screen.getByRole('radio', {name: 'Jogos'}).props.accessibilityState.checked).toBe(true);
   screen.unmount();
   jest.mocked(Network.getExperienceProfile).mockReturnValueOnce('games');
-  const reopened = render(<SettingsScreen onBack={jest.fn()} />);
+  const reopened = render(<SettingsScreen onBack={jest.fn()} onCalibration={jest.fn()} />);
   expect(reopened.getByRole('radio', {name: 'Jogos'}).props.accessibilityState.checked).toBe(true);
 });

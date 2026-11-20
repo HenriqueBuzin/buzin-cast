@@ -25,6 +25,8 @@ void BuzinNetworkSpec::aggregateMethods(MethodAggregator<KeplerTurboModule>& met
   methodAggregator.addMethod("startAirPlayAudio", &BuzinNetworkSpec::startAirPlayAudio);
   methodAggregator.addMethod("getExperienceProfile", &BuzinNetworkSpec::getExperienceProfile);
   methodAggregator.addMethod("setExperienceProfile", &BuzinNetworkSpec::setExperienceProfile);
+  methodAggregator.addMethod("getVideoMargin", &BuzinNetworkSpec::getVideoMargin);
+  methodAggregator.addMethod("setVideoMargin", &BuzinNetworkSpec::setVideoMargin);
   methodAggregator.addMethod("startAirPlayVideo", &BuzinNetworkSpec::startAirPlayVideo);
   methodAggregator.addMethod("startRelayReceiver", &BuzinNetworkSpec::startRelayReceiver);
   methodAggregator.addMethod("getRelayReceiverState", &BuzinNetworkSpec::getRelayReceiverState);

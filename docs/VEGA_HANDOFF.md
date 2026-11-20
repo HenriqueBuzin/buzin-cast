@@ -1,5 +1,19 @@
 # Retomada no Mac — paridade entre Vega OS e Fire OS
 
+## Calibração das bordas no Vega
+
+**Configurações → Calibrar bordas** mostra uma moldura de referência.
+Use Diminuir e Aumentar para ajustar de 0 a 10% por borda e Salvar margem
+para aplicar. Cancelar e Voltar descartam o ajuste em andamento. A margem
+começa em 2% e é salva no sandbox. A área de vídeo e a foto DLNA mantêm
+a proporção da imagem. As legendas acompanham a área de vídeo.
+
+No VVD ARM64, o controle salvou 3% a partir do padrão, descartou uma
+alteração com Voltar e reabriu o ajuste a partir do valor persistido.
+Com 4% salvos, `tools/test_vega.py` passou na reprodução local, na pausa,
+na retomada e na liberação ao sair. A conferência visual em TV física
+segue pendente.
+
 ## Perfis de espelhamento AirPlay no Vega
 
 **Configurações → Perfil de espelhamento AirPlay** salva Padrão,

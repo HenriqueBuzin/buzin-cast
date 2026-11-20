@@ -5,7 +5,10 @@ import Network from './turbo-modules/BuzinNetwork';
 import {experienceProfiles, isExperienceProfile} from './experienceProfiles';
 import type {ExperienceProfile} from './experienceProfiles';
 
-export default function SettingsScreen({onBack}: {onBack: () => void}) {
+export default function SettingsScreen({onBack, onCalibration}: {
+  onBack: () => void;
+  onCalibration: () => void;
+}) {
   const [name, setName] = useState(() => {
     try {return Network.getReceiverName();} catch {return '';}
   });
@@ -20,6 +23,23 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
     } catch {return null;}
   });
   const [focus, setFocus] = useState('name');
+  const actions = [
+    {id: 'save', label: 'Salvar', hint: 'Salva o nome do receptor', onPress: saveName},
+    {id: 'calibration', label: 'Calibrar bordas', hint: 'Ajusta a margem da imagem', onPress: onCalibration},
+    {id: 'back', label: 'Voltar', hint: 'Retorna à tela inicial', onPress: onBack},
+  ];
+
+  function saveName() {
+    try {
+      const value = name.trim();
+      Network.setReceiverName(value);
+      setName(value);
+      setMessage('Nome salvo. Será usado na próxima ativação.');
+    } catch {
+      setMessage('Não foi possível salvar. Confira o nome e tente novamente.');
+    }
+  }
+
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Configurações</Text>
@@ -77,26 +97,17 @@ export default function SettingsScreen({onBack}: {onBack: () => void}) {
       </View>
       <Text style={styles.text} aria-live="polite">{message}</Text>
       <View style={styles.actions}>
-        {['save', 'back'].map((id) => (
+        {actions.map(({id, label, hint, onPress}) => (
           <TvButton
             key={id}
             role="button"
-            accessibilityHint={id === 'save' ? 'Salva o nome do receptor' : 'Retorna à tela inicial'}
+            accessibilityHint={hint}
             hasTVPreferredFocus={id === 'save'}
             onFocus={() => setFocus(id)}
             onBlur={() => setFocus('')}
             style={[styles.button, focus === id && styles.focused]}
-            onPress={id === 'back' ? onBack : () => {
-              try {
-                const value = name.trim();
-                Network.setReceiverName(value);
-                setName(value);
-                setMessage('Nome salvo. Será usado na próxima ativação.');
-              } catch {
-                setMessage('Não foi possível salvar. Confira o nome e tente novamente.');
-              }
-            }}>
-            <Text style={styles.label}>{id === 'save' ? 'Salvar' : 'Voltar'}</Text>
+            onPress={onPress}>
+            <Text style={styles.label}>{label}</Text>
           </TvButton>
         ))}
       </View>
