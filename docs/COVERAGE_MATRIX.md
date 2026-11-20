@@ -1852,3 +1852,11 @@ The complete API28 matrix at `972df96` verified all four editions with
 295 Android cases, 21 native cases, and all 15 runtime checks each. JVM
 branch coverage ranged from 77.60% to 77.94%. Native branch coverage ranged
 from 97.94% to 98.80%.
+
+The DNS-SD TXT capacity contract fills a record with distinct keys, updates
+one key at capacity, rejects an extra key, and checks that every remaining
+key and value keeps its position. The fixture runs only in instrumented
+builds. Both DNS-SD contracts passed on normal and compat DE/AT API28.
+LLVM measured all six branch outcomes of `_txt_set` in both editions.
+The matched 295-case profiles missed the existing-key update and the
+new-key rejection. The suite now has 312 Android cases.

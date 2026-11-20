@@ -984,6 +984,14 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeAudioContracts(JNIEnv *env, jo
     return env->NewStringUTF("audio contracts passed");
 }
 
+extern "C" const char *android_dnssd_txt_capacity_contract(void);
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_io_github_jqssun_airplay_DebugCoverage_nativeDnsTxtCapacityContract(JNIEnv *env, jobject) {
+    const char *failure = android_dnssd_txt_capacity_contract();
+    return env->NewStringUTF(failure ? failure : "TXT capacity contract passed");
+}
+
 // The Android shim builds TXT records in memory; these calls do not publish DNS.
 extern "C" JNIEXPORT jstring JNICALL
 Java_io_github_jqssun_airplay_DebugCoverage_nativeDnsContracts(JNIEnv *env, jobject) {

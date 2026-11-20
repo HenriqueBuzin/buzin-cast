@@ -26,6 +26,7 @@ object DebugCoverage {
     external fun nativePlatformOutputBufferContracts(): String
     external fun nativeDecoderLatencyContracts(): String
     external fun nativeDnsContracts(): String
+    external fun nativeDnsTxtCapacityContract(): String
     external fun nativeCallbackContracts(callback: io.github.jqssun.airplay.bridge.RaopCallbackHandler): String
     external fun nativeDecodeAlac(packets: Array<ByteArray>, timestamps: LongArray, samplesPerFrame: Int,
         attachSinkAfterFirstDecode: Boolean = false, forceSoftware: Boolean = true): Array<ByteArray>

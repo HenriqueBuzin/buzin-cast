@@ -329,3 +329,7 @@ void android_dnssd_enable_metadata(dnssd_t *dnssd) {
 const char *android_dnssd_get_raop_servname(dnssd_t *dnssd) {
     return dnssd->raop_servname;
 }
+
+#ifdef BUZIN_DNSSD_CONTRACTS
+#include "../../test/cpp/dnssd_txt_contracts.h"
+#endif

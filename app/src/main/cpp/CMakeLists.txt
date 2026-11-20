@@ -192,6 +192,7 @@ target_link_libraries(airplay_native
 # remain uninstrumented. Release artifacts never enable this option.
 option(BUZIN_COVERAGE "Collect LLVM source coverage for app-owned native code" OFF)
 if(BUZIN_COVERAGE)
+    set_property(SOURCE android_dnssd_shim.c APPEND PROPERTY COMPILE_DEFINITIONS BUZIN_DNSSD_CONTRACTS)
     set_property(SOURCE audio_engine.cpp APPEND PROPERTY COMPILE_DEFINITIONS BUZIN_FFMPEG_CONTRACTS)
       # The fixture also instantiates app-owned inline headers. Instrument that
       # translation unit so the linker cannot choose an uninstrumented weak copy

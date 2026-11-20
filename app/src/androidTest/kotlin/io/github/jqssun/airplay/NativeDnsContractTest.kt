@@ -11,10 +11,18 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NativeDnsContractTest {
     @Test fun recordsFeaturesCodecsAndInvalidIndicesPreserveTheirContracts() {
+        verifyContract("DNS contracts passed", DebugCoverage::nativeDnsContracts)
+    }
+
+    @Test fun fullTxtRecordsUpdateExistingKeysAndRefuseNewOnes() {
+        verifyContract("TXT capacity contract passed", DebugCoverage::nativeDnsTxtCapacityContract)
+    }
+
+    private fun verifyContract(expected: String, runContract: () -> String) {
         assumeTrue("Requires the instrumented coverage APK", runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess)
         System.loadLibrary("airplay_native")
         try {
-            assertEquals("DNS contracts passed", DebugCoverage.nativeDnsContracts())
+            assertEquals(expected, runContract())
         } finally {
             DebugCoverage.dump(InstrumentationRegistry.getInstrumentation().targetContext)
         }
