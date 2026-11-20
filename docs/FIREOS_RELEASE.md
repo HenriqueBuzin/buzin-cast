@@ -185,5 +185,10 @@ Os APKs e os relatórios `corrected-signed.json`,
 `general-api30-armv7/report.json` e `nodownload-api30-armv7/report.json`
 ficam em `outputs/fireos/coordinated/legacy-arm-noasm`.
 
+Os quatro testes dos APKs corrigidos em x86, nas APIs 17 e 22, também
+passaram. `outputs/fireos/coordinated/verified-corrected-emulator-matrix.json`
+vincula os seis APKs assinados e os doze testes de abertura aos respectivos
+hashes. Essa matriz precede o patch compartilhado UxPlay 0020.
+
 A validação em um Fire TV Stick antigo e a licença pela Appstore
 continuam pendentes.
