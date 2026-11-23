@@ -1025,11 +1025,13 @@ class MainActivityLifecycleContractTest {
             await("The restarted receiver did not accept a new video request") {
                 service.videoPlaybackActive.value && service.networkPlaybackOwner == Protocol.AIRPLAY
             }
-            val original = requireNotNull(service.sessionSnapshot())
+            val originalToken = requireNotNull(service.sessionSnapshot()).token
             main { service.onConnectionDestroy() }
             main {
                 assertEquals(1, service.connectionCount.value)
-                assertEquals(original, service.sessionSnapshot())
+                // The decoder may finish preparing while the first sender disconnects.
+                assertEquals(originalToken, service.sessionSnapshot()?.token)
+                assertEquals(Protocol.AIRPLAY, service.networkPlaybackOwner)
                 assertTrue(service.videoPlaybackActive.value)
                 service.onConnectionDestroy()
             }

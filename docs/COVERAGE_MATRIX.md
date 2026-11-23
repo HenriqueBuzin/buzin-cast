@@ -2822,3 +2822,10 @@ instructions from 5,733/6,164 to 5,793/6,164, branches from 492/601 to
 503/601, lines from 872/911 to 880/911, complexity from 419/538 to
 429/538 and methods from 219/236 to 221/236. All 22 counted classes
 remained covered.
+
+The full standard compact API22 run exposed a timing dependency in the
+lifecycle test: the video decoder can advance the same session from
+connecting to playing during the first sender's disconnect. The test
+now checks that the original session token and AirPlay owner are
+preserved. It passed on API22 with the same archived application APK
+and the rebuilt test APK.
