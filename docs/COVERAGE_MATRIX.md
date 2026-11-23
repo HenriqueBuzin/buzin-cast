@@ -2198,6 +2198,12 @@ complexity units, and 7982/8445 lines. On this API alone, LLVM covered
 909/912 branches, 1496/1500 regions, and 1748/1751 lines. Functions,
 instantiations, and MC/DC reached 100%.
 
+The byte-identical standard compat APK pair also passed the AAC
+preferred-decoder and automatic ALAC PCM contracts on API22. With the
+combined API28 and API22 profiles, LLVM covered all 912 branches, 203
+functions, 205 instantiations, 1751 lines, 171 MC/DC conditions, and 1500
+regions. This establishes all six native targets for standard compat.
+
 A separate compat DE/AT API22 run passed 336 of 338 instrumentation tests.
 Replaying the two failures three times with the unchanged APK pair passed
 the custom-resolution focus test all three times. The relay audio and video
