@@ -5,6 +5,8 @@ import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 
@@ -26,16 +28,41 @@ class NetworkRecovery(context: Context, private val changed: (Boolean) -> Unit) 
         }
     }
     private fun schedule() { main.removeCallbacks(check); main.postDelayed(check,1500) }
-    private val callback = object : ConnectivityManager.NetworkCallback() {
+    private inner class RecoveryCallback : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = schedule()
         override fun onLost(network: Network) = schedule()
         override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) = schedule()
         override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) = schedule()
     }
+    private val callback = RecoveryCallback()
+    // Older default-network callbacks can miss per-app VPN changes.
+    private val vpnCallback = if (Build.VERSION.SDK_INT in 24..27) RecoveryCallback() else null
+
     fun start() {
-        if (android.os.Build.VERSION.SDK_INT >= 24) manager.registerDefaultNetworkCallback(callback)
-        else manager.registerNetworkCallback(android.net.NetworkRequest.Builder().removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).build(), callback)
+        if (Build.VERSION.SDK_INT >= 24) {
+            manager.registerDefaultNetworkCallback(callback)
+            vpnCallback?.let {
+                manager.registerNetworkCallback(
+                    NetworkRequest.Builder()
+                        .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                        .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+                        .build(),
+                    it,
+                )
+            }
+        } else {
+            manager.registerNetworkCallback(
+                NetworkRequest.Builder().removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).build(),
+                callback,
+            )
+        }
         schedule()
     }
-    fun close() { stopped = true; main.removeCallbacks(check); runCatching { manager.unregisterNetworkCallback(callback) } }
+
+    fun close() {
+        stopped = true
+        main.removeCallbacks(check)
+        runCatching { manager.unregisterNetworkCallback(callback) }
+        vpnCallback?.let { runCatching { manager.unregisterNetworkCallback(it) } }
+    }
 }

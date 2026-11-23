@@ -89,6 +89,7 @@ class NetworkDiagnosticsContractTest {
                 assertNull("The test emulator still has a default network", manager.currentNetworkCompat())
                 assertNull("Legacy selection returned a network with no default", manager.connectedLegacyNetwork())
                 assertReport(false)
+                verifyVpnRecovery(::hasVpn, initiallyOffline = true) { assertReport(true) }
             }
             else -> assertReport(hasVpn())
         }
@@ -103,7 +104,11 @@ class NetworkDiagnosticsContractTest {
         assertTrue(message, condition())
     }
 
-    private fun verifyVpnRecovery(hasVpn: () -> Boolean, assertVpnReport: () -> Unit) {
+    private fun verifyVpnRecovery(
+        hasVpn: () -> Boolean,
+        initiallyOffline: Boolean = false,
+        assertVpnReport: () -> Unit,
+    ) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val changes = CopyOnWriteArrayList<Boolean>()
         val recovery = NetworkRecovery(target) { changes += it }
@@ -117,6 +122,7 @@ class NetworkDiagnosticsContractTest {
                 instrumentation.runOnMainSync { ready = initialized.getBoolean(recovery) }
                 ready
             }
+            instrumentation.runOnMainSync(queuedCheck)
             assertTrue("The initial route triggered a restart", changes.isEmpty())
             var vpnEvents = 0
             withDiagnosticVpn {
@@ -126,7 +132,7 @@ class NetworkDiagnosticsContractTest {
                 vpnEvents = changes.size
             }
             awaitNetwork("The original route was not restored and reported") {
-                !hasVpn() && changes.size > vpnEvents && changes.lastOrNull() == true
+                !hasVpn() && changes.size > vpnEvents && changes.lastOrNull() == !initiallyOffline
             }
         } finally {
             instrumentation.runOnMainSync { recovery.close() }

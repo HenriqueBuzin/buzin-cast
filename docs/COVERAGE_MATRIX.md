@@ -2451,3 +2451,15 @@ reports both route changes, and a queued check after closing the observer
 leaves the restored route unchanged. Against byte-matched classes from
 the earlier complete standard run, `NetworkRecovery` increased from 12/24
 to 15/24 branch outcomes and from 9/10 to 10/10 methods.
+
+The expanded diagnostic scenario checks that an unchanged route emits no
+notification and that removing the VPN while both radios are off reports a
+lost route. On API25, the platform's default-network callback missed the
+VPN transition even though the diagnostics reported the VPN transport.
+The observer now registers a separate VPN callback on API24 through API27
+and applies the existing debounce and route comparison to both callbacks.
+The online and offline diagnostics passed on API25 and API28 with
+identical app and test APKs. The API25 emulator guest needed root ADB
+for the radio toggle because its shell user lacks `CHANGE_WIFI_STATE`.
+The combined scoped profiles covered 30/34 branch outcomes and all 10
+methods in `NetworkRecovery`.

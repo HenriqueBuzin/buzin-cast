@@ -586,19 +586,19 @@ class Suite:
         try:
             self.adb("shell", "cmd", "appops", "set", self.package, "ACTIVATE_VPN", "allow")
             diagnostic["vpn"] = self.run_instrumentation(self.out/"diagnostic-vpn.txt", selection, "vpn")
+            self.adb("shell", "am", "force-stop", self.package)
+            try:
+                for radio in states:
+                    self.adb("shell", "svc", radio, "disable")
+                self.wait(lambda: "Active default network: none" in self.adb("shell", "dumpsys", "connectivity"),
+                          "Test emulator still has a default network")
+                diagnostic["offline"] = self.run_instrumentation(self.out/"diagnostic-offline.txt", selection, "offline")
+            finally:
+                for radio, enabled in initial.items():
+                    self.adb("shell", "svc", radio, "enable" if enabled == "1" else "disable")
         finally:
             self.adb("shell", "am", "force-stop", self.package)
             self.adb("shell", "cmd", "appops", "set", self.package, "ACTIVATE_VPN", vpn_mode)
-        try:
-            for radio in states:
-                self.adb("shell", "svc", radio, "disable")
-            self.wait(lambda: "Active default network: none" in self.adb("shell", "dumpsys", "connectivity"),
-                      "Test emulator still has a default network")
-            diagnostic["offline"] = self.run_instrumentation(self.out/"diagnostic-offline.txt", selection, "offline")
-        finally:
-            self.adb("shell", "am", "force-stop", self.package)
-            for radio, enabled in initial.items():
-                self.adb("shell", "svc", radio, "enable" if enabled == "1" else "disable")
         self.wait(lambda: "Active default network: none" not in self.adb("shell", "dumpsys", "connectivity"),
                   "Test emulator default network did not recover")
         assert all("OK (1 test)" in transcript for transcript in diagnostic.values()), diagnostic
