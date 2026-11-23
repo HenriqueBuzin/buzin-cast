@@ -28,6 +28,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
+import androidx.media3.common.MediaMetadata
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -753,6 +754,47 @@ class MainActivityLifecycleContractTest {
         keepsScreenOn(activity, false)
         stopped(activity, AirPlayService.ServerState.STOPPED, "backgrounding after reconnecting to an idle receiver")
         finishActivities()
+    }
+
+    @Test fun modelControlsReceiverAndPrefersVideoMetadataOverTheAudioTitle() {
+        val activity = launch()
+        val model = model(activity)
+        main { model.startServer() }
+        await("Model Start did not reach the receiver") {
+            service.serverState.value == AirPlayService.ServerState.RUNNING &&
+                model.serverState.value == AirPlayService.ServerState.RUNNING
+        }
+        val file = File.createTempFile("video-title-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input -> file.outputStream().use(input::copyTo) }
+        val playerField = AirPlayVideoPlayer::class.java.getDeclaredField("player").apply { isAccessible = true }
+        val audioTitle = "Title from sender audio"
+        val videoTitle = "Title from video item"
+        main {
+            service.playLocalVideo(android.net.Uri.fromFile(file).toString())
+            model.setVideoPlaying(false)
+            val bytes = audioTitle.toByteArray(Charsets.UTF_8)
+            service.onMetadata(ByteBuffer.allocate(8 + bytes.size)
+                .put("minm".toByteArray(Charsets.US_ASCII)).putInt(bytes.size).put(bytes).array())
+        }
+        await("The player did not expose the fallback title") {
+            model.videoPlaybackActive.value && service.videoTitle.value.isEmpty() && model.videoTitle.value == audioTitle
+        }
+        main {
+            val player = playerField.get(service.airPlayVideoPlayer) as ExoPlayer
+            val item = requireNotNull(player.currentMediaItem)
+            player.replaceMediaItem(0, item.buildUpon()
+                .setMediaMetadata(MediaMetadata.Builder().setTitle(videoTitle).build()).build())
+        }
+        await("Video metadata did not take precedence") {
+            service.trackInfo.value.title == audioTitle && service.videoTitle.value == videoTitle &&
+                model.videoTitle.value == videoTitle
+        }
+        main { model.stopServer() }
+        await("Model Stop did not stop the receiver and release playback") {
+            service.serverState.value == AirPlayService.ServerState.STOPPED &&
+                model.serverState.value == AirPlayService.ServerState.STOPPED &&
+                !model.videoPlaybackActive.value
+        }
     }
 
     @Test fun playbackControlsStayWithTheOwnerAcrossFcastAirplayAndLocalHandoffs() {

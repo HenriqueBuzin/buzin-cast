@@ -2494,3 +2494,10 @@ from 82/122 against their byte-matched API22 and API28 baselines. In the
 first compact DE/AT run, both new scenarios passed and an existing
 handshake test timed out. All nine passed when rerun with the same APKs
 and more emulator memory.
+
+The activity lifecycle contract started and stopped the bound receiver
+through `MainViewModel`, used a DMAP audio title while the video had no
+title, and switched to the title supplied by Media3 without changing the
+audio metadata. This passed in standard normal API28 and standard compact
+API22. Against each edition's byte-matched baseline, `MainViewModel`
+covered 172/192 branches and 100/103 methods, up from 169/192 and 99/103.
