@@ -2747,3 +2747,11 @@ full `AirPlayService` mappings raised instructions from 5,753/6,164 to
 5,801/6,164, branches from 493/601 to 499/601, lines from 878/911 to
 886/911, complexity from 420/538 to 426/538, and methods from 219/236 to
 221/236. All 22 counted classes remained covered.
+
+The AirPlay lifecycle contract checks that disconnecting one sender
+keeps playback active, the last disconnect ends its AirPlay session,
+and the queued teardown leaves a replacement local session active.
+The standard normal API28 case passed. Adding its profile after the
+MediaSession transport profile raised `AirPlayService` to 5,813/6,164
+instructions, 504/601 branches and 430/538 complexity. Line, method
+and class coverage stayed at 886/911, 221/236 and 22/22 respectively.

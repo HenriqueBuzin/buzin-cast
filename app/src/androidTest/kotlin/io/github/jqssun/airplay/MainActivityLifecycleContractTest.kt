@@ -1018,9 +1018,41 @@ class MainActivityLifecycleContractTest {
             }
 
             start(activity)
-            main { service.onVideoPlay(location, 0f) }
+            main {
+                repeat(2) { service.onConnectionInit() }
+                service.onVideoPlay(location, 0f)
+            }
             await("The restarted receiver did not accept a new video request") {
                 service.videoPlaybackActive.value && service.networkPlaybackOwner == Protocol.AIRPLAY
+            }
+            val original = requireNotNull(service.sessionSnapshot())
+            main { service.onConnectionDestroy() }
+            main {
+                assertEquals(1, service.connectionCount.value)
+                assertEquals(original, service.sessionSnapshot())
+                assertTrue(service.videoPlaybackActive.value)
+                service.onConnectionDestroy()
+            }
+            await("Disconnecting the last sender did not stop its video") {
+                service.connectionCount.value == 0 && !service.videoPlaybackActive.value && service.sessionSnapshot() == null
+            }
+
+            main {
+                service.onConnectionInit()
+                service.onVideoPlay(location, 0f)
+            }
+            await("The next AirPlay sender did not start video") {
+                service.videoPlaybackActive.value && service.networkPlaybackOwner == Protocol.AIRPLAY
+            }
+            main {
+                service.onConnectionDestroy()
+                service.playLocalVideo(location)
+                service.setVideoPlaying(false)
+            }
+            main {
+                assertEquals(0, service.connectionCount.value)
+                assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
+                assertTrue(service.videoPlaybackActive.value)
             }
         } finally {
             main { service.stopServer() }
