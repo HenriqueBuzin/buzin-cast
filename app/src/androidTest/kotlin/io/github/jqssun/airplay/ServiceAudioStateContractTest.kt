@@ -26,19 +26,25 @@ import androidx.lifecycle.ViewModelStore
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.buzincast.core.MediaRequest
 import io.buzincast.core.Protocol
+import io.buzincast.core.ReceiverPlaybackPort
 import io.buzincast.core.SessionKind
 import io.buzincast.core.SessionPhase
 import io.buzincast.core.SessionToken
+import io.buzincast.media.FCastFrame
 import io.buzincast.media.MirrorPacket
 import io.buzincast.media.MirrorPacketCodec
 import io.buzincast.media.SecureMirrorChannel
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
+import io.github.jqssun.airplay.discovery.FCastReceiver
 import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.renderer.PlaybackSnapshot
 import io.github.jqssun.airplay.viewmodel.MainViewModel
+import io.leancast.app.Net
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -571,6 +577,60 @@ class ServiceAudioStateContractTest {
         val current = requireNotNull(service.sessionSnapshot()).token
         assertNotEquals(stale, current)
         return stale to current
+    }
+
+    @Test fun playbackErrorsOnlyReachTheCurrentFCastOwner() = withoutAutoLaunch {
+        val receiverField = AirPlayService::class.java.getDeclaredField("fcastReceiver").apply { isAccessible = true }
+        val portField = AirPlayService::class.java.getDeclaredField("playbackPort").apply { isAccessible = true }
+        val playback = portField.get(service) as ReceiverPlaybackPort
+        val previousReceiver = receiverField.get(service)
+        val preferences = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        assertTrue(preferences.edit().putBoolean(Prefs.APPROVE_CONNECTIONS.key, false).commit())
+        val diagnostics = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+        FCastReceiver(context, playback, "Error forwarding fixture", { diagnostics += it }, requestedPort = 0).use { receiver ->
+            receiver.start()
+            assertTrue(diagnostics.toString(), receiver.listeningPort > 0)
+            Socket(requireNotNull(Net.lanIpv4()), receiver.listeningPort).use { socket ->
+                socket.soTimeout = 5_000
+                val input = socket.getInputStream()
+                assertEquals(11, FCastFrame.readFrom(input)?.opcode)
+                withLocalVideoFixture { location ->
+                    try {
+                        main {
+                            receiverField.set(service, receiver)
+                            val player = service.airPlayVideoPlayer
+                            val fail = requireNotNull(player.onError)
+                            service.playLocalVideo(location)
+                            player.setPlaying(false)
+                            val local = requireNotNull(service.sessionSnapshot()).token
+                            fail(local, "Local errors do not belong to the FCast client")
+
+                            playback.load(MediaRequest(location, Protocol.FCAST))
+                            player.setPlaying(false)
+                            val current = requireNotNull(service.sessionSnapshot()).token
+                            assertEquals(Protocol.FCAST, current.protocol)
+                            fail(local, "Stale errors must be ignored")
+                            receiverField.set(service, null)
+                            fail(current, "Receiver is unavailable")
+                            receiverField.set(service, receiver)
+                            fail(current, "Current FCast playback error")
+                        }
+                        // The receiver sends errors on one executor. The first
+                        // error must be the one for the current connected owner.
+                        val error = generateSequence { FCastFrame.readFrom(input) }
+                            .take(12).firstOrNull { it.opcode == 9 }
+                        assertEquals("Current FCast playback error",
+                            JSONObject(requireNotNull(error).body).getString("message"))
+                        FCastFrame(12).writeTo(socket.getOutputStream())
+                        assertTrue(generateSequence { FCastFrame.readFrom(input) }
+                            .take(12).any { it.opcode == 13 })
+                    } finally {
+                        main { receiverField.set(service, previousReceiver) }
+                    }
+                }
+            }
+        }
     }
 
     @Test fun sizeTitleAndEndCallbacksOnlyAffectTheirOwnPlayer() = withoutAutoLaunch {

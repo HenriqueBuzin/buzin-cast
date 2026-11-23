@@ -2105,3 +2105,17 @@ the selected JaCoCo profiles added 32 branch outcomes across the measured
 classes for the model, speed selector, settings and service. The compact
 DE/AT matrix APK was already frozen before these contracts were added, so
 its reports still represent the 330-case suite.
+
+The complete compact DE/AT API28 snapshot validated independently with
+330 Android cases, 21 native cases and all required runtime scenarios,
+including VPN and offline diagnostics. Against the 324-case report, JVM
+branches increased from 4639/5887 to 4659/5887 (79.14%), and complexity
+increased from 3934/5098 to 3956/5099 (77.58%). Native instantiations are
+now 205/205, with the three missing API28 branch outcomes still in the
+API22 decoder paths. The API22 replay uses the exact frozen APKs.
+
+The FCast error contract passed for compact DE/AT on API28. A real local
+FCast client received the error for its current media session and stayed
+connected. Errors for local playback, replaced sessions and a detached
+FCast receiver were ignored. The byte-identical service class's player error
+callback reached 6/6 branches, up from 0/6 in the complete 330-case report.
