@@ -2208,7 +2208,11 @@ A separate compat DE/AT API22 run passed 336 of 338 instrumentation tests.
 Replaying the two failures three times with the unchanged APK pair passed
 the custom-resolution focus test all three times. The relay audio and video
 forwarding test passed once and timed out before authentication twice.
-The complete API22 gate remains pending.
+The service relay test now gives the software emulator the same 45-second
+authentication wait used by the standalone relay contract and reports a
+terminal sender error immediately. With the app APK unchanged, the adjusted
+relay test and all 338 instrumentation tests passed on API22. The complete
+API22 runtime gate remains pending.
 
 Three additional compact DE/AT instrumentation contracts passed on API28.
 The audio miniplayer applied a new track title and returned to the overview.

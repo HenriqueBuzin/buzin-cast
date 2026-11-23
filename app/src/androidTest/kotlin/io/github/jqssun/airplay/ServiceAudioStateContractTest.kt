@@ -105,8 +105,8 @@ class ServiceAudioStateContractTest {
         }
     }
 
-    private fun await(message: String, condition: () -> Boolean) {
-        val deadline = SystemClock.elapsedRealtime() + 15000
+    private fun await(message: String, timeoutMs: Long = 15_000, condition: () -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
         while (SystemClock.elapsedRealtime() < deadline) {
             if (condition()) return
             Thread.sleep(25)
@@ -551,8 +551,15 @@ class ServiceAudioStateContractTest {
                 service.onAudioPcm(pcm, 900, 48_000, 2)
                 service.relay.connect(requireNotNull(Net.lanIpv4()), destination.port, destination.code)
             }
-            await("The service relay did not authenticate to the peer") {
-                service.relay.state.value.sending && peer.state.value.receiving
+            val connecting = context.getString(R.string.relay_connecting)
+            // The receiver and sender derive keys concurrently on the emulator.
+            await("The service relay did not authenticate to the peer", timeoutMs = 45_000) {
+                val sender = service.relay.state.value
+                val receiver = peer.state.value
+                check(sender.sending || sender.message == connecting) {
+                    "Relay sender stopped: ${sender.message}; peer: ${receiver.message}"
+                }
+                sender.sending && receiver.receiving
             }
             main {
                 // The receiver must see the audio first. A video callback before
