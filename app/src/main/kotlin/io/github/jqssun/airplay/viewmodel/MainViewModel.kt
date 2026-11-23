@@ -3,6 +3,7 @@ package io.github.jqssun.airplay.viewmodel
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.SystemClock
 import android.view.Surface
 import androidx.core.content.FileProvider
@@ -13,6 +14,7 @@ import io.github.jqssun.airplay.Pref
 import io.github.jqssun.airplay.Prefs
 import io.github.jqssun.airplay.audio.TrackInfo
 import io.github.jqssun.airplay.get
+import io.github.jqssun.airplay.media.ExternalSubtitles
 import io.github.jqssun.airplay.observe
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
@@ -89,17 +91,22 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     val pendingApproval = MutableStateFlow<io.github.jqssun.airplay.media.ConnectionApproval.Request?>(null)
     val subtitleText = MutableStateFlow("")
     val playbackMessage = MutableStateFlow("")
-    fun subtitle(uri: android.net.Uri?) {
-        val target = service ?: return
+    fun subtitle(uri: Uri?) {
+        subtitle(uri) { ExternalSubtitles.import(getApplication(), it) }
+    }
+
+    internal fun subtitle(uri: Uri?, read: suspend (Uri) -> Pair<Uri, String>): Job? {
+        val target = service ?: return null
         val session = target.videoPlaySeq.value
-        if (uri == null) { target.airPlayVideoPlayer.setSubtitle(null); return }
-        viewModelScope.launch {
+        if (uri == null) {
+            target.airPlayVideoPlayer.setSubtitle(null)
+            return null
+        }
+        return viewModelScope.launch {
             runCatching {
-                val (local,mime) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    io.github.jqssun.airplay.media.ExternalSubtitles.import(getApplication(),uri)
-                }
+                val (local, mime) = withContext(Dispatchers.IO) { read(uri) }
                 if (service === target && target.videoPlaybackActive.value && target.videoPlaySeq.value == session) {
-                    target.airPlayVideoPlayer.setSubtitle(local,mime)
+                    target.airPlayVideoPlayer.setSubtitle(local, mime)
                 }
             }.onFailure {
                 addLog("Subtitle load failed: ${it.message}")

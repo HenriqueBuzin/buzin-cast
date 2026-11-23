@@ -2346,3 +2346,12 @@ decoder inventory. Combining the API30 profile with the complete API28
 run on matching class bytes added seven branch outcomes and one method
 under `SettingsScreenKt`, plus 18 branch outcomes and four methods under
 `DecoderSelector`.
+
+The standard compatibility API28 run at `538db32` passed 346 of 347
+instrumentation tests. The subtitle session-transition test failed while
+looking up a new child coroutine. The revised test holds the real file
+read until the receiver detaches, the session is replaced, or playback
+stops, then waits for that specific import to finish. The revised test,
+the subtitle picker recovery, and the Oboe gain contract passed three
+consecutive rounds on the standard compatibility build. The matching
+native profile exercised all four outcomes in `OboeCallbacks::onAudioReady`.

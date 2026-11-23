@@ -26,7 +26,6 @@ import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.viewModelScope
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -44,11 +43,13 @@ import io.buzincast.media.SecureMirrorChannel
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.discovery.FCastReceiver
+import io.github.jqssun.airplay.media.ExternalSubtitles
 import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.media.MirrorRelay
 import io.github.jqssun.airplay.renderer.PlaybackSnapshot
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import io.leancast.app.Net
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -482,15 +483,18 @@ class ServiceAudioStateContractTest {
                 fun importAcrossTransition(name: String, before: () -> Unit = {}, after: () -> Unit = {}) {
                     val edited = vtt.replace(title, name)
                     input.writeText(edited)
+                    val allowRead = CompletableDeferred<Unit>()
                     lateinit var importJob: Job
                     main {
                         before()
-                        val parent = requireNotNull(model.viewModelScope.coroutineContext[Job])
-                        val previousJobs = parent.children.toSet()
-                        model.subtitle(uri)
-                        importJob = parent.children.single { it !in previousJobs }
+                        importJob = requireNotNull(model.subtitle(uri) { selected ->
+                            allowRead.await()
+                            ExternalSubtitles.import(app, selected)
+                        })
                         after()
                     }
+                    instrumentation.waitForIdleSync()
+                    allowRead.complete(Unit)
                     runBlocking { withTimeout(15_000) { importJob.join() } }
                     assertEquals("The import did not finish for $name", edited, imported.readText())
                     instrumentation.waitForIdleSync()
