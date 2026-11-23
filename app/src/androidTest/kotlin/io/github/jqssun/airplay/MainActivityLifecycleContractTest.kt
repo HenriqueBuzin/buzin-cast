@@ -12,6 +12,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.graphics.SurfaceTexture
 import android.media.AudioManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -23,6 +24,7 @@ import android.os.SystemClock
 import android.view.WindowManager
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -754,6 +756,60 @@ class MainActivityLifecycleContractTest {
         keepsScreenOn(activity, false)
         stopped(activity, AirPlayService.ServerState.STOPPED, "backgrounding after reconnecting to an idle receiver")
         finishActivities()
+    }
+
+    @Test fun modelKeepsMirroringAndPlaybackSurfacesIndependentAcrossReplacementAndDetach() {
+        val model = model(launch())
+        val mirrorSurface = service.videoRenderer.javaClass.getDeclaredField("displaySurface").apply { isAccessible = true }
+        val playbackSurface = AirPlayVideoPlayer::class.java.getDeclaredField("pendingSurface").apply { isAccessible = true }
+        val firstTexture = SurfaceTexture(false)
+        val secondTexture = SurfaceTexture(false)
+        val first = Surface(firstTexture)
+        val second = Surface(secondTexture)
+        fun assertSurfaces(mirror: Surface?, playback: Surface?) {
+            assertSame(mirror, mirrorSurface.get(service.videoRenderer))
+            assertSame(playback, playbackSurface.get(service.airPlayVideoPlayer))
+        }
+        try {
+            main {
+                model.onSurfaceAvailable(first)
+                model.onVideoPlaybackSurfaceAvailable(second)
+                assertSurfaces(first, second)
+
+                model.onSurfaceAvailable(second)
+                model.onVideoPlaybackSurfaceAvailable(first)
+                model.onSurfaceDestroyed(first)
+                model.onVideoPlaybackSurfaceDestroyed(second)
+                assertSurfaces(second, first)
+
+                model.unbindService()
+                try {
+                    model.onSurfaceDestroyed(second)
+                    model.onVideoPlaybackSurfaceDestroyed(first)
+                    model.onSurfaceAvailable(first)
+                    model.onVideoPlaybackSurfaceAvailable(second)
+                    assertSurfaces(second, first)
+                } finally {
+                    model.bindService(service)
+                }
+
+                model.onSurfaceDestroyed(second)
+                assertSurfaces(null, first)
+                model.onVideoPlaybackSurfaceDestroyed(first)
+                assertSurfaces(null, null)
+            }
+        } finally {
+            main {
+                for (surface in listOf(first, second)) {
+                    service.clearVideoSurface(surface)
+                    service.clearVideoPlaybackSurface(surface)
+                }
+            }
+            first.release()
+            second.release()
+            firstTexture.release()
+            secondTexture.release()
+        }
     }
 
     @Test fun modelControlsReceiverAndPrefersVideoMetadataOverTheAudioTitle() {

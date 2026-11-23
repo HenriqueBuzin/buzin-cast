@@ -142,9 +142,12 @@ class RecordingViewModelContractTest {
         assertTrue(old.setLastModified(1_000_000))
         assertTrue(recent.setLastModified(2_000_000))
         main { model.refreshRecordings() }
-        val expected = if (BuildConfig.RECORDING_ENABLED) listOf(
-            MainViewModel.Recording(recent.name, 7), MainViewModel.Recording(old.name, 3)) else emptyList()
-        assertEquals(expected, ourRecordings())
+        val expected = if (BuildConfig.RECORDING_ENABLED) {
+            listOf(recent.name to 7L, old.name to 3L)
+        } else {
+            emptyList()
+        }
+        assertEquals(expected, ourRecordings().map { it.name to it.bytes })
     }
 
     @Test fun recordingActionsRejectTraversalWrongExtensionsDirectoriesAndMissingFiles() {

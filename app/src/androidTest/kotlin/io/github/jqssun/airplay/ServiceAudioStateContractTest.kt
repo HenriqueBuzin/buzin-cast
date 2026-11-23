@@ -1416,6 +1416,7 @@ class ServiceAudioStateContractTest {
     }
 
     @Test fun senderVolumeStepsFollowFeedbackAndStopAtTargetOrOvershoot() {
+        val store = ViewModelStore()
         val prefs = context.getSharedPreferences(Prefs.NAME, 0)
         val key = Prefs.SYNC_CLIENT_VOLUME.key
         val previousSync = prefs.all[key] as? Boolean
@@ -1456,7 +1457,13 @@ class ServiceAudioStateContractTest {
                 assertEquals(0.25f, service.clientVolume(), 0.001f)
                 assertEquals(-22.5f, service.onClientVolumeQuery(), 0.001f)
 
-                main { service.setClientVolume(0.75f) }
+                main {
+                    val model = MainViewModel(context.applicationContext as android.app.Application)
+                    store.put("sender-volume", model)
+                    model.setClientVolume(0.9f)
+                    model.bindService(service)
+                    model.setClientVolume(0.75f)
+                }
                 awaitCommand(0, "volumeup")
                 feedback(-15f)
                 awaitCommand(1, "volumeup")
@@ -1501,6 +1508,7 @@ class ServiceAudioStateContractTest {
                 assertEquals("Independent sender control changed receiver volume", receiverIndex, audio.getStreamVolume(stream))
             } finally {
                 main {
+                    store.clear()
                     field.set(service, originalDacp)
                     dacp.release()
                     val editor = prefs.edit()

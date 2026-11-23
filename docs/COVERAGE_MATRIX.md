@@ -2501,3 +2501,25 @@ title, and switched to the title supplied by Media3 without changing the
 audio metadata. This passed in standard normal API28 and standard compact
 API22. Against each edition's byte-matched baseline, `MainViewModel`
 covered 172/192 branches and 100/103 methods, up from 169/192 and 99/103.
+
+The surface lifecycle contract uses real Android surfaces for mirroring
+and media playback. It replaces both surfaces, verifies that stale
+destruction callbacks leave the replacements attached, and verifies that
+callbacks while the model is detached leave the service unchanged. The
+contract and the title/receiver contract passed in standard normal API28
+and standard compact API22. The additional profiles raised
+`MainViewModel` from 172/192 to 174/192 branches and `VideoRenderer`
+from 86/120 to 87/120 on the matching class bytes for both editions.
+
+The log contract used a directory at the snapshot path to force a real
+write failure. The log stayed visible and both entries were persisted
+when storage became available. The sender-volume contract now dispatches
+through the model and verifies that an unbound call sends no command.
+Both passed alongside the two lifecycle contracts in standard normal
+API28 and standard compact API22. This raised `MainViewModel` to 176/192
+branches and 102/103 methods in each edition.
+
+The recording-list contract now checks the byte sizes through the same
+properties the UI reads. It passed in both standard editions and brought
+the combined, byte-matched `MainViewModel` profiles to 103/103 methods.
+Branch coverage remained 176/192 in those scoped profiles.

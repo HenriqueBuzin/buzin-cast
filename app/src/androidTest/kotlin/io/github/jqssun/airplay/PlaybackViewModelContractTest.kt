@@ -274,6 +274,26 @@ class PlaybackViewModelContractTest {
         assertTrue(File(root, "airplay_logs.txt").readText().isEmpty())
     }
 
+    @Test fun logsStayVisibleWhenDiskWriteFailsAndPersistAfterStorageRecovers() {
+        val target = File(root, "airplay_logs.txt")
+        assertTrue(target.mkdir())
+        val worker = field<AsyncLogStore>("logStore")
+        model.addLog("retained during write failure")
+        assertTrue(worker.flush())
+        assertTrue(target.isDirectory)
+        assertTrue(model.logs.value.single().endsWith("retained during write failure"))
+
+        assertTrue(target.delete())
+        model.addLog("saved after storage recovers")
+        assertTrue(worker.flush())
+        val persisted = target.readLines()
+        assertEquals(model.logs.value, persisted)
+        assertEquals(
+            listOf("retained during write failure", "saved after storage recovers"),
+            persisted.map { it.substringAfter(' ') },
+        )
+    }
+
     @Test fun aNewDefaultProfileCancelsAnOlderProbeAndRestoresAllTuningDefaults() {
         val probeStarted = CompletableDeferred<Unit>()
         val probeFinished = CompletableDeferred<Unit>()
