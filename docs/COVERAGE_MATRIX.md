@@ -2714,6 +2714,13 @@ classes. Its API28 native profile measured 909/912 branches, 203/203
 functions, 205/205 instantiations, 1,748/1,751 lines, 171/171 MC/DC and
 1,496/1,500 regions. These native counts are from API28 alone.
 
+The same compact DE/AT application and test APKs passed all 15 runtime
+gates, 370 Android instrumentation cases and 21 native UBSan cases on
+API22. Merging the two byte-matched snapshots yielded 100% in all six
+native metrics. The merged JVM report measured 79,913/85,817 instructions,
+4,900/5,893 branches, 8,110/8,436 lines, 4,194/5,106 complexity,
+2,191/2,353 methods and 305/313 classes.
+
 The TV custom-resolution contract starts with a preset, verifies that
 Save is disabled with zero or one valid dimension, and enters values
 with leading zeros through the remote editor. The normal API28 run
