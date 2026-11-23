@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
@@ -878,13 +879,18 @@ class MainActivityLifecycleContractTest {
             }
             fun seekLabel(sign: String, seconds: Long) =
                 sign + context.getString(R.string.seconds_short, seconds)
-            val first = seekLabel("+", 10)
             val cumulative = seekLabel("+", 20)
             val backwards = seekLabel("-", 10)
 
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
-            awaitVisibleSeekFeedback(first)
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+            // Keep consecutive presses in the same main-loop turn. Waiting for
+            // the first accessibility label can consume the feedback window.
+            main {
+                repeat(2) {
+                    assertTrue("Right press did not reach the player",
+                        activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)))
+                    activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT))
+                }
+            }
             awaitVisibleSeekFeedback(cumulative)
             await("Two remote presses did not seek 20 seconds") {
                 player()?.currentPosition?.let { it in 20_000L..20_999L } == true
@@ -908,10 +914,11 @@ class MainActivityLifecycleContractTest {
 
     private fun awaitVisibleSeekFeedback(label: String) {
         val deadline = SystemClock.elapsedRealtime() + 3_000
-        while (nodeBounds(label) == null && SystemClock.elapsedRealtime() < deadline) {
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (nodeBounds(label) != null) return
             Thread.sleep(20)
         }
-        assertNotNull("Remote seek feedback did not show $label", nodeBounds(label))
+        fail("Remote seek feedback did not show $label")
     }
 
     private fun nodeBounds(label: String): Rect? {
@@ -931,6 +938,72 @@ class MainActivityLifecycleContractTest {
         }
         return try { if (root.refresh() && root.packageName?.toString() == context.packageName) visit(root) else null }
             finally { root.recycle() }
+    }
+
+    @Test fun rotatingThePlayerPreservesThePausedPlaybackSession() {
+        val activity = launch()
+        val file = File.createTempFile("player-rotation-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("download/sample.mp4").use { input ->
+            file.outputStream().use(input::copyTo)
+        }
+        val location = android.net.Uri.fromFile(file).toString()
+        main {
+            service.playLocalVideo(location)
+            service.setVideoPlaying(false)
+        }
+        try {
+            await("The video did not reach its paused controls") {
+                model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value
+            }
+            val token = requireNotNull(service.sessionSnapshot()).token
+            var orientation = Configuration.ORIENTATION_UNDEFINED
+            main { orientation = activity.resources.configuration.orientation }
+            assertTrue(orientation == Configuration.ORIENTATION_LANDSCAPE ||
+                orientation == Configuration.ORIENTATION_PORTRAIT)
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+            repeat(2) {
+                awaitVolumeControl(R.string.cd_rotate) { node ->
+                    if (!node.isVisibleToUser || !node.isEnabled) return@awaitVolumeControl false
+                    var control = AccessibilityNodeInfo.obtain(node)
+                    try {
+                        while (!control.isClickable) {
+                            val parent = control.parent ?: return@awaitVolumeControl false
+                            control.recycle()
+                            control = parent
+                        }
+                        control.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    } finally {
+                        control.recycle()
+                    }
+                }
+                val landscape = orientation == Configuration.ORIENTATION_LANDSCAPE
+                val requested = if (landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                    else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                orientation = if (landscape) Configuration.ORIENTATION_PORTRAIT
+                    else Configuration.ORIENTATION_LANDSCAPE
+                var actualRequest = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                try {
+                    await("The rotate control did not request orientation $requested") {
+                        actualRequest = activity.requestedOrientation
+                        actualRequest == requested
+                    }
+                } catch (failure: AssertionError) {
+                    throw AssertionError("Rotation requested $actualRequest, expected $requested", failure)
+                }
+                await("Android did not apply orientation $orientation after accepting the request") {
+                    activity.resources.configuration.orientation == orientation
+                }
+                main {
+                    assertSame(activity, resumedActivity<MainActivity>())
+                    assertEquals(token, service.sessionSnapshot()?.token)
+                    assertEquals(location, service.videoLocation.value)
+                    assertFalse(model(activity).videoPlaying.value)
+                }
+            }
+        } finally {
+            main { service.stopVideoPlayback() }
+            finishActivities()
+        }
     }
 
     @Test fun miniAudioPlayerTracksMetadataAndReturnsFromToolsToTheOverview() {

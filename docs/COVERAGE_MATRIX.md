@@ -2260,3 +2260,11 @@ kept the downloader idle for the same action. The standard run used the
 byte-identical app APK from the complete API28 snapshot and added three
 branch outcomes under `MainViewModel` and one branch outcome and method
 under `AirPlayService`.
+
+After a later remote-seek run missed the one-second feedback window, the
+fixture began delivering both right presses during the same main-loop turn
+before waiting for the cumulative label. That case and the rotate-player
+case passed twice on API28 with the same APK pair. The rotate control applied
+both orientations on the same activity while retaining the paused session.
+The new profile added four branch outcomes and one method under
+`MainScreenKt` beyond the earlier remote-seek profile.
