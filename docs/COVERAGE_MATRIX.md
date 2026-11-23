@@ -2274,3 +2274,10 @@ case passed twice on API28 with the same APK pair. The rotate control applied
 both orientations on the same activity while retaining the paused session.
 The new profile added four branch outcomes and one method under
 `MainScreenKt` beyond the earlier remote-seek profile.
+
+The same normal DE/AT app and test APKs from the complete API28 run
+passed the picture-in-picture round trip and the disconnected-binding
+contract on API36. The API36 profile exercised the automatic PiP path
+introduced in Android 12. For byte-matched `MainActivity` classes, the
+combined profile increased covered branches from 69/122 to 75/122,
+methods from 33/44 to 38/44, and classes from 8/16 to 12/16.
