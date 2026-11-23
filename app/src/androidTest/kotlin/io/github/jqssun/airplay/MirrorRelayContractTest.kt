@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-internal fun withAuthenticatedRelayPeer(state: MirrorRelay.State, block: (SecureMirrorChannel) -> Unit) {
+private fun withRelayHandshake(state: MirrorRelay.State, block: (Socket, SecureMirrorChannel) -> Unit) {
     Socket("127.0.0.1", state.port).use { socket ->
         socket.soTimeout = 15_000
         val input = DataInputStream(socket.getInputStream())
@@ -30,6 +30,12 @@ internal fun withAuthenticatedRelayPeer(state: MirrorRelay.State, block: (Secure
         output.flush()
         val salt = ByteArray(16).also(input::readFully)
         val channel = SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(state.code, salt))
+        block(socket, channel)
+    }
+}
+
+internal fun withAuthenticatedRelayPeer(state: MirrorRelay.State, block: (SecureMirrorChannel) -> Unit) {
+    withRelayHandshake(state) { _, channel ->
         channel.send("hello".toByteArray())
         assertArrayEquals("ready".toByteArray(), channel.receive())
         block(channel)
@@ -115,6 +121,24 @@ class MirrorRelayContractTest {
         assertEquals(0, endings.get())
     }
 
+    @Test fun receiverRechecksDisplayAvailabilityAfterThePairingProof() {
+        val receiver = relay()
+        receiver.listen()
+        val listening = receiver.state.value
+        withRelayHandshake(listening) { socket, channel ->
+            available.set(false)
+            channel.send("hello".toByteArray())
+            assertEquals(-1, socket.getInputStream().read())
+        }
+        assertEquals(listening, receiver.state.value)
+        assertEquals(0, endings.get())
+        assertTrue(packets.isEmpty())
+
+        available.set(true)
+        peer(receiver) { it.send(MirrorPacketCodec.encode(MirrorPacket.End)) }
+        await("An available receiver did not accept the next pairing") { endings.get() == 1 }
+    }
+
     @Test fun rejectedPairingsExpireTheListenerAndItCanStartAgain() {
         available.set(false)
         val receiver = relay()
@@ -198,6 +222,34 @@ class MirrorRelayContractTest {
         assertEquals(video.hevc, received.hevc)
         sender.offer(MirrorPacket.End)
         await("Paired session did not end") { !sender.state.value.sending && endings.get() == 1 }
+    }
+
+    @Test fun switchingToReceiveClosesPendingPairingWithoutReplacingTheNewListenerState() {
+        val address = localAddress()
+        val relay = relay()
+        val previousThreads = Thread.getAllStackTraces().keys
+        ServerSocket(0, 1, address).use { peer ->
+            peer.soTimeout = 10_000
+            relay.connect(requireNotNull(address.hostAddress), peer.localPort, "ABCDEFGHIJKL")
+            peer.accept().use { socket ->
+                socket.soTimeout = 5_000
+                val input = DataInputStream(socket.getInputStream())
+                val magic = ByteArray(SecureMirrorChannel.MAGIC.size).also(input::readFully)
+                assertArrayEquals(SecureMirrorChannel.MAGIC, magic)
+                val sender = Thread.getAllStackTraces().keys.single {
+                    it.name == "buzin-relay-send" && it !in previousThreads
+                }
+
+                relay.listen()
+                val receiving = relay.state.value
+                assertTrue(receiving.listening)
+                assertTrue(receiving.port > 0)
+                assertEquals(-1, input.read())
+                sender.join(5_000)
+                assertFalse("The previous pairing still has a sender thread", sender.isAlive)
+                assertEquals(receiving, relay.state.value)
+            }
+        }
     }
 
     @Test fun senderRecoversFromRejectedPairingAndSendsKeepaliveBeforeVideo() {

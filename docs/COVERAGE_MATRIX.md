@@ -2869,6 +2869,13 @@ raised instructions from 1,243/1,493 to 1,311/1,493, branches from
 138/196 to 144/196, lines from 142/150 to 144/150, and complexity from
 109/156 to 112/156.
 
+Two API28 relay cases verified that switching to receive closes an
+unfinished sender pairing without replacing the new listener state,
+and that the listener rechecks display availability after pairing
+proof. The matching `MirrorRelay` profile grew from 88/122 to 89/122
+branches, 1,271/1,557 to 1,276/1,557 instructions, and 50/78 to 51/78
+complexity.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.
