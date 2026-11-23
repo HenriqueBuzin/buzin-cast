@@ -2253,3 +2253,10 @@ the feedback expired, a left press showed a fresh 10-second rewind and
 moved playback back. The miniplayer contract passed in the same run. On
 byte-matched classes, the profile added ten branch outcomes and five
 methods under `MainScreenKt`.
+
+The playback Download action passed on both compact editions on API28.
+Standard compat started and cancelled an active export. Compact DE/AT
+kept the downloader idle for the same action. The standard run used the
+byte-identical app APK from the complete API28 snapshot and added three
+branch outcomes under `MainViewModel` and one branch outcome and method
+under `AirPlayService`.

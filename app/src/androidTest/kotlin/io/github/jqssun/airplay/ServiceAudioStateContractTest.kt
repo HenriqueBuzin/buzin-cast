@@ -522,6 +522,49 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun playbackDownloadRespectsEditionAndCancelsBeforePublication() = withoutAutoLaunch {
+        val store = ViewModelStore()
+        val handler = Handler(Looper.getMainLooper())
+        val settled = CountDownLatch(1)
+        val observedProgress = AtomicReference<Int?>()
+        val overlayTicks = AtomicReference<Pair<Long, Long>>()
+        try {
+            withLocalVideoFixture { location ->
+                main {
+                    val model = MainViewModel(context.applicationContext as android.app.Application)
+                    store.put("download", model)
+                    model.bindService(service)
+                    service.playLocalVideo(location)
+                    service.setVideoPlaying(false)
+                    model.updateFromService()
+                    val initialTick = model.videoOverlayTick.value
+                    model.toggleVideoDownload()
+                    handler.post {
+                        model.updateFromService()
+                        val progress = model.videoDownloadProgress.value
+                        observedProgress.set(progress)
+                        if (progress != null) model.toggleVideoDownload()
+                        overlayTicks.set(initialTick to model.videoOverlayTick.value)
+                        handler.post { settled.countDown() }
+                    }
+                }
+                assertTrue("Download checks did not run on the player thread", settled.await(10, TimeUnit.SECONDS))
+                val (initial, final) = requireNotNull(overlayTicks.get())
+                if (BuildConfig.VIDEO_DOWNLOAD_ENABLED) {
+                    assertNotNull("The download action did not start an export", observedProgress.get())
+                    assertEquals(initial + 2, final)
+                } else {
+                    assertNull("The regional edition started an export", observedProgress.get())
+                    assertEquals(initial + 1, final)
+                }
+                assertNull("The download action did not cancel the export", service.videoDownloader.progress.value)
+            }
+        } finally {
+            service.videoDownloader.cancel()
+            main { store.clear() }
+        }
+    }
+
     @Test fun airplayMirroringReleasesThePreviousLocalPlaybackWithoutDroppingMirrorOwnership() = withoutAutoLaunch {
         withLocalVideoFixture { location ->
             main {
