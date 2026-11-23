@@ -2362,10 +2362,13 @@ JVM branches, 4060/5099 complexity units, and 8019/8414 JVM lines. The
 native report covered 906/912 branches. Its six missing outcomes were
 in the pre-API23 AAC/ALAC selection and the Oboe attenuation callback.
 
-The following standard compatibility API28 run at `4b0fd2e` passed all
-351 Android instrumentation tests, including the synchronized subtitle
-transition and deterministic Oboe gain contracts. The full report was
-still pending after instrumentation completed.
+The standard compatibility API28 run at `4b0fd2e` passed 351 Android
+instrumentation tests, 21 native UBSan cases, and all 15 runtime gates.
+It covered 4868/5967 JVM branches, 4129/5134 complexity units, and
+8082/8447 JVM lines. The synchronized subtitle transition and
+deterministic Oboe gain contracts passed in the full run. Native branch
+coverage was 909/912. The only uncovered outcomes were codec selection
+before API23, which requires a replay of the same APKs on API22.
 
 On standard normal API28, taps on the video background showed and hid
 the unlocked toolbar, then showed and hid only the unlock button while
