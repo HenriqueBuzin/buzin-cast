@@ -2882,6 +2882,13 @@ Adding that profile to the 16 matching `MainActivity` class files
 raised branches from 69/122 to 75/122, methods from 33/44 to 38/44,
 and counted classes from 8/12 to 12/12.
 
+All ten main-screen cases passed on API28 after adding a touch test
+for fullscreen mirroring. The controls timed out, a real pointer tap
+restored them, and Exit returned to the mirrored overview. On the
+28 matching `MainScreenKt` class files, the focused test raised the
+profile from 430/535 to 431/535 branches, 317/399 to 322/399 complexity,
+and 21/22 to 22/22 counted classes.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.

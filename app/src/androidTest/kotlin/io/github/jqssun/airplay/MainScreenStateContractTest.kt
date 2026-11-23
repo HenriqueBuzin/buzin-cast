@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
@@ -230,20 +231,39 @@ class MainScreenStateContractTest {
     private fun screen(
         resultOwner: ActivityResultRegistryOwner? = null,
         allowVideo: Boolean = false,
+        ordinaryScreen: Boolean = false,
         block: (ActivityScenario<DebugTvPreviewActivity>) -> Unit,
     ) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
-            scenario.onActivity { target -> target.setContent { AirPlayTheme {
-                CompositionLocalProvider(LocalActivityResultRegistryOwner provides (resultOwner ?: target)) {
-                    MainScreen(model, onSurfaceAvailable = { surfaces.incrementAndGet() }, onSurfaceDestroyed = {},
-                        onLocalNetwork = { networkRequests.incrementAndGet() })
+            scenario.onActivity { target ->
+                val ordinary = if (ordinaryScreen) ordinaryUiContext(target) else null
+                target.setContent {
+                    AirPlayTheme {
+                        CompositionLocalProvider(
+                            LocalContext provides (ordinary ?: LocalContext.current),
+                            LocalActivityResultRegistryOwner provides (resultOwner ?: target),
+                        ) {
+                            MainScreen(model, onSurfaceAvailable = { surfaces.incrementAndGet() }, onSurfaceDestroyed = {},
+                                onLocalNetwork = { networkRequests.incrementAndGet() })
+                        }
+                    }
                 }
-            } } }
+            }
             await("Main screen did not expose content") { snapshot() != null }
             block(scenario)
         }
         if (!allowVideo) assertEquals("Idle/audio/dialog states unexpectedly created a video surface", 0, surfaces.get())
+    }
+
+    private fun ordinaryUiContext(activity: Context): Context {
+        val normalMode = Configuration(activity.resources.configuration).apply {
+            uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK.inv()) or Configuration.UI_MODE_TYPE_NORMAL
+        }
+        val normalResources = activity.createConfigurationContext(normalMode).resources
+        return object : ContextWrapper(activity) {
+            override fun getResources(): Resources = normalResources
+        }.also { assertFalse("This contract requires the ordinary Android emulator mode", it.isTvDevice()) }
     }
 
     @Test fun externalSubtitleMenuRecoversWhenTheDocumentPickerIsUnavailable() {
@@ -352,14 +372,7 @@ class MainScreenStateContractTest {
         val intent = Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
         ActivityScenario.launch<DebugTvPreviewActivity>(intent).use { scenario ->
             scenario.onActivity { activity ->
-                val normalMode = Configuration(activity.resources.configuration).apply {
-                    uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK.inv()) or Configuration.UI_MODE_TYPE_NORMAL
-                }
-                val normalResources = activity.createConfigurationContext(normalMode).resources
-                val ordinary = object : ContextWrapper(activity) {
-                    override fun getResources(): Resources = normalResources
-                }
-                assertFalse("This contract requires the ordinary Android emulator mode", ordinary.isTvDevice())
+                val ordinary = ordinaryUiContext(activity)
                 activity.setContent {
                     AirPlayTheme {
                         CompositionLocalProvider(LocalContext provides ordinary) {
@@ -456,6 +469,38 @@ class MainScreenStateContractTest {
         }
         instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         await("Back did not return to the mirrored overview") { has(connected) && overviewSelected() }
+    }
+
+    @Test fun touchingTheFullscreenMirrorRevealsItsDismissedControls() = screen(allowVideo = true, ordinaryScreen = true) { scenario ->
+        main {
+            model.set(Prefs.AUTO_FULLSCREEN, true)
+            state("_serverState", ServerState.RUNNING)
+            state("_connectionCount", 1)
+            state("_mirroringActive", true)
+        }
+        val exit = text(R.string.cd_exit_fullscreen)
+        await("Mirroring did not open the fullscreen controls") { has(exit) && surfaces.get() > 0 }
+        await("Fullscreen controls did not hide") {
+            snapshot(requireText = false)?.none { it.description == exit } == true
+        }
+
+        val center = FloatArray(2)
+        scenario.onActivity { activity ->
+            val view = activity.window.decorView
+            val location = IntArray(2).also(view::getLocationOnScreen)
+            center[0] = location[0] + view.width / 2f
+            center[1] = location[1] + view.height / 2f
+        }
+        val started = SystemClock.uptimeMillis()
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(started, SystemClock.uptimeMillis(), action, center[0], center[1], 0)
+            try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+        }
+        await("A tap did not restore fullscreen controls") { has(exit) }
+        click(exit)
+        await("Exit control did not return to the overview") {
+            control(text(R.string.tab_overview), selected = true) && has(text(R.string.connected_count, 1))
+        }
     }
 
     @Test fun diagnosticsNavigationReturnsToOverviewWhenDeveloperOptionsAreDisabled() = screen {
