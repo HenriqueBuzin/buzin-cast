@@ -132,18 +132,37 @@ class DacpHttpContractTest {
         }
     }
 
-    @Test fun acceptsAllSuccessfulHttpStatusesAndRejectsClientAndServerErrors() {
+    @Test fun acceptsSuccessfulHttpStatusesAndRejectsOtherResponses() {
         val controller = controller()
-        for (status in listOf(204, 299, 300, 404, 500)) {
+        for (status in listOf(101, 204, 299, 300, 404, 500)) {
             Sender(status).use { sender ->
                 resolved(controller, sender.port)
-                if (status < 300) assertEquals(Unit, controller.play().get(5, TimeUnit.SECONDS))
+                if (status in 200..299) assertEquals(Unit, controller.play().get(5, TimeUnit.SECONDS))
                 else {
                     val error = fails(controller.play())
                     assertTrue(error is IOException)
                     assertEquals("HTTP $status", error.message)
                 }
             }
+        }
+    }
+
+    @Test fun unusableResolvedHostOrPortDoesNotSetThePlaybackEndpoint() {
+        val controller = controller()
+        controller.update("invalid-then-valid", "contract-token")
+        val callback = resolutions.single()
+        Sender().use { sender ->
+            val withoutHost = NsdServiceInfo().apply { port = sender.port }
+            for (candidate in listOf(withoutHost, service(0), service(65_536))) {
+                callback.onServiceResolved(candidate)
+                assertFalse(controller.ready)
+                assertEquals("dacp endpoint not resolved", fails(controller.play()).message)
+            }
+            assertTrue(sender.requests.isEmpty())
+            callback.onServiceResolved(service(sender.port))
+            assertTrue(controller.ready)
+            assertEquals(Unit, controller.play().get(5, TimeUnit.SECONDS))
+            assertEquals(1, sender.requests.size)
         }
     }
 

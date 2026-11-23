@@ -480,19 +480,26 @@ class MainScreenStateContractTest {
 
     @Test fun debugOverlayUpdatesMeasurementsAndRemovesEmptySections() {
         val audio = AudioDebug(12, 34, 1, 2, 3, 4, 5, 1400, 2500, 2, 3)
+        val measurements = DebugInfo(videoCodec = "H264 contract", videoRes = "640x360", videoFps = 30,
+            videoBitrate = 1_500_000, videoFrames = 9, droppedFrames = 1, framePacingJitterUs = 1500,
+            audioCodec = "PCM contract", serverVolume = 42, clientVolume = 63, audio = audio, connections = 1)
         main {
             state("_serverState", ServerState.RUNNING); state("_connectionCount", 1)
             model.set(Prefs.DEBUG_ENABLED, true)
-            state("_debugInfo", DebugInfo(videoCodec = "H264 contract", videoRes = "640x360", videoFps = 30,
-                videoBitrate = 1_500_000, videoFrames = 9, droppedFrames = 1, framePacingJitterUs = 1500,
-                audioCodec = "PCM contract", serverVolume = 42, clientVolume = 63, audio = audio, connections = 1))
+            state("_debugInfo", measurements)
         }
         screen {
             for (value in listOf(text(R.string.debug_video, "H264 contract", "640x360"),
                 text(R.string.debug_fps_bitrate, 30, "1.5 Mbps"),
+                text(R.string.debug_jitter, "1.5 ms"),
                 text(R.string.debug_audio, "PCM contract", 42, 63),
                 text(R.string.debug_audio_decode, "1.4/2.5 ms held=2 errs=3"),
                 text(R.string.debug_clients, 1))) await("Debug measurement missing: $value") { has(value) }
+            main { state("_debugInfo", measurements.copy(videoBitrate = 999_999, framePacingJitterUs = 999)) }
+            await("Video units did not update below the display thresholds") {
+                has(text(R.string.debug_fps_bitrate, 30, "999 Kbps")) &&
+                    has(text(R.string.debug_jitter, "999 us"))
+            }
             main { state("_debugInfo", DebugInfo(audio = audio.copy(decodeMeanUs = 0, decodeHeld = 0, decodeErrors = 0), connections = 1)) }
             await("Empty video section or initial decode window was not updated") {
                 val nodes = snapshot() ?: return@await false

@@ -2868,3 +2868,10 @@ profile covered 79,127/85,864 instructions, 4,824/5,899 branches,
 305/313 classes. It covered 903/912 native branches, 203/203 functions,
 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
 1,495/1,500 regions.
+
+The standard API28 diagnostics and playback-control profiles passed
+ten focused Android tests. With the matching application class files,
+the video diagnostics formatter increased from 2/4 to 4/4 branches,
+the DACP controller from 32/34 to 34/34 branches, and the seek gesture
+state from 23/26 to 26/26 branches. All six JVM counters reached 100%
+for the seek gesture state.
