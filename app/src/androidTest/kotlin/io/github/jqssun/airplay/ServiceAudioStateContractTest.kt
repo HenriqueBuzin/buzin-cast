@@ -40,6 +40,7 @@ import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.discovery.FCastReceiver
 import io.github.jqssun.airplay.media.MirrorCapture
+import io.github.jqssun.airplay.media.MirrorRelay
 import io.github.jqssun.airplay.renderer.PlaybackSnapshot
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import io.leancast.app.Net
@@ -57,6 +58,7 @@ import java.net.InetAddress
 import java.net.Socket
 import java.net.SocketException
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -469,6 +471,52 @@ class ServiceAudioStateContractTest {
             await("Relay end did not release display and session ownership") {
                 !service.relay.state.value.receiving && !service.mirroringActive.value && service.sessionSnapshot() == null
             }
+        }
+    }
+
+    @Test fun mirrorCallbacksForwardAudioAndSizedVideoToTheAuthenticatedPeer() = withoutAutoLaunch {
+        val packets = LinkedBlockingQueue<MirrorPacket>()
+        val peer = MirrorRelay(context, {}, { packets.add(it) }, {}, { true })
+        val pcm = byteArrayOf(1, 0, 2, 0, 3, 0, 4, 0)
+        val configuredVideo = byteArrayOf(0, 0, 0, 1, 0x65, 0x01)
+        try {
+            peer.listen()
+            val destination = peer.state.value
+            assertTrue(destination.listening)
+            main {
+                service.onAudioPcm(pcm, 900, 48_000, 2)
+                service.relay.connect(requireNotNull(Net.lanIpv4()), destination.port, destination.code)
+            }
+            await("The service relay did not authenticate to the peer") {
+                service.relay.state.value.sending && peer.state.value.receiving
+            }
+            main {
+                // The receiver must see the audio first. A video callback before
+                // dimensions are known must not emit an unusable video packet.
+                service.onVideoData(byteArrayOf(0, 0, 0, 1, 0x65, 0x00), 1_000, false)
+                service.onAudioPcm(pcm, 2_000, 48_000, 2)
+                service.onVideoSize(640f, 480f, 640f, 480f)
+                service.onVideoData(configuredVideo, 3_000, false)
+            }
+            val audio = packets.poll(10, TimeUnit.SECONDS)
+            assertTrue("Expected the audio frame first, received $audio", audio is MirrorPacket.Audio)
+            audio as MirrorPacket.Audio
+            assertArrayEquals(pcm, audio.data)
+            assertEquals(2_000L, audio.ptsNs)
+            assertEquals(48_000, audio.sampleRate)
+            assertEquals(2, audio.channels)
+
+            val video = packets.poll(10, TimeUnit.SECONDS)
+            assertTrue("Expected the configured video frame, received $video", video is MirrorPacket.Video)
+            video as MirrorPacket.Video
+            assertArrayEquals(configuredVideo, video.data)
+            assertEquals(3_000L, video.ptsNs)
+            assertEquals(640, video.width)
+            assertEquals(480, video.height)
+            assertFalse(video.hevc)
+        } finally {
+            main { service.relay.stop() }
+            peer.stop()
         }
     }
 

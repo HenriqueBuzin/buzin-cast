@@ -2125,3 +2125,10 @@ pause, next and resume pending intents. The local DACP sender verified
 each HTTP command in order and the active remote token. In the
 byte-identical broadcast receiver, JaCoCo covered 5 of 9 branch outcomes
 that were untested in the complete 330-case baseline.
+
+The compact DE/AT API28 relay contract passed with an authenticated local
+receiver. It verified PCM format, timestamps and contents, then exact encoded
+video bytes and dimensions. The receiver saw no video before dimensions
+were available. Compared with the complete 330-case baseline for the
+byte-identical service class, `onAudioPcm` rose from 0/4 to 3/4 branches and
+`onVideoData` rose from 4/8 to 6/8.
