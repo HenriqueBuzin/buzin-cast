@@ -799,6 +799,55 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun notificationActionsControlTheConnectedAudioSender() = withoutAutoLaunch {
+        val field = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        val builder = AirPlayService::class.java.getDeclaredMethod("buildNotification").apply { isAccessible = true }
+        val previous = service.dacpController
+        DacpHttpContractTest.Sender().use { sender ->
+            val dacp = DacpController { _, listener ->
+                listener.onServiceResolved(NsdServiceInfo().apply {
+                    host = InetAddress.getByName("127.0.0.1")
+                    port = sender.port
+                })
+            }
+            try {
+                lateinit var actions: List<Notification.Action>
+                main {
+                    field.set(service, dacp)
+                    service.onDacpId("notification-fixture", "notification-contract")
+                    service.onAudioFormat(2, 352, false)
+                    service.onMetadata(item("mlit", text("minm", "Notification controls fixture")))
+                    val notification = builder.invoke(service) as Notification
+                    actions = notification.actions.orEmpty().toList()
+                }
+                assertTrue(dacp.ready)
+                assertEquals(listOf("Prev", "Pause", "Next"), actions.map { it.title.toString() })
+
+                fun sendAction(index: Int, expected: List<String>) {
+                    actions[index].actionIntent.send()
+                    await("Audio sender did not receive notification commands $expected") {
+                        sender.requests.map { it.first().split(' ')[1].substringAfterLast('/') } == expected
+                    }
+                }
+
+                sendAction(0, listOf("previtem"))
+                sendAction(1, listOf("previtem", "pause"))
+                assertFalse(service.playing.value)
+                sendAction(2, listOf("previtem", "pause", "nextitem"))
+                sendAction(1, listOf("previtem", "pause", "nextitem", "play"))
+                assertTrue(service.playing.value)
+                assertTrue(sender.requests.all { request ->
+                    request.any { it.equals("Active-Remote: notification-contract", ignoreCase = true) }
+                })
+            } finally {
+                main {
+                    field.set(service, previous)
+                    dacp.release()
+                }
+            }
+        }
+    }
+
     @Test fun disabledApprovalAndBothLoopbackAddressesBypassThePrompt() {
         val prefs = context.getSharedPreferences(Prefs.NAME, 0)
         main {

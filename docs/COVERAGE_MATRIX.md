@@ -2119,3 +2119,9 @@ FCast client received the error for its current media session and stayed
 connected. Errors for local playback, replaced sessions and a detached
 FCast receiver were ignored. The byte-identical service class's player error
 callback reached 6/6 branches, up from 0/6 in the complete 330-case report.
+
+The compact DE/AT API28 notification contract sent the real previous,
+pause, next and resume pending intents. The local DACP sender verified
+each HTTP command in order and the active remote token. In the
+byte-identical broadcast receiver, JaCoCo covered 5 of 9 branch outcomes
+that were untested in the complete 330-case baseline.
