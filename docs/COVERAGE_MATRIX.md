@@ -2463,3 +2463,21 @@ identical app and test APKs. The API25 emulator guest needed root ADB
 for the radio toggle because its shell user lacks `CHANGE_WIFI_STATE`.
 The combined scoped profiles covered 30/34 branch outcomes and all 10
 methods in `NetworkRecovery`.
+
+The normal DE/AT API28 snapshot at `2123209` passed all 356 Android tests,
+21 native UBSan cases, and 15 runtime gates. All six native metrics reached
+100%, including 908/908 branches and 171/171 MC/DC conditions. The JVM
+totals were 79,426/85,759 instructions, 4,809/5,889 branches, 8,049/8,421
+lines, 4,102/5,103 complexity, 2,170/2,352 methods, and 305/313 classes.
+
+The settings contracts check that blank or zero dimensions leave the
+saved resolution intact and that IME Done commits normalized valid
+dimensions. The audio contract taps the delay slider, verifies the
+persisted result, and checks that disabling and enabling the setting
+restores the default delay. On standard normal API28, both passed and
+raised byte-matched `SettingsScreenKt` coverage from 320/448 to 324/448
+branches and from 169/187 to 172/187 methods.
+The compact DE/AT API22 run improved the same counts against its combined
+API22 and API28 baseline. The test sends the pointer events through the
+activity window because API22's system input injection can target another
+window and reject the gesture.

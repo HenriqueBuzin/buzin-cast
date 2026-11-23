@@ -8,12 +8,15 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.KeyEvent
@@ -449,16 +452,62 @@ class SettingsScreenStateContractTest {
     @Test fun customResolutionRejectsZeroThenCommitsExactSizeAndReturnsToPreset() {
         assertTrue(Prefs.RESOLUTION.write(prefs, "1600x900"))
         screen {
-            edit(label(R.string.setting_resolution_width), "0")
-            edit(label(R.string.setting_resolution_height), "1080")
-            done()
-            assertEquals("1600x900", Prefs.RESOLUTION.read(prefs))
-            edit(label(R.string.setting_resolution_width), "1920")
-            edit(label(R.string.setting_resolution_height), "1200")
+            val width = label(R.string.setting_resolution_width)
+            val height = label(R.string.setting_resolution_height)
+            for ((w, h) in listOf("" to "1080", "0" to "1080", "1920" to "", "1920" to "0")) {
+                edit(width, w)
+                edit(height, h)
+                done()
+                assertEquals("1600x900", Prefs.RESOLUTION.read(prefs))
+            }
+            edit(width, "A19?20", expectedText = "1920")
+            edit(height, "1x200", expectedText = "1200")
             done()
             await("Custom size did not persist") { Prefs.RESOLUTION.read(prefs) == "1920x1200" }
             click("1920x1080")
             await("Preset did not replace custom size") { Prefs.RESOLUTION.read(prefs) == "1920x1080" }
+        }
+    }
+
+    @Test fun audioDelayTouchSavesTheReleasedValueAndDisablingClearsIt() {
+        assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
+        assertTrue(Prefs.AUDIO_LATENCY_MS.write(prefs, 250))
+        fun delayLabel(value: Int) = isolated.getString(R.string.audio_delay_value, value)
+        screen {
+            reveal(delayLabel(250))
+            val slider = requireNotNull(withSlider(1000f, delayLabel(250)) { node ->
+                Rect().apply { node.getBoundsInScreen(this) }
+            })
+            assertFalse("The delay slider has no visible touch bounds", slider.isEmpty)
+            instrumentation.runOnMainSync {
+                val decor = requireNotNull(activity).window.decorView
+                val origin = IntArray(2).also(decor::getLocationOnScreen)
+                val down = SystemClock.uptimeMillis()
+                for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+                    val event = MotionEvent.obtain(
+                        down, SystemClock.uptimeMillis(), action,
+                        slider.exactCenterX() - origin[0], slider.exactCenterY() - origin[1], 0,
+                    )
+                    try {
+                        event.source = InputDevice.SOURCE_TOUCHSCREEN
+                        assertTrue("The settings window did not consume the touch", decor.dispatchTouchEvent(event))
+                    } finally { event.recycle() }
+                }
+            }
+            await("Releasing the slider did not save the midpoint") {
+                Prefs.AUDIO_LATENCY_MS.read(prefs) == 500 && sliderShows(1000f, 500, delayLabel(500))
+            }
+            val delay = label(R.string.setting_audio_delay)
+            click(delay)
+            await("Disabling delay did not clear the saved value or remove the slider") {
+                Prefs.AUDIO_LATENCY_MS.read(prefs) == -1 && checked(delay) == false &&
+                    withSlider(1000f, delayLabel(500)) { true } != true
+            }
+            click(delay)
+            reveal(delayLabel(250))
+            await("Re-enabling delay did not restore its default value") {
+                Prefs.AUDIO_LATENCY_MS.read(prefs) == 250 && sliderShows(1000f, 250, delayLabel(250))
+            }
         }
     }
 
