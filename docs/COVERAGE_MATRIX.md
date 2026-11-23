@@ -2657,3 +2657,11 @@ cases. Adding the new profile to the matching full `TvEditField` classes
 increased coverage from 1,734/1,871 to 1,760/1,871 instructions, 58/77 to
 60/77 branches, 55/79 to 57/79 complexity and 33/40 to 35/40 methods.
 All 92 lines and five counted classes remained covered.
+
+The normal DE/AT API28 replay of `2fd28fa` passed all 15 runtime gates,
+370 Android instrumentation cases and 21 native UBSan cases. Its JVM
+report measured 79,707/85,829 instructions, 4,867/5,893 branches,
+8,089/8,436 lines, 4,166/5,106 complexity, 2,189/2,353 methods and 305/313
+classes. All six native metrics reached 100% on this API. The report
+uses the archived APKs from before the decoder inventory change and the
+TV keyboard test.
