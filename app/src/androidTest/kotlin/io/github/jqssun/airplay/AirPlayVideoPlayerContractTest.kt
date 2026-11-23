@@ -255,6 +255,39 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun playbackBoundsRelativeSeekingAndOnlyResetsGainWhenRequested() {
+        val location = Uri.fromFile(fixture).toString()
+        renderer.seekBy(5_000)
+        renderer.setSubtitle(null)
+        renderer.setClientGain(0.35f)
+        main { assertNull(playerField("player")) }
+
+        val airPlay = token()
+        renderer.play(location, 0f, token = airPlay, resetGain = false)
+        renderer.setRate(0f, airPlay)
+        await("The paused video's duration was not reported") {
+            snapshots.lastOrNull()?.let { (owner, snapshot) ->
+                owner == airPlay && snapshot.ready && !snapshot.playWhenReady && snapshot.duration == 1f
+            } == true
+        }
+        main { assertEquals(0.35f, player().volume, 0f) }
+        renderer.seekBy(5_000)
+        main {
+            // Media3 can report the last playable millisecond at the end of the clip.
+            val position = player().currentPosition
+            assertTrue("Seek did not land at the end: $position", position in 999L..1_000L)
+            assertFalse(player().playWhenReady)
+        }
+
+        val replacement = token()
+        renderer.play(location, 0f, token = replacement)
+        renderer.setRate(0f, replacement)
+        main {
+            assertEquals(1f, player().volume, 0f)
+            assertFalse(player().playWhenReady)
+        }
+    }
+
     @Test fun activeVideoPublishesEffectiveRateAndReportsNaturalEndForItsOwner() {
         instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
             fixture.outputStream().use { input.copyTo(it) }

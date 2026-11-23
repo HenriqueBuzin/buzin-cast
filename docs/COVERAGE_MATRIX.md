@@ -2842,6 +2842,13 @@ token. Combining that profile with the matching four
 to 1,134/1,174, branches from 108/138 to 110/138 and complexity from
 106/134 to 107/134. All lines, methods and counted classes stayed covered.
 
+An API28 follow-up verified that relative seeking lands at the end of a
+paused clip, and a new video preserves the last sender gain only when
+requested. Media3 can report the last playable millisecond (999 ms on
+the 1,000 ms fixture). Adding this profile raised the same player
+mappings to 1,138/1,174 instructions, 112/138 branches and 109/134
+complexity. Lines, methods and counted classes stayed at 100%.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.
