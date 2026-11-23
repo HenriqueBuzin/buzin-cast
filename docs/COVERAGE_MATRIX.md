@@ -2605,6 +2605,14 @@ the first DASH item playing, then accepts the HLS request after the load
 cooldown. The compact DE/AT API28 run passed and added two branch outcomes
 to a byte-matched `FCastReceiver` profile (159/208 to 161/208).
 The four log screen contracts and the FCast cooldown contract also passed
-together on standard normal API28. The standard compact API22 run at
-`dda6d32` had passed all 369 Android instrumentation cases and 21 native
-UBSan cases before the later runtime gates.
+together on standard normal API28.
+
+The standard compact API22 run at `dda6d32` completed all 15 runtime
+gates, including 369 Android instrumentation cases, 21 native UBSan
+cases, the TV launcher, calibration and rendered captions.
+The report measured 80,466/86,654 JVM instructions, 4,880/5,971 branches,
+8,042/8,473 lines, 4,173/5,140 complexity, 2,197/2,352 methods and 306/313
+classes. The API22 native profile measured 903/912 branches, 203/203
+functions, 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
+1,495/1,500 regions. These counts are for a single API level. The prior
+100% native result used profiles from API22 and API28 with matching APKs.
