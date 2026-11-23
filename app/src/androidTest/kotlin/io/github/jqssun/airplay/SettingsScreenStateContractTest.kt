@@ -576,6 +576,17 @@ class SettingsScreenStateContractTest {
         }
     }
 
+    @Test fun tvReceiverNameAcceptsTextAndSavesTrimmedValue() = screen(tv = true) {
+        val name = label(R.string.setting_server_name)
+        click(name)
+        edit(name, "  Sala da TV 2  ")
+        pressTvControl(label(R.string.tv_edit_save))
+        await("TV receiver name was not trimmed and persisted") {
+            Prefs.SERVER_NAME.read(prefs) == "Sala da TV 2" && !withEditor(name) { true }
+        }
+        reveal("Sala da TV 2")
+    }
+
     @Test fun tvCustomResolutionPersistsOnlyAfterBothDimensionsAreSaved() {
         assertTrue(Prefs.RESOLUTION.write(prefs, "1920x1080"))
         screen(tv = true) {
@@ -648,6 +659,10 @@ class SettingsScreenStateContractTest {
             val cancel = label(R.string.tv_edit_cancel)
 
             click(fps)
+            edit(fps, "")
+            await("Save was enabled for an empty frame rate") {
+                withTvButton(save) { button, row -> !button.isEnabled || !row.isEnabled } == true
+            }
             edit(fps, "71")
             pressTvControl(cancel)
             await("Cancel did not dismiss the frame rate editor") { texts() != null && !withEditor(fps) { true } }
