@@ -394,7 +394,9 @@ platform. Also test compatibility APKs on newer APIs to cover platform-dependent
 behavior. Use `--output build/coverage-api22` to keep a separate report directory.
 Each completed variant also preserves raw execution data in a unique snapshot
 with APK, test APK, class-file and native-library fingerprints. Testing fails if
-those compiled inputs change before the report finishes. Separate API runs
+those compiled inputs change before the report finishes. Before installing,
+the matrix runner also verifies the native coverage library against the APK
+entry using the build's NDK strip tool. Separate API runs
 produce separate reports; percentages must never be averaged.
 
 Replay a completed frozen snapshot on another x86_64 emulator API without

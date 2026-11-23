@@ -10,15 +10,44 @@ import xml.etree.ElementTree as ET
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import Mock, call, patch
+from zipfile import ZipFile
 
 from test_emulator import COVERAGE_REQUIRED_RESULTS, Suite, UiUnavailable, validate_instrumentation_output
-from run_android_coverage import archive_compiled_inputs, coverage_identity, source_identity, filesystem_path
+from run_android_coverage import (
+    archive_compiled_inputs, coverage_identity, filesystem_path, source_identity, verify_packaged_native_library,
+)
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
 from report_coverage import coverage_target_met
 from replay_android_coverage import copy_compiled_snapshot
 
 
 class CoverageAutomationTest(unittest.TestCase):
+
+    def test_coverage_requires_the_apk_to_match_its_native_mapping(self):
+        with TemporaryDirectory() as directory:
+            apk = Path(directory) / "app.apk"
+            mapping = Path(directory) / "libairplay_native.so"
+            mapping.write_bytes(b"unstripped library")
+            with ZipFile(apk, "w") as package:
+                package.writestr("lib/x86_64/libairplay_native.so", b"packaged library")
+
+            def strip(contents):
+                def run(command, *, check):
+                    self.assertTrue(check)
+                    self.assertEqual(["--strip-unneeded", "-o"], command[1:3])
+                    self.assertEqual(mapping, Path(command[4]))
+                    Path(command[3]).write_bytes(contents)
+                return run
+
+            with patch("run_android_coverage.subprocess.run", side_effect=strip(b"packaged library")):
+                verify_packaged_native_library(apk, mapping, "llvm-strip")
+            with patch("run_android_coverage.subprocess.run", side_effect=strip(b"a different library")):
+                with self.assertRaisesRegex(RuntimeError, "does not match"):
+                    verify_packaged_native_library(apk, mapping, "llvm-strip")
+            mapping.write_bytes(b"packaged library")
+            with patch("run_android_coverage.subprocess.run") as run:
+                verify_packaged_native_library(apk, mapping, "llvm-strip")
+            run.assert_not_called()
 
     def instrumentation_fixture(self, directory, timeout=None, coverage=False):
         suite=Suite.__new__(Suite)

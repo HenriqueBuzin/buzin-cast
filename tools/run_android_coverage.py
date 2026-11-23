@@ -13,8 +13,10 @@ import re
 import shutil
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 import uuid
 from pathlib import Path
+from zipfile import ZipFile
 
 
 VARIANTS = {
@@ -55,6 +57,19 @@ def native_library(build):
     if not binaries:
         raise RuntimeError("Native application library is required for provenance")
     return max(binaries,key=lambda path:path.stat().st_mtime)
+
+
+def verify_packaged_native_library(apk, mapping, llvm_strip):
+    """Confirm the native coverage mapping belongs to the library shipped in the APK."""
+    with ZipFile(apk) as package:
+        packaged = package.read("lib/x86_64/libairplay_native.so")
+    if mapping.read_bytes() == packaged:
+        return
+    with TemporaryDirectory(prefix="coverage-native-identity-") as directory:
+        stripped = Path(directory) / "libairplay_native.so"
+        subprocess.run([str(llvm_strip), "--strip-unneeded", "-o", str(stripped), str(mapping)], check=True)
+        if stripped.read_bytes() != packaged:
+            raise RuntimeError("Native coverage mapping does not match the library packaged in the APK")
 
 
 def coverage_identity(root, build, apk, test_apk, archive=None):
@@ -162,6 +177,9 @@ def main():
     env["ANDROID_HOME"] = str(sdk)
     ndk = re.search(r'^ndk = "([^"]+)"', (root / "gradle/libs.versions.toml").read_text(), re.M).group(1)
     env["ANDROID_NDK_ROOT"] = str(sdk / "ndk" / ndk)
+    host = {"Windows": "windows-x86_64", "Linux": "linux-x86_64", "Darwin": "darwin-x86_64"}[platform.system()]
+    llvm_strip = sdk / "ndk" / ndk / "toolchains/llvm/prebuilt" / host / "bin" / (
+        "llvm-strip.exe" if os.name == "nt" else "llvm-strip")
     if args.bash_dir:
         if not args.bash_dir.is_dir():
             parser.error("--bash-dir must name an existing directory")
@@ -208,6 +226,7 @@ def main():
             snapshot=report/"raw"/uuid.uuid4().hex
             snapshot.mkdir(parents=True)
             archive_compiled_inputs(root,build,apk,test_apk,snapshot,identity,expected_sources=sources_before_build)
+            verify_packaged_native_library(snapshot / "inputs/app.apk", snapshot / "inputs/libairplay_native.so", llvm_strip)
             shutil.copyfile(native/"native_core_tests",snapshot/"inputs/native_core_tests")
             package = "com.buzincast.tv.deat" if regional else "com.buzincast.tv"
             # Modern and compat share a package but have different version codes.
