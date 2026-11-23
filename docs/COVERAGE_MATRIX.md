@@ -2355,3 +2355,14 @@ stops, then waits for that specific import to finish. The revised test,
 the subtitle picker recovery, and the Oboe gain contract passed three
 consecutive rounds on the standard compatibility build. The matching
 native profile exercised all four outcomes in `OboeCallbacks::onAudioReady`.
+
+The complete compact DE/AT API28 run at `538db32` passed all 347 Android
+tests, 21 native UBSan cases, and 15 runtime gates. It covered 4775/5887
+JVM branches, 4060/5099 complexity units, and 8019/8414 JVM lines. The
+native report covered 906/912 branches. Its six missing outcomes were
+in the pre-API23 AAC/ALAC selection and the Oboe attenuation callback.
+
+The following standard compatibility API28 run at `4b0fd2e` passed all
+351 Android instrumentation tests, including the synchronized subtitle
+transition and deterministic Oboe gain contracts. The full report was
+still pending after instrumentation completed.
