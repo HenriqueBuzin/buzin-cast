@@ -2144,3 +2144,15 @@ The first full API22 replay of the 330-case compact DE/AT APK completed
 instrumentation with two failures: restoring receiver volume after
 disconnect and focusing the touch port editor. Its full replay was
 therefore not accepted as a completed coverage snapshot.
+
+The affected service and settings test classes were repeated on API22
+with the exact same app and test APKs. All 37 cases passed, including
+both that failed in the full replay. A second full replay is running
+with the same APKs and a fresh emulator boot.
+
+The normal edition's local-network permission contract passed on
+Android API37. A matching API28 instrumentation profile covers the
+older platform path. Combining the two profiles for the identical
+normal app and test APKs increased `hasLocalNetwork` from 1/4 to 4/4
+branch outcomes. The API37 selection verifies both permission decisions
+with a controlled context.
