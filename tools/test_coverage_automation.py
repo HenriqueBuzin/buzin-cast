@@ -178,6 +178,35 @@ class CoverageAutomationTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 copy_compiled_snapshot(source,target)
 
+    def test_replay_rejects_missing_or_empty_native_library_before_installing(self):
+        from replay_android_coverage import main
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, output = root / "source", root / "output"
+            inputs = source / "inputs"
+            inputs.mkdir(parents=True)
+            (inputs / "native_core_tests").write_bytes(b"fixture")
+            manifest = {"variant": "compat", "archived_mappings": True, "source_files_sha256": "mapped"}
+            for library in (None, b""):
+                with self.subTest(library=library):
+                    with ZipFile(inputs / "app.apk", "w") as apk:
+                        apk.writestr("lib/x86_64/libandroidx.graphics.path.so", b"other library")
+                        if library is not None:
+                            apk.writestr("lib/x86_64/libairplay_native.so", library)
+                    with patch("replay_android_coverage.validate_snapshots", return_value=(manifest, [22])), \
+                         patch("replay_android_coverage.subprocess.check_output", side_effect=["22", "x86_64"]), \
+                         patch("replay_android_coverage.subprocess.run") as run, \
+                         patch("sys.stderr", new_callable=io.StringIO) as stderr, \
+                         patch.object(sys, "argv", ["replay", "--serial", "emulator-5558", "--snapshot",
+                             str(source), "--sdk-root", directory, "--output", str(output), "--collect-only"]):
+                        with self.assertRaises(SystemExit) as error:
+                            main()
+                    self.assertEqual(2, error.exception.code)
+                    self.assertIn("libairplay_native.so", stderr.getvalue())
+                    self.assertFalse(output.exists())
+                    run.assert_not_called()
+
     def test_collect_only_replay_archives_runtime_without_starting_gradle(self):
         for api in (22, 28):
             with self.subTest(api=api):
@@ -193,6 +222,8 @@ class CoverageAutomationTest(unittest.TestCase):
             (source / "inputs").mkdir(parents=True)
             native = b"test executable"
             (source / "inputs/native_core_tests").write_bytes(native)
+            with ZipFile(source / "inputs/app.apk", "w") as apk:
+                apk.writestr("lib/x86_64/libairplay_native.so", b"fixture library")
             identity = dict.fromkeys(IDENTITY_KEYS, "fixture")
             manifest = {**identity, "variant": "compat", "emulator_api": 28,
                         "archived_mappings": True, "source_files_sha256": "mapped"}

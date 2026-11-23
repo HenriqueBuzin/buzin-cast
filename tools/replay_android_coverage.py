@@ -12,7 +12,7 @@ import sys
 import uuid
 
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
-from run_android_coverage import VARIANTS, coverage_identity, filesystem_path, source_identity
+from run_android_coverage import VARIANTS, coverage_identity, filesystem_path, packaged_native_library, source_identity
 
 
 def copy_compiled_snapshot(source, target):
@@ -75,6 +75,11 @@ def main():
     minimum = max(22 if VARIANTS[name][0] else 25 for name in names)
     if api < minimum:
         parser.error(f"Selected variants require API {minimum} or newer; got {api}")
+    for source, _ in prepared:
+        try:
+            packaged_native_library(filesystem_path(source / "inputs/app.apk"))
+        except RuntimeError as error:
+            parser.error(str(error))
     root = Path(__file__).resolve().parents[1]
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)

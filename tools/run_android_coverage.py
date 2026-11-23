@@ -59,10 +59,20 @@ def native_library(build):
     return max(binaries,key=lambda path:path.stat().st_mtime)
 
 
+def packaged_native_library(apk):
+    with ZipFile(apk) as package:
+        try:
+            library = package.read("lib/x86_64/libairplay_native.so")
+        except KeyError as error:
+            raise RuntimeError(f"APK is missing the x86_64 libairplay_native.so: {apk}") from error
+    if not library:
+        raise RuntimeError(f"APK contains an empty x86_64 libairplay_native.so: {apk}")
+    return library
+
+
 def verify_packaged_native_library(apk, mapping, llvm_strip):
     """Confirm the native coverage mapping belongs to the library shipped in the APK."""
-    with ZipFile(apk) as package:
-        packaged = package.read("lib/x86_64/libairplay_native.so")
+    packaged = packaged_native_library(apk)
     if mapping.read_bytes() == packaged:
         return
     with TemporaryDirectory(prefix="coverage-native-identity-") as directory:
