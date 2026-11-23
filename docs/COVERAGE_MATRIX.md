@@ -2382,3 +2382,13 @@ recovery instructions when launching it failed. The mirroring, relay
 form, and recording policy tests passed together on standard normal
 API28. The profile added three branch outcomes and two methods under
 `ToolsScreenKt`.
+
+The compact DE/AT API22 run at `4b0fd2e` passed 351 Android
+instrumentation tests, 21 native UBSan cases, and all 15 runtime gates.
+It covered 4740/5887 JVM branches and 4050/5101 complexity units. Three
+AAC, ALAC, and output gain cases then passed on API28 with byte-identical
+copies of the archived app APK, test APK, and native library. Combining
+those native profiles covered both API-level decoder paths and all four
+Oboe gain outcomes. The combined scope reached 910/912 native branches
+and 170/171 MC/DC conditions. The remaining branch outcomes were both
+in the Oboe backend and memory-mapping diagnostic log.
