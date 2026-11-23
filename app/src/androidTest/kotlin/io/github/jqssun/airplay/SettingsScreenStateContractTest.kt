@@ -585,7 +585,8 @@ class SettingsScreenStateContractTest {
             fun saveDimension(field: String, input: String, normalized: String) {
                 edit(field, input, expectedText = normalized)
                 pressTvControl(save)
-                await("Dimension editor stayed open: $field") { tvControlHasFocus(field) }
+                await("Dimension editor stayed open: $field") { texts() != null && !withEditor(field) { true } }
+                reveal(normalized)
                 assertEquals("1920x1080", Prefs.RESOLUTION.read(prefs))
             }
             fun awaitDisabledSave() {
@@ -599,6 +600,7 @@ class SettingsScreenStateContractTest {
             openTvEditor(width)
             saveDimension(width, "A01?280", "01280")
             awaitDisabledSave()
+            focusTvControl(width)
             openTvEditor(height) {
                 instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
                 await("Right did not focus the adjacent height field") { tvControlHasFocus(height) }

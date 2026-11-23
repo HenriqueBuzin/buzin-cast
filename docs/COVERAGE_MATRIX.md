@@ -2732,6 +2732,10 @@ the matching `SettingsScreen` mappings from 7,742/8,345 to 8,096/8,345
 instructions, 311/448 to 332/448 branches, 572/594 to 586/594 lines,
 209/268 to 230/268 complexity and 165/187 to 173/187 methods. The single
 counted class remained covered.
+On compact API22 the resolution test now locates the saved draft after
+the dialog closes, since dismissing the IME can scroll the editor out of
+view. It then explicitly returns focus to Width before checking Right
+navigates to Height. The focused contract passed this way on API22.
 
 The MediaSession routing contract now checks play, pause, exact seek and
 ten-second forward and rewind commands on a paused local video. It
