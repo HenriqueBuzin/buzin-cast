@@ -640,6 +640,35 @@ class SettingsScreenStateContractTest {
         }
     }
 
+    @Test fun tvCustomFrameRateDiscardsCanceledAndOverflowingDrafts() {
+        assertTrue(Prefs.MAX_FPS.write(prefs, 48))
+        screen(tv = true) {
+            val fps = label(R.string.setting_max_fps_placeholder)
+            val save = label(R.string.tv_edit_save)
+            val cancel = label(R.string.tv_edit_cancel)
+
+            click(fps)
+            edit(fps, "71")
+            pressTvControl(cancel)
+            await("Cancel did not dismiss the frame rate editor") { texts() != null && !withEditor(fps) { true } }
+            assertEquals(48, Prefs.MAX_FPS.read(prefs))
+
+            click(fps)
+            await("Cancel left a draft in the frame rate editor") { withEditor(fps) { it.text?.toString() == "48" } }
+            edit(fps, "2147483648")
+            pressTvControl(save)
+            await("Save did not dismiss the frame rate editor") { texts() != null && !withEditor(fps) { true } }
+            assertEquals(48, Prefs.MAX_FPS.read(prefs))
+
+            click(fps)
+            edit(fps, "72")
+            pressTvControl(save)
+            await("The valid custom frame rate was not saved") { Prefs.MAX_FPS.read(prefs) == 72 }
+            click("60")
+            await("The selected preset did not replace the custom frame rate") { Prefs.MAX_FPS.read(prefs) == 60 }
+        }
+    }
+
     @Test fun standardAndAdvancedSwitchesPersistBothStatesAndRenderTheirSelection() {
         assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
         val controls = listOf(

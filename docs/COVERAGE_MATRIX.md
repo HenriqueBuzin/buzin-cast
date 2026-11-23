@@ -2719,6 +2719,16 @@ The DE/AT JVM report measured 79,866/85,876 instructions, 4,901/5,899
 branches, 8,106/8,449 lines, 4,201/5,111 complexity, 2,197/2,355 methods
 and 305/313 classes.
 
+The TV frame-rate editor test verifies that Cancel discards the draft,
+an overflowing integer leaves the previous frame rate intact, a valid
+custom value persists, and choosing a preset replaces it. The focused
+API28 run used the same standard application APK as the archived
+`e7ae3da` instrumentation suite. Adding its profile to the two matching
+`SettingsScreenKt` class files raised instructions from 8,109/8,345 to
+8,199/8,345, branches from 335/448 to 337/448, lines from 586/594 to
+588/594, complexity from 232/268 to 235/268 and methods from 173/187 to
+175/187. Class coverage stayed at 1/1.
+
 The mirroring fullscreen contract verifies that a disabled preference or
 an active PIN leaves the overview visible, dismissing the PIN does not
 automatically enter fullscreen, and a fresh mirror enters fullscreen and
