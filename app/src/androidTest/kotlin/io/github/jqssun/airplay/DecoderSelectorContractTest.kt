@@ -105,6 +105,26 @@ class DecoderSelectorContractTest {
         assertEquals(List(3) { MediaCodecList.REGULAR_CODECS } + List(2) { MediaCodecList.ALL_CODECS }, queries)
     }
 
+    @Test fun encodersDoNotBecomeDecodersEvenWhenTheyAdvertiseTheRequestedMime() {
+        val avcEncoder = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.first {
+            it.isEncoder && it.supportedTypes.any { mime -> mime.equals(DecoderSelector.AVC, ignoreCase = true) }
+        }
+        val selector = DecoderSelector(context) { arrayOf(avcEncoder) }
+
+        assertNull(selector.avc())
+        assertNull(selector.software(DecoderSelector.AVC, 64, 48))
+    }
+
+    @Test fun nativeLowLatencyUsesThePlatformCapabilityAndRejectsUnknownMime() {
+        val selector = DecoderSelector(context)
+        val info = avc()
+        val signature = arrayOf<Class<*>>(MediaCodecInfo::class.java, String::class.java)
+        val expected = Build.VERSION.SDK_INT >= 30 &&
+            info.getCapabilitiesForType(DecoderSelector.AVC).isFeatureSupported("low-latency")
+        assertEquals(expected, privateCall(selector, "_lowLatency", signature, info, DecoderSelector.AVC))
+        assertFalse(privateCall(selector, "_lowLatency", signature, info, "video/x-buzin-contract-unsupported"))
+    }
+
     @Test fun genericDecoderRetriesRemoveRiskyKeysAndRespectOperatingRateOverride() {
         val selector = DecoderSelector(context)
         val info = avc()

@@ -2861,6 +2861,14 @@ bitmap cues and caps displayed text at 4,000 characters. The combined
 player profile reached 116/138 branches, 1,148/1,174 instructions, and
 112/134 complexity.
 
+Two codec-selection cases passed on both API28 and API30. The real
+platform encoder was excluded from AVC decoder selection, and capability
+queries checked native low-latency support and rejected an unknown MIME
+type. On matching `DecoderSelector` class files, adding both profiles
+raised instructions from 1,243/1,493 to 1,311/1,493, branches from
+138/196 to 144/196, lines from 142/150 to 144/150, and complexity from
+109/156 to 112/156.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.
