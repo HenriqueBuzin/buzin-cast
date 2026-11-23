@@ -2409,3 +2409,36 @@ a local Stop issued before media arrived. The service now suppresses
 further polls in that state. The regression passed on the rebuilt APK,
 including a subsequent explicit media load and Stop. The two playback
 ownership cases also passed against the same APK pair.
+
+The complete compact DE/AT API28 replay of `4b0fd2e` passed all 351
+Android tests, 21 native UBSan cases, and 15 runtime gates. The exact input
+hashes matched the API22 snapshot. The merged report reached all six
+native targets, including 912/912 branches and 171/171 MC/DC conditions.
+It measured 4821/5887 JVM branches, 4108/5101 complexity units, and
+8055/8416 JVM lines.
+
+The standard compatibility API22 replay of `4b0fd2e` passed the same 351
+Android tests, 21 native UBSan cases, and all 15 runtime gates. Merging
+its profiles with the byte-matched API28 snapshot reached all six native
+targets. The combined report measured 4905/5967 JVM branches,
+4156/5134 complexity units, and 8096/8447 JVM lines.
+
+The standard normal API28 build at `711845e` kept its compiled APKs and
+mappings when the Windows lint scan was interrupted. With those frozen
+inputs, all 353 Android tests and 21 native UBSan cases passed. Their
+checkpoint covered all six native metrics, including 908/908 branches
+and 171/171 MC/DC conditions. The complete runtime report and the local
+lint result were still pending at this checkpoint.
+
+On standard normal API28, touching the pending video left its toolbar
+visible. Remote Back returned to the overview while sender polling
+continued. Compared with the complete standard baseline plus the earlier
+touch-controls profile, this added six branch outcomes and one method
+under `MainScreenKt`.
+
+The queued AirPlay callback test rejected a request from before startup
+and a request queued across shutdown. A fresh request opened playback
+after the receiver restarted. The scope covered 5/6 outcomes in the
+`onVideoPlay` handler. That test, the pending-video UI test, and the
+earlier playback ownership test passed together. The ownership test now
+uses a 40-second clip so playback stays available for the rate assertions.

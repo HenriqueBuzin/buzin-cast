@@ -15,7 +15,9 @@ import android.graphics.Rect
 import android.media.AudioManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.WindowManager
@@ -757,7 +759,7 @@ class MainActivityLifecycleContractTest {
         val activity = launch()
         start(activity)
         val file = File.createTempFile("media-ownership-", ".mp4", context.cacheDir).also { videoFixture = it }
-        instrumentation.context.assets.open("download/sample.mp4").use { input -> file.outputStream().use(input::copyTo) }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input -> file.outputStream().use(input::copyTo) }
         val location = android.net.Uri.fromFile(file).toString()
         val port = AirPlayService::class.java.getDeclaredField("playbackPort").apply { isAccessible = true }
             .get(service) as ReceiverPlaybackPort
@@ -827,6 +829,43 @@ class MainActivityLifecycleContractTest {
             port.stop(Protocol.LOCAL)
             assertNull(service.networkPlaybackOwner)
             assertFalse(service.videoPlaybackActive.value)
+        }
+    }
+
+    @Test fun queuedAirPlayVideoRequestsRespectReceiverStopAndRestart() {
+        val activity = launch()
+        val file = File.createTempFile("queued-airplay-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
+            file.outputStream().use(input::copyTo)
+        }
+        val location = android.net.Uri.fromFile(file).toString()
+        try {
+            main {
+                service.onVideoPlay(location, 0f)
+                service.startServer()
+            }
+            await("The receiver did not start after an early video callback") {
+                service.serverState.value == AirPlayService.ServerState.RUNNING
+            }
+            main { assertFalse("A callback from before startup opened a player", service.videoPlaybackActive.value) }
+
+            main {
+                service.onVideoPlay(location, 0f)
+                service.stopServer()
+            }
+            main {
+                assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
+                assertFalse("A queued callback opened a player after shutdown", service.videoPlaybackActive.value)
+            }
+
+            start(activity)
+            main { service.onVideoPlay(location, 0f) }
+            await("The restarted receiver did not accept a new video request") {
+                service.videoPlaybackActive.value && service.networkPlaybackOwner == Protocol.AIRPLAY
+            }
+        } finally {
+            main { service.stopServer() }
+            finishActivities()
         }
     }
 
@@ -1053,7 +1092,7 @@ class MainActivityLifecycleContractTest {
                     activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_RIGHT))
                 }
             }
-            awaitVisibleSeekFeedback(cumulative)
+            awaitVisiblePlayerLabel(cumulative)
             await("Two remote presses did not seek 20 seconds") {
                 player()?.currentPosition?.let { it in 20_000L..20_999L } == true
             }
@@ -1064,7 +1103,7 @@ class MainActivityLifecycleContractTest {
             assertNull("Remote seek feedback did not expire", nodeBounds(cumulative))
 
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
-            awaitVisibleSeekFeedback(backwards)
+            awaitVisiblePlayerLabel(backwards)
             await("The remote left press did not seek back ten seconds") {
                 player()?.currentPosition?.let { it in 10_000L..10_999L } == true
             }
@@ -1074,13 +1113,13 @@ class MainActivityLifecycleContractTest {
         }
     }
 
-    private fun awaitVisibleSeekFeedback(label: String) {
+    private fun awaitVisiblePlayerLabel(label: String) {
         val deadline = SystemClock.elapsedRealtime() + 3_000
         while (SystemClock.elapsedRealtime() < deadline) {
             if (nodeBounds(label) != null) return
             Thread.sleep(20)
         }
-        fail("Remote seek feedback did not show $label")
+        fail("The player did not show $label")
     }
 
     private fun nodeBounds(label: String): Rect? {
@@ -1100,6 +1139,56 @@ class MainActivityLifecycleContractTest {
         }
         return try { if (root.refresh() && root.packageName?.toString() == context.packageName) visit(root) else null }
             finally { root.recycle() }
+    }
+
+    @Test fun pendingVideoKeepsItsToolbarUntilRemoteBackCancelsIt() {
+        val activity = launch()
+        val handler = Handler(Looper.getMainLooper())
+        var polls = 0
+        val poll = object : Runnable {
+            override fun run() {
+                service.onVideoSessionPoll()
+                model(activity).updateFromService()
+                polls++
+                handler.postDelayed(this, 250)
+            }
+        }
+        handler.post(poll)
+        try {
+            await("The sender polls did not reach the pending player") {
+                model(activity).videoSessionPending.value && !model(activity).videoPlaybackActive.value
+            }
+            awaitVisiblePlayerLabel("CC")
+            var x = 0f
+            var y = 0f
+            var pollsBeforeTap = 0
+            main {
+                val decor = activity.window.decorView
+                val location = IntArray(2)
+                decor.getLocationOnScreen(location)
+                x = location[0] + decor.width * .25f
+                y = location[1] + decor.height * .5f
+                pollsBeforeTap = polls
+            }
+            pointerGesture(x, y, y)
+            await("Tapping the pending player changed its playback state") {
+                polls >= pollsBeforeTap + 3 && model(activity).videoSessionPending.value &&
+                    !model(activity).videoPlaybackActive.value
+            }
+            assertNotNull("The pending toolbar was hidden by a tap", nodeBounds("CC"))
+
+            var pollsBeforeBack = 0
+            main { pollsBeforeBack = polls }
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+            await("Remote Back did not cancel pending playback while keeping the app open") {
+                polls >= pollsBeforeBack + 2 && resumedActivity<MainActivity>() === activity &&
+                    !model(activity).videoSessionPending.value && !model(activity).videoPlaybackActive.value
+            }
+            awaitVisiblePlayerLabel(context.getString(R.string.tab_overview))
+        } finally {
+            handler.removeCallbacks(poll)
+            finishActivities()
+        }
     }
 
     @Test fun tappingVideoTogglesOnlyTheControlsForItsCurrentLockState() {
