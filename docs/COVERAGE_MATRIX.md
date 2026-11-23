@@ -408,8 +408,10 @@ Repeat `--snapshot` to select other editions, with one snapshot per edition.
 The replayer validates complete archived evidence and checks the target API and
 ABI before changing installations. It copies compiled inputs and pure JVM data
 into a fresh directory, runs all native/Android/extended UI scenarios, and
-recalculates coverage from the original and new raw profiles. Prior Android
-profiles and success metadata are never copied into the new runtime evidence.
+recalculates coverage from the original and new raw profiles. Like a fresh
+coverage run, it includes VPN and offline diagnostics on API23 and newer.
+Prior Android profiles and success metadata are never copied into the new
+runtime evidence.
 The report and manifests remain bound to the original compiled fingerprints.
 
 Use `--collect-only` to archive a successful replay before reporting. This

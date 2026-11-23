@@ -140,6 +140,11 @@ class CoverageAutomationTest(unittest.TestCase):
                 copy_compiled_snapshot(source,target)
 
     def test_collect_only_replay_archives_runtime_without_starting_gradle(self):
+        for api in (22, 28):
+            with self.subTest(api=api):
+                self.assert_collect_only_replay(api)
+
+    def assert_collect_only_replay(self, api):
         import hashlib
         from replay_android_coverage import main
 
@@ -160,6 +165,7 @@ class CoverageAutomationTest(unittest.TestCase):
 
             def runtime(command, **_options):
                 self.assertEqual("test_emulator.py", Path(command[1]).name)
+                self.assertEqual(api >= 23, "--diagnostic-networks" in command)
                 execution = Path(command[command.index("--output") + 1])
                 profiles = execution / "coverage"
                 profiles.mkdir(parents=True)
@@ -171,7 +177,7 @@ class CoverageAutomationTest(unittest.TestCase):
                  patch("replay_android_coverage.copy_compiled_snapshot", side_effect=freeze), \
                  patch("replay_android_coverage.coverage_identity", return_value=identity), \
                  patch("replay_android_coverage.source_identity", return_value="mapped"), \
-                 patch("replay_android_coverage.subprocess.check_output", side_effect=["22", "x86_64", ""]), \
+                 patch("replay_android_coverage.subprocess.check_output", side_effect=[str(api), "x86_64", ""]), \
                  patch("replay_android_coverage.subprocess.run", side_effect=runtime) as run, \
                  patch.object(sys, "argv", ["replay", "--serial", "emulator-5558", "--snapshot",
                      str(source), "--sdk-root", directory, "--output", str(output), "--collect-only"]):
@@ -184,7 +190,7 @@ class CoverageAutomationTest(unittest.TestCase):
             snapshot = output / item["raw_snapshot"]
             self.assertEqual(b"JVM", (snapshot / "run.ec").read_bytes())
             self.assertEqual(b"native", (snapshot / "run.profraw").read_bytes())
-            self.assertEqual(22, json.loads((snapshot / "manifest.json").read_text())["emulator_api"])
+            self.assertEqual(api, json.loads((snapshot / "manifest.json").read_text())["emulator_api"])
 
     def test_replay_rejects_a_physical_serial_before_reading_snapshots_or_sdk(self):
         script=Path(__file__).with_name("replay_android_coverage.py")

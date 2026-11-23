@@ -116,6 +116,8 @@ def main():
                        "--package", package, "--output", execution]
             if regional:
                 command.append("--no-download")
+            if api >= 23:
+                command.append("--diagnostic-networks")
             run(command, report / "runtime.log")
             if coverage_identity(snapshot, snapshot, snapshot / "inputs/app.apk", snapshot / "inputs/test.apk", archive=snapshot) != identity:
                 raise RuntimeError("Replay inputs changed during runtime")
