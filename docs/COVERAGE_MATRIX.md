@@ -2900,3 +2900,9 @@ device description, unsupported HTTP methods return 405, and legacy
 POST event renewals keep the subscription ID and requested timeout.
 The matching `ControlServer` mappings rose from 107/146 to 114/146
 branches, 203/213 to 205/213 lines, and 73/110 to 77/110 complexity.
+
+An API28 follow-up exercised a SOAP action supplied entirely in the
+request body, rejected a header naming a different action, and verified
+that description URLs reject control and event methods. The matching
+`ControlServer` mappings reached 1,506/1,726 instructions, 119/146
+branches, and 82/110 complexity.

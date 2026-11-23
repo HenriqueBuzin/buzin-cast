@@ -440,6 +440,24 @@ class ReceiverIntegrationTest {
         assertTrue(invalid, invalid.startsWith("HTTP/1.1 400"))
     }
 
+    @Test fun dlnaRoutesBodyOnlySoapAndRejectsControlMethodsOnDescriptionUrls() = withDlna { playback, control ->
+        val service = "urn:schemas-upnp-org:service:AVTransport:1"
+        val body = """<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">""" +
+            """<s:Body><u:GetTransportInfo xmlns:u="$service"><InstanceID>0</InstanceID>""" +
+            """</u:GetTransportInfo></s:Body></s:Envelope>"""
+        val accepted = control.request("POST", "/ctl/avt", body = body)
+        assertTrue(accepted, accepted.startsWith("HTTP/1.1 200") && "GetTransportInfoResponse" in accepted)
+
+        val mismatched = control.request("POST", "/ctl/avt", "SOAPAction: $service#Stop\r\n", body)
+        assertTrue(mismatched, mismatched.startsWith("HTTP/1.1 400") && "<errorCode>402</errorCode>" in mismatched)
+        for (method in listOf("POST", "SUBSCRIBE", "UNSUBSCRIBE")) {
+            val response = control.request(method, "/desc.xml", body = if (method == "POST") body else "")
+            assertTrue(response, response.startsWith("HTTP/1.1 405"))
+        }
+        assertTrue(playback.requests.isEmpty())
+        assertFalse("A rejected request stopped playback", "stop:DLNA" in playback.events)
+    }
+
     @Test fun dlnaTransportUsesPlayerStateAndDistinguishesLiveStreams() = withDlna { playback, control ->
         val movie = "http://example.test/movie.mp4"
         playback.playbackInfo = PlaybackInfo(positionMs = 12_000, durationMs = 90_000, buffering = true)
