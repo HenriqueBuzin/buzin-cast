@@ -11,6 +11,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.media.AudioManager
+import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
@@ -33,6 +34,7 @@ import io.buzincast.core.MediaRequest
 import io.buzincast.core.Protocol
 import io.buzincast.core.ReceiverPlaybackPort
 import io.buzincast.core.SessionKind
+import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.media.NetworkRecovery
 import io.github.jqssun.airplay.renderer.AirPlayVideoPlayer
 import io.github.jqssun.airplay.service.AirPlayService
@@ -45,6 +47,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.net.ConnectException
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CountDownLatch
@@ -849,6 +852,65 @@ class MainActivityLifecycleContractTest {
                 audio.setStreamVolume(stream, originalVolume, 0)
             }
             finishActivities()
+        }
+    }
+
+    @Test fun audioScanButtonsResumeTheSenderWhenTouchEndsOrCancels() {
+        val activity = launch()
+        val field = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        start(activity)
+        val original = service.dacpController
+        DacpHttpContractTest.Sender().use { sender ->
+            val dacp = DacpController { _, listener ->
+                listener.onServiceResolved(NsdServiceInfo().apply {
+                    host = InetAddress.getByName("127.0.0.1")
+                    port = sender.port
+                })
+            }
+            fun commands() = sender.requests.map { it.first().split(' ')[1].substringAfterLast('/') }
+            try {
+                main {
+                    field.set(service, dacp)
+                    service.onConnectionInit()
+                    service.onAudioFormat(2, 352, false)
+                    service.onDacpId("touch-scan-fixture", "touch-scan-contract")
+                }
+                await("The audio screen did not bind to the sender") { model(activity).clientVolumeAdjustable.value }
+
+                fun hold(label: Int, expected: List<String>, completion: Int) {
+                    val bounds = Rect()
+                    awaitVolumeControl(label) { node ->
+                        node.getBoundsInScreen(bounds)
+                        node.isVisibleToUser && !bounds.isEmpty
+                    }
+                    val started = SystemClock.uptimeMillis()
+                    fun dispatch(action: Int) {
+                        val event = MotionEvent.obtain(started, SystemClock.uptimeMillis(), action,
+                            bounds.exactCenterX(), bounds.exactCenterY(), 0)
+                        try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+                    }
+                    dispatch(MotionEvent.ACTION_DOWN)
+                    try {
+                        await("Press did not send the scan command before release") { commands() == expected }
+                    } finally {
+                        dispatch(completion)
+                    }
+                    await("End of the touch did not resume playback") { commands() == expected + "playresume" }
+                }
+
+                hold(R.string.cd_fast_forward, listOf("beginff"), MotionEvent.ACTION_UP)
+                hold(R.string.cd_rewind, listOf("beginff", "playresume", "beginrew"), MotionEvent.ACTION_CANCEL)
+                assertTrue(sender.requests.all { request ->
+                    request.any { it.equals("Active-Remote: touch-scan-contract", ignoreCase = true) }
+                })
+            } finally {
+                main {
+                    field.set(service, original)
+                    dacp.release()
+                    if (service.connectionCount.value > 0) service.onConnectionDestroy()
+                }
+                finishActivities()
+            }
         }
     }
 

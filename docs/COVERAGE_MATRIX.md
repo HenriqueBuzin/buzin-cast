@@ -2132,3 +2132,15 @@ video bytes and dimensions. The receiver saw no video before dimensions
 were available. Compared with the complete 330-case baseline for the
 byte-identical service class, `onAudioPcm` rose from 0/4 to 3/4 branches and
 `onVideoData` rose from 4/8 to 6/8.
+
+The compact DE/AT API28 audio touch contract used the real player and a
+local DACP sender. A held forward or reverse control sent its scan command
+before the gesture ended. Releasing or cancelling the touch then sent
+`playresume`. When added to the complete 330-case baseline's matching
+class mappings, this profile covered six additional `MainScreen` methods
+and one additional `MainViewModel` branch.
+
+The first full API22 replay of the 330-case compact DE/AT APK completed
+instrumentation with two failures: restoring receiver volume after
+disconnect and focusing the touch port editor. Its full replay was
+therefore not accepted as a completed coverage snapshot.
