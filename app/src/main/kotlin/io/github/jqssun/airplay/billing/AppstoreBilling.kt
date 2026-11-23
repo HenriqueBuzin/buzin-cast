@@ -22,14 +22,24 @@ const val DONATION_SKU = "buzincast_donation"
 // purchaseDonation() is scaffolding for a future optional donation, not wired to any UI.
 object AppstoreBilling : PurchasingListener {
 
-    fun init(context: Context) {
+    fun init(context: Context) = init(
+        context,
+        registerListener = { PurchasingService.registerListener(it, this) },
+        verifyLicense = { LicensingService.verifyLicense(it, LicenseCheck) },
+    )
+
+    internal fun init(
+        context: Context,
+        registerListener: (Context) -> Unit,
+        verifyLicense: (Context) -> Unit,
+    ) {
         try {
-            PurchasingService.registerListener(context, this)
+            registerListener(context)
         } catch (e: Exception) {
             Log.w(TAG, "Appstore purchasing listener registration failed", e)
         }
         try {
-            LicensingService.verifyLicense(context.applicationContext, LicenseCheck)
+            verifyLicense(context.applicationContext)
         } catch (e: Exception) {
             Log.w(TAG, "Appstore license verification could not be started", e)
         }

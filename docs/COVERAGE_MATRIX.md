@@ -2836,3 +2836,9 @@ token. Combining that profile with the matching four
 `AirPlayVideoPlayer` class mappings raised instructions from 1,124/1,174
 to 1,134/1,174, branches from 108/138 to 110/138 and complexity from
 106/134 to 107/134. All lines, methods and counted classes stayed covered.
+
+The Appstore startup integration passed two API28 tests. Duplicate
+purchasing registration still attempts license verification with the
+application context, and a license startup exception does not escape.
+The scoped run covered all 50 instructions in the initializer and its
+SDK callbacks. The purchase response branches remain outside this run.
