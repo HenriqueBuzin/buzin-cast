@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.AsyncLogStore
+import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import org.junit.After
@@ -148,6 +149,44 @@ class RecordingViewModelContractTest {
             emptyList()
         }
         assertEquals(expected, ourRecordings().map { it.name to it.bytes })
+    }
+
+    @Test fun listingClearsPreviousEntriesWhenDetachedOrStorageDisappears() {
+        val captureContext = object : ContextWrapper(context) {
+            override fun getExternalFilesDir(type: String?) = root
+        }
+        val fixture = MirrorCapture(captureContext) {}
+        val capture = AirPlayService::class.java.getDeclaredField("capture\$delegate").apply { isAccessible = true }
+        val original = capture.get(service)
+        try {
+            main {
+                capture.set(service, lazyOf(fixture))
+                assertFalse(fixture.directory.exists())
+                model.refreshRecordings()
+                assertTrue(model.recordings.value.isEmpty())
+
+                assertTrue(fixture.directory.mkdir())
+                val sample = File(fixture.directory, "local.mkv")
+                sample.writeBytes(byteArrayOf(1, 2, 3))
+                model.refreshRecordings()
+                val expected = if (BuildConfig.RECORDING_ENABLED) listOf(sample.name) else emptyList()
+                assertEquals(expected, model.recordings.value.map { it.name })
+
+                model.unbindService()
+                model.refreshRecordings()
+                assertTrue(model.recordings.value.isEmpty())
+
+                model.bindService(service)
+                model.refreshRecordings()
+                assertEquals(expected, model.recordings.value.map { it.name })
+                assertTrue(sample.delete())
+                assertTrue(fixture.directory.delete())
+                model.refreshRecordings()
+                assertTrue(model.recordings.value.isEmpty())
+            }
+        } finally {
+            main { capture.set(service, original) }
+        }
     }
 
     @Test fun recordingActionsRejectTraversalWrongExtensionsDirectoriesAndMissingFiles() {

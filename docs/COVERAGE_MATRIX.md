@@ -2547,3 +2547,15 @@ Both also passed against the unchanged, instrumented application APKs
 from the standard normal API28 and compact API22 scrub runs. The new
 test APKs increased each standard baseline from 183/192 to 187/192
 branches while retaining 103/103 methods.
+
+The log export contract stops the storage worker and waits for the
+export coroutine to finish. It confirms the app keeps its visible logs
+and produces neither a share intent nor a stale export file. The
+recording contract uses a private fixture directory to verify first
+launch without storage, clearing the list on detach, and clearing it
+when the storage directory disappears. Both passed on normal API28
+and compact API22, in both the standard and DE/AT editions. The DE/AT
+recording list remained empty even when the test directory contained a
+file. The byte-matched `MainViewModel` profiles moved from 187/192 to
+188/192 branches in each standard edition and from 138/162 to 139/162
+in each DE/AT edition.

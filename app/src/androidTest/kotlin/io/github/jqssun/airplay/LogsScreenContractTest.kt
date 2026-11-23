@@ -11,6 +11,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -18,6 +19,9 @@ import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.ui.LogsScreen
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.MainViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -36,6 +40,7 @@ class LogsScreenContractTest {
     private lateinit var app: RecordingApplication
     private lateinit var model: MainViewModel
     private lateinit var store: ViewModelStore
+    private var workerClosed = false
     private val preferences get() = context.getSharedPreferences("logs-screen-contract", Context.MODE_PRIVATE)
     private val logs get() = MainViewModel::class.java.getDeclaredField("logStore")
         .apply { isAccessible = true }.get(model) as AsyncLogStore
@@ -70,7 +75,7 @@ class LogsScreenContractTest {
         assertTrue(logs.flush())
     }
     @After fun cleanup() {
-        assertTrue(logs.flush())
+        if (!workerClosed) assertTrue(logs.flush())
         val worker = logs
         instrumentation.runOnMainSync { store.clear() }
         assertTrue("Log worker leaked", worker.awaitClosed())
@@ -209,5 +214,26 @@ class LogsScreenContractTest {
         await("Export did not recover after a failed chooser") { app.choosers.size == 1 }
         assertEquals(model.logs.value.joinToString("\n"), sharedText(0))
         assertEquals(2, app.attempts.get())
+    }
+
+    @Test fun exportWithAClosedLogWorkerDoesNotShareAStaleSnapshot() {
+        append("not available for export")
+        logs.close()
+        workerClosed = true
+        assertTrue(logs.awaitClosed())
+
+        lateinit var export: Job
+        instrumentation.runOnMainSync {
+            val owner = requireNotNull(model.viewModelScope.coroutineContext[Job])
+            val existing = owner.children.toSet()
+            model.exportLogs()
+            export = owner.children.single { it !in existing }
+        }
+        runBlocking { withTimeout(10_000) { export.join() } }
+        assertFalse(export.isCancelled)
+        assertEquals(0, app.attempts.get())
+        assertTrue(app.choosers.isEmpty())
+        assertFalse(File(app.cacheDir, "airplay_logs.txt").exists())
+        assertTrue(model.logs.value.single().endsWith("not available for export"))
     }
 }
