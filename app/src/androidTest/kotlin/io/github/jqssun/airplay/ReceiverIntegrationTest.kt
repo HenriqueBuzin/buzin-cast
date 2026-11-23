@@ -205,6 +205,44 @@ class ReceiverIntegrationTest {
         FCastFrame(1, """{"url":"http://example.test/a","container":"video/mp4"}""").writeTo(socket.getOutputStream())
         assertTrue(frame(socket, 9).body.contains("Another screen")); assertTrue(playback.requests.isEmpty())
     }
+    @Test fun fcastDefersPlaybackUntilRelayReceptionEnds() = withFcast { playback, socket ->
+        val output = socket.getOutputStream()
+        val load = FCastFrame(1, JSONObject()
+            .put("url", "https://example.test/live.m3u8")
+            .put("container", "application/vnd.apple.mpegurl")
+            .toString())
+        playback.relayReceiving = true
+        load.writeTo(output)
+        assertTrue(JSONObject(frame(socket, 9).body).getString("message").contains("Another screen"))
+        assertTrue(playback.requests.isEmpty())
+        assertNull(playback.mediaOwner)
+
+        playback.relayReceiving = false
+        load.writeTo(output)
+        eventually { playback.events.contains("speed:1.0") }
+        val request = playback.requests.single()
+        assertEquals("application/vnd.apple.mpegurl", request.mime)
+        assertEquals(0f, request.time, 0f)
+        assertTrue(request.headers.isEmpty())
+        assertEquals(Protocol.FCAST, playback.mediaOwner)
+    }
+
+    @Test fun fcastReportsPlaybackFailureAndKeepsTheClientConnected() = withFcast { playback, socket ->
+        val output = socket.getOutputStream()
+        playback.failLoad = true
+        FCastFrame(1, JSONObject()
+            .put("url", "https://example.test/movie.mp4")
+            .put("container", "video/mp4")
+            .toString()).writeTo(output)
+        assertEquals("Fixture player refused the request", JSONObject(frame(socket, 9).body).getString("message"))
+        assertTrue(playback.requests.isEmpty())
+        assertNull(playback.mediaOwner)
+        assertFalse(playback.mediaActive)
+
+        FCastFrame(12).writeTo(output)
+        frame(socket, 13)
+    }
+
     @Test fun fcastRejectsControlsForAnotherProtocol() = withFcast { playback, socket ->
         playback.mediaOwner = Protocol.DLNA; playback.mediaActive = true
         FCastFrame(4).writeTo(socket.getOutputStream()); frame(socket, 9)

@@ -2049,3 +2049,12 @@ output, and verifies that reissuing Start leaves that output active.
 The test still checks the applied cushion and exact PCM timestamps and
 bytes. The normal API28 profile executes both previously missing outcomes
 that stop and restart an active output in `AudioEngine::decode`.
+
+Two FCast socket contracts passed on the normal API28 build. One rejects
+an HLS load during relay reception and accepts the same load after reception
+ends, verifying default playback parameters. The other returns the playback
+error to the client and verifies that the same connection responds to a ping.
+The normal JaCoCo profile added three branch outcomes to the earlier full
+API28 baseline for the byte-identical `FCastReceiver` class (139/186 to
+142/186). This comparison applies only to that class. The complete matrix and
+the regional variants still require their own reports.
