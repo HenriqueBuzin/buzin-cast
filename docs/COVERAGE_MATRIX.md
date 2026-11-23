@@ -2235,3 +2235,10 @@ coverage for byte-matched classes increased from 110/162 to 115/162
 branches under `MainViewModel` and from 149/217 to 163/217 branches under
 `UsbMdnsAdvertiser`. The standard edition's start/cancel path is measured
 separately.
+
+The API28 normal DE/AT run passed 337 of 338 instrumentation cases. The
+single-tap gesture contract failed once, then passed three times with the
+unchanged APK pair. Its fixture now waits for Compose to apply each gesture
+mode and dispatches a tap's down and up events without an idle wait between
+them. The same app APK passed all three gesture-surface contracts with the
+adjusted test APK. A fresh complete normal DE/AT run is in progress.

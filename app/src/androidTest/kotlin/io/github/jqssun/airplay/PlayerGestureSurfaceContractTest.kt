@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -98,6 +99,7 @@ class PlayerGestureSurfaceContractTest {
     private class Surface {
         val enabled = mutableStateOf(true)
         val locked = mutableStateOf(false)
+        val appliedMode = AtomicReference<Pair<Boolean, Boolean>>()
         val bounds = AtomicReference<Rect>()
         val taps = AtomicInteger()
         lateinit var tap: TapGestureState
@@ -127,7 +129,10 @@ class PlayerGestureSurfaceContractTest {
                 state.vertical = VolumeAndBrightnessGestureState(state.volume, state.brightness, scope)
                 state.zoom = ZoomState(model, scope)
                 activity.setContent {
-                    VideoPlayerGestures(state.enabled.value, state.locked.value, { state.taps.incrementAndGet() },
+                    val enabled = state.enabled.value
+                    val locked = state.locked.value
+                    SideEffect { state.appliedMode.set(enabled to locked) }
+                    VideoPlayerGestures(enabled, locked, { state.taps.incrementAndGet() },
                         state.tap, state.seek, state.vertical, state.zoom,
                         Modifier.onGloballyPositioned { state.bounds.set(it.boundsInWindow()) })
                 }
@@ -145,10 +150,11 @@ class PlayerGestureSurfaceContractTest {
     }
     private fun mode(surface: Surface, enabled: Boolean, locked: Boolean) {
         instrumentation.runOnMainSync { surface.enabled.value = enabled; surface.locked.value = locked }
-        instrumentation.waitForIdleSync()
-        Thread.sleep(50)
+        await("Gesture mode was not applied: enabled=$enabled locked=$locked") {
+            surface.appliedMode.get() == (enabled to locked)
+        }
     }
-    private fun send(action: Int, first: Offset, second: Offset? = null) {
+    private fun dispatchTouch(action: Int, first: Offset, second: Offset? = null) {
         val points = listOfNotNull(first, second)
         if (action == MotionEvent.ACTION_DOWN) downTime = SystemClock.uptimeMillis()
         val properties = points.indices.map { index -> MotionEvent.PointerProperties().apply {
@@ -159,12 +165,21 @@ class PlayerGestureSurfaceContractTest {
         } }.toTypedArray()
         val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, points.size,
             properties, coordinates, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
-        try { instrumentation.runOnMainSync { requireNotNull(target).dispatchTouchEvent(event) } }
+        try { requireNotNull(target).dispatchTouchEvent(event) }
         finally { event.recycle() }
+    }
+    private fun send(action: Int, first: Offset, second: Offset? = null) {
+        instrumentation.runOnMainSync { dispatchTouch(action, first, second) }
         instrumentation.waitForIdleSync()
         Thread.sleep(20)
     }
-    private fun tap(point: Offset) { send(MotionEvent.ACTION_DOWN, point); send(MotionEvent.ACTION_UP, point) }
+    private fun tap(point: Offset) {
+        instrumentation.runOnMainSync {
+            dispatchTouch(MotionEvent.ACTION_DOWN, point)
+            dispatchTouch(MotionEvent.ACTION_UP, point)
+        }
+        instrumentation.waitForIdleSync()
+    }
     private fun doubleTap(point: Offset) { tap(point); Thread.sleep(60); tap(point) }
     private fun drag(point: Offset, delta: Offset) {
         send(MotionEvent.ACTION_DOWN, point)
