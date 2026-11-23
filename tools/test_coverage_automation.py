@@ -139,6 +139,53 @@ class CoverageAutomationTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 copy_compiled_snapshot(source,target)
 
+    def test_collect_only_replay_archives_runtime_without_starting_gradle(self):
+        import hashlib
+        from replay_android_coverage import main
+
+        with TemporaryDirectory(prefix="coverage-collect-only-") as directory:
+            root = Path(directory)
+            source, output = root / "source", root / "output"
+            (source / "inputs").mkdir(parents=True)
+            native = b"test executable"
+            (source / "inputs/native_core_tests").write_bytes(native)
+            identity = dict.fromkeys(IDENTITY_KEYS, "fixture")
+            manifest = {**identity, "variant": "compat", "emulator_api": 28,
+                        "archived_mappings": True, "source_files_sha256": "mapped"}
+
+            def freeze(_source, target):
+                (target / "inputs").mkdir(parents=True)
+                (target / "inputs/native_core_tests").write_bytes(native)
+                return identity, hashlib.sha256(native).hexdigest()
+
+            def runtime(command, **_options):
+                self.assertEqual("test_emulator.py", Path(command[1]).name)
+                execution = Path(command[command.index("--output") + 1])
+                profiles = execution / "coverage"
+                profiles.mkdir(parents=True)
+                (profiles / "run.ec").write_bytes(b"JVM")
+                (profiles / "run.profraw").write_bytes(b"native")
+                (execution / "results.json").write_text("[]", encoding="utf-8")
+
+            with patch("replay_android_coverage.validate_snapshots", return_value=(manifest, [28])), \
+                 patch("replay_android_coverage.copy_compiled_snapshot", side_effect=freeze), \
+                 patch("replay_android_coverage.coverage_identity", return_value=identity), \
+                 patch("replay_android_coverage.source_identity", return_value="mapped"), \
+                 patch("replay_android_coverage.subprocess.check_output", side_effect=["22", "x86_64", ""]), \
+                 patch("replay_android_coverage.subprocess.run", side_effect=runtime) as run, \
+                 patch.object(sys, "argv", ["replay", "--serial", "emulator-5558", "--snapshot",
+                     str(source), "--sdk-root", directory, "--output", str(output), "--collect-only"]):
+                main()
+            run.assert_called_once()
+            result = json.loads((output / "replay.json").read_text(encoding="utf-8"))
+            item = result["variants"]["compat"]
+            self.assertFalse(result["all_four_target_met"])
+            self.assertNotIn("target_met", item)
+            snapshot = output / item["raw_snapshot"]
+            self.assertEqual(b"JVM", (snapshot / "run.ec").read_bytes())
+            self.assertEqual(b"native", (snapshot / "run.profraw").read_bytes())
+            self.assertEqual(22, json.loads((snapshot / "manifest.json").read_text())["emulator_api"])
+
     def test_replay_rejects_a_physical_serial_before_reading_snapshots_or_sdk(self):
         script=Path(__file__).with_name("replay_android_coverage.py")
         result=subprocess.run([sys.executable,str(script),"--serial","192.0.2.10:5555",

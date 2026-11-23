@@ -43,8 +43,12 @@ def main():
     parser.add_argument("--snapshot", type=Path, action="append", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--sdk-root", type=Path)
+    parser.add_argument("--collect-only", action="store_true",
+                        help="Archive the completed runtime and raw profiles without running Gradle or merging reports")
     parser.add_argument("--require-100", action="store_true")
     args = parser.parse_args()
+    if args.collect_only and args.require_100:
+        parser.error("--require-100 requires a coverage report and cannot be used with --collect-only")
     if not re.fullmatch(r"emulator-\d+", args.serial):
         parser.error("Only an explicit emulator-<port> serial is permitted")
     sources = [path.resolve() for path in args.snapshot]
@@ -81,7 +85,7 @@ def main():
 
     def save():
         result["all_four_target_met"] = set(result["variants"]) == set(VARIANTS) and all(
-            item["target_met"] for item in result["variants"].values())
+            item.get("target_met") is True for item in result["variants"].values())
         result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
     def run(command, logfile):
@@ -124,17 +128,22 @@ def main():
             replay_manifest = {**manifest, "emulator_api": api, "replayed_from": str(source), "native_tests_sha256": native_hash}
             (snapshot / "manifest.json").write_text(json.dumps(replay_manifest, indent=2), encoding="utf-8")
             validate_snapshots([snapshot])
+            item = {"raw_snapshot": str(snapshot.relative_to(output)),
+                    **{key: identity[key] for key in IDENTITY_KEYS}}
+            result["variants"][name] = item
+            save()
+            if args.collect_only:
+                continue
             run([sys.executable, root / "tools/merge_android_coverage.py", "--snapshot", source,
                  "--snapshot", snapshot, "--output", report / "merged", "--sdk-root", sdk], report / "report.log")
             summary = json.loads((report / "merged/summary.json").read_text(encoding="utf-8"))
-            result["variants"][name] = {"target_met": summary["target_met"], "raw_snapshot": str(snapshot.relative_to(output)),
-                                       **{key: identity[key] for key in IDENTITY_KEYS},
-                                       "android_and_jvm": summary["android_and_jvm"], "native": summary["native"]}
+            item.update(target_met=summary["target_met"], android_and_jvm=summary["android_and_jvm"],
+                        native=summary["native"])
             save()
     finally:
         save()
     if args.require_100 and (set(result["variants"]) != set(names) or any(
-            not item["target_met"] for item in result["variants"].values())):
+            item.get("target_met") is not True for item in result["variants"].values())):
         raise SystemExit("100% target not met; inspect " + str(result_path))
 
 

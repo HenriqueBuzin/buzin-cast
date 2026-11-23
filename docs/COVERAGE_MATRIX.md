@@ -412,6 +412,12 @@ recalculates coverage from the original and new raw profiles. Prior Android
 profiles and success metadata are never copied into the new runtime evidence.
 The report and manifests remain bound to the original compiled fingerprints.
 
+Use `--collect-only` to archive a successful replay before reporting. This
+mode runs the same runtime checks and saves the raw snapshot in `replay.json`
+without starting Gradle. It allows another emulator to collect API-specific
+coverage while the first build owns the Gradle outputs. Run the merge command
+after Gradle is free to calculate the metrics from both snapshots.
+
 To combine API runs, use the `raw_snapshot` paths recorded in their matrix JSON
 files (relative to each run's report directory). Replace the two snapshot names
 below with those directories:
