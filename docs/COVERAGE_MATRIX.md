@@ -2169,3 +2169,9 @@ failed previously, but could not enter text in the custom FPS editor.
 The test recorded a visible label while the corresponding editor was
 absent from the fresh hierarchy. The app's full API22 snapshot remains
 pending while the test's focus handling is validated.
+
+The touch editor fixture now retains the editor node identified by its
+field label and refreshes that node during focus and text entry. This
+keeps the assertion tied to the same field if the IME moves the label
+outside the viewport. All 12 settings contracts passed on API22 with
+the updated fixture.

@@ -265,26 +265,35 @@ class SettingsScreenStateContractTest {
             } finally { node.recycle() }
         } == true
 
+    @Suppress("DEPRECATION")
     private fun edit(value: String, input: String, expectedText: String = input) {
         reveal(value)
-        await("Editor did not receive focus: $value") {
-            withEditor(value) { editor ->
-                if (editor.isFocused) true else {
-                    editor.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                    false
+        var target: AccessibilityNodeInfo? = null
+        fun focusedEditor() = target?.takeIf { it.refresh() && it.isEditable && it.isFocused }
+        try {
+            await("Editor did not receive focus: $value") {
+                focusedEditor() != null || withEditor(value) { editor ->
+                    target?.recycle()
+                    target = AccessibilityNodeInfo.obtain(editor)
+                    if (editor.isFocused) true else {
+                        editor.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                        false
+                    }
                 }
             }
-        }
-        val args = Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, input)
-        }
-        await("Editor did not accept the text: $value") {
-            withEditor(value) { editor ->
-                editor.isFocused && editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, input)
             }
-        }
-        await("Editor did not show the new text: $value") {
-            withEditor(value) { it.isFocused && it.text?.toString().orEmpty() == expectedText }
+            // The keyboard can move the label out of the viewport. Keep the
+            // editor identified by that label and check its current node state.
+            await("Editor did not accept the text: $value") {
+                focusedEditor()?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true
+            }
+            await("Editor did not show the new text: $value") {
+                focusedEditor()?.let { it.text?.toString().orEmpty() == expectedText } == true
+            }
+        } finally {
+            target?.recycle()
         }
     }
 
