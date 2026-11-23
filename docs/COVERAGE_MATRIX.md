@@ -2724,6 +2724,14 @@ raised `MainScreen` instructions from 10,581/11,290 to 10,583/11,290,
 branches from 422/535 to 427/535, and complexity from 310/399 to 314/399.
 The covered line, method and class counts stayed the same.
 
+On API30 the TV-sized emulator still exposed stale accessibility
+descendants after the visible screen changed. The main-screen fixture
+now refreshes those nodes before checking state or dispatching a click.
+Both affected diagnostics tests passed in isolation, and all nine
+main-screen cases then passed with the archived `e7ae3da` application
+APK and rebuilt test APK. The resulting component profile matched the
+already measured 432/535 branch outcomes.
+
 The compact DE/AT API28 replay of `2fd28fa` passed all 15 runtime gates,
 370 Android instrumentation cases and 21 native UBSan cases. The JVM
 report measured 79,733/85,817 instructions, 4,867/5,893 branches,

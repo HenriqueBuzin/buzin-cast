@@ -159,6 +159,11 @@ class MainScreenStateContractTest {
         root.recycle()
         return null
     }
+
+    // Android 11 can return cached descendants after refreshing the root.
+    // Refresh individual nodes on these APIs, where clearCache is unavailable.
+    private fun readCurrent(node: AccessibilityNodeInfo): Boolean =
+        Build.VERSION.SDK_INT !in 30..33 || node.refresh()
     @Suppress("DEPRECATION")
     private fun snapshot(requireText: Boolean = true): List<Node>? {
         val tree = appRoot() ?: return null
@@ -167,6 +172,7 @@ class MainScreenStateContractTest {
             if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return null
             val result = mutableListOf<Node>()
             fun visit(node: AccessibilityNodeInfo) {
+                if (!readCurrent(node)) return
                 if (node.isVisibleToUser) {
                     val bounds = Rect(); node.getBoundsInScreen(bounds)
                     result += Node(node.text?.toString().orEmpty(), node.contentDescription?.toString().orEmpty(), bounds, node.isSelected, node.isClickable)
@@ -190,12 +196,14 @@ class MainScreenStateContractTest {
             if (!tree.refresh()) return false
             if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return false
             fun visit(node: AccessibilityNodeInfo): Boolean {
+                if (!readCurrent(node)) return false
                 if (node.isVisibleToUser && (node.text?.toString() == label || node.contentDescription?.toString() == label)) {
                     var parent: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(node)
                     try {
                         var depth = 0
                         while (parent != null && parent.packageName?.toString() == context.packageName) {
                             check(depth++ < 64) { "Accessibility parent chain exceeded its bound for $label" }
+                            if (!readCurrent(parent)) return false
                             // Selected tabs expose selection on a non-clickable ancestor.
                             if (selected && parent.isSelected) return true
                             if (!selected && parent.isClickable && parent.isEnabled &&
