@@ -2882,3 +2882,8 @@ the video diagnostics formatter increased from 2/4 to 4/4 branches,
 the DACP controller from 32/34 to 34/34 branches, and the seek gesture
 state from 23/26 to 26/26 branches. All six JVM counters reached 100%
 for the seek gesture state.
+
+The API28 headset-output test exercised the production classifier with
+wired, Bluetooth and USB headsets, as well as speaker, HDMI, ordinary
+USB and unknown outputs. The classifier reached 19/19 instructions,
+10/10 branches, 5/5 lines, 6/6 complexity and 1/1 method.

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.view.WindowManager
 import androidx.compose.ui.geometry.Offset
@@ -87,6 +88,22 @@ class GestureStateContractTest {
             Thread.sleep(20)
         }
         fail(message)
+    }
+
+    @Test fun systemVolumePanelRecognizesHeadsetsAndIgnoresOtherOutputs() {
+        for (type in listOf(
+            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+        )) {
+            assertTrue("Headset output type $type was ignored", isHeadsetOutput(type))
+        }
+        for (type in listOf(
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, AudioDeviceInfo.TYPE_HDMI,
+            AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_UNKNOWN,
+        )) {
+            assertFalse("Non-headset output type $type opened the system panel", isHeadsetOutput(type))
+        }
     }
 
     @Test fun unavailableTimelineRejectsTapSeekDragAndZoom() {
