@@ -2616,3 +2616,10 @@ classes. The API22 native profile measured 903/912 branches, 203/203
 functions, 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
 1,495/1,500 regions. These counts are for a single API level. The prior
 100% native result used profiles from API22 and API28 with matching APKs.
+
+All 16 decoder selection contracts passed on API37 with the standard
+normal application and test APKs archived at `2fd28fa`. The three matching
+`DecoderSelector` classes had 135/196 covered branch outcomes on API28.
+Adding the existing API30 profile brought them to 153/196, and adding the
+API37 profile brought them to 160/196. Methods remained at 53/56. The
+API37 run measured decoder selection only.
