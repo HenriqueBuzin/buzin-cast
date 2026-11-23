@@ -31,8 +31,8 @@ class UsbMdnsResponderContractTest {
             sent += packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
         }
     }
-    private inner class Fixture(val socket: MulticastSocket) {
-        val advertiser = UsbMdnsAdvertiser(listOf(service, second)) { _, _ -> }
+    private inner class Fixture(val socket: MulticastSocket, onLink: (String?, Inet4Address?) -> Unit) {
+        val advertiser = UsbMdnsAdvertiser(listOf(service, second), onLink)
         val link: Any
         init {
             val type = advertiser.javaClass.declaredClasses.single { it.simpleName == "Link" }
@@ -55,7 +55,10 @@ class UsbMdnsResponderContractTest {
         fun packet(bytes: ByteArray, source: InetAddress = address, port: Int = 5353) =
             call("_onPacket", link, DatagramPacket(bytes, bytes.size, source, port))
     }
-    private fun fixture(socket: MulticastSocket = CapturedSocket()) = Fixture(socket).also { fixtures += it }
+    private fun fixture(
+        socket: MulticastSocket = CapturedSocket(),
+        onLink: (String?, Inet4Address?) -> Unit = { _, _ -> },
+    ) = Fixture(socket, onLink).also { fixtures += it }
     private fun bytes(body: DataOutputStream.() -> Unit): ByteArray = ByteArrayOutputStream().also {
         DataOutputStream(it).apply(body).flush()
     }.toByteArray()
@@ -247,6 +250,40 @@ class UsbMdnsResponderContractTest {
         fixture.advertiser.stop()
         assertFalse("Stopping discovery left a running worker", worker.isAlive)
         fixture.advertiser.stop()
+    }
+
+    @Test fun losingAnAdvertisedLinkWithdrawsItAndNotifiesTheServiceOnce() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val interfaces = NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+        assertFalse("The emulator for this case must have no active USB tether",
+            interfaces.any { Regex("(usb|rndis|ncm)\\d+").matches(it.name) && it.isUp })
+        val reports = mutableListOf<Pair<String?, Inet4Address?>>()
+        val socket = CapturedSocket()
+        val fixture = fixture(socket) { name, ip -> reports += name to ip }
+        val link = fixture.advertiser.javaClass.getDeclaredField("link").apply { isAccessible = true }
+        link.set(fixture.advertiser, fixture.link)
+        fixture.state("ACTIVE")
+        fixture.call("_report", fixture.link)
+        instrumentation.waitForIdleSync()
+        assertEquals(listOf("usb-test" to address), reports)
+
+        fixture.call("_scan", 1_000L)
+        instrumentation.waitForIdleSync()
+        assertTrue("Link loss kept the multicast socket open", socket.isClosed)
+        assertNull(link.get(fixture.advertiser))
+        val goodbye = reply(socket.sent.single())
+        assertTrue(goodbye.records.isNotEmpty())
+        assertTrue(goodbye.records.all { it.ttl == 0 })
+        val expected = listOf("usb-test" to address, null to null)
+        assertEquals(expected, reports)
+
+        fixture.call("_scan", 2_000L)
+        instrumentation.runOnMainSync {
+            fixture.call("_report", fixture.link)
+            fixture.advertiser.stop()
+        }
+        instrumentation.waitForIdleSync()
+        assertEquals("An unchanged or stopped advertiser reported a link", expected, reports)
     }
 
     @Test fun truncatedProbeDoesNotWithdrawAnActiveResponder() {

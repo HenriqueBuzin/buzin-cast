@@ -26,6 +26,7 @@ import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -48,7 +49,10 @@ import io.github.jqssun.airplay.media.MirrorRelay
 import io.github.jqssun.airplay.renderer.PlaybackSnapshot
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import io.leancast.app.Net
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
@@ -475,6 +479,41 @@ class ServiceAudioStateContractTest {
                     main { cleared = captions()?.isEmpty() == true }
                     cleared
                 }
+                fun importAcrossTransition(name: String, before: () -> Unit = {}, after: () -> Unit = {}) {
+                    val edited = vtt.replace(title, name)
+                    input.writeText(edited)
+                    lateinit var importJob: Job
+                    main {
+                        before()
+                        val parent = requireNotNull(model.viewModelScope.coroutineContext[Job])
+                        val previousJobs = parent.children.toSet()
+                        model.subtitle(uri)
+                        importJob = parent.children.single { it !in previousJobs }
+                        after()
+                    }
+                    runBlocking { withTimeout(15_000) { importJob.join() } }
+                    assertEquals("The import did not finish for $name", edited, imported.readText())
+                    instrumentation.waitForIdleSync()
+                }
+
+                importAcrossTransition("Detached receiver", after = { model.unbindService() })
+                main {
+                    assertTrue(requireNotNull(captions()).isEmpty())
+                    model.bindService(service)
+                }
+                val previousSession = service.videoPlaySeq.value
+                importAcrossTransition("Replaced session", after = {
+                    service.playLocalVideo(location)
+                    service.setVideoPlaying(false)
+                })
+                main {
+                    assertTrue(service.videoPlaySeq.value > previousSession)
+                    assertTrue(requireNotNull(captions()).isEmpty())
+                }
+                // The stop is queued before the import dispatches to the file reader.
+                importAcrossTransition("Stopped session", before = { service.stopVideoPlayback() })
+                assertFalse(service.videoPlaybackActive.value)
+
             }
         } finally {
             main { store.clear() }

@@ -2225,3 +2225,13 @@ For byte-matched classes, the new profile added six branch outcomes and
 two methods under `MainViewModel`, eight branch outcomes and three methods
 under `MainScreenKt`, and two branch outcomes and two methods under
 `ControlServer`, compared with the complete compact DE/AT API28 profile.
+
+The next compact DE/AT API28 run verified that an in-flight subtitle
+import is discarded after disconnect, replacement playback, or stop.
+It also verified that losing an advertised USB link closes its socket,
+sends zero-TTL records, and reports the loss once. The same run passed
+the regional download policy test. With the preceding scope included,
+coverage for byte-matched classes increased from 110/162 to 115/162
+branches under `MainViewModel` and from 149/217 to 163/217 branches under
+`UsbMdnsAdvertiser`. The standard edition's start/cancel path is measured
+separately.
