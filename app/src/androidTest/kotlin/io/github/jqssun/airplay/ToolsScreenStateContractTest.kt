@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
@@ -253,6 +254,9 @@ class ToolsScreenStateContractTest {
         return nodes.none { it.text == label || it.description == label }
     }
 
+    private fun readRelayNode(node: AccessibilityNodeInfo): Boolean =
+        Build.VERSION.SDK_INT !in 30..33 || node.refresh()
+
     @Suppress("DEPRECATION")
     private fun withRelayNodes(action: (AccessibilityNodeInfo) -> Boolean): Boolean {
         val automation = instrumentation.uiAutomation
@@ -281,7 +285,7 @@ class ToolsScreenStateContractTest {
         }
         try {
             visit(root)
-            fields.size == 3 && action(fields)
+            fields.size == 3 && fields.all(::readRelayNode) && action(fields)
         } finally { fields.forEach { it.recycle() } }
     }
 
@@ -316,6 +320,7 @@ class ToolsScreenStateContractTest {
             return false
         }
         fun visit(node: AccessibilityNodeInfo): Boolean {
+            if (!readRelayNode(node)) return false
             if (node.isFocused && hasLabel(node)) return true
             repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
                 try { if (visit(child)) return true } finally { child.recycle() }

@@ -2690,6 +2690,8 @@ folder and filename after a successful save. On the same compiled APKs,
 the two cases raised `VideoDownloader` coverage from 457/557 to 475/557
 instructions, 21/28 to 22/28 branches, 76/88 to 79/88 lines and 24/30 to
 25/30 complexity. All 16 methods and three counted classes stayed covered.
+The same test APK passed all nine cases on API22, where the MediaStore
+cases return early and the legacy publication assertions still run.
 
 The standard compact API22 replay at `2fd28fa` passed all 15 runtime
 gates, 370 Android instrumentation cases and 21 native UBSan cases. The
@@ -2731,6 +2733,11 @@ Both affected diagnostics tests passed in isolation, and all nine
 main-screen cases then passed with the archived `e7ae3da` application
 APK and rebuilt test APK. The resulting component profile matched the
 already measured 432/535 branch outcomes.
+
+On the same TV-sized API30 emulator, refreshing the relay form's
+accessibility nodes restored reliable focus checks when moving between
+fields. The remote-navigation regression passed in isolation, then all
+eight Tools cases passed with the archived application APK.
 
 The compact DE/AT API28 replay of `2fd28fa` passed all 15 runtime gates,
 370 Android instrumentation cases and 21 native UBSan cases. The JVM
