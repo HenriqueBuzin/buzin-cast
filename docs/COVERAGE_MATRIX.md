@@ -2657,6 +2657,9 @@ cases. Adding the new profile to the matching full `TvEditField` classes
 increased coverage from 1,734/1,871 to 1,760/1,871 instructions, 58/77 to
 60/77 branches, 55/79 to 57/79 complexity and 33/40 to 35/40 methods.
 All 92 lines and five counted classes remained covered.
+The standard compact API22 focus suite also passed all four cases. Its
+byte-matched component comparison against the full API22 baseline
+produced the same gains in instructions, branches, complexity and methods.
 
 The normal DE/AT API28 replay of `2fd28fa` passed all 15 runtime gates,
 370 Android instrumentation cases and 21 native UBSan cases. Its JVM
