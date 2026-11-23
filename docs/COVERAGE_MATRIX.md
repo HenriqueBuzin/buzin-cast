@@ -2848,6 +2848,13 @@ application context, and a license startup exception does not escape.
 The scoped run covered all 50 instructions in the initializer and its
 SDK callbacks. The purchase response branches remain outside this run.
 
+The follow-up API28 run passed four Appstore cases. It dispatched every
+SDK purchase status locally, verified that fulfillment is requested
+only for the successful receipt, and handled unavailable user, product
+and purchase-update data. The purchase response handler reached 28/31
+instructions and 3/4 branches. The SDK requires a non-null purchase
+status when constructing its response.
+
 On API28 the decoder restart test checked AVC and HEVC access units
 and truncated headers. The method that scans for restartable frames
 reached 30/30 branches. Adding the focused profile to the matching

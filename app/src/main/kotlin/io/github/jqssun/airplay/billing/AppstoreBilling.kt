@@ -63,10 +63,16 @@ object AppstoreBilling : PurchasingListener {
         Log.d(TAG, "Product data: ${response.requestStatus}")
     }
 
-    override fun onPurchaseResponse(response: PurchaseResponse) {
+    override fun onPurchaseResponse(response: PurchaseResponse) =
+        onPurchaseResponse(response, PurchasingService::notifyFulfillment)
+
+    internal fun onPurchaseResponse(
+        response: PurchaseResponse,
+        notifyFulfillment: (String, FulfillmentResult) -> Unit,
+    ) {
         when (response.requestStatus) {
             PurchaseResponse.RequestStatus.SUCCESSFUL ->
-                PurchasingService.notifyFulfillment(response.receipt.receiptId, FulfillmentResult.FULFILLED)
+                notifyFulfillment(response.receipt.receiptId, FulfillmentResult.FULFILLED)
             else -> Log.d(TAG, "Purchase not completed: ${response.requestStatus}")
         }
     }
