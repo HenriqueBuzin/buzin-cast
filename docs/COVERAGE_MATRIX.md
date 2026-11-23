@@ -2281,3 +2281,10 @@ contract on API36. The API36 profile exercised the automatic PiP path
 introduced in Android 12. For byte-matched `MainActivity` classes, the
 combined profile increased covered branches from 69/122 to 75/122,
 methods from 33/44 to 38/44, and classes from 8/16 to 12/16.
+
+All six Tools screen cases passed on compact DE/AT API28. The diagnostic
+report test checks the rendered report after accessibility scroll actions
+and after remote Down and Up, including the return to its initial position.
+Android 9 did not emit observable scroll events for the accessibility
+action, so the test compares the settled report pixels. It added five
+branch outcomes and two methods under `ToolsScreenKt`.

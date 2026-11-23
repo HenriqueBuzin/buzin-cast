@@ -14,6 +14,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -121,7 +124,7 @@ class ToolsScreenStateContractTest {
     }
     private fun has(value: String) = snapshot()?.any { it.text == value || it.description == value } == true
     @Suppress("DEPRECATION")
-    private fun control(label: String, selected: Boolean = false, click: Boolean = false): Boolean {
+    private fun control(label: String, selected: Boolean = false, action: Int? = null): Boolean {
         val tree = instrumentation.uiAutomation.rootInActiveWindow ?: return false
         try {
             if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return false
@@ -134,8 +137,15 @@ class ToolsScreenStateContractTest {
                             check(depth++ < 64) { "Accessibility parent chain exceeded its bound for $label" }
                             // Selected tabs expose selection on a non-clickable ancestor.
                             if (selected && parent.isSelected) return true
-                            if (!selected && parent.isClickable) return if (click)
-                                parent.performAction(AccessibilityNodeInfo.ACTION_CLICK) else true
+                            if (!selected && parent.isClickable) {
+                                if (action == null) return true
+                                if (action == AccessibilityNodeInfo.ACTION_FOCUS) {
+                                    if (parent.isFocused) return true
+                                    parent.performAction(action)
+                                    return false
+                                }
+                                return parent.performAction(action)
+                            }
                             val next = parent.parent; parent.recycle(); parent = next
                         }
                     } finally { parent?.recycle() }
@@ -148,7 +158,7 @@ class ToolsScreenStateContractTest {
             return visit(tree)
         } finally { tree.recycle() }
     }
-    private fun click(label: String) { await("No actionable control: $label") { control(label, click = true) } }
+    private fun click(label: String) { await("No actionable control: $label") { control(label, action = AccessibilityNodeInfo.ACTION_CLICK) } }
 
     private fun tap(label: String) {
         lateinit var bounds: Rect
@@ -169,11 +179,14 @@ class ToolsScreenStateContractTest {
             } finally { event.recycle() }
         }
     }
-    private fun screen(block: () -> Unit) {
+    private fun screen(fontScale: Float? = null, block: () -> Unit) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target -> target.setContent { AirPlayTheme {
-                ToolsScreen(model)
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
+                    ToolsScreen(model)
+                }
             } } }
             await("Tools screen did not expose content") { snapshot() != null }
             block()
@@ -372,6 +385,91 @@ class ToolsScreenStateContractTest {
             await("Active relay has no stop action or permits another connection") {
                 has(text(R.string.tools_relay_stop)) && buttonEnabled(text(R.string.tools_relay_connect)) == false
             }
+        }
+    }
+
+    @Test fun diagnosticDialogScrollsInBothDirectionsWithTheRemote() = screen(fontScale = 2.5f) {
+        val automation = instrumentation.uiAutomation
+        val originalFlags = automation.serviceInfo.flags
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = originalFlags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        val diagnostics = text(R.string.tools_connection_diagnostics)
+        val close = text(R.string.buzin_close)
+        try {
+            click(diagnostics)
+            await("The diagnostics dialog did not receive focus") {
+                snapshot(requireFocusedWindow = true)?.any { it.text == close } == true
+            }
+            lateinit var reportBounds: Rect
+            await("The diagnostics report did not expose a scrollable region") {
+                val report = snapshot(requireFocusedWindow = true)
+                    ?.firstOrNull { it.className == "android.widget.ScrollView" && !it.bounds.isEmpty }
+                if (report == null) false else {
+                    reportBounds = Rect(report.bounds)
+                    true
+                }
+            }
+            await("The close button did not accept remote focus") {
+                control(close, action = AccessibilityNodeInfo.ACTION_FOCUS)
+            }
+            fun scrollAction(action: Int) {
+                val root = requireNotNull(automation.rootInActiveWindow)
+                fun visit(node: AccessibilityNodeInfo): Boolean {
+                    if (node.isVisibleToUser && node.className == "android.widget.ScrollView" &&
+                        node.performAction(action)) return true
+                    repeat(node.childCount) { index ->
+                        val child = node.getChild(index) ?: return@repeat
+                        try { if (visit(child)) return true } finally { child.recycle() }
+                    }
+                    return false
+                }
+                try { assertTrue("The report did not accept accessibility scroll action $action", visit(root)) }
+                finally { root.recycle() }
+            }
+            fun reportFingerprint(): Int {
+                val image = requireNotNull(automation.takeScreenshot())
+                try {
+                    val bounds = Rect(reportBounds)
+                    check(bounds.intersect(0, 0, image.width, image.height))
+                    val pixels = IntArray(bounds.width() * bounds.height())
+                    image.getPixels(pixels, 0, bounds.width(), bounds.left, bounds.top, bounds.width(), bounds.height())
+                    return pixels.contentHashCode()
+                } finally {
+                    image.recycle()
+                }
+            }
+            fun settledReport(message: String, expected: (Int) -> Boolean): Int {
+                var fingerprint: Int? = null
+                var lastChange = SystemClock.elapsedRealtime()
+                await(message) {
+                    val current = reportFingerprint()
+                    if (current != fingerprint) {
+                        fingerprint = current
+                        lastChange = SystemClock.elapsedRealtime()
+                    }
+                    expected(current) && SystemClock.elapsedRealtime() - lastChange >= 300
+                }
+                return requireNotNull(fingerprint)
+            }
+
+            val top = settledReport("Report layout did not settle") { true }
+            scrollAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            settledReport("Accessibility scroll did not move the report") { it != top }
+            scrollAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+            settledReport("Accessibility scroll did not return to the start") { it == top }
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
+            settledReport("Remote Down did not move the report") { it != top }
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_UP)
+            settledReport("Remote Up did not return to the start") { it == top }
+            tap(close)
+            await("The scrolled diagnostics dialog did not close") {
+                snapshot()?.let { nodes ->
+                    nodes.any { it.text == diagnostics } && nodes.none { it.text == close }
+                } == true
+            }
+        } finally {
+            automation.serviceInfo = automation.serviceInfo.apply { flags = originalFlags }
         }
     }
 
