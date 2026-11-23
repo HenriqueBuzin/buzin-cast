@@ -1,9 +1,14 @@
 package io.github.jqssun.airplay
 
 import android.content.Intent
+import android.os.SystemClock
+import android.view.KeyEvent
+import android.view.View
+import android.view.inputmethod.EditorInfo
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,10 +21,13 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.jqssun.airplay.ui.TvFormTextField
 import io.github.jqssun.airplay.ui.focusRing
 import io.github.jqssun.airplay.ui.requestFocusUntilLanded
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
@@ -30,6 +38,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -120,5 +129,63 @@ class TvFocusContractTest {
             }
             assertEquals(listOf(true, true, true, true, true), runBlocking { withTimeout(10_000) { result.await() } })
         }
+    }
+
+    @Test fun tvFormKeyboardNextMovesFocusAndDoneSubmits() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val firstFocused = CompletableDeferred<Unit>()
+        val secondFocused = CompletableDeferred<Unit>()
+        val submitted = CompletableDeferred<Unit>()
+        val intent = Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
+        ActivityScenario.launch<DebugTvPreviewActivity>(intent).use { scenario ->
+            lateinit var editorHost: View
+            scenario.onActivity { activity ->
+                activity.setContent {
+                    AirPlayTheme {
+                        editorHost = LocalView.current
+                        val first = remember { FocusRequester() }
+                        val second = remember { FocusRequester() }
+                        Column {
+                            TvFormTextField("Address", "receiver.local", {},
+                                modifier = Modifier.focusRequester(first).onFocusChanged {
+                                    if (it.isFocused) firstFocused.complete(Unit)
+                                }, onNext = { second.requestFocus() })
+                            TvFormTextField("Code", "ABCD-EFGH-IJKL", {},
+                                modifier = Modifier.focusRequester(second).onFocusChanged {
+                                    if (it.isFocused) secondFocused.complete(Unit)
+                                }, imeAction = ImeAction.Done, onDone = { submitted.complete(Unit) })
+                        }
+                        LaunchedEffect(first) { first.requestFocusUntilLanded() }
+                    }
+                }
+            }
+            runBlocking { withTimeout(10_000) { firstFocused.await() } }
+            instrumentation.waitForIdleSync()
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+            deliverEditorAction(scenario, editorHost, EditorInfo.IME_ACTION_NEXT)
+            runBlocking { withTimeout(10_000) { secondFocused.await() } }
+            assertFalse(submitted.isCompleted)
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+            deliverEditorAction(scenario, editorHost, EditorInfo.IME_ACTION_DONE)
+            runBlocking { withTimeout(10_000) { submitted.await() } }
+        }
+    }
+
+    private fun deliverEditorAction(scenario: ActivityScenario<DebugTvPreviewActivity>, host: View, action: Int) {
+        val deadline = SystemClock.elapsedRealtime() + 10_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            var delivered = false
+            scenario.onActivity {
+                if (!host.hasWindowFocus() || !host.onCheckIsTextEditor()) return@onActivity
+                val info = EditorInfo()
+                val connection = host.onCreateInputConnection(info) ?: return@onActivity
+                if ((info.imeOptions and EditorInfo.IME_MASK_ACTION) == action) {
+                    delivered = connection.performEditorAction(action)
+                }
+            }
+            if (delivered) return
+            SystemClock.sleep(25)
+        }
+        fail("Focused TV editor did not accept IME action $action")
     }
 }

@@ -2644,3 +2644,11 @@ instructions, 4,956/5,971 branches, 8,142/8,472 lines, 4,226/5,141
 complexity, 2,211/2,353 methods and 306/313 classes. Native coverage was
 100% in all six metrics. This report predates the decoder inventory
 change and its two new contracts.
+
+The TV form keyboard contract opens two real editors with the remote.
+It verifies that the Android input connection's Next action moves focus,
+and that only Done submits. The normal API28 focus suite passed all four
+cases. Adding the new profile to the matching full `TvEditField` classes
+increased coverage from 1,734/1,871 to 1,760/1,871 instructions, 58/77 to
+60/77 branches, 55/79 to 57/79 complexity and 33/40 to 35/40 methods.
+All 92 lines and five counted classes remained covered.
