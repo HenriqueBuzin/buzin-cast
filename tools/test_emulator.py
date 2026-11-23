@@ -211,6 +211,10 @@ class Suite:
         def name_has_focus():
             label=self.focused().lower()
             return "name" in label or "nome" in label
+        def closed_dialog():
+            tree = self.ui()
+            if not any(node.get("class") == "android.widget.EditText" for node in tree.iter()):
+                return tree
         for attempt in range(3):
             self.start("settings"); self.profile_focus();self.key(20)
             self.wait(name_has_focus,"Remote Down did not focus server name",10)
@@ -219,8 +223,8 @@ class Suite:
             self.adb("shell","input","text","_AUTOTEST")
             self.key(4); self.wait(lambda:not self.keyboard(),"Back did not close keyboard")
             self.key(4)
-            self.wait(lambda: not any(n.get("class")=="android.widget.EditText" for n in self.ui().iter()),"Dialog did not close")
-            assert "_AUTOTEST" not in self.texts(self.ui()),"Cancel saved the draft"
+            settled = self.wait(closed_dialog, "Dialog did not close")
+            assert "_AUTOTEST" not in self.texts(settled), "Cancel saved the draft"
             self.wait(name_has_focus,"Focus did not return to name",10)
             self.key(20);assert not self.keyboard()
 

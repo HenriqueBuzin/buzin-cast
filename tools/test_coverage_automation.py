@@ -203,6 +203,25 @@ class CoverageAutomationTest(unittest.TestCase):
         self.assertEqual(2, suite.ui.call_count)
 
     @patch("test_emulator.time.sleep")
+    def test_cancel_reads_the_same_settled_settings_hierarchy(self, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.start = Mock()
+        suite.profile_focus = Mock()
+        suite.key = Mock()
+        suite.adb = Mock()
+        suite.focused = Mock(return_value="Server name")
+        suite.keyboard = Mock(side_effect=[True, False, False] * 3)
+        dialog = ET.fromstring('<hierarchy><node class="android.widget.EditText" text="_AUTOTEST"/></hierarchy>')
+        settled = ET.fromstring('<hierarchy><node text="Server name"/></hierarchy>')
+        suite.ui = Mock(side_effect=[dialog, UiUnavailable("dialog closing"), settled] * 3)
+
+        suite.edit_cancel()
+
+        self.assertEqual(9, suite.ui.call_count)
+        self.assertEqual(3, suite.start.call_count)
+        self.assertEqual([call("shell", "input", "text", "_AUTOTEST")] * 3, suite.adb.call_args_list)
+
+    @patch("test_emulator.time.sleep")
     @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
     def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):
         suite = Suite.__new__(Suite)

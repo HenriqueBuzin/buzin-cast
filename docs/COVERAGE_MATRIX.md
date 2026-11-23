@@ -2077,3 +2077,17 @@ The earlier FCast matrix assembled and passed lint for normal, but another
 Gradle build switched editions before the runner archived the live mappings.
 The runner rejected the missing mappings. This attempt produced no complete
 edition report. The follow-up measures editions sequentially.
+
+The sequential compact DE/AT run passed all 330 Android cases on API28,
+including the new FCast and audio scan tests, and all 21 native cases under
+UBSan. The runner then lost the accessibility hierarchy between the successful
+dialog-close check and a second dump during the cancel scenario. The check
+now reads the settled hierarchy once. The isolated cancel scenario passed
+with the same APK after the fix.
+
+Two AAC/ALAC codec contracts passed on API22 using byte-identical copies of
+that run's app and test APKs. Combining their LLVM profile with the native
+and Android instrumentation profiles from API28 measured 100% of all six
+app-native metrics for compact DE/AT: 912 branches, 203 functions,
+205 instantiations, 1751 lines, 171 MC/DC conditions, and 1500 regions.
+This native result leaves the full runtime and JVM coverage gates open.
