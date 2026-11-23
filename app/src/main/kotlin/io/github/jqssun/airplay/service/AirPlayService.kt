@@ -728,7 +728,15 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
         airPlayVideoPlayer.seekBy(deltaMs)
     }
 
-    fun stopVideoPlayback() { _mainHandler.post { _endVideoPlayback("Video stopped (local)") } }
+    fun stopVideoPlayback() {
+        _mainHandler.post {
+            if (videoSessionPending()) {
+                _videoPollSuppressed = true
+            } else {
+                _endVideoPlayback("Video stopped (local)")
+            }
+        }
+    }
 
     fun downloadVideo() {
         if (!BuildConfig.VIDEO_DOWNLOAD_ENABLED) return

@@ -2403,3 +2403,9 @@ The legacy network selector passed against the real Android network list
 on API28. The four connected diagnostics tests passed, followed by the
 offline diagnostic after both emulator radios were disabled. Matching
 profiles covered 11/14 branch outcomes inside the legacy selector.
+
+On standard normal API28, a sender poll reopened pending playback after
+a local Stop issued before media arrived. The service now suppresses
+further polls in that state. The regression passed on the rebuilt APK,
+including a subsequent explicit media load and Stop. The two playback
+ownership cases also passed against the same APK pair.

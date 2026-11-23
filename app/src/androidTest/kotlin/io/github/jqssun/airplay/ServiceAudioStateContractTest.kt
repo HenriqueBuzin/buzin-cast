@@ -416,6 +416,29 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun stoppingPendingVideoKeepsSenderPollsFromReopeningIt() = withoutAutoLaunch {
+        main {
+            service.onVideoSessionPoll()
+            assertTrue("The poll did not enter the pending playback state", service.videoSessionPending())
+            service.stopVideoPlayback()
+        }
+        instrumentation.waitForIdleSync()
+        main {
+            service.onVideoSessionPoll()
+            assertFalse("A new poll reopened the pending state after Stop", service.videoSessionPending())
+            assertFalse(service.videoPlaybackActive.value)
+        }
+
+        withLocalVideoFixture { location ->
+            main {
+                service.playLocalVideo(location)
+                assertTrue("An explicit media load was blocked after Stop", service.videoPlaybackActive.value)
+                service.stopVideoPlayback()
+            }
+            await("The explicit video did not stop") { !service.videoPlaybackActive.value }
+        }
+    }
+
     private fun withLocalVideoFixture(block: (String) -> Unit) {
         val file = File.createTempFile("service-video-", ".mp4", context.cacheDir)
         try {
