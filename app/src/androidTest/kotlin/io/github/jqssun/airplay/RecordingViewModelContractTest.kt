@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.IBinder
 import android.os.SystemClock
 import android.content.ServiceConnection
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -61,6 +62,9 @@ class RecordingViewModelContractTest {
         .apply { isAccessible = true }.get(model) as AsyncLogStore
 
     @Before fun bindStoppedService() {
+        // Cache the application's provider roots before overriding filesDir for log isolation.
+        val authority = "${context.packageName}.fileprovider"
+        FileProvider.getUriForFile(context, authority, File(context.filesDir, "recordings/provider-root-check.mkv"))
         prefix = "recording-model-${System.nanoTime()}"
         root = File(context.cacheDir, prefix).apply { assertTrue(mkdirs()) }
         assertTrue(preferences.edit().clear().commit())

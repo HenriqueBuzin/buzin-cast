@@ -153,24 +153,28 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     fun stopRelay() { service?.relay?.stop() }
     fun connectRelay(host: String, port: Int, code: String) { runCatching { service?.relay?.connect(host.trim(), port, code) }.onFailure { addLog("Retransmissão: ${it.message}") } }
     fun localAddress() = io.leancast.app.Net.lanIpv4() ?: "Sem rede IPv4"
-    private fun recordingFile(name: String): File? {
-        val directory = service?.capture?.directory ?: return null
+    private fun recordingFile(directory: File, name: String): File? {
         val file = File(directory, name)
         return file.takeIf { it.canonicalFile.parentFile == directory.canonicalFile && it.name.endsWith(".mkv") && it.isFile }
     }
     fun refreshRecordings() {
         if (!io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) { _recordings.value = emptyList(); return }
         if (captureState.value.armed) return
-        _recordings.value = service?.capture?.directory?.listFiles()?.filter { it.isFile && it.name.endsWith(".mkv") }
-            ?.sortedByDescending { it.lastModified() }?.map { Recording(it.name, it.length()) } ?: emptyList()
+        val files = service?.let { it.capture.directory.listFiles() }.orEmpty()
+        _recordings.value = files.filter { it.isFile && it.name.endsWith(".mkv") }
+            .sortedByDescending { it.lastModified() }.map { Recording(it.name, it.length()) }
     }
     fun deleteRecording(name: String) {
         if (!io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) return
-        if (!captureState.value.armed) recordingFile(name)?.delete(); refreshRecordings()
+        if (!captureState.value.armed) {
+            service?.let { recordingFile(it.capture.directory, name)?.delete() }
+        }
+        refreshRecordings()
     }
     fun shareRecording(name: String) {
         if (!io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) return
-        val file = recordingFile(name) ?: return
+        val receiver = service ?: return
+        val file = recordingFile(receiver.capture.directory, name) ?: return
         val context = getApplication<Application>()
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         runCatching { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("video/x-matroska").putExtra(Intent.EXTRA_STREAM, uri)
@@ -179,9 +183,10 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     }
     fun playRecording(name: String) {
         if (!io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) return
-        val file = recordingFile(name) ?: return
+        val receiver = service ?: return
+        val file = recordingFile(receiver.capture.directory, name) ?: return
         val context = getApplication<Application>()
-        service?.playLocalVideo(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file).toString())
+        receiver.playLocalVideo(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file).toString())
     }
     val dacpPlayer: Player? get() = service?.dacpPlayer
 
