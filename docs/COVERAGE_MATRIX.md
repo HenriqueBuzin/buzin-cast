@@ -2685,3 +2685,12 @@ JVM report measured 80,499/86,654 instructions, 4,882/5,971 branches,
 classes. The API22 native profile measured 903/912 branches, 203/203
 functions, 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
 1,495/1,500 regions. These native counts are from API22 alone.
+
+The mirroring fullscreen contract verifies that a disabled preference or
+an active PIN leaves the overview visible, dismissing the PIN does not
+automatically enter fullscreen, and a fresh mirror enters fullscreen and
+returns to the overview on Back. The normal API28 main-screen suite
+passed all nine cases. Adding its profile to 28 matching `MainScreen`
+class files increased covered branches from 427/535 to 432/535,
+instructions from 10,767/11,296 to 10,769/11,296 and complexity from
+314/399 to 318/399. Line, method and class counts stayed the same.

@@ -157,7 +157,7 @@ class MainScreenStateContractTest {
         return null
     }
     @Suppress("DEPRECATION")
-    private fun snapshot(): List<Node>? {
+    private fun snapshot(requireText: Boolean = true): List<Node>? {
         val tree = appRoot() ?: return null
         try {
             if (!tree.refresh()) return null
@@ -174,7 +174,9 @@ class MainScreenStateContractTest {
             }
             visit(tree)
             lastNodes = result
-            return result.takeIf { nodes -> nodes.any { it.text.isNotEmpty() || it.description.isNotEmpty() } }
+            return result.takeIf { nodes ->
+                nodes.isNotEmpty() && (!requireText || nodes.any { it.text.isNotEmpty() || it.description.isNotEmpty() })
+            }
         } finally { tree.recycle() }
     }
     private fun has(value: String) = snapshot()?.any { it.text == value || it.description == value } == true
@@ -214,7 +216,11 @@ class MainScreenStateContractTest {
         } finally { tree.recycle() }
     }
     private fun click(label: String) { await("No actionable control: $label") { control(label, click = true) } }
-    private fun screen(resultOwner: ActivityResultRegistryOwner? = null, block: () -> Unit) {
+    private fun screen(
+        resultOwner: ActivityResultRegistryOwner? = null,
+        allowVideo: Boolean = false,
+        block: () -> Unit,
+    ) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target -> target.setContent { AirPlayTheme {
@@ -226,7 +232,7 @@ class MainScreenStateContractTest {
             await("Main screen did not expose content") { snapshot() != null }
             block()
         }
-        assertEquals("Idle/audio/dialog states unexpectedly created a video surface", 0, surfaces.get())
+        if (!allowVideo) assertEquals("Idle/audio/dialog states unexpectedly created a video surface", 0, surfaces.get())
     }
 
     @Test fun externalSubtitleMenuRecoversWhenTheDocumentPickerIsUnavailable() {
@@ -387,6 +393,49 @@ class MainScreenStateContractTest {
                     control(text(R.string.tab_overview), selected = true)
             }
         }
+    }
+
+    @Test fun mirroringEntersFullscreenOnlyOnAFreshStartWithoutAPin() = screen(allowVideo = true) {
+        val overview = text(R.string.tab_overview)
+        val waiting = text(R.string.waiting_for_playback)
+        val connected = text(R.string.connected_count, 1)
+        fun overviewSelected() = control(overview, selected = true)
+        fun startMirroring() {
+            val previousSurfaces = surfaces.get()
+            main { state("_mirroringActive", true) }
+            await("Mirroring did not create a surface") { surfaces.get() > previousSurfaces }
+        }
+        fun resetMirroring() {
+            main { state("_mirroringActive", false) }
+            await("Overview did not return to waiting") { has(waiting) && overviewSelected() }
+        }
+
+        main {
+            model.set(Prefs.AUTO_FULLSCREEN, false)
+            state("_serverState", ServerState.RUNNING)
+            state("_connectionCount", 1)
+        }
+        await("The receiver did not show the pending connection") { has(waiting) && overviewSelected() }
+        startMirroring()
+        await("Mirroring left the overview with automatic fullscreen disabled") { has(connected) && overviewSelected() }
+
+        main { model.set(Prefs.AUTO_FULLSCREEN, true) }
+        resetMirroring()
+        main { model.showPin("3141") }
+        await("The active PIN did not appear") { has("3141") }
+        startMirroring()
+        click(text(R.string.btn_ok))
+        await("Dismissing the PIN incorrectly started fullscreen") {
+            model.pinCode.value == null && has(connected) && overviewSelected()
+        }
+
+        resetMirroring()
+        startMirroring()
+        await("A fresh mirror did not enter fullscreen") {
+            snapshot(requireText = false)?.none { it.text == overview || it.text == connected } == true
+        }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        await("Back did not return to the mirrored overview") { has(connected) && overviewSelected() }
     }
 
     @Test fun diagnosticsNavigationReturnsToOverviewWhenDeveloperOptionsAreDisabled() = screen {
