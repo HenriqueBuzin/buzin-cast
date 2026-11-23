@@ -2677,3 +2677,11 @@ same APKs, adding the rejected-finalization case raised `VideoDownloader`
 coverage from 444/544 to 453/544 instructions, 19/28 to 21/28 branches and
 22/30 to 24/30 complexity. The API28 run also passed and exercised the
 legacy app-specific storage path. Both runs used local test media.
+
+The standard compact API22 replay at `2fd28fa` passed all 15 runtime
+gates, 370 Android instrumentation cases and 21 native UBSan cases. The
+JVM report measured 80,499/86,654 instructions, 4,882/5,971 branches,
+8,043/8,472 lines, 4,175/5,141 complexity, 2,198/2,353 methods and 306/313
+classes. The API22 native profile measured 903/912 branches, 203/203
+functions, 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
+1,495/1,500 regions. These native counts are from API22 alone.
