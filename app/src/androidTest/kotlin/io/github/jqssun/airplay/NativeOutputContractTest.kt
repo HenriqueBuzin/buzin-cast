@@ -25,6 +25,7 @@ class NativeOutputContractTest {
     @Test fun invalidOutputFormatFailsStartupAndRecoveryWithoutLeavingAStream() = scenario(2)
     @Test fun debugPollingReturnsCachedUnderrunsWhileOutputIsLocked() = scenario(3)
     @Test fun losingTheStreamBeforeStartAllowsTheNextAutomaticBufferStartup() = scenario(4)
+    @Test fun dataCallbackAppliesAttenuationAndMuteToSignedStereoSamples() = scenario(6)
     @Test fun diagnosticLogDescribesUnknownAndMmapBackendsAndKeepsCachedUnderruns() {
         val messages = CopyOnWriteArrayList<String>()
         scenario(5, object : LogListener {

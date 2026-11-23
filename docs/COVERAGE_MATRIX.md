@@ -2310,3 +2310,26 @@ The archived report covered 4852/5967 JVM branches, 4101/5132 complexity
 units, and 8059/8445 lines. This run measured 905/908 native branches.
 The remaining outcomes were in the Oboe output callback's attenuation
 path, which did not execute in this run.
+
+Compact DE/AT API28 passed the connection approval dialog contract with
+Back, Decline, and Allow. The launch-on-connect case left the app
+backgrounded after a disabled first connection and after an additional
+sender, then showed the app for the next first sender. Together the
+profiles added seven branch outcomes and ten methods across
+`MainViewModel`, `MainScreenKt`, and `AirPlayService`.
+
+The same edition passed the subtitle picker recovery contract. A missing
+document activity kept its dialog open with an error, and a later picker
+launch cleared the warning. This added six branch outcomes and three
+methods under `MainScreenKt`.
+
+The coverage-only Oboe fixture now checks the real callback's signed
+stereo PCM at full, half, and zero gain without opening an audio device.
+It passed on compact DE/AT API28 and exercised all four branch outcomes
+in the callback. The new diagnostic fixture requires a fresh profile for
+each complete APK measurement.
+
+The Java consumer of Kotlin's legacy `PlayerPort` bridge kept an
+on-demand item seekable with its reported duration. All 192 DLNA-domain
+tests passed. Combining that JVM profile with the same archived Android
+profiles and class bytes added one method and one class to the app report.

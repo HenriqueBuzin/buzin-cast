@@ -1,5 +1,6 @@
 package io.github.jqssun.airplay
 
+import android.app.Activity
 import android.app.Application
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ActivityNotFoundException
@@ -15,10 +16,15 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -44,6 +50,7 @@ import java.io.File
 import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Real main-screen dialogs/navigation and rendering, with an unbound ViewModel. */
@@ -207,17 +214,69 @@ class MainScreenStateContractTest {
         } finally { tree.recycle() }
     }
     private fun click(label: String) { await("No actionable control: $label") { control(label, click = true) } }
-    private fun screen(block: () -> Unit) {
+    private fun screen(resultOwner: ActivityResultRegistryOwner? = null, block: () -> Unit) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target -> target.setContent { AirPlayTheme {
-                MainScreen(model, onSurfaceAvailable = { surfaces.incrementAndGet() }, onSurfaceDestroyed = {},
-                    onLocalNetwork = { networkRequests.incrementAndGet() })
+                CompositionLocalProvider(LocalActivityResultRegistryOwner provides (resultOwner ?: target)) {
+                    MainScreen(model, onSurfaceAvailable = { surfaces.incrementAndGet() }, onSurfaceDestroyed = {},
+                        onLocalNetwork = { networkRequests.incrementAndGet() })
+                }
             } } }
             await("Main screen did not expose content") { snapshot() != null }
             block()
         }
         assertEquals("Idle/audio/dialog states unexpectedly created a video surface", 0, surfaces.get())
+    }
+
+    @Test fun externalSubtitleMenuRecoversWhenTheDocumentPickerIsUnavailable() {
+        val unavailable = AtomicBoolean(true)
+        val requests = CopyOnWriteArrayList<Intent>()
+        val picker = object : ActivityResultRegistry() {
+            override fun <I, O> onLaunch(
+                requestCode: Int,
+                contract: ActivityResultContract<I, O>,
+                input: I,
+                options: ActivityOptionsCompat?,
+            ) {
+                requests += contract.createIntent(context, input)
+                if (unavailable.get()) throw ActivityNotFoundException("Document picker unavailable in this fixture")
+                dispatchResult(requestCode, Activity.RESULT_CANCELED, null)
+            }
+        }
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry = picker
+        }
+        val title = text(R.string.subtitle_external)
+        val warning = text(R.string.subtitle_picker_unavailable)
+        val choose = text(R.string.subtitle_choose_file)
+        screen(resultOwner = owner) {
+            main {
+                state("_videoPlaybackActive", true)
+                model.setVideoPlaying(false)
+            }
+            click("CC")
+            await("Subtitle dialog did not open") { has(title) }
+            click(choose)
+            await("Missing document picker did not leave a recoverable dialog") {
+                requests.size == 1 && has(title) && has(warning)
+            }
+
+            unavailable.set(false)
+            click(choose)
+            await("The recovered document picker did not close the subtitle dialog") {
+                requests.size == 2 && has("CC") && !has(title)
+            }
+            requests.forEach { request ->
+                assertEquals(Intent.ACTION_OPEN_DOCUMENT, request.action)
+                assertArrayEquals(arrayOf("*/*"), request.getStringArrayExtra(Intent.EXTRA_MIME_TYPES))
+            }
+
+            click("CC")
+            await("The previous picker warning survived a successful launch") { has(title) && !has(warning) }
+            click(text(R.string.subtitle_disable))
+            await("Disabling subtitles did not close the dialog") { has("CC") && !has(title) }
+        }
     }
 
     @Test fun aboutOpensLocalLicensesAndKeepsTheDialogWhenNoBrowserIsInstalled() {

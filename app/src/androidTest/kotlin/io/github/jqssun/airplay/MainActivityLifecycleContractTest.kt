@@ -57,6 +57,7 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** Android-driven lifecycle transitions with the real bound receiver and ViewModel. */
@@ -249,6 +250,57 @@ class MainActivityLifecycleContractTest {
         val reply = socket.getInputStream().bufferedReader().readLine()
         if (reply != null) assertTrue("Unexpected RTSP response: $reply", reply.startsWith("RTSP/1.0 200"))
         reply != null
+    }
+
+    @Test fun launchOnConnectBringsBackTheActivityOnlyForTheFirstSender() {
+        set(Prefs.RUN_IN_BACKGROUND, true)
+        val activity = launch()
+        start(activity)
+        assertTrue("Android did not accept Home before the connection test",
+            instrumentation.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME))
+        await("Home did not background the idle receiver") {
+            activityMonitor.getLifecycleStageOf(activity) == Stage.STOPPED &&
+                service.serverState.value == AirPlayService.ServerState.RUNNING
+        }
+        var shown: MainActivity? = null
+        try {
+            fun assertBackgroundedWithSenders(count: Int) {
+                instrumentation.waitForIdleSync()
+                main {
+                    assertEquals(count, service.connectionCount.value)
+                    assertEquals(Stage.STOPPED, activityMonitor.getLifecycleStageOf(activity))
+                    assertTrue(activityMonitor.getActivitiesInStage(Stage.RESUMED).none { it is MainActivity })
+
+                }
+            }
+
+            main { service.onConnectionInit() }
+            assertBackgroundedWithSenders(1)
+
+            set(Prefs.LAUNCH_ON_CONNECT, true)
+            main { service.onConnectionInit() }
+            assertBackgroundedWithSenders(2)
+
+            main {
+                service.onConnectionDestroy()
+                service.onConnectionDestroy()
+                service.onConnectionInit()
+            }
+            await("The next first sender did not show the receiver app") {
+                shown = activityMonitor.getActivitiesInStage(Stage.RESUMED).filterIsInstance<MainActivity>().singleOrNull()
+                shown != null
+            }
+            main {
+                assertEquals(1, service.connectionCount.value)
+                assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            }
+        } finally {
+            main {
+                repeat(service.connectionCount.value) { service.onConnectionDestroy() }
+                if (shown !== activity) shown?.finish()
+            }
+            finishActivities()
+        }
     }
 
     @Test fun nativeInitializationFailuresReleaseTheServiceAndAllowRetry() {
@@ -861,6 +913,46 @@ class MainActivityLifecycleContractTest {
         keepsScreenOn(activity, false)
         finishActivities()
         main { assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value) }
+    }
+
+    @Test fun approvalDialogAnswersTheBoundReceiverAndTreatsBackAsDenial() {
+        val activity = launch()
+        start(activity)
+        val executor = Executors.newSingleThreadExecutor()
+        val title = context.getString(R.string.connection_approval_title)
+        val steps = listOf(null to false, R.string.connection_decline to false, R.string.btn_allow to true)
+
+        fun visibleControl(label: String): Rect {
+            val deadline = SystemClock.elapsedRealtime() + 10_000
+            while (SystemClock.elapsedRealtime() < deadline) {
+                nodeBounds(label)?.let { return it }
+                Thread.sleep(30)
+            }
+            throw AssertionError("Approval dialog did not show $label")
+        }
+
+        try {
+            steps.forEachIndexed { index, (action, expected) ->
+                val peer = "192.0.2.${index + 1}"
+                val response = executor.submit<Boolean> { service.approval.ask("AirPlay", peer) }
+                visibleControl(title)
+                visibleControl("AirPlay • $peer")
+                if (action == null) {
+                    instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+                } else {
+                    val control = visibleControl(context.getString(action))
+                    pointerGesture(control.exactCenterX(), control.exactCenterY(), control.exactCenterY())
+                }
+                assertEquals("Wrong approval response for decision ${index + 1}", expected,
+                    response.get(10, TimeUnit.SECONDS))
+                await("The receiver still exposed the answered approval request") {
+                    service.approval.request.value == null && model(activity).pendingApproval.value == null
+                }
+            }
+        } finally {
+            executor.shutdownNow()
+            finishActivities()
+        }
     }
 
     @Test fun audioSessionExposesReceiverVolumeButKeepsUnavailableSenderVolumeDisabled() {

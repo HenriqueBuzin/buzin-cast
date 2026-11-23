@@ -604,6 +604,29 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
             OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
             OUTPUT_CONTRACT(!AudioOutputContractAccess::stream(output));
         }
+    } else if (scenario == 6) {
+        const auto result = oboe::DataCallbackResult::Continue;
+        std::vector<int16_t> stereo(44100 * 2 / 10);
+        for (size_t i = 0; i < stereo.size(); i += 2) {
+            stereo[i] = 1200;
+            stereo[i + 1] = -2400;
+        }
+        timeline->write(stereo.data(), stereo.size(), 0);
+        std::array<int16_t, 16> pcm{};
+        const auto matches = [&pcm](int16_t left, int16_t right) {
+            for (size_t i = 0; i < pcm.size(); i += 2) {
+                if (pcm[i] != left || pcm[i + 1] != right) return false;
+            }
+            return true;
+        };
+        OUTPUT_CONTRACT(callbacks->onAudioReady(nullptr, pcm.data(), 8) == result);
+        OUTPUT_CONTRACT(matches(1200, -2400));
+        output->setClientGain(0.5f);
+        OUTPUT_CONTRACT(callbacks->onAudioReady(nullptr, pcm.data(), 8) == result);
+        OUTPUT_CONTRACT(matches(600, -1200));
+        output->setClientGain(0.0f);
+        OUTPUT_CONTRACT(callbacks->onAudioReady(nullptr, pcm.data(), 8) == result);
+        OUTPUT_CONTRACT(matches(0, 0));
     } else {
         OUTPUT_CONTRACT(false && "Unknown output fixture scenario");
     }
