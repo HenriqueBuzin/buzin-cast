@@ -2719,3 +2719,9 @@ Save is disabled with zero or one valid dimension, and enters values
 with leading zeros through the remote editor. The normal API28 run
 confirmed that saving both dimensions persisted the canonical `1280x720`
 preference and kept the stored preset until the final Save action.
+The other 12 settings cases also passed on the same standard normal
+API28 APKs. Adding the custom-resolution profile to those cases raised
+the matching `SettingsScreen` mappings from 7,742/8,345 to 8,096/8,345
+instructions, 311/448 to 332/448 branches, 572/594 to 586/594 lines,
+209/268 to 230/268 complexity and 165/187 to 173/187 methods. The single
+counted class remained covered.
