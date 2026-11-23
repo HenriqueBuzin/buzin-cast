@@ -9,7 +9,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from test_emulator import COVERAGE_REQUIRED_RESULTS, Suite, UiUnavailable, validate_instrumentation_output
 from run_android_coverage import archive_compiled_inputs, coverage_identity, source_identity, filesystem_path
@@ -59,7 +59,11 @@ class CoverageAutomationTest(unittest.TestCase):
             self.assertEqual(partial,(suite.out/"instrumentation.txt").read_bytes())
             self.assertEqual([],suite.results);self.assertEqual(0,suite.checkpoint)
             self.assertFalse((suite.out/"coverage").exists())
-            self.assertEqual(1,suite.adb.call_count) # Install only; no profile reads.
+            self.assertEqual([
+                call("install", "--no-streaming", "-r", str(Path("fixture.apk").resolve())),
+                call("shell", "run-as", suite.package, "rm", "-f",
+                     "files/coverage/android.ec", "files/coverage/native.profraw"),
+            ], suite.adb.call_args_list)
 
     def test_streaming_does_not_allow_skipped_tests_to_create_a_coverage_pass(self):
         with TemporaryDirectory() as directory:
