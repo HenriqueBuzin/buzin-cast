@@ -2709,6 +2709,16 @@ JVM report measured 81,415/86,654 instructions, 4,984/5,971 branches,
 classes. The `2fd28fa` reports now confirm 100% native coverage for all
 four variants. Every variant still has JVM coverage gaps.
 
+The next archived cohort at `e7ae3da` passed all 15 runtime gates,
+375 Android instrumentation cases, 21 native UBSan cases, and Android
+VPN and offline diagnostics on API28 for both normal editions. Each
+edition retained 100% in all six native metrics. The standard JVM report
+measured 81,405/86,713 instructions, 4,985/5,977 branches, 8,156/8,485
+lines, 4,259/5,146 complexity, 2,219/2,355 methods and 306/313 classes.
+The DE/AT JVM report measured 79,866/85,876 instructions, 4,901/5,899
+branches, 8,106/8,449 lines, 4,201/5,111 complexity, 2,197/2,355 methods
+and 305/313 classes.
+
 The mirroring fullscreen contract verifies that a disabled preference or
 an active PIN leaves the overview visible, dismissing the PIN does not
 automatically enter fullscreen, and a fresh mirror enters fullscreen and
