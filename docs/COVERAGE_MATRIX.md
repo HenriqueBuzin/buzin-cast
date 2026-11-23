@@ -2058,3 +2058,16 @@ The normal JaCoCo profile added three branch outcomes to the earlier full
 API28 baseline for the byte-identical `FCastReceiver` class (139/186 to
 142/186). This comparison applies only to that class. The complete matrix and
 the regional variants still require their own reports.
+
+The compact DE/AT build passed the audio scan contract on Android API22.
+It drives the bound ViewModel through both scan directions and verifies the
+HTTP commands and sender token at the loopback sender. Calls before a
+controller is available and after unbinding send no scan commands. Against
+the byte-identical `MainViewModel` class from the 324-case baseline, the
+selected profile raised `audioScanBegin` from 2/6 to 6/6 branches and
+`audioScanEnd` from 2/4 to 4/4.
+
+The earlier FCast matrix assembled and passed lint for normal, but another
+Gradle build switched editions before the runner archived the live mappings.
+The runner rejected the missing mappings. This attempt produced no complete
+edition report. The follow-up measures editions sequentially.

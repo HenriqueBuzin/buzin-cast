@@ -22,6 +22,7 @@ import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelStore
 import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -36,6 +37,7 @@ import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.renderer.PlaybackSnapshot
+import io.github.jqssun.airplay.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.*
@@ -898,6 +900,59 @@ class ServiceAudioStateContractTest {
                 assertEquals(fallback, prefs.getString(key, null))
             } finally {
                 assertTrue(prefs.edit().putString(key, saved).commit())
+            }
+        }
+    }
+
+    @Test fun audioScanDispatchesBothDirectionsAndResumesThroughTheBoundSender() {
+        val field = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        val originalDacp = service.dacpController
+        val store = ViewModelStore()
+        lateinit var model: MainViewModel
+        DacpHttpContractTest.Sender().use { sender ->
+            val dacp = DacpController { _, listener ->
+                listener.onServiceResolved(NsdServiceInfo().apply {
+                    host = InetAddress.getByName("127.0.0.1")
+                    port = sender.port
+                })
+            }
+            try {
+                main {
+                    model = MainViewModel(context.applicationContext as android.app.Application)
+                    store.put("audio-scan", model)
+                    field.set(service, null)
+                    model.bindService(service)
+                    model.audioScanBegin(true)
+                    model.audioScanEnd()
+                    field.set(service, dacp)
+                    service.onDacpId("scan-fixture", "scan-contract")
+                }
+                instrumentation.waitForIdleSync()
+                assertTrue(dacp.ready)
+                main {
+                    model.audioScanBegin(true)
+                    model.audioScanEnd()
+                    model.audioScanBegin(false)
+                    model.audioScanEnd()
+                    model.unbindService()
+                    model.audioScanBegin(true)
+                    model.audioScanEnd()
+                }
+                // Drain the controller queue before checking that absent and detached
+                // controller calls sent no extra request.
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                val recorded = sender.requests.toList()
+                assertEquals(listOf("beginff", "playresume", "beginrew", "playresume", "playresume"),
+                    recorded.map { it.first().split(' ')[1].substringAfterLast('/') })
+                assertTrue(recorded.all { headers ->
+                    headers.any { it.equals("Active-Remote: scan-contract", ignoreCase = true) }
+                })
+            } finally {
+                main {
+                    field.set(service, originalDacp)
+                    dacp.release()
+                    store.clear()
+                }
             }
         }
     }
