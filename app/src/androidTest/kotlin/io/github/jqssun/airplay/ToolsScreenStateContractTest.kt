@@ -7,9 +7,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.ServiceConnection
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Bundle
+import android.os.IBinder
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -20,11 +22,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.AsyncLogStore
+import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
 import io.github.jqssun.airplay.ui.ToolsScreen
 import io.github.jqssun.airplay.media.MirrorRelay
@@ -40,9 +44,11 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Real Tools controls and diagnostics, with isolated unbound receiver state. */
+/** Real Tools controls, diagnostics, and recording confirmation with isolated fixtures. */
 @RunWith(AndroidJUnit4::class)
 class ToolsScreenStateContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
@@ -574,6 +580,91 @@ class ToolsScreenStateContractTest {
                 if (tree.packageName?.toString() == context.packageName && scroll(tree)) Thread.sleep(250)
                 false
             } finally { tree.recycle() }
+        }
+    }
+
+    @Test fun recordingDeletionRequiresConfirmationAndKeepsTheOtherFile() {
+        val connected = CountDownLatch(1)
+        var boundService: AirPlayService? = null
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                boundService = requireNotNull((binder as? AirPlayService.LocalBinder)?.service)
+                connected.countDown()
+            }
+            override fun onServiceDisconnected(name: ComponentName?) = Unit
+        }
+        assertTrue(context.bindService(Intent(context, AirPlayService::class.java), connection, Context.BIND_AUTO_CREATE))
+        val files = mutableListOf<File>()
+        try {
+            assertTrue("The recording service did not bind", connected.await(15, TimeUnit.SECONDS))
+            val service = requireNotNull(boundService)
+            val directory = service.capture.directory
+            assertTrue(directory.isDirectory || directory.mkdirs())
+            val remaining = File.createTempFile("recording-retain-", ".mkv", directory).also(files::add)
+            val selected = File.createTempFile("recording-delete-", ".mkv", directory).also(files::add)
+            val automation = instrumentation.uiAutomation
+            val flags = automation.serviceInfo.flags
+            automation.serviceInfo = automation.serviceInfo.apply {
+                this.flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            }
+            try {
+                remaining.writeBytes(byteArrayOf(1, 2, 3))
+                selected.writeBytes(byteArrayOf(4, 5, 6))
+                assertTrue(remaining.setLastModified(selected.lastModified() - 2_000))
+                main { model.bindService(service) }
+                val remove = text(R.string.tools_delete)
+                val confirm = text(R.string.tools_delete_confirm)
+                val recordings = text(R.string.tools_recordings)
+                screen {
+                    if (BuildConfig.RECORDING_ENABLED) {
+                        fun recordingListVisible(): Boolean {
+                            val nodes = snapshot() ?: return false
+                            return nodes.none { it.text == confirm } && nodes.any {
+                                it.text == recordings || it.text.startsWith("${selected.name} • ") ||
+                                    it.text.startsWith("${remaining.name} • ") || it.text == text(R.string.tab_tools)
+                            }
+                        }
+                        fun openConfirmation() {
+                            revealToolsItem(remove)
+                            click(remove)
+                            await("The confirmation did not name the selected recording") {
+                                has(confirm) && has(selected.name)
+                            }
+                        }
+                        openConfirmation()
+                        tap(text(R.string.tv_edit_cancel))
+                        await("Cancel did not restore the recording list") { recordingListVisible() && selected.isFile }
+                        openConfirmation()
+                        relayKey(KeyEvent.KEYCODE_BACK)
+                        await("Back did not restore the recording list") { recordingListVisible() && selected.isFile }
+                        openConfirmation()
+                        tap(remove)
+                        await("The confirmed deletion did not update the file and list") {
+                            !selected.exists() && model.recordings.value.none { it.name == selected.name } && !has(confirm)
+                        }
+                        assertTrue(model.recordings.value.any { it.name == remaining.name })
+                    } else {
+                        revealToolsItem(text(R.string.tools_native_open))
+                        assertTrue(model.recordings.value.isEmpty())
+                        assertTrue(absent(remove))
+                        assertTrue(selected.isFile)
+                    }
+                    assertArrayEquals(byteArrayOf(1, 2, 3), remaining.readBytes())
+                }
+            } finally {
+                automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
+                main { model.unbindService() }
+            }
+        } finally {
+            context.unbindService(connection)
+            boundService?.let { service ->
+                await("The recording service did not stop") {
+                    var destroyed = false
+                    main { destroyed = service.lifecycle.currentState == Lifecycle.State.DESTROYED }
+                    destroyed
+                }
+            }
+            files.forEach { file -> if (file.exists()) assertTrue(file.delete()) }
         }
     }
 

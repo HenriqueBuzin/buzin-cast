@@ -2392,3 +2392,14 @@ those native profiles covered both API-level decoder paths and all four
 Oboe gain outcomes. The combined scope reached 910/912 native branches
 and 170/171 MC/DC conditions. The remaining branch outcomes were both
 in the Oboe backend and memory-mapping diagnostic log.
+
+The standard normal API28 recording test used two actual files. Cancel
+and remote Back preserved the selected file. Confirm removed only that
+file and refreshed the list. Its touch-driven confirmation profile
+added 15 branch outcomes and eight methods under `ToolsScreenKt`
+relative to the complete standard normal `538db32` snapshot.
+
+The legacy network selector passed against the real Android network list
+on API28. The four connected diagnostics tests passed, followed by the
+offline diagnostic after both emulator radios were disabled. Matching
+profiles covered 11/14 branch outcomes inside the legacy selector.

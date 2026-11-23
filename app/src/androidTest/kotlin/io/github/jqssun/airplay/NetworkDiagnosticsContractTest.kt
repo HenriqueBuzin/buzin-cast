@@ -14,6 +14,7 @@ import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.media.NetworkDiagnostics
+import io.github.jqssun.airplay.media.connectedLegacyNetwork
 import io.github.jqssun.airplay.media.currentNetworkCompat
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -89,9 +90,26 @@ class NetworkDiagnosticsContractTest {
             }
             "offline" -> {
                 assertNull("The test emulator still has a default network", manager.currentNetworkCompat())
+                assertNull("Legacy selection returned a network with no default", manager.connectedLegacyNetwork())
                 assertReport(false)
             }
             else -> assertReport(hasVpn())
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun legacySelectionMatchesTheConnectedDefaultNetworkType() {
+        val manager = target.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val active = manager.activeNetworkInfo
+        val selected = manager.connectedLegacyNetwork()
+        if (active?.isConnected == true) {
+            val info = requireNotNull(selected?.let(manager::getNetworkInfo)) {
+                "Legacy selection did not resolve the connected default network"
+            }
+            assertTrue("Legacy selection returned a disconnected network", info.isConnected)
+            assertEquals(active.type, info.type)
+        } else {
+            assertNull("Legacy selection returned a network with no connected default", selected)
         }
     }
 
