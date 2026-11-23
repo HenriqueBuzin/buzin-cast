@@ -2689,6 +2689,14 @@ classes. The API22 native profile measured 903/912 branches, 203/203
 functions, 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
 1,495/1,500 regions. These native counts are from API22 alone.
 
+The same standard compact APKs passed all 15 runtime gates, 370 Android
+instrumentation cases and 21 native UBSan cases on API28. Combining that
+snapshot with API22 reached 100% in all six native metrics. The combined
+JVM report measured 81,415/86,654 instructions, 4,984/5,971 branches,
+8,161/8,472 lines, 4,251/5,141 complexity, 2,213/2,353 methods and 306/313
+classes. The `2fd28fa` reports now confirm 100% native coverage for all
+four variants. Every variant still has JVM coverage gaps.
+
 The mirroring fullscreen contract verifies that a disabled preference or
 an active PIN leaves the overview visible, dismissing the PIN does not
 automatically enter fullscreen, and a fresh mirror enters fullscreen and
