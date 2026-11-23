@@ -2855,6 +2855,12 @@ The API28 case added three branches, eight instructions and two
 complexity entries to the same player mappings, raising them to
 115/138 branches, 1,146/1,174 instructions, and 111/134 complexity.
 
+Two API28 cases verified that disabling recovery reports a transient
+network failure to the owning session and that the text overlay ignores
+bitmap cues and caps displayed text at 4,000 characters. The combined
+player profile reached 116/138 branches, 1,148/1,174 instructions, and
+112/134 complexity.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.

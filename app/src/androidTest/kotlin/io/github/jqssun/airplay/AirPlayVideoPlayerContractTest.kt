@@ -1,5 +1,6 @@
 package io.github.jqssun.airplay
 
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.os.SystemClock
@@ -252,6 +253,42 @@ class AirPlayVideoPlayerContractTest {
             assertEquals(listOf(owner), ended)
             assertEquals(owner to "ERROR_CODE_IO_FILE_NOT_FOUND", failures.single())
             assertTrue(recoveries.none { it.second.isNotEmpty() })
+        }
+    }
+
+    @Test fun disabledRecoveryReportsNetworkFailureAndEndsTheOwningSession() {
+        val owner = token()
+        main { renderer.recoveryEnabled = { false } }
+        renderer.play(Uri.fromFile(fixture).toString(), 0f, token = owner)
+        renderer.setRate(0f, owner)
+        main {
+            val listener = playerField("activeListener") as Player.Listener
+            listener.onPlayerError(PlaybackException("Offline", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
+            assertEquals(listOf(owner to "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"), failures)
+            assertEquals(listOf(owner), ended)
+            assertTrue(recoveries.none { it.second.isNotEmpty() })
+        }
+    }
+
+    @Test fun textCaptionsIgnoreBitmapCuesAndKeepTheDisplayLengthBounded() {
+        val owner = token()
+        renderer.play(Uri.fromFile(fixture).toString(), 0f, token = owner)
+        renderer.setRate(0f, owner)
+        val image = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
+        try {
+            main {
+                val listener = playerField("activeListener") as Player.Listener
+                listener.onCues(CueGroup(listOf(
+                    Cue.Builder().setText("first").build(),
+                    Cue.Builder().setBitmap(image).build(),
+                    Cue.Builder().setText("x".repeat(4_000)).build(),
+                ), 0))
+                assertEquals("first\n" + "x".repeat(3_994), renderer.subtitleText.value)
+                listener.onCues(CueGroup(listOf(Cue.Builder().setBitmap(image).build()), 0))
+                assertEquals("", renderer.subtitleText.value)
+            }
+        } finally {
+            image.recycle()
         }
     }
 
