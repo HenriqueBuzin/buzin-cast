@@ -106,6 +106,29 @@ class RelayPlaybackContractTest {
         // Reference NAL, not a keyframe: exercises routing without starting a codec.
         session.relay.accept(MirrorPacket.Video(byteArrayOf(0, 0, 0, 1, 1, 0), pts, width, height, hevc))
     }
+
+    @Test fun decoderRestartScansForAvcAndHevcAccessUnits() {
+        val renderer = session().renderer
+        val classify = VideoRenderer::class.java
+            .getDeclaredMethod("_isKeyframe", ByteArray::class.java, Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        fun canRestart(packet: ByteArray, hevc: Boolean) = classify.invoke(renderer, packet, hevc) as Boolean
+        fun nal(header: Int) = byteArrayOf(0, 0, 0, 1, header.toByte())
+
+        assertFalse(canRestart(byteArrayOf(0, 0, 0, 1), hevc = false))
+        assertFalse(canRestart(byteArrayOf(0, 3, 0, 1, 0x65), hevc = false))
+        assertFalse(canRestart(byteArrayOf(0, 0, 0, 2, 0x65), hevc = false))
+        assertFalse(canRestart(nal(0x61), hevc = false))
+        assertTrue(canRestart(nal(0x65), hevc = false)) // AVC IDR.
+        assertTrue(canRestart(nal(0x61) + nal(0x67), hevc = false)) // AVC SPS after a reference slice.
+
+        assertFalse(canRestart(nal(1 shl 1), hevc = true))
+        for (type in listOf(19, 20, 21, 32, 33)) {
+            assertTrue("HEVC NAL type $type did not qualify for decoder restart", canRestart(nal(type shl 1), hevc = true))
+        }
+        assertTrue(canRestart(byteArrayOf(9, 0, 0, 2) + nal(33 shl 1), hevc = true))
+    }
+
     @Test fun videoChangesAnnounceDimensionsAndOnlyNewSessionsResetTheClockAnchor() {
         val session = session()
         val firstPts = 1_000_000_000L

@@ -2842,3 +2842,17 @@ purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.
 The scoped run covered all 50 instructions in the initializer and its
 SDK callbacks. The purchase response branches remain outside this run.
+
+On API28 the decoder restart test checked AVC and HEVC access units
+and truncated headers. The method that scans for restartable frames
+reached 30/30 branches. Adding the focused profile to the matching
+`VideoRenderer` class mappings raised total branches from 87/120 to
+93/120 and complexity from 67/101 to 73/101.
+
+The compact DE/AT API22 run at `e7ae3da` passed 375 Android tests,
+21 native UBSan cases and all 15 runtime gates. The API22-only JVM
+profile covered 79,127/85,864 instructions, 4,824/5,899 branches,
+8,004/8,449 lines, 4,145/5,111 complexity, 2,183/2,355 methods and
+305/313 classes. It covered 903/912 native branches, 203/203 functions,
+205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
+1,495/1,500 regions.
