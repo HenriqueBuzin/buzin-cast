@@ -2735,7 +2735,9 @@ counted class remained covered.
 On compact API22 the resolution test now locates the saved draft after
 the dialog closes, since dismissing the IME can scroll the editor out of
 view. It then explicitly returns focus to Width before checking Right
-navigates to Height. The focused contract passed this way on API22.
+navigates to Height. All 13 settings cases passed on standard compact
+API22. Its byte-matched comparison showed the same gains as standard
+normal API28, including 311/448 to 332/448 covered branches.
 
 The MediaSession routing contract now checks play, pause, exact seek and
 ten-second forward and rewind commands on a paused local video. It
