@@ -30,6 +30,7 @@ import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.buzincast.core.AsyncLogStore
 import io.buzincast.core.MediaRequest
 import io.buzincast.core.Protocol
 import io.buzincast.core.ReceiverPlaybackPort
@@ -52,6 +53,7 @@ import io.leancast.app.Net
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
@@ -1290,6 +1292,102 @@ class ServiceAudioStateContractTest {
                     dacp.release()
                     store.clear()
                 }
+            }
+        }
+    }
+
+    private fun withIsolatedModel(block: (MainViewModel) -> Unit) {
+        val root = File(context.cacheDir, "service-model-${System.nanoTime()}").apply { check(mkdirs()) }
+        val prefs = context.getSharedPreferences("service-model-contract", Context.MODE_PRIVATE)
+        assertTrue(prefs.edit().clear().commit())
+        val appContext = object : ContextWrapper(context) {
+            override fun getFilesDir() = root
+            override fun getSharedPreferences(name: String, mode: Int) = prefs
+        }
+        val app = object : Application() { init { attachBaseContext(appContext) } }
+        val store = ViewModelStore()
+        var model: MainViewModel? = null
+        try {
+            main {
+                model = MainViewModel(app).also { store.put("service-model", it) }
+            }
+            block(requireNotNull(model))
+        } finally {
+            val logs = model?.let {
+                MainViewModel::class.java.getDeclaredField("logStore").apply { isAccessible = true }
+                    .get(it) as AsyncLogStore
+            }
+            main {
+                model?.unbindService()
+                store.clear()
+            }
+            assertTrue(logs?.awaitClosed() != false)
+            assertTrue(prefs.edit().clear().commit())
+            assertTrue(root.deleteRecursively())
+        }
+    }
+
+    @Test fun relayModelIgnoresDetachedRequestsAndRecoversFromInvalidPorts() = withIsolatedModel { model ->
+        val address = requireNotNull(Net.lanIpv4())
+        val receiver = MirrorRelay(context, {}, {}, {}, { true })
+        val invalidPortMessage = "Retransmissão:"
+        try {
+            main {
+                model.connectRelay(address, 0, "ABCDEFGHIJKL")
+                assertFalse(service.relay.state.value.sending)
+                model.bindService(service)
+                model.connectRelay(address, 0, "ABCDEFGHIJKL")
+            }
+            await("The invalid bound port was not logged") {
+                model.logs.value.any { invalidPortMessage in it }
+            }
+            assertFalse(service.relay.state.value.sending)
+            receiver.listen()
+            val peer = receiver.state.value
+            main { model.connectRelay(" $address ", peer.port, peer.code) }
+            await("The trimmed local address did not pair successfully", 45_000) {
+                service.relay.state.value.sending && receiver.state.value.receiving
+            }
+            main { model.updateFromService() }
+            assertTrue(model.relayState.value.sending)
+            assertEquals(1, model.logs.value.count { invalidPortMessage in it })
+        } finally {
+            main { service.relay.stop() }
+            receiver.stop()
+        }
+    }
+
+    @Test fun debugSnapshotUpdatesOnlyWhileDiagnosticsAreEnabled() = withoutAutoLaunch {
+        withIsolatedModel { model ->
+            lateinit var enabled: StateFlow<Boolean>
+            main {
+                model.bindService(service)
+                enabled = model.pref(Prefs.DEBUG_ENABLED)
+                assertFalse(enabled.value)
+                service.onConnectionInit()
+            }
+            try {
+                main {
+                    model.updateFromService()
+                    assertEquals(1, model.connectionCount.value)
+                    assertEquals(0, model.debugInfo.value.connections)
+                    model.set(Prefs.DEBUG_ENABLED, true)
+                }
+                await("The diagnostic preference was not enabled") { enabled.value }
+                main {
+                    model.updateFromService()
+                    assertEquals(service.collectDebugInfo(), model.debugInfo.value)
+                    assertEquals(1, model.debugInfo.value.connections)
+                    model.set(Prefs.DEBUG_ENABLED, false)
+                }
+                await("The diagnostic preference was not disabled") { !enabled.value }
+            } finally {
+                main { service.onConnectionDestroy() }
+            }
+            main {
+                model.updateFromService()
+                assertEquals(0, model.connectionCount.value)
+                assertEquals(1, model.debugInfo.value.connections)
             }
         }
     }

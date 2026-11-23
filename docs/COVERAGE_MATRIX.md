@@ -2535,3 +2535,15 @@ matching `MainViewModel` profiles, bringing both to 183/192 branches and
 Normal DE/AT API28 and compact DE/AT API22 passed the same contract.
 Each moved from 127/162 to 134/162 branches and from 96/103 to 97/103
 methods against its byte-matched full baseline.
+
+The relay model contract ignores a detached request, records the error
+from an invalid port, and pairs successfully over a socket on the local
+emulator interface using a trimmed address. The diagnostic contract
+updates the model snapshot while diagnostics are enabled and preserves
+the last snapshot after they are disabled. Both passed on normal DE/AT
+API28 and compact DE/AT API22, increasing the scoped `MainViewModel`
+branch count from 134/162 to 138/162 in each edition.
+Both also passed against the unchanged, instrumented application APKs
+from the standard normal API28 and compact API22 scrub runs. The new
+test APKs increased each standard baseline from 183/192 to 187/192
+branches while retaining 103/103 methods.
