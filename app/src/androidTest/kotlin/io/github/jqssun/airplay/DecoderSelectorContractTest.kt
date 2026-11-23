@@ -77,6 +77,34 @@ class DecoderSelectorContractTest {
         }
     }
 
+    @Test fun avcFallsBackToTheFirstRegularDecoderWhenTheInitialQueryFails() {
+        val first = requireNotNull(DecoderSelector(context).avc())
+        val queries = mutableListOf<Int>()
+        val selector = DecoderSelector(context) { kind ->
+            queries += kind
+            check(queries.size != 1) { "Codec inventory temporarily unavailable" }
+            arrayOf(first)
+        }
+
+        assertSame(first, selector.avc())
+        assertEquals(List(2) { MediaCodecList.REGULAR_CODECS }, queries)
+    }
+
+    @Test fun anEmptyRegularInventoryDoesNotHideAvailableSoftwareDecoders() {
+        val softwareAvc = avc()
+        val queries = mutableListOf<Int>()
+        val selector = DecoderSelector(context) { kind ->
+            queries += kind
+            if (kind == MediaCodecList.ALL_CODECS) arrayOf(softwareAvc) else emptyArray()
+        }
+
+        assertNull(selector.avc())
+        assertNull(selector.hevc(null, 64, 48, 30, force = true))
+        assertSame(softwareAvc, selector.software(DecoderSelector.AVC, 64, 48))
+        assertNull(selector.software(DecoderSelector.HEVC, 64, 48))
+        assertEquals(List(3) { MediaCodecList.REGULAR_CODECS } + List(2) { MediaCodecList.ALL_CODECS }, queries)
+    }
+
     @Test fun genericDecoderRetriesRemoveRiskyKeysAndRespectOperatingRateOverride() {
         val selector = DecoderSelector(context)
         val info = avc()

@@ -2623,3 +2623,15 @@ normal application and test APKs archived at `2fd28fa`. The three matching
 Adding the existing API30 profile brought them to 153/196, and adding the
 API37 profile brought them to 160/196. Methods remained at 53/56. The
 API37 run measured decoder selection only.
+
+Two decoder inventory contracts exercise recovery after a failed regular
+codec query and the distinction between an empty regular inventory and
+an available software decoder. On standard normal API28 the same
+instrumented APKs passed first the 16 existing cases and then all 18
+cases. The three decoder class mappings increased from 1,218/1,493 to
+1,243/1,493 instructions, 135/196 to 138/196 branches, 139/150 to 142/150
+lines, 105/156 to 109/156 complexity and 51/58 to 52/58 methods. Both
+counted classes remained covered. Running the same APKs on API37 raised
+instructions from 1,312/1,493 to 1,337/1,493, branches from 148/196 to
+151/196, lines from 141/150 to 144/150, complexity from 112/156 to
+116/156 and methods from 53/58 to 54/58, with both classes still covered.

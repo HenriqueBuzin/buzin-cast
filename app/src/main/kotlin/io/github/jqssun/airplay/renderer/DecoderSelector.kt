@@ -13,7 +13,11 @@ import android.util.Log
 import java.util.Locale
 
 // moonlight-android MediaCodecHelper
-class DecoderSelector(private val ctx: Context) {
+class DecoderSelector internal constructor(
+    private val ctx: Context,
+    private val codecInventory: (Int) -> Array<MediaCodecInfo>,
+) {
+    constructor(ctx: Context) : this(ctx, { kind -> MediaCodecList(kind).codecInfos })
 
     var maxOperatingRate: Boolean? = null
 
@@ -58,7 +62,7 @@ class DecoderSelector(private val ctx: Context) {
     }
 
     fun software(mime: String, w: Int, h: Int): MediaCodecInfo? {
-        val decoders = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.asSequence()
+        val decoders = codecInventory(MediaCodecList.ALL_CODECS).asSequence()
             .filter { !it.isEncoder && it.supportsMime(mime) }
         fun find(qualifies: (MediaCodecInfo) -> Boolean) = decoders.firstOrNull {
             qualifies(it) && _portraitSafe(w, h, it.videoCaps(mime)::isSizeSupported)
@@ -118,7 +122,7 @@ class DecoderSelector(private val ctx: Context) {
     }
 
     private fun _decoders(mime: String) =
-        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { info ->
+        codecInventory(MediaCodecList.REGULAR_CODECS).filter { info ->
             !info.isEncoder && (Build.VERSION.SDK_INT < 29 || !info.isAlias) &&
                 info.supportsMime(mime) && !_blacklisted(info)
         }
