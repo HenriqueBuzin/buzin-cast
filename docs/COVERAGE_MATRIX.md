@@ -2175,3 +2175,12 @@ field label and refreshes that node during focus and text entry. This
 keeps the assertion tied to the same field if the IME moves the label
 outside the viewport. All 12 settings contracts passed on API22 with
 the updated fixture.
+
+The normal API37 permission UI rejected the first request, opened the
+second request from the app, and automatically started the receiver
+after the Android permission controller granted access. The app and test
+APKs matched the complete normal API28 snapshot. The API37 profile raised
+`MainActivity._syncLocalNetwork` from 1/14 to 11/14 branch outcomes and
+`_requestLocalNetwork` from 0/4 to 2/4. A separate run verified that two
+denials opened Android app settings. The emulator's system process crashed
+after opening Settings, leaving the return-from-Settings path unverified.
