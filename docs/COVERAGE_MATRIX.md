@@ -2303,3 +2303,10 @@ on the unchanged APK pair. The fixture now waits for listener readiness
 before asserting success and still rejects an incorrect RTSP status.
 The two cases, two additional receiver restart contracts, and the narrow
 PiP contract passed together on standard normal API28 with the adjustment.
+
+The full standard normal API28 run at `538db32` passed all 15 gate
+entries, including 347 instrumentation tests and 21 native UBSan cases.
+The archived report covered 4852/5967 JVM branches, 4101/5132 complexity
+units, and 8059/8445 lines. This run measured 905/908 native branches.
+The remaining outcomes were in the Oboe output callback's attenuation
+path, which did not execute in this run.
