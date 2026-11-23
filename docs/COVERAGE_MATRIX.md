@@ -2876,6 +2876,12 @@ proof. The matching `MirrorRelay` profile grew from 88/122 to 89/122
 branches, 1,271/1,557 to 1,276/1,557 instructions, and 50/78 to 51/78
 complexity.
 
+The standard API36 picture-in-picture run passed narrow playback,
+the picture-in-picture round trip, and a disconnected activity binding.
+Adding that profile to the 16 matching `MainActivity` class files
+raised branches from 69/122 to 75/122, methods from 33/44 to 38/44,
+and counted classes from 8/12 to 12/12.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.
