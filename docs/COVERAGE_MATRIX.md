@@ -2719,6 +2719,14 @@ The DE/AT JVM report measured 79,866/85,876 instructions, 4,901/5,899
 branches, 8,106/8,449 lines, 4,201/5,111 complexity, 2,197/2,355 methods
 and 305/313 classes.
 
+The standard compact API22 run at `bc8099d` passed lint, 386 Android
+tests, 21 native UBSan cases, and all 15 runtime gates. Its API22-only
+JVM profile covered 80,865/86,746 instructions, 4,935/5,977 branches,
+8,081/8,495 lines, 4,237/5,150 complexity, 2,216/2,359 methods and
+306/313 classes. Native coverage on this API was 903/912 branches,
+203/203 functions, 205/205 instantiations, 1,748/1,751 lines,
+170/171 MC/DC and 1,495/1,500 regions.
+
 The TV frame-rate editor test verifies that Cancel discards the draft,
 an overflowing integer leaves the previous frame rate intact, a valid
 custom value persists, and choosing a preset replaces it. The focused
