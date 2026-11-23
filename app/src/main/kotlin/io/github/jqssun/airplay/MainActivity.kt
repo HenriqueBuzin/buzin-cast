@@ -187,7 +187,8 @@ class MainActivity : ComponentActivity() {
     private fun _pipParams(): PictureInPictureParams {
         val aspect = if (viewModel.videoPlaybackActive.value) viewModel.videoPlaybackAspect.value
             else viewModel.videoAspect.value
-        val rational = Rational((aspect * 1000).toInt().coerceIn(1, 2390), 1000)
+        // Android accepts aspect ratios from 1:2.39 through 2.39:1.
+        val rational = Rational((aspect * 1000).toInt().coerceIn(419, 2390), 1000)
         val builder = PictureInPictureParams.Builder().setAspectRatio(rational)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(_shouldAutoPip())

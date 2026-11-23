@@ -1,5 +1,6 @@
 package io.github.jqssun.airplay
 
+import android.accessibilityservice.AccessibilityService
 import android.app.Activity
 import android.app.AppOpsManager
 import android.content.ComponentName
@@ -755,6 +756,55 @@ class MainActivityLifecycleContractTest {
             assertNull(service.networkPlaybackOwner)
             assertFalse(service.videoPlaybackActive.value)
         }
+    }
+
+    @Test fun narrowVideoEntersPictureInPictureAndKeepsThePausedSession() {
+        pipPolicy("allow")
+        val activity = launch()
+        start(activity)
+        if (!supportsPip()) {
+            main { activity.enterPip(); assertFalse(activity.isInPip.value) }
+            finishActivities()
+            return
+        }
+        val file = File.createTempFile("pip-tall-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/tall-pip.mp4").use { input ->
+            file.outputStream().use(input::copyTo)
+        }
+        main {
+            service.playLocalVideo(android.net.Uri.fromFile(file).toString())
+            service.setVideoPlaying(false)
+        }
+        await("The decoder did not report the video's 1:4 aspect ratio") {
+            model(activity).videoPlaybackActive.value &&
+                kotlin.math.abs(model(activity).videoPlaybackAspect.value - .25f) < .001f
+        }
+        val session = requireNotNull(service.sessionSnapshot()).token
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            assertTrue("Android did not accept the Home action",
+                instrumentation.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME))
+        } else {
+            main { activity.enterPip() }
+        }
+        await("Android did not pin the narrow playback activity") {
+            activity.isInPip.value && activity.isInPictureInPictureMode
+        }
+        main {
+            assertEquals(session, service.sessionSnapshot()?.token)
+            assertTrue(service.videoPlaybackActive.value)
+        }
+
+        main { context.startActivity(Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
+        await("Narrow playback did not return from PiP") {
+            !activity.isInPip.value && resumedActivity<MainActivity>() === activity
+        }
+        main {
+            assertEquals(session, service.sessionSnapshot()?.token)
+            assertFalse(model(activity).videoPlaying.value)
+            service.stopVideoPlayback()
+        }
+        finishActivities()
     }
 
     @Test fun pictureInPictureRoundTripKeepsTheSessionAndReturnsToTheSameActivity() {

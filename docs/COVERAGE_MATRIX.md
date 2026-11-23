@@ -2277,9 +2277,9 @@ The new profile added four branch outcomes and one method under
 
 The same normal DE/AT app and test APKs from the complete API28 run
 passed the picture-in-picture round trip and the disconnected-binding
-contract on API36. The API36 profile exercised the automatic PiP path
-introduced in Android 12. For byte-matched `MainActivity` classes, the
-combined profile increased covered branches from 69/122 to 75/122,
+contract on API36. The API36 profile exercised the automatic-entry
+configuration introduced in Android 12. For byte-matched `MainActivity`
+classes, the combined profile increased covered branches from 69/122 to 75/122,
 methods from 33/44 to 38/44, and classes from 8/16 to 12/16.
 
 All six Tools screen cases passed on compact DE/AT API28. The diagnostic
@@ -2288,3 +2288,10 @@ and after remote Down and Up, including the return to its initial position.
 Android 9 did not emit observable scroll events for the accessibility
 action, so the test compares the settled report pixels. It added five
 branch outcomes and two methods under `ToolsScreenKt`.
+
+A paused 1:4 video reproduced an Android API28 crash when Home
+triggered PiP. The platform rejected the requested window aspect ratio.
+The app now clamps only the PiP window ratio to the supported range. The
+same narrow clip kept its paused session through PiP and fullscreen on
+API28 using Home and on API36 using explicit entry. Accessibility Home did
+not enter PiP on the API36 emulator, so automatic entry there is unverified.
