@@ -812,6 +812,67 @@ class MainActivityLifecycleContractTest {
         }
     }
 
+    @Test fun modelScrubsBoundPlaybackAndClearsTheTargetWhenMediaChanges() {
+        val activity = launch()
+        val model = model(activity)
+        main {
+            model.unbindService()
+            try {
+                model.startServer()
+                assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
+            } finally {
+                model.bindService(service)
+            }
+        }
+        start(activity)
+        val file = File.createTempFile("model-scrub-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input -> file.outputStream().use(input::copyTo) }
+        val location = android.net.Uri.fromFile(file).toString()
+        val playerField = AirPlayVideoPlayer::class.java.getDeclaredField("player").apply { isAccessible = true }
+        main {
+            model.unbindService()
+            try {
+                model.stopServer()
+                assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            } finally {
+                model.bindService(service)
+            }
+            service.playLocalVideo(location)
+            service.setVideoPlaying(false)
+        }
+        await("The fixture duration did not reach the model") {
+            model.videoPlaybackActive.value && model.videoDurationMs.value == 40_000L
+        }
+        fun player() = playerField.get(service.airPlayVideoPlayer) as ExoPlayer
+        main { model.startVideoScrub() }
+        await("Scrubbing mode did not reach the player") { player().isScrubbingModeEnabled }
+        main {
+            model.scrubVideoTo(9_000L)
+            assertEquals(9_000L, model.videoScrubPositionMs.value)
+        }
+        await("The player did not seek to the scrub target") {
+            player().currentPosition == 9_000L
+        }
+        main {
+            model.endVideoScrub()
+            model.setVideoSkipSilence(true)
+            assertTrue(model.videoSkipSilence.value)
+        }
+        await("The player did not leave scrubbing mode and enable silence skipping") {
+            !player().isScrubbingModeEnabled && player().skipSilenceEnabled
+        }
+        main {
+            model.startVideoScrub()
+            model.scrubVideoTo(17_000L)
+            model.endVideoScrub()
+            assertEquals(17_000L, model.videoScrubPositionMs.value)
+            service.playLocalVideo(location)
+            model.updateFromService()
+            assertNull("A new playback kept the previous scrub target", model.videoScrubPositionMs.value)
+            assertFalse("A new playback kept the previous optimistic option", model.videoSkipSilence.value)
+        }
+    }
+
     @Test fun modelControlsReceiverAndPrefersVideoMetadataOverTheAudioTitle() {
         val activity = launch()
         val model = model(activity)

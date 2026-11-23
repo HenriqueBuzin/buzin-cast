@@ -2523,3 +2523,15 @@ The recording-list contract now checks the byte sizes through the same
 properties the UI reads. It passed in both standard editions and brought
 the combined, byte-matched `MainViewModel` profiles to 103/103 methods.
 Branch coverage remained 176/192 in those scoped profiles.
+
+The bound playback contract verifies that receiver start and stop requests
+are ignored while detached, then drives scrubbing and silence skipping
+through the bound model and waits for ExoPlayer to apply the queued
+commands. Starting new media clears the previous scrub target and the
+optimistic silence setting. The contract passed on standard normal API28
+and standard compact API22. It added seven branch outcomes to the
+matching `MainViewModel` profiles, bringing both to 183/192 branches and
+103/103 methods.
+Normal DE/AT API28 and compact DE/AT API22 passed the same contract.
+Each moved from 127/162 to 134/162 branches and from 96/103 to 97/103
+methods against its byte-matched full baseline.
