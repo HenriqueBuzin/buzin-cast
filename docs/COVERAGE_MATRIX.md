@@ -2425,10 +2425,12 @@ targets. The combined report measured 4905/5967 JVM branches,
 
 The standard normal API28 build at `711845e` kept its compiled APKs and
 mappings when the Windows lint scan was interrupted. With those frozen
-inputs, all 353 Android tests and 21 native UBSan cases passed. Their
-checkpoint covered all six native metrics, including 908/908 branches
-and 171/171 MC/DC conditions. The complete runtime report and the local
-lint result were still pending at this checkpoint.
+inputs, all 353 Android tests, 21 native UBSan cases, and 15 runtime gates
+passed. The final report covered all six native metrics, including 908/908
+branches and 171/171 MC/DC conditions. JVM coverage reached 80,248/86,570
+instructions, 4,873/5,967 branches, 8,085/8,447 lines, 4,135/5,134 complexity,
+2,175/2,351 methods, and 306/313 classes. The local Windows lint run did not
+finish.
 
 On standard normal API28, touching the pending video left its toolbar
 visible. Remote Back returned to the overview while sender polling
@@ -2442,3 +2444,10 @@ after the receiver restarted. The scope covered 5/6 outcomes in the
 `onVideoPlay` handler. That test, the pending-video UI test, and the
 earlier playback ownership test passed together. The ownership test now
 uses a 40-second clip so playback stays available for the rate assertions.
+
+The standard normal API28 VPN test verified that the initial network
+snapshot does not trigger recovery, connecting and disconnecting a VPN
+reports both route changes, and a queued check after closing the observer
+leaves the restored route unchanged. Against byte-matched classes from
+the earlier complete standard run, `NetworkRecovery` increased from 12/24
+to 15/24 branch outcomes and from 9/10 to 10/10 methods.

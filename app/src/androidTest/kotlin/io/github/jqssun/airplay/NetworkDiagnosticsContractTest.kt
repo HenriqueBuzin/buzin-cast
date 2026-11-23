@@ -14,6 +14,7 @@ import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.media.NetworkDiagnostics
+import io.github.jqssun.airplay.media.NetworkRecovery
 import io.github.jqssun.airplay.media.connectedLegacyNetwork
 import io.github.jqssun.airplay.media.currentNetworkCompat
 import org.junit.After
@@ -23,6 +24,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
@@ -82,12 +84,7 @@ class NetworkDiagnosticsContractTest {
         }
         val expectation = InstrumentationRegistry.getArguments().getString("networkDiagnosticState")
         when (expectation) {
-            "vpn" -> withDiagnosticVpn {
-                val deadline = SystemClock.elapsedRealtime() + 10_000
-                while (!hasVpn() && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(25)
-                assertTrue("Android did not report the VPN transport", hasVpn())
-                assertReport(true)
-            }
+            "vpn" -> verifyVpnRecovery(::hasVpn) { assertReport(true) }
             "offline" -> {
                 assertNull("The test emulator still has a default network", manager.currentNetworkCompat())
                 assertNull("Legacy selection returned a network with no default", manager.connectedLegacyNetwork())
@@ -95,6 +92,53 @@ class NetworkDiagnosticsContractTest {
             }
             else -> assertReport(hasVpn())
         }
+    }
+
+    private fun awaitNetwork(message: String, condition: () -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + 10_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (condition()) return
+            SystemClock.sleep(25)
+        }
+        assertTrue(message, condition())
+    }
+
+    private fun verifyVpnRecovery(hasVpn: () -> Boolean, assertVpnReport: () -> Unit) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val changes = CopyOnWriteArrayList<Boolean>()
+        val recovery = NetworkRecovery(target) { changes += it }
+        val initialized = NetworkRecovery::class.java.getDeclaredField("initialized").apply { isAccessible = true }
+        val queuedCheck = NetworkRecovery::class.java.getDeclaredField("check").apply { isAccessible = true }
+            .get(recovery) as Runnable
+        try {
+            instrumentation.runOnMainSync { recovery.start() }
+            awaitNetwork("The initial network snapshot was not taken") {
+                var ready = false
+                instrumentation.runOnMainSync { ready = initialized.getBoolean(recovery) }
+                ready
+            }
+            assertTrue("The initial route triggered a restart", changes.isEmpty())
+            var vpnEvents = 0
+            withDiagnosticVpn {
+                awaitNetwork("Android did not report the VPN transport", hasVpn)
+                assertVpnReport()
+                awaitNetwork("The VPN did not trigger a connected route change") { changes.lastOrNull() == true }
+                vpnEvents = changes.size
+            }
+            awaitNetwork("The original route was not restored and reported") {
+                !hasVpn() && changes.size > vpnEvents && changes.lastOrNull() == true
+            }
+        } finally {
+            instrumentation.runOnMainSync { recovery.close() }
+        }
+        val changesAtClose = changes.toList()
+        withDiagnosticVpn {
+            awaitNetwork("Android did not establish the second VPN", hasVpn)
+            // Model a check that reached the main queue just before close removed callbacks.
+            instrumentation.runOnMainSync(queuedCheck)
+            assertEquals("A check delivered after close changed receiver state", changesAtClose, changes.toList())
+        }
+        awaitNetwork("The second VPN did not release its default route") { !hasVpn() }
     }
 
     @Suppress("DEPRECATION")
