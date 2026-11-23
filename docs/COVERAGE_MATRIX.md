@@ -2190,3 +2190,16 @@ API37. Compared with the complete API28 report for the matching classes,
 the combined profiles covered 155/196 decoder-selector branches and 52/56
 methods, up from 135/196 and 49/56. The newer platform run exercises
 MediaCodec capability queries that are unavailable on API28.
+
+The standard compat APK and its archived API28 test APK passed all 338
+instrumentation tests, 21 native UBSan cases, and all runtime gates, including
+VPN and offline diagnostics. JaCoCo covered 4795/5967 branches, 4057/5132
+complexity units, and 7982/8445 lines. On this API alone, LLVM covered
+909/912 branches, 1496/1500 regions, and 1748/1751 lines. Functions,
+instantiations, and MC/DC reached 100%.
+
+A separate compat DE/AT API22 run passed 336 of 338 instrumentation tests.
+Replaying the two failures three times with the unchanged APK pair passed
+the custom-resolution focus test all three times. The relay audio and video
+forwarding test passed once and timed out before authentication twice.
+The complete API22 gate remains pending.
