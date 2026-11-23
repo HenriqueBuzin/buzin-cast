@@ -2481,3 +2481,16 @@ The compact DE/AT API22 run improved the same counts against its combined
 API22 and API28 baseline. The test sends the pointer events through the
 activity window because API22's system input injection can target another
 window and reject the gesture.
+
+The relay contracts check that eight rejected peers expire a listener
+without ending a stream, that a new listener can accept a peer, and that a
+sender can retry after a rejected pairing. The accepted sender sends an
+authenticated keepalive while idle, followed by video and a clean end
+frame. All nine relay tests passed on API28 in both normal editions.
+Against their byte-matched full baselines, `MirrorRelay` branch coverage
+went from 82/122 to 87/122 in the standard edition and 88/122 in DE/AT.
+Both compact editions passed all nine tests on API22 and reached 88/122
+from 82/122 against their byte-matched API22 and API28 baselines. In the
+first compact DE/AT run, both new scenarios passed and an existing
+handshake test timed out. All nine passed when rerun with the same APKs
+and more emulator memory.

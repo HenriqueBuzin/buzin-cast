@@ -14,6 +14,7 @@ import org.junit.runner.RunWith
 import java.io.DataInputStream
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -114,6 +115,29 @@ class MirrorRelayContractTest {
         assertEquals(0, endings.get())
     }
 
+    @Test fun rejectedPairingsExpireTheListenerAndItCanStartAgain() {
+        available.set(false)
+        val receiver = relay()
+        receiver.listen()
+        val originalPort = receiver.state.value.port
+        repeat(8) {
+            Socket("127.0.0.1", originalPort).use { socket ->
+                socket.soTimeout = 5000
+                assertEquals(-1, socket.getInputStream().read())
+            }
+        }
+        await("Listener did not expire after eight failed pairings") {
+            !receiver.state.value.listening && receiver.state.value.message == context.getString(R.string.relay_new_code)
+        }
+        assertEquals(0, endings.get())
+        assertTrue(packets.isEmpty())
+
+        available.set(true)
+        receiver.listen()
+        peer(receiver) { it.send(MirrorPacketCodec.encode(MirrorPacket.End)) }
+        await("Restarted listener did not finish") { endings.get() == 1 }
+    }
+
     @Test fun newLocalStreamTerminatesAuthenticatedRelayWithoutDeliveringItsPacket() {
         val receiver = relay()
         receiver.listen()
@@ -157,9 +181,7 @@ class MirrorRelayContractTest {
     }
 
     @Test fun pairedSenderAndReceiverTransferVideoOnTheEmulatorLocalInterface() {
-        val address = NetworkInterface.getNetworkInterfaces().toList()
-            .flatMap { it.inetAddresses.toList() }
-            .first { it is Inet4Address && it.isSiteLocalAddress && !it.isLoopbackAddress }
+        val address = localAddress()
         val receiver = relay()
         receiver.listen()
         val sender = relay()
@@ -177,4 +199,54 @@ class MirrorRelayContractTest {
         sender.offer(MirrorPacket.End)
         await("Paired session did not end") { !sender.state.value.sending && endings.get() == 1 }
     }
+
+    @Test fun senderRecoversFromRejectedPairingAndSendsKeepaliveBeforeVideo() {
+        val address = localAddress()
+        val code = "ABCDEFGHIJKL"
+        val sender = relay()
+        ServerSocket(0, 1, address).use { server ->
+            server.soTimeout = 10_000
+            fun connect(respond: (SecureMirrorChannel) -> Unit) {
+                sender.connect(requireNotNull(address.hostAddress), server.localPort, code)
+                server.accept().use { socket ->
+                    socket.soTimeout = 15_000
+                    val input = DataInputStream(socket.getInputStream())
+                    val output = socket.getOutputStream()
+                    val magic = ByteArray(SecureMirrorChannel.MAGIC.size).also(input::readFully)
+                    assertArrayEquals(SecureMirrorChannel.MAGIC, magic)
+                    val salt = ByteArray(16) { it.toByte() }
+                    output.write(salt)
+                    output.flush()
+                    val channel = SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(code, salt))
+                    assertArrayEquals("hello".toByteArray(), channel.receive())
+                    respond(channel)
+                }
+            }
+
+            connect { it.send("rejected".toByteArray()) }
+            await("Rejected pairing did not report an error") {
+                !sender.state.value.sending && sender.state.value.message.contains(context.getString(R.string.relay_bad_code))
+            }
+            connect { channel ->
+                channel.send("ready".toByteArray())
+                await("Retry did not become active") { sender.state.value.sending }
+                assertArrayEquals(ByteArray(0), channel.receive())
+                val video = MirrorPacket.Video(byteArrayOf(0, 0, 0, 1, 5), 9876, 640, 480, false)
+                sender.offer(video)
+                fun receivePacket() = generateSequence(channel::receive).take(5).first { it.isNotEmpty() }
+                val frame = receivePacket()
+                assertArrayEquals(MirrorPacketCodec.encode(video), frame)
+                sender.offer(MirrorPacket.End)
+                val end = receivePacket()
+                assertEquals(MirrorPacket.End, MirrorPacketCodec.decode(end))
+                await("Retried sender did not finish cleanly") {
+                    !sender.state.value.sending && sender.state.value.message == context.getString(R.string.relay_ended)
+                }
+            }
+        }
+    }
+
+    private fun localAddress() = NetworkInterface.getNetworkInterfaces().toList()
+        .flatMap { it.inetAddresses.toList() }
+        .first { it is Inet4Address && it.isSiteLocalAddress && !it.isLoopbackAddress }
 }
