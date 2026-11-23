@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect as PixelRect
 import android.os.ParcelFileDescriptor
@@ -34,6 +35,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -48,6 +50,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.ui.DpadSeekIndicator
+import io.github.jqssun.airplay.ui.PlaybackSpeedSelector
 import io.github.jqssun.airplay.ui.PlayerButton
 import io.github.jqssun.airplay.ui.VideoControlsBottom
 import io.github.jqssun.airplay.ui.VideoControlsTop
@@ -384,6 +387,52 @@ class GestureIndicatorContractTest {
         }
         instrumentation.runOnMainSync { showDownload.value = false }
         await("Hidden download still exposed progress") { hasControl(copyLabel) && !hasProgress() }
+    }
+
+    @Test fun speedSelectorAppliesPresetsAndDismissesInBothOrientations() = activity { scenario ->
+        val visible = mutableStateOf(true)
+        val speed = mutableStateOf(1f)
+        val portrait = mutableStateOf(false)
+        val changes = java.util.concurrent.CopyOnWriteArrayList<Float>()
+        val dismissals = AtomicInteger()
+        val ready = "Speed selector test ready"
+        val title = context.getString(R.string.select_playback_speed)
+        scenario.onActivity { target -> target.setContent {
+            AirPlayTheme {
+                val configuration = Configuration(LocalConfiguration.current).apply {
+                    orientation = if (portrait.value) Configuration.ORIENTATION_PORTRAIT
+                        else Configuration.ORIENTATION_LANDSCAPE
+                }
+                CompositionLocalProvider(LocalConfiguration provides configuration) {
+                    Box(Modifier.fillMaxSize()) {
+                        Text(ready, Modifier.align(Alignment.TopStart))
+                        PlaybackSpeedSelector(
+                            show = visible.value, speed = speed.value, skipSilence = false,
+                            onSpeedChange = { value -> speed.value = value; changes += value },
+                            onSkipSilenceChange = {},
+                            onDismiss = { dismissals.incrementAndGet(); visible.value = false }
+                        )
+                    }
+                }
+            }
+        } }
+        await("Landscape speed selector did not open") { textVisible(title) }
+        activateControl("2.5")
+        await("Playback preset did not reach the player") { changes.toList() == listOf(2.5f) }
+        activateControl(context.getString(R.string.cd_reset_speed))
+        await("Reset did not restore normal speed") { changes.toList() == listOf(2.5f, 1f) }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        await("Back did not dismiss the landscape selector exactly once") {
+            dismissals.get() == 1 && texts()?.let { ready in it && title !in it } == true
+        }
+
+        scenario.onActivity { portrait.value = true; visible.value = true }
+        await("Portrait speed selector did not open") { textVisible(title) }
+        tapPlayerControl(scenario, ready)
+        await("Touch outside did not dismiss the portrait selector exactly once") {
+            dismissals.get() == 2 && texts()?.let { ready in it && title !in it } == true
+        }
+        assertEquals(listOf(2.5f, 1f), changes.toList())
     }
 
     @Test fun playbackBottomControlsToggleTimeAndExposePictureInPictureWhenSupported() = activity { scenario ->

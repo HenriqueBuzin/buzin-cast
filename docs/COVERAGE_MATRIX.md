@@ -2091,3 +2091,17 @@ and Android instrumentation profiles from API28 measured 100% of all six
 app-native metrics for compact DE/AT: 912 branches, 203 functions,
 205 instantiations, 1751 lines, 171 MC/DC conditions, and 1500 regions.
 This native result leaves the full runtime and JVM coverage gates open.
+
+Four further contracts passed in compact DE/AT. On API22 the bound model
+only opened a relay listener while the receiver was idle, and the playback
+speed selector applied a preset, reset to normal speed, and closed via Back
+or an outside tap. On API30 the settings screen handled denied and granted
+overlay permission, including fallback to the app settings page. The
+MediaSession also routed commands to the audio sender or local video player
+according to the active owner.
+
+Compared with the byte-identical class mappings of the 324-case baseline,
+the selected JaCoCo profiles added 32 branch outcomes across the measured
+classes for the model, speed selector, settings and service. The compact
+DE/AT matrix APK was already frozen before these contracts were added, so
+its reports still represent the 330-case suite.

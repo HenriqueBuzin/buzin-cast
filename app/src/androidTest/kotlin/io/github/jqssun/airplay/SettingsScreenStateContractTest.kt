@@ -2,6 +2,7 @@ package io.github.jqssun.airplay
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Application
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -9,7 +10,9 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -38,6 +41,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** Real touch settings, persisted through an isolated unbound MainViewModel. */
 @RunWith(AndroidJUnit4::class)
@@ -378,10 +382,11 @@ class SettingsScreenStateContractTest {
         await("Remote OK did not open the editor for $value") { withEditor(value) { it.isFocused } }
     }
 
-    private fun screen(tv: Boolean = false, block: () -> Unit) {
-        val uiContext = if (tv) isolated.createConfigurationContext(Configuration(isolated.resources.configuration).apply {
+    private fun screen(tv: Boolean = false, wrapContext: (Context) -> Context = { it }, block: () -> Unit) {
+        val baseContext = if (tv) isolated.createConfigurationContext(Configuration(isolated.resources.configuration).apply {
             uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK.inv()) or Configuration.UI_MODE_TYPE_TELEVISION
         }) else isolated
+        val uiContext = wrapContext(baseContext)
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java)
             .putExtra("screen", "contract_host").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             scenario.onActivity { target ->
@@ -604,6 +609,72 @@ class SettingsScreenStateContractTest {
                 switch(id, pref, !original)
                 switch(id, pref, original)
             }
+        }
+    }
+
+    @Test fun launchOnConnectUsesTheOverlayPermissionOrApplicationSettings() {
+        val preference = Prefs.LAUNCH_ON_CONNECT
+        assertTrue(prefs.edit().putBoolean(preference.key, false).commit())
+        val title = label(R.string.setting_launch_on_connect)
+        val operations = CopyOnWriteArrayList<Intent>()
+        var fallback = false
+        val intercept: (Context) -> Context = { base ->
+            object : ContextWrapper(base) {
+                override fun startActivity(intent: Intent) {
+                    operations += Intent(intent)
+                    if (fallback && intent.action == Settings.ACTION_MANAGE_OVERLAY_PERMISSION) {
+                        throw ActivityNotFoundException("Overlay settings are unavailable")
+                    }
+                }
+            }
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            screen(wrapContext = intercept) {
+                switch(R.string.setting_launch_on_connect, preference, true)
+                switch(R.string.setting_launch_on_connect, preference, false)
+                assertTrue(operations.isEmpty())
+            }
+            return
+        }
+
+        fun shell(command: String): String = ParcelFileDescriptor.AutoCloseInputStream(
+            instrumentation.uiAutomation.executeShellCommand(command)).bufferedReader().use { it.readText() }
+        val packageName = context.packageName
+        val output = shell("appops get $packageName SYSTEM_ALERT_WINDOW")
+        val original = Regex("SYSTEM_ALERT_WINDOW: ([a-z_]+)").find(output)?.groupValues?.get(1) ?: "default"
+        try {
+            shell("appops set $packageName SYSTEM_ALERT_WINDOW ignore")
+            assertFalse(Settings.canDrawOverlays(context))
+            screen(wrapContext = intercept) {
+                reveal(title)
+                assertEquals(false, checked(title))
+                click(title)
+                val prompt = label(R.string.setting_launch_on_connect_no_permission)
+                await("Overlay permission was not requested") {
+                    preference.read(prefs) && operations.size == 1 &&
+                        texts()?.any { prompt in it } == true && checked(title) == false
+                }
+                fallback = true
+                click(title)
+                await("Could not open application settings after missing overlay activity") { operations.size == 3 }
+                assertEquals(listOf(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Settings.ACTION_APPLICATION_DETAILS_SETTINGS),
+                    operations.map { it.action })
+                assertTrue(operations.all {
+                    it.dataString == "package:$packageName" && it.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0
+                })
+            }
+
+            shell("appops set $packageName SYSTEM_ALERT_WINDOW allow")
+            assertTrue(Settings.canDrawOverlays(context))
+            screen(wrapContext = intercept) {
+                reveal(title)
+                await("Granted permission did not enable the saved setting") { checked(title) == true }
+                switch(R.string.setting_launch_on_connect, preference, false)
+                assertEquals(3, operations.size)
+            }
+        } finally {
+            shell("appops set $packageName SYSTEM_ALERT_WINDOW $original")
         }
     }
 

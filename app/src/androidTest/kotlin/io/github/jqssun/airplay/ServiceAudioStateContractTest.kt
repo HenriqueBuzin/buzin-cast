@@ -957,6 +957,127 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun relayListeningRequiresAnIdleBoundReceiver() {
+        @Suppress("UNCHECKED_CAST")
+        fun <T> flow(name: String): MutableStateFlow<T> =
+            AirPlayService::class.java.getDeclaredField(name).apply { isAccessible = true }
+                .get(service) as MutableStateFlow<T>
+        val connections = flow<Int>("_connectionCount")
+        val video = flow<Boolean>("_videoPlaybackActive")
+        val store = ViewModelStore()
+        main {
+            val model = MainViewModel(context.applicationContext as android.app.Application)
+            store.put("relay-listener", model)
+            val initialConnections = connections.value
+            val initialVideo = video.value
+            try {
+                assertEquals(0, initialConnections)
+                assertFalse(initialVideo)
+                model.listenRelay()
+                assertFalse(service.relay.state.value.listening)
+
+                model.bindService(service)
+                connections.value = 1
+                model.listenRelay()
+                assertFalse(service.relay.state.value.listening)
+
+                connections.value = 0
+                video.value = true
+                model.listenRelay()
+                assertFalse(service.relay.state.value.listening)
+
+                video.value = false
+                model.listenRelay()
+                val listening = service.relay.state.value
+                assertTrue(listening.listening)
+                assertTrue(listening.port in 1..65535)
+                assertEquals(12, listening.code.length)
+                model.updateFromService()
+                assertEquals(listening, model.relayState.value)
+
+                model.stopRelay()
+                model.updateFromService()
+                assertFalse(model.relayState.value.listening)
+                assertEquals(0, model.relayState.value.port)
+                assertEquals("", model.relayState.value.code)
+            } finally {
+                service.relay.stop()
+                connections.value = initialConnections
+                video.value = initialVideo
+                model.unbindService()
+                store.clear()
+            }
+        }
+    }
+
+    @Test fun mediaSessionRoutesAudioAndVideoToTheirCurrentOwners() = withoutAutoLaunch {
+        val field = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        val originalDacp = service.dacpController
+        DacpHttpContractTest.Sender().use { sender ->
+            val dacp = DacpController { _, listener ->
+                listener.onServiceResolved(NsdServiceInfo().apply {
+                    host = InetAddress.getByName("127.0.0.1")
+                    port = sender.port
+                })
+            }
+            fun commands() = sender.requests.map { it.first().split(' ')[1].substringAfterLast('/') }
+            try {
+                main {
+                    field.set(service, dacp)
+                    service.onDacpId("media-session-fixture", "media-session-contract")
+                }
+                instrumentation.waitForIdleSync()
+                assertTrue(dacp.ready)
+
+                val transport = controller.transportControls
+                transport.pause()
+                await("MediaSession pause did not reach the audio sender") {
+                    !service.playing.value && commands() == listOf("pause")
+                }
+                transport.play()
+                await("MediaSession play did not reach the audio sender") {
+                    service.playing.value && commands() == listOf("pause", "play")
+                }
+                transport.skipToNext()
+                transport.skipToPrevious()
+                val audioCommands = listOf("pause", "play", "nextitem", "previtem")
+                await("MediaSession skip commands did not reach the audio sender") { commands() == audioCommands }
+
+                withLocalVideoFixture { location ->
+                    main {
+                        service.playLocalVideo(location)
+                        service.airPlayVideoPlayer.setPlaying(false)
+                    }
+                    await("Local video did not become ready and paused") {
+                        service.videoPlaybackActive.value && service.videoPlaybackInfo.value.let {
+                            !it.playing && it.durationMs == 1000L && !it.buffering
+                        }
+                    }
+                    transport.skipToNext()
+                    transport.skipToPrevious()
+                    transport.seekTo(400)
+                    await("MediaSession did not seek the local video") {
+                        service.videoPlaybackActive.value && service.videoPlaybackInfo.value.positionMs == 400L
+                    }
+                    // The seek callback runs after both skip callbacks. Drain the
+                    // sender executor to detect any incorrect video-to-audio routing.
+                    dacp.playResume().get(5, TimeUnit.SECONDS)
+                    assertEquals(audioCommands + "playresume", commands())
+
+                    transport.stop()
+                    await("MediaSession stop did not release local video") {
+                        !service.videoPlaybackActive.value && service.sessionSnapshot() == null
+                    }
+                }
+            } finally {
+                main {
+                    field.set(service, originalDacp)
+                    dacp.release()
+                }
+            }
+        }
+    }
+
     @Test fun senderVolumeStepsFollowFeedbackAndStopAtTargetOrOvershoot() {
         val prefs = context.getSharedPreferences(Prefs.NAME, 0)
         val key = Prefs.SYNC_CLIENT_VOLUME.key
