@@ -15,6 +15,9 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
+import android.view.SurfaceView
+import android.view.View
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
@@ -219,7 +222,7 @@ class MainScreenStateContractTest {
     private fun screen(
         resultOwner: ActivityResultRegistryOwner? = null,
         allowVideo: Boolean = false,
-        block: () -> Unit,
+        block: (ActivityScenario<DebugTvPreviewActivity>) -> Unit,
     ) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
@@ -230,7 +233,7 @@ class MainScreenStateContractTest {
                 }
             } } }
             await("Main screen did not expose content") { snapshot() != null }
-            block()
+            block(scenario)
         }
         if (!allowVideo) assertEquals("Idle/audio/dialog states unexpectedly created a video surface", 0, surfaces.get())
     }
@@ -395,19 +398,28 @@ class MainScreenStateContractTest {
         }
     }
 
-    @Test fun mirroringEntersFullscreenOnlyOnAFreshStartWithoutAPin() = screen(allowVideo = true) {
+    @Test fun mirroringEntersFullscreenOnlyOnAFreshStartWithoutAPin() = screen(allowVideo = true) { scenario ->
         val overview = text(R.string.tab_overview)
         val waiting = text(R.string.waiting_for_playback)
         val connected = text(R.string.connected_count, 1)
         fun overviewSelected() = control(overview, selected = true)
+        fun hasPreview(view: View): Boolean = when (view) {
+            is SurfaceView -> view.isAttachedToWindow && view.width > 0 && view.height > 0
+            is ViewGroup -> (0 until view.childCount).any { hasPreview(view.getChildAt(it)) }
+            else -> false
+        }
+        fun previewMounted(): Boolean {
+            var mounted = false
+            scenario.onActivity { mounted = hasPreview(it.window.decorView) }
+            return mounted
+        }
         fun startMirroring() {
-            val previousSurfaces = surfaces.get()
             main { state("_mirroringActive", true) }
-            await("Mirroring did not create a surface") { surfaces.get() > previousSurfaces }
+            await("Mirroring did not mount its preview", ::previewMounted)
         }
         fun resetMirroring() {
             main { state("_mirroringActive", false) }
-            await("Overview did not return to waiting") { has(waiting) && overviewSelected() }
+            await("Overview did not return to waiting") { has(waiting) && overviewSelected() && !previewMounted() }
         }
 
         main {

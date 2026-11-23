@@ -2697,3 +2697,19 @@ passed all nine cases. Adding its profile to 28 matching `MainScreen`
 class files increased covered branches from 427/535 to 432/535,
 instructions from 10,767/11,296 to 10,769/11,296 and complexity from
 314/399 to 318/399. Line, method and class counts stayed the same.
+
+The same fullscreen test passed on standard compact API22 with all nine
+main-screen cases. It waits for the actual surface view to mount so that
+Android scheduling of surface-holder callbacks does not determine the UI
+policy result. Adding the new profile to the matching full API22 report
+raised `MainScreen` instructions from 10,581/11,290 to 10,583/11,290,
+branches from 422/535 to 427/535, and complexity from 310/399 to 314/399.
+The covered line, method and class counts stayed the same.
+
+The compact DE/AT API28 replay of `2fd28fa` passed all 15 runtime gates,
+370 Android instrumentation cases and 21 native UBSan cases. The JVM
+report measured 79,733/85,817 instructions, 4,867/5,893 branches,
+8,093/8,436 lines, 4,164/5,106 complexity, 2,190/2,353 methods and 305/313
+classes. Its API28 native profile measured 909/912 branches, 203/203
+functions, 205/205 instantiations, 1,748/1,751 lines, 171/171 MC/DC and
+1,496/1,500 regions. These native counts are from API28 alone.
