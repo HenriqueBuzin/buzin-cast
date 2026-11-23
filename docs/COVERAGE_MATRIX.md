@@ -2635,3 +2635,12 @@ counted classes remained covered. Running the same APKs on API37 raised
 instructions from 1,312/1,493 to 1,337/1,493, branches from 148/196 to
 151/196, lines from 141/150 to 144/150, complexity from 112/156 to
 116/156 and methods from 53/58 to 54/58, with both classes still covered.
+
+The standard normal API28 replay with the archived `2fd28fa` APKs
+completed all 15 runtime gates. Its 370 Android instrumentation cases
+included the closed log worker and FCast cooldown regressions, and all
+21 native UBSan cases passed. The JVM report measured 81,282/86,666
+instructions, 4,956/5,971 branches, 8,142/8,472 lines, 4,226/5,141
+complexity, 2,211/2,353 methods and 306/313 classes. Native coverage was
+100% in all six metrics. This report predates the decoder inventory
+change and its two new contracts.
