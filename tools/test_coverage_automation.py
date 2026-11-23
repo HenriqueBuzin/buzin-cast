@@ -65,6 +65,16 @@ class CoverageAutomationTest(unittest.TestCase):
                      "files/coverage/android.ec", "files/coverage/native.profraw"),
             ], suite.adb.call_args_list)
 
+    def test_instrumentation_records_a_scoped_test_selection(self):
+        with TemporaryDirectory() as directory:
+            suite = self.instrumentation_fixture(directory)
+            selection = "example.ReceiverContract#singleCase"
+            suite.args.test_class = selection
+            with patch.object(suite, "run_instrumentation", return_value="OK (1 test)") as run:
+                suite.instrumentation()
+            run.assert_called_once_with(suite.out / "instrumentation.txt", selection)
+            self.assertEqual(selection, suite.results[0]["test_class"])
+
     def test_streaming_does_not_allow_skipped_tests_to_create_a_coverage_pass(self):
         with TemporaryDirectory() as directory:
             suite=self.instrumentation_fixture(directory,coverage=True)
@@ -356,6 +366,11 @@ class CoverageAutomationTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"different variants or compiled inputs"):
                     validate_snapshots(snapshots)
             second.write_text(valid,encoding="utf-8")
+            results[0]["test_class"] = "example.ReceiverContract#singleCase"
+            (snapshots[1]/"results.json").write_text(json.dumps(results),encoding="utf-8")
+            with self.assertRaisesRegex(ValueError,"full Android instrumentation suite"):
+                validate_snapshots(snapshots)
+            del results[0]["test_class"]
             results[0]["runner"]=runner.replace("STATUS_CODE: 0","STATUS_CODE: -4")
             (snapshots[1]/"results.json").write_text(json.dumps(results),encoding="utf-8")
             with self.assertRaisesRegex(ValueError,"skipped tests"):

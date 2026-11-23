@@ -430,8 +430,9 @@ python tools/merge_android_coverage.py --snapshot SNAPSHOT_API22 --snapshot SNAP
 
 The merger requires the same edition and compiled fingerprints, successful
 instrumentation/native results, every one of the 13 UI scenarios, and raw
-Java/native profiles. A partial scenario list is rejected. It
-also checks the compiled mappings before and after reporting. New snapshots
+Java/native profiles. It rejects a partial scenario list or a run recorded
+with an Android instrumentation class or method filter, and checks the
+compiled mappings before and after reporting. New snapshots
 archive the APKs, class trees, unstripped native library, source trees and JVM
 execution data before installing the app. Switching build variants therefore
 cannot remove the mappings needed to replay a completed run. Older snapshots

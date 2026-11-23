@@ -37,6 +37,8 @@ def validate_snapshots(snapshots):
         if not results or not all(result.get("passed") is True for result in results) or not required.issubset({result.get("test") for result in results}):
             raise ValueError("Snapshot must contain a completed instrumented/native/extended UI run")
         runner=next(result for result in results if result["test"]=="Android socket integration")
+        if runner.get("test_class") is not None:
+            raise ValueError("Snapshot must contain the full Android instrumentation suite, without --test-class")
         try:
             validate_instrumentation_output(runner.get("runner",""),require_all=True)
         except AssertionError as error:

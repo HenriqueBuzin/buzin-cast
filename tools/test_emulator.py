@@ -570,7 +570,10 @@ class Suite:
             apk=subprocess.check_output(["wslpath","-w",apk],text=True).strip()
         self.adb("install", "--no-streaming", "-r", apk)
         output = self.run_instrumentation(self.out/"instrumentation.txt", self.args.test_class)
-        self.results.append({"test":"Android socket integration", "passed":True, "runner":output})
+        result = {"test":"Android socket integration", "passed":True, "runner":output}
+        if self.args.test_class:
+            result["test_class"] = self.args.test_class
+        self.results.append(result)
 
     def diagnostic_networks(self):
         selection = BASE + "NetworkDiagnosticsContractTest#publicReportMatchesTheDefaultAndroidNetwork"
