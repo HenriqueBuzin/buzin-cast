@@ -249,6 +249,52 @@ class ReceiverIntegrationTest {
         frame(socket, 13)
     }
 
+    @Test fun fcastKeepsCurrentPlaybackDuringTheLoadCooldownAndAcceptsTheRetry() = withFcast { playback, socket ->
+        val output = socket.getOutputStream()
+        val dash = FCastFrame(1, JSONObject()
+            .put("url", "https://example.test/live.mpd")
+            .put("container", "application/dash+xml")
+            .toString())
+        val hls = FCastFrame(1, JSONObject()
+            .put("url", "https://example.test/replacement.m3u8")
+            .put("container", "application/x-mpegURL")
+            .toString())
+        val mainWaiting = CountDownLatch(1)
+        val releaseMain = CountDownLatch(1)
+        val holdingMain = AtomicBoolean(false)
+        Handler(Looper.getMainLooper()).post {
+            holdingMain.set(true)
+            mainWaiting.countDown()
+            try {
+                releaseMain.await(5, TimeUnit.SECONDS)
+            } finally {
+                holdingMain.set(false)
+            }
+        }
+        try {
+            assertTrue(mainWaiting.await(5, TimeUnit.SECONDS))
+            dash.writeTo(output)
+            hls.writeTo(output)
+            FCastFrame(12).writeTo(output)
+            // The socket worker posts both loads before it answers this ping.
+            // The main thread can then process them together.
+            frame(socket, 13)
+            assertTrue("The load commands must be queued before main is released", holdingMain.get())
+        } finally {
+            releaseMain.countDown()
+        }
+        assertEquals("Wait before starting another item", JSONObject(frame(socket, 9).body).getString("message"))
+        assertEquals("application/dash+xml", playback.requests.single().mime)
+        assertTrue(playback.mediaActive)
+
+        SystemClock.sleep(550)
+        hls.writeTo(output)
+        eventually { playback.requests.size == 2 }
+        assertEquals("application/x-mpegURL", playback.requests.last().mime)
+        assertEquals(Protocol.FCAST, playback.mediaOwner)
+        assertTrue(playback.mediaActive)
+    }
+
     @Test fun fcastRejectsControlsForAnotherProtocol() = withFcast { playback, socket ->
         playback.mediaOwner = Protocol.DLNA; playback.mediaActive = true
         FCastFrame(4).writeTo(socket.getOutputStream()); frame(socket, 9)

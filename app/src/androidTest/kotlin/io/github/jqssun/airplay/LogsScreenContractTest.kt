@@ -11,7 +11,6 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -224,10 +223,7 @@ class LogsScreenContractTest {
 
         lateinit var export: Job
         instrumentation.runOnMainSync {
-            val owner = requireNotNull(model.viewModelScope.coroutineContext[Job])
-            val existing = owner.children.toSet()
-            model.exportLogs()
-            export = owner.children.single { it !in existing }
+            export = model.exportLogs()
         }
         runBlocking { withTimeout(10_000) { export.join() } }
         assertFalse(export.isCancelled)

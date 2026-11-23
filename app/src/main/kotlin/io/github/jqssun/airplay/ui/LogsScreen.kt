@@ -44,7 +44,7 @@ fun LogsScreen(viewModel: MainViewModel) {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_logs)) },
                 actions = {
-                    IconButton(onClick = viewModel::exportLogs, modifier = Modifier.dpadFocus()) {
+                    IconButton(onClick = { viewModel.exportLogs() }, modifier = Modifier.dpadFocus()) {
                         Icon(Icons.Outlined.Share, stringResource(R.string.btn_export))
                     }
                     IconButton(onClick = viewModel::clearLogs, modifier = Modifier.dpadFocus()) {

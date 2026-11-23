@@ -311,27 +311,25 @@ class MainViewModel @Inject constructor(app: Application) : AndroidViewModel(app
     }
     fun addLog(msg: String) { logStore.append("${_dateFmt.get()!!.format(Date())} $msg") }
     fun clearLogs() { logStore.clear() }
-    fun exportLogs() {
-        viewModelScope.launch {
-            runCatching {
-                val ctx = getApplication<Application>()
-                val file = withContext(Dispatchers.IO) {
-                    check(logStore.flush()) { "Log store flush timed out" }
-                    File(ctx.cacheDir, "airplay_logs.txt").also { it.writeText(logStore.snapshot().joinToString("\n")) }
-                }
-                val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
-                val intent = Intent(Intent.ACTION_SEND).setType("text/plain")
-                    .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                ctx.startActivity(Intent.createChooser(intent, ctx.getString(io.github.jqssun.airplay.R.string.export_logs_chooser_title))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }.onFailure {
-                android.util.Log.w("BuzinLogs", "Could not export logs", it)
-                android.widget.Toast.makeText(
-                    getApplication(),
-                    io.github.jqssun.airplay.R.string.export_logs_failed,
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
+    fun exportLogs() = viewModelScope.launch {
+        runCatching {
+            val ctx = getApplication<Application>()
+            val file = withContext(Dispatchers.IO) {
+                check(logStore.flush()) { "Log store flush timed out" }
+                File(ctx.cacheDir, "airplay_logs.txt").also { it.writeText(logStore.snapshot().joinToString("\n")) }
             }
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            ctx.startActivity(Intent.createChooser(intent, ctx.getString(io.github.jqssun.airplay.R.string.export_logs_chooser_title))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure {
+            android.util.Log.w("BuzinLogs", "Could not export logs", it)
+            android.widget.Toast.makeText(
+                getApplication(),
+                io.github.jqssun.airplay.R.string.export_logs_failed,
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
         }
     }
     override fun onCleared() { logStore.close(); super.onCleared() }

@@ -2594,3 +2594,17 @@ context restored sharing and playback from internal recording storage.
 The six standard compact contracts then passed and covered the same
 32 of 32 branch outcomes in the five recording methods. The normal API28
 recording suite also passed with the corrected fixture.
+
+The normal and DE/AT normal full runs at `dda6d32` exposed a race in the
+closed-log-worker contract. The test looked up the export coroutine
+after dispatch, when it could already have completed. The model now
+returns that coroutine's job and the test joins the exact operation.
+
+The FCast socket contract checks that two immediately queued loads keep
+the first DASH item playing, then accepts the HLS request after the load
+cooldown. The compact DE/AT API28 run passed and added two branch outcomes
+to a byte-matched `FCastReceiver` profile (159/208 to 161/208).
+The four log screen contracts and the FCast cooldown contract also passed
+together on standard normal API28. The standard compact API22 run at
+`dda6d32` had passed all 369 Android instrumentation cases and 21 native
+UBSan cases before the later runtime gates.
