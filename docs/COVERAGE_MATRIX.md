@@ -2214,8 +2214,10 @@ terminal sender error immediately. With the app APK unchanged, the adjusted
 relay test and all 338 instrumentation tests passed on API22. The same
 run passed all 15 gate entries, including 21 native UBSan cases. Its
 archived profile covered 4670/5887 JVM branches, 3978/5099 complexity units,
-and 903/912 native branches. The API28 replay uses the same archived APK
-pair for a matching cross-API measurement.
+and 903/912 native branches. The API28 replay passed all its applicable
+gates with the same app, test, class and library hashes. Combined coverage
+reached 4749/5887 JVM branches, 4033/5099 complexity units, 7963/8414
+lines, and all six native targets, including 912/912 native branches.
 
 Three additional compact DE/AT instrumentation contracts passed on API28.
 The audio miniplayer applied a new track title and returned to the overview.
@@ -2244,7 +2246,11 @@ single-tap gesture contract failed once, then passed three times with the
 unchanged APK pair. Its fixture now waits for Compose to apply each gesture
 mode and dispatches a tap's down and up events without an idle wait between
 them. The same app APK passed all three gesture-surface contracts with the
-adjusted test APK. A fresh complete normal DE/AT run is in progress.
+adjusted test APK. A fresh normal DE/AT run then passed all 15 gate
+entries on API28, including 342 instrumentation and 21 native UBSan
+cases. That snapshot covered 4750/5887 JVM branches, 4039/5099 complexity
+units, 7971/8414 lines, and all six native targets, including 908/908
+native branches.
 
 The compact DE/AT API28 remote-seek contract passed with a synthetic
 40-second H.264 clip. Two right presses with the controls hidden showed
