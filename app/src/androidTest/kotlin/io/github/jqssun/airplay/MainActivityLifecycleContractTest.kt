@@ -1102,6 +1102,79 @@ class MainActivityLifecycleContractTest {
             finally { root.recycle() }
     }
 
+    @Test fun tappingVideoTogglesOnlyTheControlsForItsCurrentLockState() {
+        val activity = launch()
+        val file = File.createTempFile("touch-controls-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
+            file.outputStream().use(input::copyTo)
+        }
+        val lock = context.getString(R.string.cd_lock_controls)
+        val unlock = context.getString(R.string.cd_unlock_controls)
+
+        fun waitForControls(toolbar: Boolean, unlockOnly: Boolean) {
+            val deadline = SystemClock.elapsedRealtime() + 8_000
+            while (SystemClock.elapsedRealtime() < deadline) {
+                if ((nodeBounds("CC") != null) == toolbar && (nodeBounds(unlock) != null) == unlockOnly) return
+                Thread.sleep(25)
+            }
+            fail("Expected toolbar visibility $toolbar and unlock visibility $unlockOnly")
+        }
+        fun tapBounds(bounds: Rect) {
+            val x = bounds.exactCenterX()
+            val y = bounds.exactCenterY()
+            pointerGesture(x, y, y)
+        }
+
+        try {
+            main {
+                service.playLocalVideo(android.net.Uri.fromFile(file).toString())
+                service.setVideoPlaying(false)
+            }
+            await("The paused video did not become seekable") {
+                model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value &&
+                    model(activity).videoDurationMs.value >= 30_000
+            }
+            val videoBounds = Rect()
+            main {
+                val decor = activity.window.decorView
+                val location = IntArray(2)
+                decor.getLocationOnScreen(location)
+                videoBounds.set(location[0], location[1], location[0] + decor.width, location[1] + decor.height)
+            }
+            assertFalse(videoBounds.isEmpty)
+            fun tapVideoBackground() {
+                val x = videoBounds.left + videoBounds.width() * .25f
+                val y = videoBounds.exactCenterY()
+                pointerGesture(x, y, y)
+            }
+            waitForControls(toolbar = false, unlockOnly = false)
+
+            tapVideoBackground()
+            waitForControls(toolbar = true, unlockOnly = false)
+            tapVideoBackground()
+            waitForControls(toolbar = false, unlockOnly = false)
+            tapVideoBackground()
+            waitForControls(toolbar = true, unlockOnly = false)
+
+            tapBounds(requireNotNull(nodeBounds(lock)))
+            waitForControls(toolbar = false, unlockOnly = true)
+            tapVideoBackground()
+            waitForControls(toolbar = false, unlockOnly = false)
+            tapVideoBackground()
+            waitForControls(toolbar = false, unlockOnly = true)
+            tapBounds(requireNotNull(nodeBounds(unlock)))
+            waitForControls(toolbar = true, unlockOnly = false)
+
+            main {
+                assertTrue(model(activity).videoPlaybackActive.value)
+                assertFalse("Tapping the video background changed the paused playback state", model(activity).videoPlaying.value)
+            }
+        } finally {
+            main { service.stopVideoPlayback() }
+            finishActivities()
+        }
+    }
+
     @Test fun rotatingThePlayerPreservesThePausedPlaybackSession() {
         val activity = launch()
         val file = File.createTempFile("player-rotation-", ".mp4", context.cacheDir).also { videoFixture = it }

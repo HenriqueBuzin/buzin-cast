@@ -2366,3 +2366,16 @@ The following standard compatibility API28 run at `4b0fd2e` passed all
 351 Android instrumentation tests, including the synchronized subtitle
 transition and deterministic Oboe gain contracts. The full report was
 still pending after instrumentation completed.
+
+On standard normal API28, taps on the video background showed and hid
+the unlocked toolbar, then showed and hid only the unlock button while
+locked. Unlocking restored the toolbar and the clip stayed paused. The
+profile added four branch outcomes and two methods under `MainScreenKt`.
+The Oboe gain contract passed in the same scope and exercised all four
+callback outcomes on the native library matched to the installed APK.
+
+The Tools screen requested the Fire TV mirroring activity and displayed
+recovery instructions when launching it failed. The mirroring, relay
+form, and recording policy tests passed together on standard normal
+API28. The profile added three branch outcomes and two methods under
+`ToolsScreenKt`.

@@ -2,6 +2,8 @@ package io.github.jqssun.airplay
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Application
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -15,6 +17,7 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.ViewModelStore
@@ -36,6 +39,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Real Tools controls and diagnostics, with isolated unbound receiver state. */
 @RunWith(AndroidJUnit4::class)
@@ -179,15 +184,27 @@ class ToolsScreenStateContractTest {
             } finally { event.recycle() }
         }
     }
-    private fun screen(fontScale: Float? = null, block: () -> Unit) {
+    private fun screen(
+        fontScale: Float? = null,
+        wrapContext: (Context) -> Context = { it },
+        block: () -> Unit,
+    ) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
-            scenario.onActivity { target -> target.setContent { AirPlayTheme {
-                val density = LocalDensity.current
-                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
-                    ToolsScreen(model)
+            scenario.onActivity { target ->
+                val screenContext = wrapContext(target)
+                target.setContent {
+                    AirPlayTheme {
+                        val density = LocalDensity.current
+                        CompositionLocalProvider(
+                            LocalContext provides screenContext,
+                            LocalDensity provides Density(density.density, fontScale ?: density.fontScale),
+                        ) {
+                            ToolsScreen(model)
+                        }
+                    }
                 }
-            } } }
+            }
             await("Tools screen did not expose content") { snapshot() != null }
             block()
         }
@@ -508,6 +525,55 @@ class ToolsScreenStateContractTest {
             throw failure
         } finally {
             automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
+        }
+    }
+
+    @Test fun missingSystemMirroringAppShowsRecoveryInstructions() {
+        val requests = CopyOnWriteArrayList<ComponentName>()
+        val missing = AtomicBoolean(false)
+        val sink = ComponentName("com.amazon.cast.sink", "com.amazon.cast.sink.DisplayMirroringSinkActivity")
+        val open = text(R.string.tools_native_open)
+        val unavailable = text(R.string.tools_native_unavailable)
+
+        screen(wrapContext = { target ->
+            object : ContextWrapper(target) {
+                override fun startActivity(intent: Intent) {
+                    requests += requireNotNull(intent.component)
+                    if (missing.get()) throw ActivityNotFoundException("No mirroring app installed in this fixture")
+                }
+            }
+        }) {
+            revealToolsItem(open)
+            assertTrue(absent(unavailable))
+            click(open)
+            await("Tools did not open the Fire TV mirroring activity") { requests.size == 1 }
+            assertEquals(sink, requests.single())
+            assertTrue(absent(unavailable))
+
+            missing.set(true)
+            click(open)
+            revealToolsItem(unavailable)
+            assertEquals(listOf(sink, sink), requests.toList())
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun revealToolsItem(label: String) {
+        fun scroll(node: AccessibilityNodeInfo): Boolean {
+            if (node.isScrollable && node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) return true
+            repeat(node.childCount) { index ->
+                val child = node.getChild(index) ?: return@repeat
+                try { if (scroll(child)) return true } finally { child.recycle() }
+            }
+            return false
+        }
+        await("Tools did not show $label") {
+            if (has(label)) return@await true
+            val tree = instrumentation.uiAutomation.rootInActiveWindow ?: return@await false
+            try {
+                if (tree.packageName?.toString() == context.packageName && scroll(tree)) Thread.sleep(250)
+                false
+            } finally { tree.recycle() }
         }
     }
 
