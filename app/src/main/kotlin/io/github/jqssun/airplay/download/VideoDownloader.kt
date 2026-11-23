@@ -116,8 +116,13 @@ class VideoDownloader(private val context: Context) {
                     }
                     throw failure
                 }
-                val path = resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use {
-                    if (it.moveToFirst()) it.getString(0) else null
+                val path = try {
+                    resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use {
+                        if (it.moveToFirst()) it.getString(0) else null
+                    }
+                } catch (failure: Exception) {
+                    Log.w(TAG, "Could not resolve the published download path", failure)
+                    null
                 }
                 return path ?: "${Environment.DIRECTORY_DOWNLOADS}/$name"
             } else {

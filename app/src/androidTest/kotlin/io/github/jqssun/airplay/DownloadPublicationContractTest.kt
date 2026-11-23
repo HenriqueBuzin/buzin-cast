@@ -37,8 +37,8 @@ class DownloadPublicationContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val roots = mutableListOf<File>()
-    private enum class Destination { NORMAL, MISSING, UNWRITABLE, FINALIZATION_REJECTED }
-    private enum class QueryResult { PATH, NULL_CURSOR, EMPTY_CURSOR, NULL_PATH }
+    private enum class Destination { NORMAL, MISSING, UNWRITABLE, STREAM_UNAVAILABLE, FINALIZATION_REJECTED }
+    private enum class QueryResult { PATH, NULL_CURSOR, EMPTY_CURSOR, NULL_PATH, PATH_LOOKUP_FAILED }
 
     private class Store(val output: File, val destination: Destination, val queryResult: QueryResult) : ContentProvider() {
         val inserts = mutableListOf<ContentValues>()
@@ -60,13 +60,15 @@ class DownloadPublicationContractTest {
             return 1
         }
         override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, order: String?): Cursor? {
+            if (queryResult == QueryResult.PATH_LOOKUP_FAILED) throw UnsupportedOperationException("Path lookup unavailable")
             if (queryResult == QueryResult.NULL_CURSOR) return null
             return MatrixCursor(arrayOf(MediaStore.MediaColumns.DATA)).apply {
                 if (queryResult != QueryResult.EMPTY_CURSOR)
                     addRow(arrayOf<Any?>(if (queryResult == QueryResult.NULL_PATH) null else output.absolutePath))
             }
         }
-        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? {
+            if (destination == Destination.STREAM_UNAVAILABLE) return null
             if (destination == Destination.UNWRITABLE) throw FileNotFoundException("Controlled unavailable destination")
             return ParcelFileDescriptor.open(output, ParcelFileDescriptor.MODE_CREATE or
                 ParcelFileDescriptor.MODE_TRUNCATE or ParcelFileDescriptor.MODE_WRITE_ONLY)
@@ -100,7 +102,9 @@ class DownloadPublicationContractTest {
     }
 
     @Test fun publicationCopiesExactBytesAndCompletesThePendingStoreEntry() {
-        val formats = if (Build.VERSION.SDK_INT >= 29) QueryResult.entries else listOf(QueryResult.PATH)
+        val formats = if (Build.VERSION.SDK_INT >= 29) {
+            listOf(QueryResult.PATH, QueryResult.NULL_CURSOR, QueryResult.EMPTY_CURSOR, QueryResult.NULL_PATH)
+        } else listOf(QueryResult.PATH)
         for (format in formats) {
             val fixture = fixture(queryResult = format)
             val source = File(fixture.root, "source.bin")
@@ -120,6 +124,36 @@ class DownloadPublicationContractTest {
                 else assertEquals("${Environment.DIRECTORY_DOWNLOADS}/${store.inserts.single().getAsString(MediaStore.MediaColumns.DISPLAY_NAME)}", path)
             }
         }
+    }
+
+    @Test fun publishedDownloadUsesItsRelativePathWhenTheStoreRejectsPathLookup() {
+        if (Build.VERSION.SDK_INT < 29) return
+        val fixture = fixture(queryResult = QueryResult.PATH_LOOKUP_FAILED)
+        val bytes = byteArrayOf(42, 23, 16, 8)
+        val source = File(fixture.root, "source.bin").apply { writeBytes(bytes) }
+
+        val path = publish(fixture, source)
+        val store = requireNotNull(fixture.store)
+        val name = store.inserts.single().getAsString(MediaStore.MediaColumns.DISPLAY_NAME)
+        assertEquals("${Environment.DIRECTORY_DOWNLOADS}/$name", path)
+        assertEquals(0, store.updates.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
+        assertTrue(store.deletes.isEmpty())
+        assertArrayEquals(bytes, store.output.readBytes())
+    }
+
+    @Test fun missingOutputStreamRemovesThePendingStoreEntry() {
+        if (Build.VERSION.SDK_INT < 29) return
+        val fixture = fixture(Destination.STREAM_UNAVAILABLE)
+        val bytes = byteArrayOf(2, 4, 6, 8)
+        val source = File(fixture.root, "source.bin").apply { writeBytes(bytes) }
+
+        assertNull(publish(fixture, source))
+        val store = requireNotNull(fixture.store)
+        assertEquals(1, store.inserts.size)
+        assertTrue(store.updates.isEmpty())
+        assertEquals(listOf(Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "1")), store.deletes)
+        assertFalse(store.output.exists())
+        assertArrayEquals(bytes, source.readBytes())
     }
 
     @Test fun missingAndUnwritableDestinationsReportFailureAndPreserveTheExport() {

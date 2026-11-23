@@ -2683,6 +2683,14 @@ coverage from 444/544 to 453/544 instructions, 19/28 to 21/28 branches and
 22/30 to 24/30 complexity. The API28 run also passed and exercised the
 legacy app-specific storage path. Both runs used local test media.
 
+The standard compact API37 publication suite passed all nine cases.
+The new cases verify that an unavailable output stream removes the
+pending entry, and that an unavailable path lookup returns the download
+folder and filename after a successful save. On the same compiled APKs,
+the two cases raised `VideoDownloader` coverage from 457/557 to 475/557
+instructions, 21/28 to 22/28 branches, 76/88 to 79/88 lines and 24/30 to
+25/30 complexity. All 16 methods and three counted classes stayed covered.
+
 The standard compact API22 replay at `2fd28fa` passed all 15 runtime
 gates, 370 Android instrumentation cases and 21 native UBSan cases. The
 JVM report measured 80,499/86,654 instructions, 4,882/5,971 branches,
