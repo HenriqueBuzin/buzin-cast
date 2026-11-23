@@ -577,7 +577,7 @@ class SettingsScreenStateContractTest {
     }
 
     @Test fun tvCustomResolutionPersistsOnlyAfterBothDimensionsAreSaved() {
-        assertTrue(Prefs.RESOLUTION.write(prefs, "1600x900"))
+        assertTrue(Prefs.RESOLUTION.write(prefs, "1920x1080"))
         screen(tv = true) {
             val width = label(R.string.setting_resolution_width)
             val height = label(R.string.setting_resolution_height)
@@ -586,15 +586,24 @@ class SettingsScreenStateContractTest {
                 edit(field, input, expectedText = normalized)
                 pressTvControl(save)
                 await("Dimension editor stayed open: $field") { tvControlHasFocus(field) }
-                assertEquals("1600x900", Prefs.RESOLUTION.read(prefs))
+                assertEquals("1920x1080", Prefs.RESOLUTION.read(prefs))
             }
+            fun awaitDisabledSave() {
+                reveal(save)
+                await("Save was enabled with incomplete dimensions") {
+                    withTvButton(save) { button, row -> !button.isEnabled || !row.isEnabled } == true
+                }
+            }
+            click(label(R.string.chip_custom))
+            awaitDisabledSave()
             openTvEditor(width)
-            saveDimension(width, "A12?80", "1280")
+            saveDimension(width, "A01?280", "01280")
+            awaitDisabledSave()
             openTvEditor(height) {
                 instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
                 await("Right did not focus the adjacent height field") { tvControlHasFocus(height) }
             }
-            saveDimension(height, "7x20", "720")
+            saveDimension(height, "0x0720", "00720")
             pressTvControl(save)
             await("Custom dimensions were not applied together") { Prefs.RESOLUTION.read(prefs) == "1280x720" }
         }

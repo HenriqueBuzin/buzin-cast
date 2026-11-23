@@ -631,9 +631,11 @@ private fun SettingResolution(
                         }
                     }
                     if (isTv()) {
+                        val customWidth = width.toIntOrNull() ?: 0
+                        val customHeight = height.toIntOrNull() ?: 0
                         TextButton(onClick = {
-                            onValueChange("${width}x${height}"); editing = false
-                        }, enabled = (width.toIntOrNull() ?: 0) > 0 && (height.toIntOrNull() ?: 0) > 0,
+                            onValueChange("${customWidth}x${customHeight}"); editing = false
+                        }, enabled = customWidth > 0 && customHeight > 0,
                             modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tv_edit_save)) }
                     }
                 }

@@ -2713,3 +2713,9 @@ report measured 79,733/85,817 instructions, 4,867/5,893 branches,
 classes. Its API28 native profile measured 909/912 branches, 203/203
 functions, 205/205 instantiations, 1,748/1,751 lines, 171/171 MC/DC and
 1,496/1,500 regions. These native counts are from API28 alone.
+
+The TV custom-resolution contract starts with a preset, verifies that
+Save is disabled with zero or one valid dimension, and enters values
+with leading zeros through the remote editor. The normal API28 run
+confirmed that saving both dimensions persisted the canonical `1280x720`
+preference and kept the stored preset until the final Save action.
