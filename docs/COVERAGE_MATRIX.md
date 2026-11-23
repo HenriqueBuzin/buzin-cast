@@ -2333,3 +2333,16 @@ The Java consumer of Kotlin's legacy `PlayerPort` bridge kept an
 on-demand item seekable with its reported duration. All 192 DLNA-domain
 tests passed. Combining that JVM profile with the same archived Android
 profiles and class bytes added one method and one class to the app report.
+
+The complete normal DE/AT run at `538db32` on API28 passed 347 Android
+instrumentation tests, 21 native UBSan cases, and all 15 runtime gates.
+The archived report covered 4774/5887 JVM branches, 4060/5099 complexity
+units, 8014/8414 JVM lines, and all six native metrics at 100%, including
+908/908 native branches.
+
+The archived standard normal API28 APK pair from the same revision
+passed 17 scoped tests on API30 for overlay permission and the platform
+decoder inventory. Combining the API30 profile with the complete API28
+run on matching class bytes added seven branch outcomes and one method
+under `SettingsScreenKt`, plus 18 branch outcomes and four methods under
+`DecoderSelector`.
