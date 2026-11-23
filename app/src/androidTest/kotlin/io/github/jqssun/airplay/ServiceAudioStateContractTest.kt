@@ -441,10 +441,10 @@ class ServiceAudioStateContractTest {
         }
     }
 
-    private fun withLocalVideoFixture(block: (String) -> Unit) {
+    private fun withLocalVideoFixture(asset: String = "download/sample.mp4", block: (String) -> Unit) {
         val file = File.createTempFile("service-video-", ".mp4", context.cacheDir)
         try {
-            instrumentation.context.assets.open("download/sample.mp4").use { input -> file.outputStream().use(input::copyTo) }
+            instrumentation.context.assets.open(asset).use { input -> file.outputStream().use(input::copyTo) }
             block(Uri.fromFile(file).toString())
         } finally {
             service.stopVideoPlayback()
@@ -1473,27 +1473,40 @@ class ServiceAudioStateContractTest {
                 await("MediaSession play did not reach the audio sender") {
                     service.playing.value && commands() == listOf("pause", "play")
                 }
+                transport.fastForward()
+                transport.rewind()
                 transport.skipToNext()
                 transport.skipToPrevious()
                 val audioCommands = listOf("pause", "play", "nextitem", "previtem")
                 await("MediaSession skip commands did not reach the audio sender") { commands() == audioCommands }
 
-                withLocalVideoFixture { location ->
+                withLocalVideoFixture("playback/remote-seek.mp4") { location ->
                     main {
                         service.playLocalVideo(location)
                         service.airPlayVideoPlayer.setPlaying(false)
                     }
                     await("Local video did not become ready and paused") {
                         service.videoPlaybackActive.value && service.videoPlaybackInfo.value.let {
-                            !it.playing && it.durationMs == 1000L && !it.buffering
+                            !it.playing && it.durationMs >= 30_000L && !it.buffering
                         }
                     }
+                    transport.play()
+                    await("MediaSession play did not resume the local video") { service.videoPlaybackInfo.value.playing }
+                    transport.pause()
+                    await("MediaSession pause did not pause the local video") { !service.videoPlaybackInfo.value.playing }
                     transport.skipToNext()
                     transport.skipToPrevious()
-                    transport.seekTo(400)
-                    await("MediaSession did not seek the local video") {
-                        service.videoPlaybackActive.value && service.videoPlaybackInfo.value.positionMs == 400L
+                    fun atPosition(message: String, position: Long) {
+                        await(message) {
+                            service.videoPlaybackActive.value && service.videoPlaybackInfo.value.positionMs == position
+                        }
                     }
+                    transport.seekTo(15_000)
+                    atPosition("MediaSession did not seek the local video", 15_000)
+                    transport.fastForward()
+                    atPosition("MediaSession did not advance the local video by ten seconds", 25_000)
+                    transport.rewind()
+                    atPosition("MediaSession did not rewind the local video by ten seconds", 15_000)
                     // The seek callback runs after both skip callbacks. Drain the
                     // sender executor to detect any incorrect video-to-audio routing.
                     dacp.playResume().get(5, TimeUnit.SECONDS)

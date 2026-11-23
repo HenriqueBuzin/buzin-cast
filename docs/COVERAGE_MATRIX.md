@@ -2732,3 +2732,12 @@ the matching `SettingsScreen` mappings from 7,742/8,345 to 8,096/8,345
 instructions, 311/448 to 332/448 branches, 572/594 to 586/594 lines,
 209/268 to 230/268 complexity and 165/187 to 173/187 methods. The single
 counted class remained covered.
+
+The MediaSession routing contract now checks play, pause, exact seek and
+ten-second forward and rewind commands on a paused local video. It
+also verifies that the video commands do not reach the audio sender.
+The normal API28 test passed. Adding its profile to the byte-matched
+full `AirPlayService` mappings raised instructions from 5,753/6,164 to
+5,801/6,164, branches from 493/601 to 499/601, lines from 878/911 to
+886/911, complexity from 420/538 to 426/538, and methods from 219/236 to
+221/236. All 22 counted classes remained covered.
