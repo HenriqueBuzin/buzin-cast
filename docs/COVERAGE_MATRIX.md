@@ -2184,3 +2184,9 @@ APKs matched the complete normal API28 snapshot. The API37 profile raised
 `_requestLocalNetwork` from 0/4 to 2/4. A separate run verified that two
 denials opened Android app settings. The emulator's system process crashed
 after opening Settings, leaving the return-from-Settings path unverified.
+
+The same normal APK pair passed all 16 decoder selection contracts on
+API37. Compared with the complete API28 report for the matching classes,
+the combined profiles covered 155/196 decoder-selector branches and 52/56
+methods, up from 135/196 and 49/56. The newer platform run exercises
+MediaCodec capability queries that are unavailable on API28.
