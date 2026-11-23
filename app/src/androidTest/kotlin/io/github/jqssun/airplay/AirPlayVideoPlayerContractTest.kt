@@ -288,6 +288,45 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun liveHlsReadinessTracksThePlayerStateWhilePaused() {
+        val live = File(fixture.parentFile, "${fixture.name}.live")
+        assertTrue(live.mkdir())
+        val owner = token()
+        try {
+            instrumentation.context.assets.open("playback/live-hls-segment.ts").use { input ->
+                File(live, "sample.ts").outputStream().use { input.copyTo(it) }
+            }
+            val playlist = File(live, "live.m3u8").apply {
+                writeText(buildString {
+                    append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:100\n")
+                    repeat(5) { index ->
+                        if (index > 0) append("#EXT-X-DISCONTINUITY\n")
+                        append("#EXTINF:1.0,\nsample.ts\n")
+                    }
+                })
+            }
+
+            renderer.play(Uri.fromFile(playlist).toString(), 0f, token = owner)
+            renderer.setRate(0f, owner)
+            await("The live timeline did not report paused readiness") {
+                player().isCurrentMediaItemLive && player().playbackState == Player.STATE_READY &&
+                    snapshots.lastOrNull()?.let { (token, snapshot) ->
+                        token == owner && snapshot.ready && !snapshot.playWhenReady && snapshot.rate == 0f
+                    } == true
+            }
+            main {
+                val first = snapshots.first()
+                assertEquals(owner, first.first)
+                assertFalse(first.second.ready)
+                assertTrue(failures.isEmpty())
+            }
+        } finally {
+            renderer.stop(owner)
+            main { }
+            live.deleteRecursively()
+        }
+    }
+
     @Test fun activeVideoPublishesEffectiveRateAndReportsNaturalEndForItsOwner() {
         instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
             fixture.outputStream().use { input.copyTo(it) }

@@ -2849,6 +2849,12 @@ the 1,000 ms fixture). Adding this profile raised the same player
 mappings to 1,138/1,174 instructions, 112/138 branches and 109/134
 complexity. Lines, methods and counted classes stayed at 100%.
 
+A live HLS fixture built from the synthetic test clip exercised the
+paused player before and after Media3 reports a ready live timeline.
+The API28 case added three branches, eight instructions and two
+complexity entries to the same player mappings, raising them to
+115/138 branches, 1,146/1,174 instructions, and 111/134 complexity.
+
 The Appstore startup integration passed two API28 tests. Duplicate
 purchasing registration still attempts license verification with the
 application context, and a license startup exception does not escape.
