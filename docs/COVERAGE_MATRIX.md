@@ -2635,6 +2635,11 @@ counted classes remained covered. Running the same APKs on API37 raised
 instructions from 1,312/1,493 to 1,337/1,493, branches from 148/196 to
 151/196, lines from 141/150 to 144/150, complexity from 112/156 to
 116/156 and methods from 53/58 to 54/58, with both classes still covered.
+The standard compact API22 build at `b66c95d` also passed all 18 cases.
+Compared with the 16 existing cases on the same APKs, decoder coverage
+rose from 1,153/1,493 to 1,167/1,493 instructions, 123/196 to 125/196
+branches, 131/150 to 133/150 lines and 100/156 to 102/156 complexity.
+Methods stayed at 52/58 and classes at 2/2.
 
 The standard normal API28 replay with the archived `2fd28fa` APKs
 completed all 15 runtime gates. Its 370 Android instrumentation cases
