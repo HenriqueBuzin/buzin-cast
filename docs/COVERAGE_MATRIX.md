@@ -2894,3 +2894,9 @@ The API28 headset-output test exercised the production classifier with
 wired, Bluetooth and USB headsets, as well as speaker, HDMI, ordinary
 USB and unknown outputs. The classifier reached 19/19 instructions,
 10/10 branches, 5/5 lines, 6/6 complexity and 1/1 method.
+
+Two API28 DLNA socket cases verified that the root URL returns the
+device description, unsupported HTTP methods return 405, and legacy
+POST event renewals keep the subscription ID and requested timeout.
+The matching `ControlServer` mappings rose from 107/146 to 114/146
+branches, 203/213 to 205/213 lines, and 73/110 to 77/110 complexity.
