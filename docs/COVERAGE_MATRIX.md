@@ -2755,3 +2755,9 @@ The standard normal API28 case passed. Adding its profile after the
 MediaSession transport profile raised `AirPlayService` to 5,813/6,164
 instructions, 504/601 branches and 430/538 complexity. Line, method
 and class coverage stayed at 886/911, 221/236 and 22/22 respectively.
+Both playback contracts also passed on standard compact API22. Adding
+their profile to 33 matching `AirPlayService` class files raised covered
+instructions from 5,733/6,164 to 5,793/6,164, branches from 492/601 to
+503/601, lines from 872/911 to 880/911, complexity from 419/538 to
+429/538 and methods from 219/236 to 221/236. All 22 counted classes
+remained covered.
