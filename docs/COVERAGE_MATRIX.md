@@ -2156,3 +2156,16 @@ older platform path. Combining the two profiles for the identical
 normal app and test APKs increased `hasLocalNetwork` from 1/4 to 4/4
 branch outcomes. The API37 selection verifies both permission decisions
 with a controlled context.
+
+The complete normal API28 run passed all 334 Android cases, 21 native
+cases and every required runtime scenario. All six app-native metrics
+reached 100% in this run, including 908/908 branches, 203/203 functions,
+205/205 instantiations, 1745/1745 lines, 171/171 MC/DC conditions and
+1494/1494 regions. JVM branches reached 4755/5967 (79.69%), and
+complexity reached 4020/5132 (78.33%).
+
+The second complete API22 attempted replay passed the two cases that
+failed previously, but could not enter text in the custom FPS editor.
+The test recorded a visible label while the corresponding editor was
+absent from the fresh hierarchy. The app's full API22 snapshot remains
+pending while the test's focus handling is validated.
