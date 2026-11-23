@@ -856,31 +856,89 @@ class MainActivityLifecycleContractTest {
         }
     }
 
+    @Test fun remoteSeekAccumulatesWhileControlsAreHiddenAndResetsAfterFeedback() {
+        val activity = launch()
+        val file = File.createTempFile("remote-seek-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
+            file.outputStream().use(input::copyTo)
+        }
+        val playerField = AirPlayVideoPlayer::class.java.getDeclaredField("player").apply { isAccessible = true }
+        fun player() = playerField.get(service.airPlayVideoPlayer) as? ExoPlayer
+
+        main {
+            service.playLocalVideo(android.net.Uri.fromFile(file).toString())
+            service.setVideoPlaying(false)
+        }
+        try {
+            await("The paused video did not become seekable") {
+                val receiver = player()
+                model(activity).videoPlaybackActive.value && receiver != null &&
+                    receiver.playbackState == androidx.media3.common.Player.STATE_READY &&
+                    !receiver.playWhenReady && receiver.duration >= 30_000
+            }
+            fun seekLabel(sign: String, seconds: Long) =
+                sign + context.getString(R.string.seconds_short, seconds)
+            val first = seekLabel("+", 10)
+            val cumulative = seekLabel("+", 20)
+            val backwards = seekLabel("-", 10)
+
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+            awaitVisibleSeekFeedback(first)
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
+            awaitVisibleSeekFeedback(cumulative)
+            await("Two remote presses did not seek 20 seconds") {
+                player()?.currentPosition?.let { it in 20_000L..20_999L } == true
+            }
+            val expiry = SystemClock.elapsedRealtime() + 4_000
+            while (nodeBounds(cumulative) != null && SystemClock.elapsedRealtime() < expiry) {
+                Thread.sleep(20)
+            }
+            assertNull("Remote seek feedback did not expire", nodeBounds(cumulative))
+
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
+            awaitVisibleSeekFeedback(backwards)
+            await("The remote left press did not seek back ten seconds") {
+                player()?.currentPosition?.let { it in 10_000L..10_999L } == true
+            }
+        } finally {
+            main { service.stopVideoPlayback() }
+            finishActivities()
+        }
+    }
+
+    private fun awaitVisibleSeekFeedback(label: String) {
+        val deadline = SystemClock.elapsedRealtime() + 3_000
+        while (nodeBounds(label) == null && SystemClock.elapsedRealtime() < deadline) {
+            Thread.sleep(20)
+        }
+        assertNotNull("Remote seek feedback did not show $label", nodeBounds(label))
+    }
+
+    private fun nodeBounds(label: String): Rect? {
+        val automation = instrumentation.uiAutomation
+        if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
+        val root = automation.rootInActiveWindow ?: return null
+        fun visit(node: AccessibilityNodeInfo): Rect? {
+            if (node.isVisibleToUser && (node.text?.toString() == label ||
+                    node.contentDescription?.toString() == label)) {
+                return Rect().also(node::getBoundsInScreen).takeUnless(Rect::isEmpty)
+            }
+            repeat(node.childCount) { index ->
+                val child = node.getChild(index) ?: return@repeat
+                try { visit(child)?.let { return it } } finally { child.recycle() }
+            }
+            return null
+        }
+        return try { if (root.refresh() && root.packageName?.toString() == context.packageName) visit(root) else null }
+            finally { root.recycle() }
+    }
+
     @Test fun miniAudioPlayerTracksMetadataAndReturnsFromToolsToTheOverview() {
         val activity = launch()
         val tools = context.getString(R.string.tab_tools)
         val unknown = context.getString(R.string.unknown_track)
         val rewind = context.getString(R.string.cd_rewind)
         val title = "Mini player contract track"
-
-        fun nodeBounds(label: String): Rect? {
-            val automation = instrumentation.uiAutomation
-            if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
-            val root = automation.rootInActiveWindow ?: return null
-            fun visit(node: AccessibilityNodeInfo): Rect? {
-                if (node.isVisibleToUser && (node.text?.toString() == label ||
-                        node.contentDescription?.toString() == label)) {
-                    return Rect().also(node::getBoundsInScreen).takeUnless(Rect::isEmpty)
-                }
-                repeat(node.childCount) { index ->
-                    val child = node.getChild(index) ?: return@repeat
-                    try { visit(child)?.let { return it } } finally { child.recycle() }
-                }
-                return null
-            }
-            return try { if (root.refresh() && root.packageName?.toString() == context.packageName) visit(root) else null }
-                finally { root.recycle() }
-        }
 
         fun tap(label: String) {
             lateinit var bounds: Rect

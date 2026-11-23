@@ -2245,3 +2245,11 @@ unchanged APK pair. Its fixture now waits for Compose to apply each gesture
 mode and dispatches a tap's down and up events without an idle wait between
 them. The same app APK passed all three gesture-surface contracts with the
 adjusted test APK. A fresh complete normal DE/AT run is in progress.
+
+The compact DE/AT API28 remote-seek contract passed with a synthetic
+40-second H.264 clip. Two right presses with the controls hidden showed
+20 seconds of cumulative feedback and moved playback to 20 seconds. After
+the feedback expired, a left press showed a fresh 10-second rewind and
+moved playback back. The miniplayer contract passed in the same run. On
+byte-matched classes, the profile added ten branch outcomes and five
+methods under `MainScreenKt`.
