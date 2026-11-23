@@ -2211,8 +2211,11 @@ forwarding test passed once and timed out before authentication twice.
 The service relay test now gives the software emulator the same 45-second
 authentication wait used by the standalone relay contract and reports a
 terminal sender error immediately. With the app APK unchanged, the adjusted
-relay test and all 338 instrumentation tests passed on API22. The complete
-API22 runtime gate remains pending.
+relay test and all 338 instrumentation tests passed on API22. The same
+run passed all 15 gate entries, including 21 native UBSan cases. Its
+archived profile covered 4670/5887 JVM branches, 3978/5099 complexity units,
+and 903/912 native branches. The API28 replay uses the same archived APK
+pair for a matching cross-API measurement.
 
 Three additional compact DE/AT instrumentation contracts passed on API28.
 The audio miniplayer applied a new track title and returned to the overview.
