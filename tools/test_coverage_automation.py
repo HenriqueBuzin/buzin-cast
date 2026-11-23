@@ -104,6 +104,21 @@ class CoverageAutomationTest(unittest.TestCase):
             run.assert_called_once_with(suite.out / "instrumentation.txt", selection)
             self.assertEqual(selection, suite.results[0]["test_class"])
 
+    def test_system_ui_popup_is_reported_as_an_emulator_failure_only_when_focused(self):
+        with TemporaryDirectory() as directory:
+            suite = self.instrumentation_fixture(directory)
+            dialog = "Window{abc u0 Application Not Responding: com.android.systemui}"
+            failure_log = suite.out / "emulator-window-failure.txt"
+            suite.adb.return_value = f"  Window #5 {dialog}:\n  mCurrentFocus=Window{{xyz u0 com.buzincast.tv/.MainActivity}}\n"
+            suite.check_system_ui()
+            self.assertFalse(failure_log.exists())
+
+            suite.adb.return_value = f"  mCurrentFocus={dialog}\n  mFocusedApp=ActivityRecord{{xyz u0 com.buzincast.tv/.MainActivity}}\n"
+            with self.assertRaisesRegex(RuntimeError, "System UI is not responding"):
+                suite.check_system_ui()
+            self.assertEqual(suite.adb.return_value, failure_log.read_text(encoding="utf-8"))
+            self.assertEqual([], suite.results)
+
     def test_streaming_does_not_allow_skipped_tests_to_create_a_coverage_pass(self):
         with TemporaryDirectory() as directory:
             suite=self.instrumentation_fixture(directory,coverage=True)

@@ -88,6 +88,13 @@ class Suite:
     def key(self, code):
         self.adb("shell", "input", "keyevent", code)
 
+    def check_system_ui(self):
+        windows = self.adb("shell", "dumpsys", "window")
+        if re.search(r"^\s*mCurrentFocus=[^\r\n]*Application Not Responding: com\.android\.systemui(?:[}\s]|$)",
+                     windows, re.MULTILINE):
+            (self.out / "emulator-window-failure.txt").write_text(windows, encoding="utf-8")
+            raise RuntimeError("Emulator System UI is not responding and is blocking the test window")
+
     def ui(self):
         # An empty dump during a transition must not count as proof that a
         # dialog/caption/keyboard disappeared. Never return a fabricated tree.
@@ -633,6 +640,7 @@ class Suite:
         try:
             if self.args.native_tests:
                 self.native_unit_tests()
+            self.check_system_ui()
             if self.args.test_apk:
                 self.instrumentation()
             cases=[("edition recording policy",self.edition_policy),("normal settings",lambda:self.scan_settings(False)),("advanced/custom settings",lambda:self.scan_settings(True)),
