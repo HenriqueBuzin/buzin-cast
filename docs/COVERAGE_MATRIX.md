@@ -2869,6 +2869,13 @@ profile covered 79,127/85,864 instructions, 4,824/5,899 branches,
 205/205 instantiations, 1,748/1,751 lines, 170/171 MC/DC and
 1,495/1,500 regions.
 
+The same compact DE/AT APKs passed 375 Android tests, 21 native UBSan
+cases, all 15 runtime gates, and VPN and offline diagnostics on API28.
+The validated API22 and API28 merge covered all six native metrics
+at 100%. The JVM profile covered 80,029/85,864 instructions, 4,927/5,899
+branches, 8,123/8,449 lines, 4,222/5,111 complexity, 2,198/2,355 methods,
+and 305/313 classes.
+
 The standard API28 diagnostics and playback-control profiles passed
 ten focused Android tests. With the matching application class files,
 the video diagnostics formatter increased from 2/4 to 4/4 branches,
