@@ -2734,7 +2734,8 @@ check and saving a receiver name with leading and trailing spaces.
 The blank rate disables Save and the name is stored without the outer
 spaces. Adding the profile to the same two `SettingsScreenKt` mappings
 raised instructions to 8,200/8,345, branches to 338/448 and complexity
-to 236/268.
+to 236/268. Both cases also passed with the standard app on API30 and
+the standard compact app on API22.
 
 The mirroring fullscreen contract verifies that a disabled preference or
 an active PIN leaves the overview visible, dismissing the PIN does not
