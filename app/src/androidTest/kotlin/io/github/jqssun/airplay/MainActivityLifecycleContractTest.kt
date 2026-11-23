@@ -858,8 +858,9 @@ class MainActivityLifecycleContractTest {
             model.setVideoSkipSilence(true)
             assertTrue(model.videoSkipSilence.value)
         }
-        await("The player did not leave scrubbing mode and enable silence skipping") {
-            !player().isScrubbingModeEnabled && player().skipSilenceEnabled
+        await("The player did not settle after seeking and enabling silence skipping") {
+            !player().isScrubbingModeEnabled && player().skipSilenceEnabled &&
+                model.videoDurationMs.value == 40_000L
         }
         main {
             model.startVideoScrub()
@@ -1470,7 +1471,9 @@ class MainActivityLifecycleContractTest {
         }
         try {
             await("The video did not reach its paused controls") {
-                model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value
+                model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value &&
+                    model(activity).videoPlaybackSize.value == (32 to 32) &&
+                    activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             }
             val token = requireNotNull(service.sessionSnapshot()).token
             var orientation = Configuration.ORIENTATION_UNDEFINED

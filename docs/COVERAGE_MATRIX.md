@@ -2830,6 +2830,11 @@ now checks that the original session token and AirPlay owner are
 preserved. It passed on API22 with the same archived application APK
 and the rebuilt test APK.
 
+The compact API22 regression rerun also passed rotation and repeat
+seeking with the archived application. The tests wait for the decoded
+video dimensions and the settled seek duration before asserting the
+next control action.
+
 On API28 a real Media3 session reported the requested 1.5× playback
 rate and attributed the end of the fixture to its owning AirPlay
 token. Combining that profile with the matching four
