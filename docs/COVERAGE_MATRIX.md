@@ -2829,3 +2829,10 @@ connecting to playing during the first sender's disconnect. The test
 now checks that the original session token and AirPlay owner are
 preserved. It passed on API22 with the same archived application APK
 and the rebuilt test APK.
+
+On API28 a real Media3 session reported the requested 1.5× playback
+rate and attributed the end of the fixture to its owning AirPlay
+token. Combining that profile with the matching four
+`AirPlayVideoPlayer` class mappings raised instructions from 1,124/1,174
+to 1,134/1,174, branches from 108/138 to 110/138 and complexity from
+106/134 to 107/134. All lines, methods and counted classes stayed covered.

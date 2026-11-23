@@ -27,7 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 
-/** Runs Media3 on Android using the synthetic local video fixture. */
+/** Runs Media3 on Android using synthetic local video fixtures. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @RunWith(AndroidJUnit4::class)
 class AirPlayVideoPlayerContractTest {
@@ -252,6 +252,39 @@ class AirPlayVideoPlayerContractTest {
             assertEquals(listOf(owner), ended)
             assertEquals(owner to "ERROR_CODE_IO_FILE_NOT_FOUND", failures.single())
             assertTrue(recoveries.none { it.second.isNotEmpty() })
+        }
+    }
+
+    @Test fun activeVideoPublishesEffectiveRateAndReportsNaturalEndForItsOwner() {
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
+            fixture.outputStream().use { input.copyTo(it) }
+        }
+        val owner = token()
+        val texture = SurfaceTexture(false)
+        val surface = Surface(texture)
+        try {
+            renderer.setSurface(surface)
+            renderer.play(Uri.fromFile(fixture).toString(), 0f, token = owner)
+            renderer.setRate(1.5f, owner)
+            await("The playing video did not publish the requested effective rate") {
+                snapshots.lastOrNull()?.let { (token, snapshot) ->
+                    token == owner && snapshot.ready && snapshot.playWhenReady &&
+                        !snapshot.buffering && snapshot.rate == 1.5f && snapshot.duration == 40f
+                } == true
+            }
+
+            renderer.scrub(39.5f, owner)
+            await("The player did not report reaching the end of the video") { ended.isNotEmpty() }
+            main {
+                assertEquals(Player.STATE_ENDED, player().playbackState)
+                assertEquals(listOf(owner), ended)
+                assertTrue(failures.isEmpty())
+            }
+        } finally {
+            renderer.stop(owner)
+            main { renderer.clearSurface(surface) }
+            surface.release()
+            texture.release()
         }
     }
 }
