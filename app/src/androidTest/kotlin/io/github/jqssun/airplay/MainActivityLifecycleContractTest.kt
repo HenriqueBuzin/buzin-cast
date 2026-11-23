@@ -48,8 +48,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.IOException
 import java.net.ConnectException
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.ByteBuffer
@@ -224,11 +226,29 @@ class MainActivityLifecycleContractTest {
         }
     }
 
-    private fun expectRtsp(port: Int) = Socket("127.0.0.1", port).use { socket ->
-        socket.soTimeout = 5_000
+    private fun awaitListener(host: String, port: Int, probe: (Socket) -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + 6_000
+        var lastFailure: IOException? = null
+        do {
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(host, port), 1_000)
+                    socket.soTimeout = 1_000
+                    if (probe(socket)) return
+                }
+            } catch (failure: IOException) {
+                lastFailure = failure
+            }
+            Thread.sleep(35)
+        } while (SystemClock.elapsedRealtime() < deadline)
+        throw AssertionError("Listener on port $port did not respond before the deadline", lastFailure)
+    }
+
+    private fun expectRtsp(port: Int) = awaitListener("127.0.0.1", port) { socket ->
         socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n".toByteArray())
         val reply = socket.getInputStream().bufferedReader().readLine()
-        assertTrue("Unexpected RTSP response: $reply", reply?.startsWith("RTSP/1.0 200") == true)
+        if (reply != null) assertTrue("Unexpected RTSP response: $reply", reply.startsWith("RTSP/1.0 200"))
+        reply != null
     }
 
     @Test fun nativeInitializationFailuresReleaseTheServiceAndAllowRetry() {
@@ -419,7 +439,7 @@ class MainActivityLifecycleContractTest {
             optional.forEach { enabled.putBoolean(it.key, true) }
             assertTrue(enabled.commit())
             val lanPorts = portsAfter(0)
-            lanPorts.forEach { port -> Socket(host, port).use { assertTrue(it.isConnected) } }
+            lanPorts.forEach { port -> awaitListener(host, port, Socket::isConnected) }
 
             val usbMarker = messages.size
             set(Prefs.USB_ONLY, true)
@@ -432,7 +452,7 @@ class MainActivityLifecycleContractTest {
             val lanMarker = messages.size
             set(Prefs.USB_ONLY, false)
             val restoredPorts = portsAfter(lanMarker)
-            restoredPorts.forEach { port -> Socket(host, port).use { assertTrue(it.isConnected) } }
+            restoredPorts.forEach { port -> awaitListener(host, port, Socket::isConnected) }
             main { service.stopServer() }
             assertClosed(restoredPorts)
         } finally {

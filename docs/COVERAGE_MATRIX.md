@@ -2295,3 +2295,11 @@ The app now clamps only the PiP window ratio to the supported range. The
 same narrow clip kept its paused session through PiP and fullscreen on
 API28 using Home and on API36 using explicit entry. Accessibility Home did
 not enter PiP on the API36 emulator, so automatic entry there is unverified.
+
+The standard normal API28 run passed 343 of 345 instrumentation tests.
+The two receiver failures were a reset during the optional LAN receiver
+connection and an empty RTSP reply during restart. Both cases passed twice
+on the unchanged APK pair. The fixture now waits for listener readiness
+before asserting success and still rejects an incorrect RTSP status.
+The two cases, two additional receiver restart contracts, and the narrow
+PiP contract passed together on standard normal API28 with the adjustment.
