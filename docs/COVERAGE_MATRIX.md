@@ -2668,3 +2668,12 @@ report measured 79,707/85,829 instructions, 4,867/5,893 branches,
 classes. All six native metrics reached 100% on this API. The report
 uses the archived APKs from before the decoder inventory change and the
 TV keyboard test.
+
+The download publication contract now checks that a failed write or a
+rejected finalization removes the pending MediaStore entry. A successful
+publication retains its destination. The standard normal API37 build
+passed all seven publication tests with the isolated provider. On the
+same APKs, adding the rejected-finalization case raised `VideoDownloader`
+coverage from 444/544 to 453/544 instructions, 19/28 to 21/28 branches and
+22/30 to 24/30 complexity. The API28 run also passed and exercised the
+legacy app-specific storage path. Both runs used local test media.

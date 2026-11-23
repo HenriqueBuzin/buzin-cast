@@ -102,10 +102,20 @@ class VideoDownloader(private val context: Context) {
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
                 val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
-                resolver.openOutputStream(uri)!!.use { out -> file.inputStream().use { it.copyTo(out) } }
-                values.clear()
-                values.put(MediaStore.Video.Media.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
+                try {
+                    val output = checkNotNull(resolver.openOutputStream(uri)) { "Unable to open download destination" }
+                    output.use { out -> file.inputStream().use { it.copyTo(out) } }
+                    values.clear()
+                    values.put(MediaStore.Video.Media.IS_PENDING, 0)
+                    check(resolver.update(uri, values, null, null) == 1) { "Unable to finalize download" }
+                } catch (failure: Exception) {
+                    try {
+                        resolver.delete(uri, null, null)
+                    } catch (cleanup: Exception) {
+                        failure.addSuppressed(cleanup)
+                    }
+                    throw failure
+                }
                 val path = resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use {
                     if (it.moveToFirst()) it.getString(0) else null
                 }

@@ -37,12 +37,13 @@ class DownloadPublicationContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val roots = mutableListOf<File>()
-    private enum class Destination { NORMAL, MISSING, UNWRITABLE }
+    private enum class Destination { NORMAL, MISSING, UNWRITABLE, FINALIZATION_REJECTED }
     private enum class QueryResult { PATH, NULL_CURSOR, EMPTY_CURSOR, NULL_PATH }
 
     private class Store(val output: File, val destination: Destination, val queryResult: QueryResult) : ContentProvider() {
         val inserts = mutableListOf<ContentValues>()
         val updates = mutableListOf<ContentValues>()
+        val deletes = mutableListOf<Uri>()
         override fun onCreate() = true
         override fun getType(uri: Uri) = "video/mp4"
         override fun insert(uri: Uri, values: ContentValues?): Uri? {
@@ -50,9 +51,14 @@ class DownloadPublicationContractTest {
             return if (destination == Destination.MISSING) null else Uri.withAppendedPath(uri, "1")
         }
         override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?): Int {
-            updates += ContentValues(requireNotNull(values)); return 1
+            updates += ContentValues(requireNotNull(values))
+            return if (destination == Destination.FINALIZATION_REJECTED) 0 else 1
         }
-        override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = if (output.delete()) 1 else 0
+        override fun delete(uri: Uri, selection: String?, args: Array<out String>?): Int {
+            deletes += uri
+            if (output.exists()) check(output.delete())
+            return 1
+        }
         override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, order: String?): Cursor? {
             if (queryResult == QueryResult.NULL_CURSOR) return null
             return MatrixCursor(arrayOf(MediaStore.MediaColumns.DATA)).apply {
@@ -109,6 +115,7 @@ class DownloadPublicationContractTest {
                 assertEquals("video/mp4", store.inserts.single().getAsString(MediaStore.MediaColumns.MIME_TYPE))
                 assertEquals(1, store.inserts.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
                 assertEquals(0, store.updates.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
+                assertTrue("Successful publication deleted its destination", store.deletes.isEmpty())
                 if (format == QueryResult.PATH) assertEquals(output.absolutePath, path)
                 else assertEquals("${Environment.DIRECTORY_DOWNLOADS}/${store.inserts.single().getAsString(MediaStore.MediaColumns.DISPLAY_NAME)}", path)
             }
@@ -121,8 +128,28 @@ class DownloadPublicationContractTest {
             val source = File(fixture.root, "source.bin").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
             assertNull(publish(fixture, source))
             assertArrayEquals(byteArrayOf(1, 2, 3, 4), source.readBytes())
-            fixture.store?.let { assertTrue("Failed publication was marked complete", it.updates.isEmpty()) }
+            fixture.store?.let { store ->
+                assertTrue("Failed publication was marked complete", store.updates.isEmpty())
+                val expectedDeletes = if (destination == Destination.MISSING) emptyList()
+                    else listOf(Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "1"))
+                assertEquals("Only an inserted pending destination should be removed", expectedDeletes, store.deletes)
+            }
         }
+    }
+
+    @Test fun rejectedFinalizationRemovesThePendingCopyAndPreservesTheExport() {
+        if (Build.VERSION.SDK_INT < 29) return // App-specific storage has no pending MediaStore row.
+        val fixture = fixture(Destination.FINALIZATION_REJECTED)
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        val source = File(fixture.root, "source.bin").apply { writeBytes(bytes) }
+
+        assertNull(publish(fixture, source))
+        val store = requireNotNull(fixture.store)
+        assertEquals(1, store.inserts.size)
+        assertEquals(0, store.updates.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
+        assertEquals(listOf(Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "1")), store.deletes)
+        assertFalse("Failed publication left a pending copy", store.output.exists())
+        assertArrayEquals(bytes, source.readBytes())
     }
 
     @Test fun cancellingAnIdleDownloaderKeepsItsStateAndExistingTemporaryFile() {
