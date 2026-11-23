@@ -2209,3 +2209,15 @@ Replaying the two failures three times with the unchanged APK pair passed
 the custom-resolution focus test all three times. The relay audio and video
 forwarding test passed once and timed out before authentication twice.
 The complete API22 gate remains pending.
+
+Three additional compact DE/AT instrumentation contracts passed on API28.
+The audio miniplayer applied a new track title and returned to the overview.
+Subtitles imported through the content resolver into the bound player,
+survived a rejected import, and were cleared by the remove action.
+The DLNA control server served the device description on a fallback port
+while another socket held its preferred port.
+
+For byte-matched classes, the new profile added six branch outcomes and
+two methods under `MainViewModel`, eight branch outcomes and three methods
+under `MainScreenKt`, and two branch outcomes and two methods under
+`ControlServer`, compared with the complete compact DE/AT API28 profile.

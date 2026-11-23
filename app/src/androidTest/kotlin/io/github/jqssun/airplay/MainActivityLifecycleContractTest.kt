@@ -50,6 +50,7 @@ import java.net.ConnectException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.ByteBuffer
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -851,6 +852,73 @@ class MainActivityLifecycleContractTest {
                 if (service.connectionCount.value > 0) service.onConnectionDestroy()
                 audio.setStreamVolume(stream, originalVolume, 0)
             }
+            finishActivities()
+        }
+    }
+
+    @Test fun miniAudioPlayerTracksMetadataAndReturnsFromToolsToTheOverview() {
+        val activity = launch()
+        val tools = context.getString(R.string.tab_tools)
+        val unknown = context.getString(R.string.unknown_track)
+        val rewind = context.getString(R.string.cd_rewind)
+        val title = "Mini player contract track"
+
+        fun nodeBounds(label: String): Rect? {
+            val automation = instrumentation.uiAutomation
+            if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
+            val root = automation.rootInActiveWindow ?: return null
+            fun visit(node: AccessibilityNodeInfo): Rect? {
+                if (node.isVisibleToUser && (node.text?.toString() == label ||
+                        node.contentDescription?.toString() == label)) {
+                    return Rect().also(node::getBoundsInScreen).takeUnless(Rect::isEmpty)
+                }
+                repeat(node.childCount) { index ->
+                    val child = node.getChild(index) ?: return@repeat
+                    try { visit(child)?.let { return it } } finally { child.recycle() }
+                }
+                return null
+            }
+            return try { if (root.refresh() && root.packageName?.toString() == context.packageName) visit(root) else null }
+                finally { root.recycle() }
+        }
+
+        fun tap(label: String) {
+            lateinit var bounds: Rect
+            val deadline = SystemClock.elapsedRealtime() + 15_000
+            while (true) {
+                val candidate = nodeBounds(label)
+                if (candidate != null) { bounds = candidate; break }
+                assertTrue("Control not visible: $label", SystemClock.elapsedRealtime() < deadline)
+                Thread.sleep(30)
+            }
+            pointerGesture(bounds.exactCenterX(), bounds.exactCenterY(), bounds.exactCenterY())
+        }
+
+        fun item(tag: String, data: ByteArray) = ByteBuffer.allocate(8 + data.size)
+            .put(tag.toByteArray(Charsets.US_ASCII)).putInt(data.size).put(data).array()
+
+        start(activity)
+        try {
+            main {
+                service.onConnectionInit()
+                service.onAudioFormat(2, 352, false)
+            }
+            awaitVolumeControl(R.string.cd_rewind) { it.isVisibleToUser }
+            tap(tools)
+            // The overview's rewind action is absent while the Tools tab shows the mini player.
+            val deadline = SystemClock.elapsedRealtime() + 15_000
+            while (nodeBounds(unknown) == null || nodeBounds(rewind) != null) {
+                assertTrue("Tools did not show the mini player with an unknown title",
+                    SystemClock.elapsedRealtime() < deadline)
+                Thread.sleep(30)
+            }
+
+            main { service.onMetadata(item("mlit", item("minm", title.toByteArray()))) }
+            tap(title)
+            awaitVolumeControl(R.string.cd_rewind) { it.isVisibleToUser }
+            assertNotNull("Overview did not show the same title after opening the mini player", nodeBounds(title))
+        } finally {
+            main { if (service.connectionCount.value > 0) service.onConnectionDestroy() }
             finishActivities()
         }
     }

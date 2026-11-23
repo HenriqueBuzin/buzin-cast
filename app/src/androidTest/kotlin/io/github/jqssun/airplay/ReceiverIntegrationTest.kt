@@ -15,7 +15,13 @@ import org.json.JSONObject
 import javax.net.ssl.*
 import java.security.cert.X509Certificate
 import io.github.jqssun.airplay.discovery.*
+import io.leancast.app.ControlServer
 import io.leancast.app.Net
+import io.leancast.app.SubscriptionRegistry
+import io.leancast.domain.cast.CastSession
+import io.leancast.domain.cast.PlayerPort
+import io.leancast.domain.upnp.RendererDescription
+import io.leancast.domain.upnp.SoapRouter
 import org.junit.Assert.*
 import org.junit.After
 import org.junit.Test
@@ -323,6 +329,53 @@ class ReceiverIntegrationTest {
             receiver.start()
             val line = log.filter { it.contains("receiver started on") }.singleOrNull() ?: error(log.toString())
             test(playback, DlnaControl(line.substringAfterLast(':').toInt(), receiver))
+        }
+    }
+
+    @Test fun dlnaControlFallsBackWhenItsPreferredPortIsOccupied() {
+        val player = object : PlayerPort {
+            override fun prepareAndPlay(uri: String) = Unit
+            override fun play() = Unit
+            override fun pause() = Unit
+            override fun seekTo(ms: Long) = Unit
+            override fun stop() = Unit
+            override fun currentPositionMs() = 0L
+            override fun currentDurationMs() = 0L
+        }
+        val events = SubscriptionRegistry()
+        ServerSocket(0).use { occupied ->
+            val server = ControlServer.startWithFallback(
+                preferredPort = occupied.localPort,
+                descriptionProvider = {
+                    RendererDescription(
+                        friendlyName = "Buzin fallback fixture",
+                        uuid = "uuid:bdcd8700-e92c-42c2-a41e-2998b6c2112d",
+                        manufacturer = "Buzin Solutions",
+                        modelName = "BuzinCast",
+                        baseUrl = "http://127.0.0.1",
+                    )
+                },
+                router = SoapRouter(CastSession(player)),
+                events = events,
+                eventBody = { "" },
+                serverToken = "BuzinCast-Test",
+            )
+            try {
+                assertTrue(server.boundPort > 0)
+                assertNotEquals(occupied.localPort, server.boundPort)
+                val response = Socket("127.0.0.1", server.boundPort).use { client ->
+                    client.soTimeout = 5_000
+                    client.getOutputStream().write(
+                        "GET /desc.xml HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n".toByteArray()
+                    )
+                    client.getInputStream().bufferedReader().readText()
+                }
+                assertTrue(response, response.startsWith("HTTP/1.1 200"))
+                assertTrue(response, response.contains("<friendlyName>Buzin fallback fixture</friendlyName>"))
+            } finally {
+                server.stop()
+                events.shutdown()
+            }
         }
     }
 

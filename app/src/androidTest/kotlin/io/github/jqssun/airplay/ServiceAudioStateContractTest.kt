@@ -1,9 +1,11 @@
 package io.github.jqssun.airplay
 
+import android.app.Application
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.res.Configuration
@@ -21,9 +23,11 @@ import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
 import androidx.media.app.NotificationCompat.MediaStyle
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.MediaRequest
@@ -416,6 +420,66 @@ class ServiceAudioStateContractTest {
             service.stopVideoPlayback()
             instrumentation.waitForIdleSync()
             assertTrue(file.delete())
+        }
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @Test fun externalSubtitleUsesTheBoundPlayerAndKeepsItOnImportFailure() = withoutAutoLaunch {
+        val sandbox = File(context.cacheDir, "model-subtitle-${System.nanoTime()}").apply { mkdirs() }
+        val isolated = object : ContextWrapper(context) {
+            override fun getFilesDir() = sandbox
+            override fun getCacheDir() = sandbox
+        }
+        val app = object : Application() { init { attachBaseContext(isolated) } }
+        val input = File.createTempFile("service-subtitle-", ".vtt", context.cacheDir)
+        val imported = File(sandbox, "external-subtitle.vtt")
+        val store = ViewModelStore()
+        lateinit var model: MainViewModel
+        val renderer = service.airPlayVideoPlayer
+        val playerField = renderer.javaClass.getDeclaredField("player").apply { isAccessible = true }
+        fun captions() = (playerField.get(renderer) as? ExoPlayer)
+            ?.currentMediaItem?.localConfiguration?.subtitleConfigurations
+        val title = "BuzinCast subtitle contract"
+        val vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n$title\n"
+        try {
+            input.writeText("\uFEFF$vtt")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", input)
+            withLocalVideoFixture { location ->
+                main {
+                    model = MainViewModel(app)
+                    store.put("subtitle", model)
+                    model.subtitle(uri)
+                    model.bindService(service)
+                    service.playLocalVideo(location)
+                    service.setVideoPlaying(false)
+                    model.subtitle(uri)
+                }
+                await("The imported subtitle did not reach the active player") {
+                    var installed = false
+                    main { installed = captions()?.singleOrNull()?.uri == Uri.fromFile(imported) }
+                    installed
+                }
+                assertEquals(vtt, imported.readText())
+                val invalidUri = Uri.parse("https://example.test/remote.vtt")
+                val existingFailures = model.logs.value.count { it.contains("Subtitle load failed:") }
+                main { model.subtitle(invalidUri) }
+                await("The invalid subtitle did not report an import failure") {
+                    model.logs.value.count { it.contains("Subtitle load failed:") } > existingFailures
+                }
+                main {
+                    assertEquals("text/vtt", captions()?.single()?.mimeType)
+                    model.subtitle(null)
+                }
+                await("Removing the subtitle did not update the active player") {
+                    var cleared = false
+                    main { cleared = captions()?.isEmpty() == true }
+                    cleared
+                }
+            }
+        } finally {
+            main { store.clear() }
+            input.delete()
+            sandbox.deleteRecursively()
         }
     }
 
