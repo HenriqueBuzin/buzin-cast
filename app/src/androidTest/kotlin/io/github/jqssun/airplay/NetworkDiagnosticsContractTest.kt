@@ -1,5 +1,6 @@
 package io.github.jqssun.airplay
 
+import android.app.Application
 import android.content.Context
 import android.content.ComponentName
 import android.content.ContextWrapper
@@ -11,18 +12,23 @@ import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.IBinder
 import android.os.SystemClock
+import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.buzincast.core.AsyncLogStore
 import io.github.jqssun.airplay.media.NetworkDiagnostics
 import io.github.jqssun.airplay.media.NetworkRecovery
 import io.github.jqssun.airplay.media.connectedLegacyNetwork
 import io.github.jqssun.airplay.media.currentNetworkCompat
+import io.github.jqssun.airplay.viewmodel.MainViewModel
+import io.leancast.app.Net
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -89,9 +95,35 @@ class NetworkDiagnosticsContractTest {
                 assertNull("The test emulator still has a default network", manager.currentNetworkCompat())
                 assertNull("Legacy selection returned a network with no default", manager.connectedLegacyNetwork())
                 assertReport(false)
+                assertModelReportsNoLanAddress()
                 verifyVpnRecovery(::hasVpn, initiallyOffline = true) { assertReport(true) }
             }
             else -> assertReport(hasVpn())
+        }
+    }
+
+    private fun assertModelReportsNoLanAddress() {
+        awaitNetwork("A LAN IPv4 address remained after disconnecting the test emulator") { Net.lanIpv4() == null }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val root = File(target.cacheDir, "offline-model-${System.nanoTime()}").apply { check(mkdirs()) }
+        val isolated = object : ContextWrapper(context) {
+            override fun getFilesDir() = root
+        }
+        val app = object : Application() { init { attachBaseContext(isolated) } }
+        val store = ViewModelStore()
+        var logs: AsyncLogStore? = null
+        try {
+            instrumentation.runOnMainSync {
+                val model = MainViewModel(app)
+                store.put("offline-address", model)
+                logs = MainViewModel::class.java.getDeclaredField("logStore").apply { isAccessible = true }
+                    .get(model) as AsyncLogStore
+                assertEquals("Sem rede IPv4", model.localAddress())
+            }
+        } finally {
+            instrumentation.runOnMainSync { store.clear() }
+            assertTrue(logs?.awaitClosed() != false)
+            assertTrue(root.deleteRecursively())
         }
     }
 
