@@ -19,6 +19,8 @@ import io.leancast.domain.upnp.RendererDescription
 import io.leancast.domain.upnp.SoapRouter
 import io.leancast.domain.upnp.UpnpTime
 import java.net.URI
+import java.net.InetAddress
+import java.net.NetworkInterface
 import java.util.UUID
 
 /** Buzin Cast integration of LeanCast's Apache-2.0 DLNA implementation.
@@ -156,7 +158,11 @@ class DlnaReceiver(
             )
             server = control
             control.start()
-            ssdp = SsdpAgent(SsdpIdentity(uuid, "http://$ip:${control.boundPort}/desc.xml", token)).also { it.start() }
+            val discoveryNetwork = NetworkInterface.getByInetAddress(InetAddress.getByName(ip))
+            ssdp = SsdpAgent(
+                SsdpIdentity(uuid, "http://$ip:${control.boundPort}/desc.xml", token),
+                network = discoveryNetwork,
+            ).also { it.start() }
             main.post(tick)
             log("DLNA experimental receiver started on $ip:${control.boundPort}")
         } catch (e: Exception) {

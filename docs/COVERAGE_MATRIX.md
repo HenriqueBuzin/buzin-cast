@@ -3602,3 +3602,11 @@ test 401 of 429 before the host's 900-second instrumentation timeout.
 The replay command now accepts `--instrumentation-timeout` and passes
 it through to the runner. The retry uses 1,800 seconds and the same
 sealed APK inputs after the matching API28 execution completes.
+
+DLNA now binds SSDP multicast to the interface for the advertised
+description address when Android can resolve that interface. Both
+focused API25 SSDP tests passed. The announcement test confirmed
+the packet source matched the advertised address during startup,
+refresh, and shutdown. The focused profile covered 20/26 branches
+and 18/23 complexity points. The first API36 check was terminated
+during Android app startup and did not execute the SSDP assertions.

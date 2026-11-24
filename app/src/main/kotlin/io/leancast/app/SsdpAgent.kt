@@ -8,6 +8,7 @@ import java.net.DatagramPacket
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.MulticastSocket
+import java.net.NetworkInterface
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit
 class SsdpAgent(
     private val identity: SsdpIdentity,
     private val responder: SsdpResponder = SsdpResponder(identity),
+    private val network: NetworkInterface? = null,
 ) {
     @Volatile private var running = false
     private var socket: MulticastSocket? = null
@@ -33,7 +35,12 @@ class SsdpAgent(
         try {
             sock.reuseAddress = true
             sock.bind(InetSocketAddress(PORT))
-            sock.joinGroup(group)
+            if (network == null) {
+                sock.joinGroup(group)
+            } else {
+                sock.networkInterface = network
+                sock.joinGroup(InetSocketAddress(group, PORT), network)
+            }
         } catch (e: Exception) {
             sock.close()
             throw e

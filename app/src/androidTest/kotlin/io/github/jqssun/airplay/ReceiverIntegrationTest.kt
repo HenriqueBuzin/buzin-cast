@@ -503,7 +503,7 @@ class ReceiverIntegrationTest {
         val group = InetSocketAddress(SsdpAgent.GROUP, SsdpAgent.PORT)
         val identity = SsdpIdentity("uuid:${UUID.randomUUID()}", "http://$ip:49152/desc.xml",
             "BuzinTest/1", maxAgeSeconds = 2)
-        val agent = SsdpAgent(identity)
+        val agent = SsdpAgent(identity, network = network)
         agent.stop()
         DatagramSocket(null).use { occupied ->
             occupied.reuseAddress = false
@@ -524,8 +524,10 @@ class ReceiverIntegrationTest {
                     val packet = DatagramPacket(ByteArray(2048), 2048)
                     observer.receive(packet)
                     val message = String(packet.data, 0, packet.length, Charsets.UTF_8)
-                    if ("USN: ${identity.uuid}::upnp:rootdevice\r\n" in message && "NTS: $subtype\r\n" in message)
+                    if ("USN: ${identity.uuid}::upnp:rootdevice\r\n" in message && "NTS: $subtype\r\n" in message) {
+                        assertEquals("Discovery used a different interface from the advertised LOCATION", lan, packet.address)
                         matches += message
+                    }
                 }
                 return matches
             }
