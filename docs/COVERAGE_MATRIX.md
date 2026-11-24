@@ -3631,3 +3631,11 @@ paused session survived. The fixture uses a 64x64 playback sample
 and searches app-owned accessibility windows for controls. The
 successful run kept the emulator display awake and dismissed its
 keyguard, after earlier attempts exposed only system windows.
+
+The archived `447d309` APK pair reproduced two API25 audio
+failures in a narrow viewport. Allowing the transport controls
+to wrap kept fast-forward reachable. The updated tests scroll to
+the sliders, wait for control positions to settle, and dispatch
+touches to the activity in window coordinates. Both API25 cases
+passed, including volume changes and DACP scan release and
+cancellation.

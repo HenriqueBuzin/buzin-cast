@@ -1044,9 +1044,10 @@ private fun NowPlayingPanel(viewModel: MainViewModel, coverSize: Dp) {
 
             Spacer(Modifier.height(8.dp))
 
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 HoldScanButton(

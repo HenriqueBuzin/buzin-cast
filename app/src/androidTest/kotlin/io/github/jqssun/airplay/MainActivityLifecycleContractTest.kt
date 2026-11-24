@@ -1221,18 +1221,11 @@ class MainActivityLifecycleContractTest {
                 service.onAudioFormat(2, 352, false)
                 service.onProgress(0L, 44100L, 44100L * 90)
             }
-            awaitVolumeControl(R.string.cd_rewind, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
-                val bounds = Rect().also(node::getBoundsInScreen)
-                if (bounds.isEmpty) return@awaitVolumeControl false
-                // Swipe beside the playback buttons to reveal both sliders.
-                val x = (bounds.left - bounds.width() * 3).coerceAtLeast(1).toFloat()
-                pointerGesture(x, bounds.exactCenterY(), (bounds.exactCenterY() - bounds.height() * 5).coerceAtLeast(1f))
-                true
-            }
+            awaitVolumeControl(R.string.cd_rewind, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { it.isVisibleToUser }
             lateinit var receiverBounds: Rect
             var lastBounds: Rect? = null
             var stableSince = 0L
-            awaitVolumeControl(R.string.volume_server) { node ->
+            awaitVolumeControl(R.string.volume_server, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
                 assertTrue(node.isEnabled)
                 val bounds = Rect().also(node::getBoundsInScreen)
                 if (!node.isVisibleToUser || bounds.isEmpty || bounds != lastBounds) {
@@ -1245,7 +1238,7 @@ class MainActivityLifecycleContractTest {
             }
             val touchX = receiverBounds.left + receiverBounds.width() * 0.85f
             val touchY = receiverBounds.exactCenterY()
-            pointerGesture(touchX, touchY, touchY)
+            pointerGesture(touchX, touchY, touchY, activity)
             await("Touch on receiver volume did not raise the media stream") { audio.getStreamVolume(stream) > initial + 1 }
             val raised = audio.getStreamVolume(stream)
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
@@ -1640,15 +1633,21 @@ class MainActivityLifecycleContractTest {
 
                 fun hold(label: Int, expected: List<String>, completion: Int) {
                     val bounds = Rect()
+                    var stableSince = 0L
                     awaitVolumeControl(label, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
-                        node.getBoundsInScreen(bounds)
-                        node.isVisibleToUser && !bounds.isEmpty
+                        val current = Rect().also(node::getBoundsInScreen)
+                        if (!node.isVisibleToUser || current.isEmpty || current != bounds) {
+                            bounds.set(current)
+                            stableSince = SystemClock.elapsedRealtime()
+                            return@awaitVolumeControl false
+                        }
+                        SystemClock.elapsedRealtime() - stableSince >= 150L
                     }
                     val started = SystemClock.uptimeMillis()
                     fun dispatch(action: Int) {
                         val event = MotionEvent.obtain(started, SystemClock.uptimeMillis(), action,
                             bounds.exactCenterX(), bounds.exactCenterY(), 0)
-                        try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+                        try { dispatchActivityTouch(activity, event) } finally { event.recycle() }
                     }
                     dispatch(MotionEvent.ACTION_DOWN)
                     try {
@@ -1675,11 +1674,23 @@ class MainActivityLifecycleContractTest {
         }
     }
 
-    private fun pointerGesture(x: Float, startY: Float, endY: Float) {
+    private fun dispatchActivityTouch(activity: MainActivity, event: MotionEvent) {
+        main {
+            val origin = IntArray(2)
+            activity.window.decorView.getLocationOnScreen(origin)
+            event.offsetLocation(-origin[0].toFloat(), -origin[1].toFloat())
+            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            activity.dispatchTouchEvent(event)
+        }
+    }
+
+    private fun pointerGesture(x: Float, startY: Float, endY: Float, activity: MainActivity? = null) {
         val time = SystemClock.uptimeMillis()
         fun send(action: Int, y: Float) {
             val event = MotionEvent.obtain(time, SystemClock.uptimeMillis(), action, x, y, 0)
-            try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+            try {
+                if (activity == null) instrumentation.sendPointerSync(event) else dispatchActivityTouch(activity, event)
+            } finally { event.recycle() }
         }
         send(MotionEvent.ACTION_DOWN, startY)
         if (startY != endY) {
@@ -1742,7 +1753,10 @@ class MainActivityLifecycleContractTest {
                 if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
                 val roots = automation.windows.mapNotNull { window ->
                     try { window.root } finally { window.recycle() }
-                }.ifEmpty { listOfNotNull(automation.rootInActiveWindow) }
+                }.toMutableList()
+                if (roots.none { it.packageName?.toString() == context.packageName }) {
+                    automation.rootInActiveWindow?.let(roots::add)
+                }
                 try {
                     val appRoots = roots.filter {
                         val owner = it.packageName?.toString().orEmpty()
