@@ -3,10 +3,12 @@ package io.github.jqssun.airplay
 import android.app.Application
 import android.app.Notification
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -24,6 +26,7 @@ import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStore
 import androidx.media.app.NotificationCompat.MediaStyle
@@ -43,6 +46,7 @@ import io.buzincast.media.MirrorPacketCodec
 import io.buzincast.media.SecureMirrorChannel
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
+import io.github.jqssun.airplay.audio.VolumeBroadcast
 import io.github.jqssun.airplay.discovery.FCastReceiver
 import io.github.jqssun.airplay.media.ExternalSubtitles
 import io.github.jqssun.airplay.media.MirrorCapture
@@ -1687,10 +1691,27 @@ class ServiceAudioStateContractTest {
             }
             instrumentation.waitForIdleSync()
             val requested = receiverIndex.toFloat() / maxVolume
-            main { service.setClientVolume(requested) }
+            // The stream index updates before Android delivers its broadcast. Let the
+            // setup change reach the stopped receiver before connecting the sender.
+            val volumeChanged = CountDownLatch(1)
+            val volumeChange = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    if (intent.getIntExtra(VolumeBroadcast.EXTRA_STREAM_TYPE, -1) == stream &&
+                        intent.getIntExtra(VolumeBroadcast.EXTRA_VALUE, -1) == receiverIndex
+                    ) volumeChanged.countDown()
+                }
+            }
+            ContextCompat.registerReceiver(context, volumeChange, IntentFilter(VolumeBroadcast.ACTION), ContextCompat.RECEIVER_NOT_EXPORTED)
+            try {
+                val changed = audio.getStreamVolume(stream) != receiverIndex
+                main { service.setClientVolume(requested) }
+                if (changed) assertTrue("Initial receiver volume change was not delivered", volumeChanged.await(5, TimeUnit.SECONDS))
+                instrumentation.waitForIdleSync()
+            } finally {
+                context.unregisterReceiver(volumeChange)
+            }
             await("Setting synchronized volume did not change the media stream") { audio.getStreamVolume(stream) == receiverIndex }
             assertEquals(-30f + 30f * requested, service.onClientVolumeQuery(), 0.001f)
-            instrumentation.waitForIdleSync()
             main { service.onConnectionInit() }
 
             main { service.onClientVolume(-144f) }
