@@ -3058,3 +3058,13 @@ asynchronous activity finish, and fixture teardown raced with it.
 The test now waits for the viewer's destruction before closing the
 scenario. Two focused runs and all three photo viewer contracts
 passed on API22 with the same application APK.
+
+The normal edition on API25 and API28 passed the receiver's occupied-port
+contract. Changing a running receiver to an occupied port closes the old
+listener. Once the replacement port is free, the receiver resumes on it
+and prepares only the AirPlay mDNS entry when audio advertising is off.
+The fixture suppresses connection-triggered activity launches while
+probing sockets, as those launches could keep the service bound on API25.
+Against the 33 matching service classes, the API25 profile advanced from
+504/601 to 507/601 branches and from 430/538 to 433/538 complexity points.
+The API28 profile advanced the same baseline to 506/601 and 432/538.

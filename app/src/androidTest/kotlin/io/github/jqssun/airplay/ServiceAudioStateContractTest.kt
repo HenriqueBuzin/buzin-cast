@@ -48,6 +48,7 @@ import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.audio.DacpController
 import io.github.jqssun.airplay.audio.VolumeBroadcast
 import io.github.jqssun.airplay.discovery.FCastReceiver
+import io.github.jqssun.airplay.discovery.MdnsService
 import io.github.jqssun.airplay.media.ExternalSubtitles
 import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.media.MirrorRelay
@@ -181,13 +182,18 @@ class ServiceAudioStateContractTest {
         }
     }
 
-    @Test fun occupiedReceiverPortCanBeRetriedAfterItIsReleased() {
+    @Test fun occupiedReceiverPortCanBeRetriedAfterItIsReleased() = withoutAutoLaunch {
         val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
         val portKey = Prefs.SERVER_PORT.key
         val usbKey = Prefs.USB_ONLY.key
+        val audioKey = Prefs.ADVERTISE_AUDIO.key
         val originalPort = prefs.takeIf { it.contains(portKey) }?.let(Prefs.SERVER_PORT::read)
         val originalUsbMode = prefs.takeIf { it.contains(usbKey) }?.let(Prefs.USB_ONLY::read)
+        val originalAudio = prefs.takeIf { it.contains(audioKey) }?.let(Prefs.ADVERTISE_AUDIO::read)
         val loopback = InetAddress.getByName("127.0.0.1")
+        fun isListening(port: Int) = runCatching {
+            Socket(loopback, port).use { it.isConnected }
+        }.getOrDefault(false)
 
         try {
             val port = ServerSocket(0, 1, loopback).use { occupied ->
@@ -205,14 +211,34 @@ class ServiceAudioStateContractTest {
                 service.startServer()
                 assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
             }
-            await("Receiver did not listen on the released port") {
-                runCatching { Socket(loopback, port).use { it.isConnected } }.getOrDefault(false)
+            await("Receiver did not listen on the released port") { isListening(port) }
+
+            val replacementPort = ServerSocket(0, 1, loopback).use { occupied ->
+                assertTrue(prefs.edit().putInt(portKey, occupied.localPort).putBoolean(audioKey, false).commit())
+                await("Changing to a busy port did not report a receiver error") {
+                    service.serverState.value == AirPlayService.ServerState.ERROR
+                }
+                assertFalse("The old port remained open after the failed restart", isListening(port))
+                occupied.localPort
+            }
+
+            main { service.startServer() }
+            await("Receiver did not recover on the replacement port") { isListening(replacementPort) }
+            assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            main {
+                val advertiser = requireNotNull(AirPlayService::class.java.getDeclaredField("usbAdvertiser")
+                    .apply { isAccessible = true }.get(service))
+                val published = advertiser.javaClass.getDeclaredField("services").apply { isAccessible = true }
+                    .get(advertiser) as List<*>
+                assertEquals(listOf("_airplay._tcp" to replacementPort),
+                    published.filterIsInstance<MdnsService>().map { it.type to it.port })
             }
         } finally {
             main { service.stopServer() }
             val restore = prefs.edit()
             if (originalPort == null) restore.remove(portKey) else restore.putInt(portKey, originalPort)
             if (originalUsbMode == null) restore.remove(usbKey) else restore.putBoolean(usbKey, originalUsbMode)
+            if (originalAudio == null) restore.remove(audioKey) else restore.putBoolean(audioKey, originalAudio)
             assertTrue(restore.commit())
         }
     }
