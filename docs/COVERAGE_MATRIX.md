@@ -3087,3 +3087,11 @@ because the About button started below the visible area. The launcher
 gate now recognizes the ready status and then verifies focus, About
 opening and About dismissal. The regional launcher passed that sequence
 on API25 using the archived application APK.
+
+The decoder selection contract passed on API30 and API36. On API36 it
+found a software HEVC decoder, checked forced selection, and confirmed
+that unforced selection prefers capable AVC and rejects requests without
+measured AVC support or beyond both decoders' capabilities. Adding the
+API36 profile to the three matching decoder class files advanced branches
+from 138/196 to 152/196 and complexity from 109/156 to 118/156. The API30
+profile exercised the missing-candidate path and added no new probes.

@@ -77,6 +77,34 @@ class DecoderSelectorContractTest {
         }
     }
 
+    @Test fun untrustedSoftwareHevcRequiresMeasuredAvcAndHevcCapabilities() {
+        val hevc = if (Build.VERSION.SDK_INT >= 29) {
+            MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull {
+                !it.isEncoder && !it.isAlias && it.isSoftwareOnly &&
+                    it.supportedTypes.any { mime -> mime.equals(DecoderSelector.HEVC, ignoreCase = true) }
+            }
+        } else null
+        val selector = DecoderSelector(context) { if (hevc == null) emptyArray() else arrayOf(hevc) }
+        val forced = selector.hevc(null, 64, 48, 30, force = true)
+        if (hevc == null || !DecoderSelector.isEmulatedDevice(Build.HARDWARE, Build.BRAND)) {
+            assertNull(forced)
+            return
+        }
+
+        assertSame(hevc, forced)
+        assertNull("Missing AVC evidence must not select untrusted HEVC",
+            selector.hevc(null, 64, 48, 30, force = false))
+        val avcDecoder = avc()
+        val avcCaps = avcDecoder.videoCaps(DecoderSelector.AVC)
+        val hevcCaps = hevc.videoCaps(DecoderSelector.HEVC)
+        assertNull("Capable AVC must be preferred over untrusted HEVC",
+            selector.hevc(avcDecoder, 64, 48, 30, force = false))
+        val width = maxOf(avcCaps.supportedWidths.upper, hevcCaps.supportedWidths.upper) + 64
+        val height = maxOf(avcCaps.supportedHeights.upper, hevcCaps.supportedHeights.upper) + 64
+        assertNull("Neither codec supports the requested size",
+            selector.hevc(avcDecoder, width, height, 30, force = false))
+    }
+
     @Test fun avcFallsBackToTheFirstRegularDecoderWhenTheInitialQueryFails() {
         val first = requireNotNull(DecoderSelector(context).avc())
         val queries = mutableListOf<Int>()
