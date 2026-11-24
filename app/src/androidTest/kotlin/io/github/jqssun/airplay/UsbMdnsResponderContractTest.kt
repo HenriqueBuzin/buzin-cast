@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.discovery.MdnsService
 import io.github.jqssun.airplay.discovery.UsbMdnsAdvertiser
+import io.leancast.app.Net
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -31,8 +32,13 @@ class UsbMdnsResponderContractTest {
             sent += packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
         }
     }
-    private inner class Fixture(val socket: MulticastSocket, onLink: (String?, Inet4Address?) -> Unit) {
-        val advertiser = UsbMdnsAdvertiser(listOf(service, second), onLink)
+    private inner class Fixture(
+        val socket: MulticastSocket,
+        onLink: (String?, Inet4Address?) -> Unit,
+        findLink: (() -> Pair<NetworkInterface, InterfaceAddress>?)? = null,
+    ) {
+        val advertiser = if (findLink == null) UsbMdnsAdvertiser(listOf(service, second), onLink)
+            else UsbMdnsAdvertiser(listOf(service, second), onLink, findLink)
         val link: Any
         init {
             val type = advertiser.javaClass.declaredClasses.single { it.simpleName == "Link" }
@@ -284,6 +290,61 @@ class UsbMdnsResponderContractTest {
         }
         instrumentation.waitForIdleSync()
         assertEquals("An unchanged or stopped advertiser reported a link", expected, reports)
+    }
+
+    @Test fun selectingAndReplacingLinksReusesSocketsOnlyWhileTheInterfaceMatches() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        fun candidate(ip: InetAddress): Pair<NetworkInterface, InterfaceAddress> {
+            val network = requireNotNull(NetworkInterface.getByInetAddress(ip))
+            return network to network.interfaceAddresses.single { it.address == ip }
+        }
+        val first = candidate(address)
+        val next = candidate(InetAddress.getByName(requireNotNull(Net.lanIpv4())))
+        assertNotEquals(first.first.name, next.first.name)
+        val reports = mutableListOf<Pair<String?, Inet4Address?>>()
+        var selected: Pair<NetworkInterface, InterfaceAddress>? = first
+        var enumerationFailed = false
+        val fixture = Fixture(CapturedSocket(), { name, ip -> reports += name to ip }) {
+            if (enumerationFailed) throw SocketException("Interface enumeration temporarily failed")
+            selected
+        }.also { fixtures += it }
+        val link = fixture.advertiser.javaClass.getDeclaredField("link").apply { isAccessible = true }
+        fun currentSocket(): MulticastSocket {
+            val current = requireNotNull(link.get(fixture.advertiser))
+            return current.javaClass.getDeclaredField("socket").apply { isAccessible = true }.get(current) as MulticastSocket
+        }
+
+        try {
+            fixture.call("_scan", 1_000L)
+            val original = currentSocket()
+            assertEquals(first.first.name, original.networkInterface.name)
+            assertEquals("CHECKING", fixture.state())
+            fixture.call("_scan", 2_000L)
+            assertSame(original, currentSocket())
+            enumerationFailed = true
+            fixture.call("_scan", 3_000L)
+            assertSame(original, currentSocket())
+            assertFalse(original.isClosed)
+
+            enumerationFailed = false
+            selected = next
+            fixture.call("_scan", 4_000L)
+            val replacement = currentSocket()
+            assertTrue(original.isClosed)
+            assertEquals(next.first.name, replacement.networkInterface.name)
+            assertEquals("CHECKING", fixture.state())
+
+            selected = null
+            fixture.call("_scan", 5_000L)
+            assertTrue(replacement.isClosed)
+            assertNull(link.get(fixture.advertiser))
+            instrumentation.waitForIdleSync()
+            assertEquals(listOf(first.first.name to address, next.first.name to next.second.address, null to null), reports)
+        } finally {
+            selected = null
+            enumerationFailed = false
+            fixture.call("_scan", 6_000L)
+        }
     }
 
     @Test fun openingAMulticastLinkConfiguresTheSocketAndUsesTheInterfaceSubnet() {

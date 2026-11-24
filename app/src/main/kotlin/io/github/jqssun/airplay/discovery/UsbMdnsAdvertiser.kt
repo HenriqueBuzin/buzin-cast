@@ -23,10 +23,14 @@ import kotlin.random.Random
 /**
  * mDNS responder for usb tether links (usb0/ncm0/rndis0) on Android 16 and below
  */
-class UsbMdnsAdvertiser(
+class UsbMdnsAdvertiser internal constructor(
     private val services: List<MdnsService>,
     private val onLink: (iface: String?, addr: Inet4Address?) -> Unit,
+    private val findLink: () -> Pair<NetworkInterface, InterfaceAddress>?,
 ) {
+    constructor(services: List<MdnsService>, onLink: (String?, Inet4Address?) -> Unit) :
+        this(services, onLink, ::findUsbLink)
+
     private class Link(val name: String, val addr: Inet4Address, val mask: Int, val socket: MulticastSocket) {
         fun covers(a: Inet4Address) = ((_ip(a) xor _ip(addr)) and mask) == 0
     }
@@ -96,7 +100,7 @@ class UsbMdnsAdvertiser(
     }
 
     private fun _scan(now: Long) {
-        val found = try { _findUsb() } catch (_: SocketException) { return }
+        val found = try { findLink() } catch (_: SocketException) { return }
         val prev = link
         if (found?.first?.name == prev?.name && found?.second?.address == prev?.addr) return
         prev?.let(::_close)
@@ -107,10 +111,6 @@ class UsbMdnsAdvertiser(
     }
 
     private fun _report(l: Link?) = main.post { if (running) onLink(l?.name, l?.addr) }
-
-    private fun _findUsb() = NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
-        .filter { USB_IFACE.matches(it.name) && it.isUp }
-        .firstNotNullOfOrNull { ni -> ni.interfaceAddresses.firstOrNull { it.address is Inet4Address }?.let { ni to it } }
 
     private fun _open(ni: NetworkInterface, ia: InterfaceAddress): Link? {
         val socket = MulticastSocket(null)
@@ -353,6 +353,9 @@ class UsbMdnsAdvertiser(
     companion object {
         private const val TAG = "UsbMdnsAdvertiser"
         private val USB_IFACE = Regex("(usb|rndis|ncm)\\d+")
+        private fun findUsbLink() = NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+            .filter { USB_IFACE.matches(it.name) && it.isUp }
+            .firstNotNullOfOrNull { ni -> ni.interfaceAddresses.firstOrNull { it.address is Inet4Address }?.let { ni to it } }
         private const val MDNS_PORT = 5353
         private val GROUP = InetSocketAddress(InetAddress.getByName("224.0.0.251"), MDNS_PORT)
         private const val SCAN_MS = 2000L

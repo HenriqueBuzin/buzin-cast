@@ -3559,3 +3559,10 @@ a competing FCast load and retained its session. A listener still
 waiting for a peer closed when Cast video took ownership. Matching
 focused profiles covered 202/599 branches and 183/537 complexity
 points across the startup and ownership cases.
+
+All 11 USB mDNS responder cases passed on API25. The added link
+selection case used real multicast sockets on two emulator
+interfaces and verified socket reuse, preservation on enumeration
+failure, socket replacement and notification upon disconnect.
+The focused report covered 26/34 scan branches and 188/217 total
+responder branches, with 139/162 complexity points.
