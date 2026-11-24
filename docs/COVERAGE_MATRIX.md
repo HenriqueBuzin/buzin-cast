@@ -3407,3 +3407,9 @@ pairing-code field before validation. The test now waits for the form
 actions before editing each field and dismisses a keyboard that appears
 during that wait. The focused relay-form test passed with the rebuilt
 compact DE/AT APK on API22.
+
+The same archived APK and test APK from the `6bc2cac` compact DE/AT
+run passed both lifecycle cases in an isolated API22 replay. The
+focused run confirmed first-sender launch and activity recreation.
+The earlier full-suite failures remain pending reproduction with
+the complete lifecycle test class.
