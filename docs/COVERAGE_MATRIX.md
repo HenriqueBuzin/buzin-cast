@@ -3120,6 +3120,13 @@ from `c09ec21`. JVM coverage reached 80,566/85,930 instructions,
 2,222/2,362 methods and 307/314 classes. All six native metrics reached
 100%: 908/908 branches, 203/203 functions, 205/205 instantiations,
 1,745/1,745 lines, 171/171 MC/DC conditions and 1,494/1,494 regions.
+
+The API22 compact instrumentation checkpoint exercises the legacy
+network callback registration path. For `NetworkRecovery` and its
+callback class, the matching API28 and API22 profiles cover 250/306
+instructions, 28/34 branches, 33/40 lines and 21/27 complexity points.
+The API28 profile alone covered 26/34 branches and 19/27 complexity
+points.
 The minimum among the latest complete reports for the four editions
 is now 4,222/5,111 complexity points in compact DE/AT (82.61%).
 
