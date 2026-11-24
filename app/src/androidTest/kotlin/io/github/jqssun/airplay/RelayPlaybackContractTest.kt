@@ -2,11 +2,15 @@ package io.github.jqssun.airplay
 
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.os.Build
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.media.MirrorPacket
 import io.github.jqssun.airplay.media.RelayPlayback
+import io.github.jqssun.airplay.renderer.DecoderSelector
 import io.github.jqssun.airplay.renderer.VideoRenderer
 import org.junit.After
 import org.junit.Assert.*
@@ -127,6 +131,43 @@ class RelayPlaybackContractTest {
             assertTrue("HEVC NAL type $type did not qualify for decoder restart", canRestart(nal(type shl 1), hevc = true))
         }
         assertTrue(canRestart(byteArrayOf(9, 0, 0, 2) + nal(33 shl 1), hevc = true))
+    }
+
+    @Test fun decoderFormatRespectsSdrFrameDropAndInputSizeSettings() {
+        val renderer = session().renderer
+        val mime = DecoderSelector.AVC
+        assertFalse(renderer.selectDecoders(64, 48, 24, h265 = false))
+        val decoder = requireNotNull(field<MediaCodecInfo?>(renderer, "avcDecoder"))
+        val method = VideoRenderer::class.java.getDeclaredMethod("_format", String::class.java, MediaCodecInfo::class.java)
+            .apply { isAccessible = true }
+        fun format() = method.invoke(renderer, mime, decoder) as MediaFormat
+
+        renderer.setResolution(64, 48)
+        renderer.enforceSdr = true
+        renderer.keyAllowFrameDrop = true
+        val sdr = format()
+        assertEquals(24, sdr.getInteger(MediaFormat.KEY_FRAME_RATE))
+        assertEquals(1024 * 1024, sdr.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE))
+        assertEquals(MediaFormat.COLOR_STANDARD_BT709, sdr.getInteger(MediaFormat.KEY_COLOR_STANDARD))
+        assertEquals(MediaFormat.COLOR_RANGE_LIMITED, sdr.getInteger(MediaFormat.KEY_COLOR_RANGE))
+        assertEquals(MediaFormat.COLOR_TRANSFER_SDR_VIDEO, sdr.getInteger(MediaFormat.KEY_COLOR_TRANSFER))
+
+        renderer.setResolution(1920, 1080)
+        renderer.enforceSdr = false
+        renderer.keyAllowFrameDrop = false
+        val passthrough = format()
+        assertEquals(1920 * 1080 * 3 / 4, passthrough.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE))
+        for (key in listOf(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.KEY_COLOR_RANGE, MediaFormat.KEY_COLOR_TRANSFER)) {
+            assertFalse("Disabled SDR override still set $key", passthrough.containsKey(key))
+        }
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            assertEquals(1, sdr.getInteger(MediaFormat.KEY_ALLOW_FRAME_DROP))
+            assertEquals(0, passthrough.getInteger(MediaFormat.KEY_ALLOW_FRAME_DROP))
+        } else {
+            assertFalse(sdr.containsKey(MediaFormat.KEY_ALLOW_FRAME_DROP))
+            assertFalse(passthrough.containsKey(MediaFormat.KEY_ALLOW_FRAME_DROP))
+        }
     }
 
     @Test fun videoChangesAnnounceDimensionsAndOnlyNewSessionsResetTheClockAnchor() {

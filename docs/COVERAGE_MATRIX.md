@@ -3000,3 +3000,8 @@ The DE/AT API28 USB mDNS test opened a multicast socket on the
 emulator's real loopback interface and checked its interface, port,
 TTL, subnet and cleanup. The matching advertiser classes gained
 69 instructions, 12 lines and two branches, reaching 165/217 branches.
+
+The decoder format test passed on DE/AT APIs 28 and 30. It verified
+SDR color overrides, input-buffer sizing and frame-drop options on
+the supported API. The matching renderer files increased from
+87/120 to 91/120 branches and from 67/101 to 70/101 complexity.
