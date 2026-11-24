@@ -3183,3 +3183,12 @@ removed the subscription. The server sent events to the root path
 when the callback URL omitted a path. Adding this profile to the three
 matching subscription registry classes advanced branches from 35/52
 to 42/52, methods from 28/29 to 29/29, and complexity from 38/55 to 45/55.
+
+The complete standard compact API28 report for `83a913b` passed all
+409 Android tests, 21 native UBSan cases and 15 runtime gates, including
+VPN and offline diagnostics. JVM counters reached 82,085/86,755
+instructions, 5,083/5,977 branches, 8,222/8,496 lines, 4,360/5,153
+complexity, 2,245/2,362 methods and 308/314 classes. Native functions,
+instantiations and MC/DC reached 100%. This API covered 909/912 native
+branches, 1,748/1,751 lines and 1,496/1,500 regions. The remaining native
+outcomes belong to the old-platform decoder path in `audio_decoder.h`.
