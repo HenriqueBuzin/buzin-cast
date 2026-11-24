@@ -14,11 +14,12 @@ from zipfile import ZipFile
 
 from test_emulator import COVERAGE_REQUIRED_RESULTS, Suite, UiUnavailable, validate_instrumentation_output
 from run_android_coverage import (
-    archive_compiled_inputs, coverage_identity, filesystem_path, source_identity, verify_packaged_native_library,
+    COMPILED_MANIFEST, archive_compiled_inputs, coverage_identity, filesystem_path, seal_compiled_snapshot,
+    source_identity, verify_packaged_native_library,
 )
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
 from report_coverage import coverage_target_met
-from replay_android_coverage import copy_compiled_snapshot
+from replay_android_coverage import copy_compiled_snapshot, replay_source
 
 
 class CoverageAutomationTest(unittest.TestCase):
@@ -193,6 +194,35 @@ class CoverageAutomationTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 copy_compiled_snapshot(source,target)
 
+    def test_interrupted_build_can_be_replayed_but_is_not_a_measured_snapshot(self):
+        with TemporaryDirectory(prefix="coverage-sealed-build-") as directory:
+            source = Path(directory)
+            for name in ("app", "core", "domain"):
+                classes = source / "classes" / name
+                classes.mkdir(parents=True)
+                (classes / "Fixture.class").write_bytes(b"compiled fixture")
+                sources = source / "sources" / name
+                sources.mkdir(parents=True)
+                (sources / "Fixture.kt").write_text("// mapped source", encoding="utf-8")
+            inputs = source / "inputs"
+            inputs.mkdir()
+            for name in ("app.apk", "test.apk", "libairplay_native.so", "native_core_tests"):
+                (inputs / name).write_bytes(name.encode())
+            for name in ("core.exec", "domain.exec"):
+                (source / name).write_bytes(b"completed unit coverage")
+            identity = coverage_identity(source, source, inputs / "app.apk", inputs / "test.apk", archive=source)
+            manifest = seal_compiled_snapshot(source, "compat", identity, source_identity(source, archive=source))
+
+            self.assertTrue((source / COMPILED_MANIFEST).is_file())
+            self.assertFalse((source / "manifest.json").exists())
+            self.assertEqual((manifest, True), replay_source(source))
+            with self.assertRaises(FileNotFoundError):
+                validate_snapshots([source])
+
+            (source / "domain.exec").write_bytes(b"stale domain coverage")
+            with self.assertRaisesRegex(ValueError, "unit coverage or native test executable changed"):
+                replay_source(source)
+
     def test_replay_rejects_missing_or_empty_native_library_before_installing(self):
         from replay_android_coverage import main
 
@@ -225,9 +255,12 @@ class CoverageAutomationTest(unittest.TestCase):
     def test_collect_only_replay_archives_runtime_without_starting_gradle(self):
         for api in (22, 28):
             with self.subTest(api=api):
-                self.assert_collect_only_replay(api)
+                self.assert_replay_runtime(api, compiled_only=False)
 
-    def assert_collect_only_replay(self, api):
+    def test_sealed_build_replay_reports_only_from_its_completed_runtime(self):
+        self.assert_replay_runtime(28, compiled_only=True)
+
+    def assert_replay_runtime(self, api, *, compiled_only):
         import hashlib
         from replay_android_coverage import main
 
@@ -249,6 +282,15 @@ class CoverageAutomationTest(unittest.TestCase):
                 return identity, hashlib.sha256(native).hexdigest()
 
             def runtime(command, **_options):
+                if Path(command[1]).name == "merge_android_coverage.py":
+                    self.assertTrue(compiled_only)
+                    self.assertEqual(1, command.count("--snapshot"))
+                    self.assertNotEqual(source, Path(command[command.index("--snapshot") + 1]))
+                    report = Path(command[command.index("--output") + 1])
+                    report.mkdir()
+                    (report / "summary.json").write_text(json.dumps(
+                        {"target_met": False, "android_and_jvm": {}, "native": {}}), encoding="utf-8")
+                    return
                 self.assertEqual("test_emulator.py", Path(command[1]).name)
                 self.assertEqual(api >= 23, "--diagnostic-networks" in command)
                 execution = Path(command[command.index("--output") + 1])
@@ -258,20 +300,24 @@ class CoverageAutomationTest(unittest.TestCase):
                 (profiles / "run.profraw").write_bytes(b"native")
                 (execution / "results.json").write_text("[]", encoding="utf-8")
 
-            with patch("replay_android_coverage.validate_snapshots", return_value=(manifest, [28])), \
+            args = ["replay", "--serial", "emulator-5558", "--snapshot", str(source),
+                    "--sdk-root", directory, "--output", str(output)]
+            if not compiled_only:
+                args.append("--collect-only")
+            with patch("replay_android_coverage.replay_source", return_value=(manifest, compiled_only)), \
+                 patch("replay_android_coverage.validate_snapshots", return_value=(manifest, [28])), \
                  patch("replay_android_coverage.copy_compiled_snapshot", side_effect=freeze), \
                  patch("replay_android_coverage.coverage_identity", return_value=identity), \
                  patch("replay_android_coverage.source_identity", return_value="mapped"), \
                  patch("replay_android_coverage.subprocess.check_output", side_effect=[str(api), "x86_64", ""]), \
                  patch("replay_android_coverage.subprocess.run", side_effect=runtime) as run, \
-                 patch.object(sys, "argv", ["replay", "--serial", "emulator-5558", "--snapshot",
-                     str(source), "--sdk-root", directory, "--output", str(output), "--collect-only"]):
+                 patch.object(sys, "argv", args):
                 main()
-            run.assert_called_once()
+            self.assertEqual(2 if compiled_only else 1, run.call_count)
             result = json.loads((output / "replay.json").read_text(encoding="utf-8"))
             item = result["variants"]["compat"]
             self.assertFalse(result["all_four_target_met"])
-            self.assertNotIn("target_met", item)
+            self.assertEqual(compiled_only, "target_met" in item)
             snapshot = output / item["raw_snapshot"]
             self.assertEqual(b"JVM", (snapshot / "run.ec").read_bytes())
             self.assertEqual(b"native", (snapshot / "run.profraw").read_bytes())

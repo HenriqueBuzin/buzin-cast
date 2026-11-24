@@ -399,8 +399,8 @@ the matrix runner also verifies the native coverage library against the APK
 entry using the build's NDK strip tool. Separate API runs
 produce separate reports; percentages must never be averaged.
 
-Replay a completed frozen snapshot on another x86_64 emulator API without
-rebuilding its app, test APK or native executable:
+Replay a frozen snapshot on an x86_64 emulator without rebuilding its
+app, test APK or native executable:
 
 ```powershell
 python tools/replay_android_coverage.py --serial emulator-5562 --snapshot SNAPSHOT_API28_COMPAT --output build/replay-compat-api22 --require-100
@@ -415,6 +415,13 @@ coverage run, it includes VPN and offline diagnostics on API23 and newer.
 Prior Android profiles and success metadata are never copied into the new
 runtime evidence.
 The report and manifests remain bound to the original compiled fingerprints.
+
+If the original runtime was interrupted, its `raw` directory can be replayed
+once compilation recorded `compiled-inputs.json`. This file fingerprints the
+archived APKs, class mappings, sources, JVM unit profiles and native test
+executable. The replay runs all checks from the beginning. Its report uses
+only the fresh runtime profiles, and the merge tool requires a completed
+`manifest.json` with successful runtime results.
 
 Use `--collect-only` to archive a successful replay before reporting. This
 mode runs the same runtime checks and saves the raw snapshot in `replay.json`

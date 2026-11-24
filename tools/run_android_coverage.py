@@ -25,6 +25,23 @@ VARIANTS = {
     "deat": (False, True),
     "compat-deat": (True, True),
 }
+COMPILED_MANIFEST = "compiled-inputs.json"
+COMPILED_AUXILIARY_FILES = ("core.exec", "domain.exec", "inputs/native_core_tests")
+
+
+def compiled_auxiliary_hashes(snapshot):
+    """Fingerprint the unit coverage and native test executable stored with a build."""
+    return {name: hashlib.sha256(filesystem_path(snapshot / name).read_bytes()).hexdigest()
+            for name in COMPILED_AUXILIARY_FILES}
+
+
+def seal_compiled_snapshot(snapshot, variant, identity, sources):
+    manifest = {"variant": variant, "archived_mappings": True, "source_files_sha256": sources,
+                "compiled_auxiliary_sha256": compiled_auxiliary_hashes(snapshot), **identity}
+    temporary = filesystem_path(snapshot / (COMPILED_MANIFEST + ".tmp"))
+    temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    temporary.replace(filesystem_path(snapshot / COMPILED_MANIFEST))
+    return manifest
 
 
 def filesystem_path(path):
@@ -238,6 +255,7 @@ def main():
             archive_compiled_inputs(root,build,apk,test_apk,snapshot,identity,expected_sources=sources_before_build)
             verify_packaged_native_library(snapshot / "inputs/app.apk", snapshot / "inputs/libairplay_native.so", llvm_strip)
             shutil.copyfile(native/"native_core_tests",snapshot/"inputs/native_core_tests")
+            compiled = seal_compiled_snapshot(snapshot, name, identity, sources_before_build)
             package = "com.buzincast.tv.deat" if regional else "com.buzincast.tv"
             # Modern and compat share a package but have different version codes.
             # Use clean emulator installs instead of relying on downgrade flags or
@@ -267,13 +285,14 @@ def main():
             run(command, report / "native-report.log")
             shutil.copyfile(build / "reports/jacoco/fullCoverageReport/fullCoverageReport.xml", report / "android.xml")
             measured = json.loads((report / "summary.json").read_text(encoding="utf-8"))
-            if coverage_identity(root,build,apk,test_apk,archive=snapshot)!=identity:
+            if (coverage_identity(root,build,apk,test_apk,archive=snapshot)!=identity or
+                    compiled_auxiliary_hashes(snapshot)!=compiled["compiled_auxiliary_sha256"]):
                 raise RuntimeError("Archived inputs changed during testing/reporting; rebuild and rerun "+name)
             for file in (profiles/"coverage").iterdir():
                 if file.suffix in (".ec",".exec",".profraw"):
                     shutil.copyfile(file,snapshot/file.name)
             shutil.copyfile(profiles/"results.json",snapshot/"results.json")
-            manifest={"variant":name,"emulator_api":api,"archived_mappings":True,"source_files_sha256":sources_before_build,**identity}
+            manifest={**compiled,"emulator_api":api}
             (snapshot/"manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
             results["variants"][name] = {
                 "target_met": measured["target_met"],

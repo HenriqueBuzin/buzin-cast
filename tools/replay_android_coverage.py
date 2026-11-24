@@ -1,4 +1,4 @@
-"""Replay frozen coverage APKs on another emulator API without rebuilding them."""
+"""Replay frozen coverage APKs from a completed run or a sealed build."""
 import argparse
 import hashlib
 import json
@@ -12,7 +12,38 @@ import sys
 import uuid
 
 from merge_android_coverage import IDENTITY_KEYS, validate_snapshots
-from run_android_coverage import VARIANTS, coverage_identity, filesystem_path, packaged_native_library, source_identity
+from run_android_coverage import (
+    COMPILED_MANIFEST, VARIANTS, compiled_auxiliary_hashes, coverage_identity,
+    filesystem_path, packaged_native_library, source_identity,
+)
+
+
+def replay_source(source):
+    compiled_file = filesystem_path(source / COMPILED_MANIFEST)
+    compiled_only = compiled_file.is_file() and not filesystem_path(source / "manifest.json").exists()
+    if compiled_only:
+        manifest = json.loads(compiled_file.read_text(encoding="utf-8"))
+        if (not isinstance(manifest, dict) or not isinstance(manifest.get("variant"), str) or
+                manifest["variant"] not in VARIANTS or manifest.get("archived_mappings") is not True or
+                not manifest.get("compiled_auxiliary_sha256") or any(key not in manifest for key in IDENTITY_KEYS)):
+            raise ValueError("Sealed build is missing its identity, variant or archived mappings")
+        identity = coverage_identity(source, source, source / "inputs/app.apk", source / "inputs/test.apk", archive=source)
+        if any(identity[key] != manifest[key] for key in IDENTITY_KEYS):
+            raise ValueError("Sealed build does not match its compiled-input identity")
+        if source_identity(source, archive=source) != manifest.get("source_files_sha256"):
+            raise ValueError("Sealed build sources do not match their fingerprint")
+        verify_auxiliary_files(source, manifest)
+    else:
+        manifest, _ = validate_snapshots([source])
+    if not manifest.get("archived_mappings") or not manifest.get("source_files_sha256") or not (source / "inputs/native_core_tests").is_file():
+        raise ValueError("Replay requires archived mappings, source fingerprints and the frozen native test executable")
+    return manifest, compiled_only
+
+
+def verify_auxiliary_files(snapshot, manifest):
+    expected = manifest.get("compiled_auxiliary_sha256")
+    if expected is not None and compiled_auxiliary_hashes(snapshot) != expected:
+        raise ValueError("Sealed build unit coverage or native test executable changed")
 
 
 def copy_compiled_snapshot(source, target):
@@ -54,11 +85,12 @@ def main():
     sources = [path.resolve() for path in args.snapshot]
     prepared = []
     for source in sources:
-        manifest, _ = validate_snapshots([source])
-        if not manifest.get("archived_mappings") or not manifest.get("source_files_sha256") or not (source / "inputs/native_core_tests").is_file():
-            parser.error("Replay requires archived mappings, source fingerprints and the frozen native test executable")
-        prepared.append((source, manifest))
-    names = [manifest["variant"] for _, manifest in prepared]
+        try:
+            manifest, compiled_only = replay_source(source)
+        except (OSError, RuntimeError, ValueError) as error:
+            parser.error(str(error))
+        prepared.append((source, manifest, compiled_only))
+    names = [manifest["variant"] for _, manifest, _ in prepared]
     if len(set(names)) != len(names):
         parser.error("Select exactly one frozen snapshot per variant")
     sdk = args.sdk_root or os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
@@ -75,7 +107,7 @@ def main():
     minimum = max(22 if VARIANTS[name][0] else 25 for name in names)
     if api < minimum:
         parser.error(f"Selected variants require API {minimum} or newer; got {api}")
-    for source, _ in prepared:
+    for source, _, _ in prepared:
         try:
             packaged_native_library(filesystem_path(source / "inputs/app.apk"))
         except RuntimeError as error:
@@ -100,7 +132,7 @@ def main():
 
     save()
     try:
-        for source, manifest in prepared:
+        for source, manifest, compiled_only in prepared:
             name = manifest["variant"]
             legacy, regional = VARIANTS[name]
             report = output / name
@@ -109,6 +141,7 @@ def main():
             identity, native_hash = copy_compiled_snapshot(source, snapshot)
             if any(identity[key] != manifest[key] for key in IDENTITY_KEYS) or source_identity(snapshot, archive=snapshot) != manifest["source_files_sha256"]:
                 raise RuntimeError("Frozen snapshot changed before replay")
+            verify_auxiliary_files(snapshot, manifest)
             package = "com.buzincast.tv.deat" if regional else "com.buzincast.tv"
             installed = set(subprocess.check_output([str(adb), "-s", args.serial, "shell", "pm", "list", "packages", package], text=True).splitlines())
             for candidate in (package + ".test", package):
@@ -128,6 +161,7 @@ def main():
                 raise RuntimeError("Replay inputs changed during runtime")
             if hashlib.sha256((snapshot / "inputs/native_core_tests").read_bytes()).hexdigest() != native_hash:
                 raise RuntimeError("Replay native tests changed during runtime")
+            verify_auxiliary_files(snapshot, manifest)
             for file in (execution / "coverage").iterdir():
                 if file.suffix in (".ec", ".profraw"):
                     shutil.copyfile(file, snapshot / file.name)
@@ -141,7 +175,8 @@ def main():
             save()
             if args.collect_only:
                 continue
-            run([sys.executable, root / "tools/merge_android_coverage.py", "--snapshot", source,
+            previous = [] if compiled_only else ["--snapshot", source]
+            run([sys.executable, root / "tools/merge_android_coverage.py", *previous,
                  "--snapshot", snapshot, "--output", report / "merged", "--sdk-root", sdk], report / "report.log")
             summary = json.loads((report / "merged/summary.json").read_text(encoding="utf-8"))
             item.update(target_met=summary["target_met"], android_and_jvm=summary["android_and_jvm"],

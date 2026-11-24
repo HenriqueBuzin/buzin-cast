@@ -14,7 +14,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from run_android_coverage import VARIANTS, coverage_identity, source_identity
+from run_android_coverage import VARIANTS, compiled_auxiliary_hashes, coverage_identity, source_identity
 from test_emulator import COVERAGE_REQUIRED_RESULTS, validate_instrumentation_output
 
 
@@ -53,6 +53,9 @@ def validate_snapshots(snapshots):
                 raise ValueError("Archived compiled inputs do not match snapshot identity")
             if not all((snapshot/file).is_file() for file in ("core.exec","domain.exec")):
                 raise ValueError("Archived JVM execution data is missing")
+            auxiliary = manifest.get("compiled_auxiliary_sha256")
+            if auxiliary is not None and compiled_auxiliary_hashes(snapshot) != auxiliary:
+                raise ValueError("Sealed build unit coverage or native test executable changed")
         manifests.append(manifest)
     first=manifests[0]
     for manifest in manifests[1:]:
