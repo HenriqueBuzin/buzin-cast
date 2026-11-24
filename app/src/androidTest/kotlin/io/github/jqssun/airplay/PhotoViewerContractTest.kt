@@ -88,7 +88,7 @@ class PhotoViewerContractTest {
         fail("Photo activity did not close")
     }
 
-    private class Server(private val red: ByteArray, private val blue: ByteArray) : Closeable {
+    internal class Server(private val red: ByteArray, private val blue: ByteArray) : Closeable {
         private val socket = ServerSocket(0, 16, InetAddress.getByName("127.0.0.1"))
         private val running = AtomicBoolean(true)
         private val failure = AtomicReference<Throwable?>()

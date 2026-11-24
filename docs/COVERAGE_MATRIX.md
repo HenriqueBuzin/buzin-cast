@@ -3490,3 +3490,12 @@ DLNA playback, seek, speed, gain, and stop requests left the current
 player unchanged. The Cast owner could seek, change speed and gain while
 paused, and stop playback. The matching service profiles reached
 438/538 complexity points, 887/911 lines, and 222/236 methods.
+
+The service photo test passed on API25 and API36 with a real loopback
+HTTP image. A DLNA photo replaced the active video, the photo activity
+reported a successfully loaded image, and starting another video
+destroyed the viewer. The first API36 instrumentation launch crashed
+before the test started. A fresh installation with runtime permissions
+granted passed with the same APK pair. Matching service profiles
+reached 512/601 branches, 894/911 lines, 441/538 complexity points,
+and 225/236 methods.

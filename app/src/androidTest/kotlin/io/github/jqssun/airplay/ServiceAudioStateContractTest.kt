@@ -52,6 +52,7 @@ import io.github.jqssun.airplay.discovery.MdnsService
 import io.github.jqssun.airplay.media.ExternalSubtitles
 import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.media.MirrorRelay
+import io.github.jqssun.airplay.media.PhotoActivity
 import io.github.jqssun.airplay.renderer.PlaybackSnapshot
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import io.leancast.app.Net
@@ -1030,6 +1031,61 @@ class ServiceAudioStateContractTest {
                 playback.stop(owner)
                 assertFalse(playback.mediaActive)
                 assertNull(playback.mediaOwner)
+            }
+        }
+    }
+
+    @Test fun dlnaPhotoReplacesVideoAndTheNextVideoClosesTheViewer() = withoutAutoLaunch {
+        val portField = AirPlayService::class.java.getDeclaredField("playbackPort").apply { isAccessible = true }
+        val playback = portField.get(service) as ReceiverPlaybackPort
+        val pixels = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        val encoded = try {
+            pixels.eraseColor(Color.RED)
+            ByteArrayOutputStream().apply {
+                assertTrue(pixels.compress(Bitmap.CompressFormat.PNG, 100, this))
+            }.toByteArray()
+        } finally { pixels.recycle() }
+
+        PhotoViewerContractTest.Server(encoded, encoded).use { server ->
+            withLocalVideoFixture { location ->
+                val monitor = instrumentation.addMonitor(PhotoActivity::class.java.name, null, false)
+                try {
+                    val url = server.url("/photo?i=0")
+                    main {
+                        service.playLocalVideo(location)
+                        assertTrue(playback.mediaActive)
+                        playback.photo(url)
+                    }
+                    val photo = requireNotNull(instrumentation.waitForMonitorWithTimeout(monitor, 10_000)) {
+                        "DLNA did not open the photo viewer"
+                    }
+                    await("The photo viewer did not render the received image") {
+                        var loaded = false
+                        main {
+                            val description = photo.getString(R.string.photo_position, 1, 1)
+                            val matches = arrayListOf<android.view.View>()
+                            photo.window.decorView.findViewsWithText(matches, description, android.view.View.FIND_VIEWS_WITH_TEXT)
+                            loaded = matches.isNotEmpty()
+                        }
+                        loaded
+                    }
+                    main {
+                        assertEquals(url, photo.intent.getStringExtra("url"))
+                        assertFalse(playback.mediaActive)
+                        assertNull(playback.mediaOwner)
+                        service.playLocalVideo(location)
+                    }
+                    await("Starting video again did not close the photo viewer") {
+                        var closed = false
+                        main { closed = photo.isDestroyed && !PhotoActivity.isVisible() }
+                        closed
+                    }
+                    assertTrue(playback.mediaActive)
+                    assertEquals(Protocol.LOCAL, playback.mediaOwner)
+                } finally {
+                    instrumentation.removeMonitor(monitor)
+                    PhotoActivity.closePhoto()
+                }
             }
         }
     }
