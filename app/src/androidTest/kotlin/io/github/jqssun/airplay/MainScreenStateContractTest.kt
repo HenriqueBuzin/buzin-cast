@@ -42,6 +42,7 @@ import io.github.jqssun.airplay.ui.isTvDevice
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
 import io.github.jqssun.airplay.viewmodel.AudioDebug
 import io.github.jqssun.airplay.viewmodel.DebugInfo
+import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.viewmodel.LocalNetworkAccess
 import io.github.jqssun.airplay.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -533,6 +534,36 @@ class MainScreenStateContractTest {
         await("Exit control did not return to the overview") {
             control(text(R.string.tab_overview), selected = true) && has(text(R.string.connected_count, 1))
         }
+    }
+
+    @Test fun fullscreenMirrorShowsResolutionAndFollowsRecordingState() = screen(allowVideo = true) {
+        val resolution = "1920×1080"
+        val overview = text(R.string.tab_overview)
+        val waiting = "● ${text(R.string.record_waiting)}"
+        val recording = "● REC"
+        main {
+            model.set(Prefs.AUTO_FULLSCREEN, true)
+            state("_serverState", ServerState.RUNNING)
+            state("_connectionCount", 1)
+            state("_videoResolution", resolution)
+            state("_mirroringActive", true)
+        }
+        await("Fullscreen did not show the mirroring resolution") {
+            surfaces.get() > 0 && has(resolution) && !has(overview)
+        }
+        assertFalse(has(waiting) || has(recording))
+        if (BuildConfig.RECORDING_ENABLED) {
+            main { state("_captureState", MirrorCapture.State(armed = true)) }
+            await("Fullscreen did not show the pending recording") { has(waiting) && !has(recording) }
+            main { state("_captureState", MirrorCapture.State(armed = true, recording = true)) }
+            await("Fullscreen did not show the active recording") { has(recording) && !has(waiting) }
+            main { state("_captureState", MirrorCapture.State()) }
+            await("The recording indicator remained after stopping") {
+                snapshot(requireText = false)?.none { it.text == waiting || it.text == recording } == true
+            }
+        }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        await("Back did not restore the overview") { control(overview, selected = true) }
     }
 
     @Test fun remoteCenterRevealsHiddenLockedControlsBeforeUnlocking() = screen(allowVideo = true) {

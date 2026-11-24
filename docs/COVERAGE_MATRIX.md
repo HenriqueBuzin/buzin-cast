@@ -3421,3 +3421,9 @@ The lifecycle fixture now restores preferences and PiP policy even
 when waiting for service destruction fails, so a failed assertion
 does not leave test settings for the next case. Both focused lifecycle
 tests passed on API25 with that cleanup.
+
+The standard API25 fullscreen-mirroring test displayed the stream
+resolution, showed the waiting and active recording indicators, and
+removed the indicator after recording stopped. Back returned to the
+overview. The matching MainScreen profiles reached 438/535 branches
+and 328/399 complexity points.
