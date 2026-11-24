@@ -3168,3 +3168,11 @@ The normal edition API25 recording contract also wrote a readable
 Matroska file to internal storage when the external location was
 unavailable. Combining both new recorder profiles with the matching
 API28 mappings now covers 53/66 branches and 35/47 complexity points.
+
+All five normal edition API25 recording contracts passed with the
+space-limit fixture. It supplied controlled free-space readings to the
+real recorder. Arming was refused below 128 MiB. At 32 MiB during capture,
+the worker reported exhausted space and preserved a readable video frame.
+On the same compiled APK, adding this test advanced recorder branches
+from 50/66 to 53/66, lines from 57/60 to 60/60, and complexity from
+34/49 to 37/49.

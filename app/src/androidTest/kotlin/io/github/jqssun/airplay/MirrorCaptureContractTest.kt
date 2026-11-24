@@ -22,6 +22,7 @@ import java.io.EOFException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /** Real recorder workers, bounded queues and independently parsed output files. */
 @RunWith(AndroidJUnit4::class)
@@ -152,6 +153,32 @@ class MirrorCaptureContractTest {
         assertFalse(capture.active())
         assertEquals("Video format changed; recording stopped", capture.state.value.message)
         assertTrue(capture.directory.listFiles().orEmpty().single().length() > 100)
+    }
+
+    @Test fun lowSpaceBlocksArmingAndExhaustionPreservesTheRecordedFrame() {
+        val mib = 1024L * 1024
+        val space = AtomicLong(128 * mib - 1)
+        val recorder = MirrorCapture(isolatedContext(externalStorageAvailable = true), { space.get() }) {}
+            .also { captures += it }
+
+        recorder.start()
+        assertFalse(recorder.active())
+        assertFalse(recorder.state.value.armed)
+        assertEquals(context.getString(R.string.capture_need_space), recorder.state.value.message)
+        assertTrue(recorder.directory.listFiles().orEmpty().isEmpty())
+
+        space.set(128 * mib)
+        recorder.start()
+        assertTrue(recorder.active())
+        space.set(32 * mib)
+        recorder.offer(video())
+        await("Recording did not stop after reaching the low-space limit") { !recorder.state.value.armed }
+
+        assertFalse(recorder.active())
+        assertEquals(context.getString(R.string.capture_space_exhausted), recorder.state.value.message)
+        val saved = recorder.directory.listFiles().orEmpty().single()
+        val videoTrack = readTracks(saved).single { it.format.sampleMimeType == "video/avc" }
+        assertEquals(1, videoTrack.samples.size)
     }
 
     @Test fun overflowingQueueStopsCaptureWithAnExplicitStorageFailure() {

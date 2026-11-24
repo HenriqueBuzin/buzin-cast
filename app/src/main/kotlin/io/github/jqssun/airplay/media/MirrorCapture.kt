@@ -11,7 +11,14 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Disk I/O is isolated from the native decoder and UI. No unbounded queues. */
-class MirrorCapture(private val context: Context, private val changed: () -> Unit) {
+class MirrorCapture internal constructor(
+    private val context: Context,
+    private val availableBytes: (File) -> Long,
+    private val changed: () -> Unit,
+) {
+    constructor(context: Context, changed: () -> Unit) :
+        this(context, { StatFs(it.path).availableBytes }, changed)
+
     data class State(val armed: Boolean = false, val recording: Boolean = false, val message: String = "")
     private val mutable = MutableStateFlow(State())
     val state = mutable.asStateFlow()
@@ -24,7 +31,7 @@ class MirrorCapture(private val context: Context, private val changed: () -> Uni
     @Synchronized fun start() {
         if (running.get() || worker?.isAlive == true) return
         directory.mkdirs()
-        if (StatFs(directory.path).availableBytes < 128L * 1024 * 1024) {
+        if (availableBytes(directory) < 128L * 1024 * 1024) {
             mutable.value = State(message = context.getString(R.string.capture_need_space))
             return
         }
@@ -48,7 +55,7 @@ class MirrorCapture(private val context: Context, private val changed: () -> Uni
                     }
                     if (System.currentTimeMillis() - lastSpaceCheck > 3000) {
                         lastSpaceCheck = System.currentTimeMillis()
-                        check(StatFs(directory.path).availableBytes > 32L * 1024 * 1024) {
+                        check(availableBytes(directory) > 32L * 1024 * 1024) {
                             context.getString(R.string.capture_space_exhausted)
                         }
                     }
