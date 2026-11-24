@@ -402,6 +402,17 @@ class CoverageAutomationTest(unittest.TestCase):
                          suite.activate.call_args_list)
         self.assertEqual(4, suite.ui.call_count)
 
+    def test_local_network_case_restores_permission_after_a_failed_precondition(self):
+        suite = Suite.__new__(Suite)
+        suite.package = "com.buzincast.tv.deat"
+        permission = "android.permission.ACCESS_LOCAL_NETWORK"
+        suite.adb = Mock(return_value=f"{permission}: granted=true")
+
+        with self.assertRaisesRegex(AssertionError, "granted=False"):
+            suite.local_network_service_permission()
+
+        self.assertEqual(call("shell", "pm", "grant", suite.package, permission), suite.adb.call_args)
+
     @patch("test_emulator.time.sleep")
     @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
     def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):

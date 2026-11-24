@@ -376,6 +376,36 @@ class Suite:
 
         self.wait(about_closed,"Launcher About did not close")
 
+    def local_network_service_permission(self):
+        permission = "android.permission.ACCESS_LOCAL_NETWORK"
+
+        def check_permission(granted):
+            state = self.adb("shell", "dumpsys", "package", self.package)
+            assert f"{permission}: granted={str(granted).lower()}" in state, (
+                f"Android did not report local-network permission as granted={granted}")
+
+        def grant():
+            self.adb("shell", "pm", "grant", self.package, permission)
+
+        self.adb("shell", "am", "force-stop", self.package)
+        try:
+            self.adb("shell", "pm", "revoke", self.package, permission)
+            check_permission(False)
+            component = f"{self.package}/{BASE}DebugTvPlaybackActivity"
+            launch = self.adb("shell", "am", "start", "-W", "-n", component)
+            assert "Status: ok" in launch, launch
+            self.wait(lambda: self.debug()["serverState"] == "STOPPED", "Receiver did not bind")
+            self.debug("startserver")
+            self.wait(lambda: self.debug()["serverState"] == "ERROR", "Receiver started without local-network permission")
+            self.collect_coverage()
+
+            grant()
+            check_permission(True)
+            self.debug("startserver")
+            self.wait(lambda: self.debug()["serverState"] == "RUNNING", "Receiver did not recover after the permission grant")
+        finally:
+            grant()
+
     def calibration(self):
         self.start("tools")
         original=self.debug()["margin"]
@@ -673,6 +703,8 @@ class Suite:
             extended=("media remote controls and rendered captions",self.media_controls)
             if self.args.extended or (self.args.case and any(pattern in extended[0] for pattern in self.args.case)):
                 cases.append(extended)
+            if api >= 37:
+                cases.append(("local network permission and receiver recovery", self.local_network_service_permission))
             selected=[(name,test) for name,test in cases if not self.args.case or any(pattern in name for pattern in self.args.case)]
             assert selected,"No test matches --case"
             for name,test in selected:

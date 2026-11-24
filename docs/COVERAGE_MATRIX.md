@@ -3104,3 +3104,10 @@ activity binding. For `MainActivity` and its nested classes, adding the
 API36 profiles to the API28 instrumentation profile raised classes from
 8/12 to 12/12, branches from 70/114 to 76/114, and complexity from 58/102
 to 67/102. This comparison covers the matched activity mappings.
+
+The API37 emulator suite now exercises the receiver with Android's
+local-network permission denied, then granted. The normal DE/AT APK
+from `83a913b` reported a start error on denial and ran after the grant.
+Adding the two API37 profiles to the matching API28 instrumentation
+profile raised service branches from 493/599 to 497/599 and complexity
+from 418/537 to 422/537.
