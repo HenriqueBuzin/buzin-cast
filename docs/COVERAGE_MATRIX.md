@@ -3343,3 +3343,10 @@ DE/AT APK and test APK archived from `9f7d980`. The matching API28
 and API36 decoder mappings cover 1,402/1,493 instructions, 165/196
 branches, all 150 lines, 130/156 complexity points and 57/58 methods.
 The API28 profile alone covered 138/196 branches and 142/150 lines.
+
+All 22 decoder contracts passed on API25 after adding renderer
+detection coverage. The Qualcomm decoder policy used the priority key
+for Adreno 620, kept the maximum operating rate for other or unknown
+renderers, and cached the detection across attempts. The test included
+an absent GL renderer and an EGL failure. The newly compiled API25
+selector covered 134/196 branches and 56/61 methods.

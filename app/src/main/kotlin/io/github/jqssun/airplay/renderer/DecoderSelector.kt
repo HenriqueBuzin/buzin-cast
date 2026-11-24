@@ -15,17 +15,17 @@ import java.util.Locale
 // moonlight-android MediaCodecHelper
 class DecoderSelector internal constructor(
     private val ctx: Context,
+    private val readGlRenderer: () -> String? = { EglCore().use { GLES20.glGetString(GLES20.GL_RENDERER) } },
     private val codecInventory: (Int) -> Array<MediaCodecInfo>,
 ) {
-    constructor(ctx: Context) : this(ctx, { kind -> MediaCodecList(kind).codecInfos })
+    constructor(ctx: Context) : this(ctx, codecInventory = { kind -> MediaCodecList(kind).codecInfos })
 
     var maxOperatingRate: Boolean? = null
 
     private val emulator = isEmulatedDevice(Build.HARDWARE, Build.BRAND)
 
     private val glRenderer by lazy {
-        runCatching { EglCore().use { GLES20.glGetString(GLES20.GL_RENDERER) ?: "" } }
-            .getOrDefault("").lowercase().also { Log.i(TAG, "gl renderer: $it") }
+        runCatching(readGlRenderer).getOrNull().orEmpty().lowercase().also { Log.i(TAG, "gl renderer: $it") }
     }
     private val adreno by lazy {
         if ("adreno" !in glRenderer) -1
@@ -85,11 +85,11 @@ class DecoderSelector internal constructor(
 
     // most to least risky
     fun lowLatencyOptions(format: MediaFormat, info: MediaCodecInfo, mime: String, tryNum: Int): Boolean =
-        lowLatencyOptions(format, info.name, tryNum, { _lowLatency(info, mime) }, { adreno })
+        lowLatencyOptions(format, info.name, tryNum, nativeLowLatency = { _lowLatency(info, mime) })
 
     internal fun lowLatencyOptions(
         format: MediaFormat, codecName: String, tryNum: Int,
-        nativeLowLatency: () -> Boolean, adrenoModel: () -> Int,
+        nativeLowLatency: () -> Boolean, adrenoModel: () -> Int = { adreno },
     ): Boolean {
         var set = false
         if (tryNum < 1) {

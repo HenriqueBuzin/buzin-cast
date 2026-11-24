@@ -276,6 +276,32 @@ class DecoderSelectorContractTest {
         }
     }
 
+    @Test fun qualcommOperatingRateUsesTheDetectedRendererAndFallsBackOnGlFailure() {
+        val renderers = listOf(
+            "Qualcomm Adreno (TM) 620" to false,
+            "Adreno (TM) 530 or 620" to false,
+            "Adreno (TM) 730" to true,
+            "Adreno unknown" to true,
+            "Mesa 620" to true,
+            null to true,
+        )
+        fun verify(expectedMaxRate: Boolean, renderer: () -> String?) {
+            var queries = 0
+            val selector = DecoderSelector(context, readGlRenderer = { queries++; renderer() }) {
+                error("Choosing format keys should not enumerate codecs")
+            }
+            repeat(2) {
+                val format = MediaFormat.createVideoFormat(DecoderSelector.AVC, 64, 48)
+                assertTrue(selector.lowLatencyOptions(format, "c2.qti.avc.decoder", 2, nativeLowLatency = { false }))
+                assertEquals(expectedMaxRate, format.containsKey(MediaFormat.KEY_OPERATING_RATE))
+                assertEquals(!expectedMaxRate, format.containsKey(MediaFormat.KEY_PRIORITY))
+            }
+            assertEquals("GPU detection should be cached for retry attempts", 1, queries)
+        }
+        for ((renderer, expectedMaxRate) in renderers) verify(expectedMaxRate) { renderer }
+        verify(expectedMaxRate = true) { error("EGL is unavailable") }
+    }
+
     @Test fun vendorKeysAndNativeLowLatencyAreAppliedOnlyAtTheirSupportedAttempts() {
         val selector = DecoderSelector(context)
         data class Vendor(val name: String, val keys: Map<String, Int>)
