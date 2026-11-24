@@ -315,12 +315,33 @@ class UsbMdnsResponderContractTest {
         val missingPayload = bytes {
             name(instance); writeShort(33); writeShort(1); writeInt(120); writeShort(100); writeByte(0)
         }
-        for (packet in listOf(question, question.dropLast(3).toByteArray(), question + shortRecord,
+        val incompleteQuestionName = question.copyOf(12) + byteArrayOf(192.toByte())
+        for (packet in listOf(question, incompleteQuestionName, question.dropLast(3).toByteArray(), question + shortRecord,
             question + missingPayload, question + byteArrayOf(192.toByte()))) {
             fixture.packet(packet)
             assertEquals("Malformed DNS probe withdrew the active service", "ACTIVE", fixture.state())
             assertTrue("Malformed probe emitted goodbye records", socket.sent.isEmpty())
         }
+    }
+
+    @Test fun unrelatedProbeStillAnswersDiscoveryAndGoodbyeDoesNotResetAnActiveResponder() {
+        val socket = CapturedSocket()
+        val fixture = fixture(socket)
+        fixture.state("ACTIVE")
+
+        val otherHost = listOf("other-host", "local")
+        fixture.packet(foreign(otherHost, ttl = 0))
+        assertEquals("ACTIVE", fixture.state())
+        assertTrue(socket.sent.isEmpty())
+
+        val authority = foreign(otherHost, owner = listOf("Other", "_airplay", "_tcp", "local"))
+            .drop(12).toByteArray()
+        val discovery = listOf("_services", "_dns-sd", "_udp", "local")
+        fixture.packet(query(discovery to 12, authority = 1) + authority)
+        assertEquals("ACTIVE", fixture.state())
+        val answer = reply(socket.sent.single())
+        assertEquals(2, answer.answers)
+        assertTrue(answer.records.all { it.name == discovery && it.type == 12 && it.ttl > 0 })
     }
 
     @Test fun malformedResponsesPreserveTheAdvertisementUntilACompleteForeignRecordArrives() {

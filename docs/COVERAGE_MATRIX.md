@@ -3074,3 +3074,10 @@ The `140d648` normal DE/AT API28 replay passed 407 Android tests and
 dumper crashed while reading a disappearing node and exited without
 output. The runner now retries a silent dump exit and requires a fresh
 XML tree. ADB failures with diagnostics still fail the gate.
+
+All ten USB mDNS responder contracts passed on API25. A complete
+unrelated DNS probe produced discovery answers without displacing the
+active responder, a delayed goodbye did not reset it, and a malformed
+question was ignored. Adding this profile to the API28 compact snapshot
+with six identical responder class files advanced branches from 174/217
+to 178/217 and complexity from 124/161 to 128/161.
