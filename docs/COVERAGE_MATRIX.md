@@ -3244,3 +3244,11 @@ the refresh at half the advertised lifetime, and the shutdown
 announcement on a real multicast socket. With the matching API28
 profile, the agent reached 403/425 instructions, 19/24 branches,
 73/73 lines, 17/22 complexity points and 10/10 methods.
+
+The complete standard normal API28 report for `83a913b` passed 409
+Android tests, 21 native UBSan cases, all 15 runtime results, and VPN and
+offline diagnostics. JVM coverage reached 82,072/86,767 instructions,
+5,084/5,977 branches, 8,217/8,496 lines, 4,362/5,153 complexity,
+2,244/2,362 methods and 308/314 classes. All six native metrics reached
+100%: 908/908 branches, 203/203 functions, 205/205 instantiations,
+1,745/1,745 lines, 171/171 MC/DC conditions and 1,494/1,494 regions.
