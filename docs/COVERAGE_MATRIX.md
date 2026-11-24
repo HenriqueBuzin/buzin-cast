@@ -3457,3 +3457,10 @@ the stopped service state, and a refused connection on the former
 listener port. Adding the matching profile to the standard API28
 service coverage raised branches from 506/601 to 507/601 and
 complexity from 432/538 to 433/538.
+
+The API25 audio notification test also delivered the previously built
+actions with no sender controller attached. Skip actions issued no
+sender commands and the playback action still paused locally. Adding
+the matching profile to the service-destruction and standard API28
+profiles raised service coverage to 510/601 branches and 436/538
+complexity points.

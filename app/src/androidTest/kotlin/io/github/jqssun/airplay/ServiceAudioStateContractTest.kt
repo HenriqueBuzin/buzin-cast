@@ -1180,6 +1180,20 @@ class ServiceAudioStateContractTest {
                 assertTrue(sender.requests.all { request ->
                     request.any { it.equals("Active-Remote: notification-contract", ignoreCase = true) }
                 })
+
+                // Exercise the notification receiver with no sender controller.
+                main { field.set(service, null) }
+                for (index in listOf(0, 2, 1)) {
+                    val delivered = CountDownLatch(1)
+                    actions[index].actionIntent.send(context, 0, null,
+                        { _, _, _, _, _ -> delivered.countDown() }, Handler(Looper.getMainLooper()))
+                    assertTrue("Stale notification action ${actions[index].title} did not complete",
+                        delivered.await(10, TimeUnit.SECONDS))
+                }
+                await("The local playback action did not toggle without a sender") { !service.playing.value }
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals(listOf("previtem", "pause", "nextitem", "play", "playresume"),
+                    sender.requests.map { it.first().split(' ')[1].substringAfterLast('/') })
             } finally {
                 main {
                     field.set(service, previous)
