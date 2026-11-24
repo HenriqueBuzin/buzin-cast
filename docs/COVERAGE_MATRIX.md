@@ -3287,3 +3287,8 @@ The Export button shared the selected file through a readable
 cancel and Back preserved the file, and that confirmation removed only
 the selected recording. The matching Tools profiles now cover 63/75
 methods and 111/155 complexity points.
+
+The same API25 Tools test confirmed that Refresh list discovers a
+recording created after the screen opens and drops its row once the
+file is removed. This adds behavioral assertions on the already
+covered refresh path.

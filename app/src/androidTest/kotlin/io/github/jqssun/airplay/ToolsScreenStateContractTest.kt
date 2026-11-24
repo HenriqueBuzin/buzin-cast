@@ -646,6 +646,20 @@ class ToolsScreenStateContractTest {
                         }
                         val play = text(R.string.tools_play)
                         val export = text(R.string.btn_export)
+                        val refresh = text(R.string.tools_refresh)
+                        revealToolsItem(refresh)
+                        val late = File.createTempFile("recording-refresh-", ".mkv", directory).also(files::add)
+                        late.writeBytes(byteArrayOf(7, 8, 9))
+                        assertTrue(model.recordings.value.none { it.name == late.name })
+                        click(refresh)
+                        await("Refresh did not find the new recording") {
+                            model.recordings.value.any { it.name == late.name && it.bytes == 3L }
+                        }
+                        assertTrue(late.delete())
+                        click(refresh)
+                        await("Refresh retained a recording removed from disk") {
+                            model.recordings.value.none { it.name == late.name }
+                        }
                         revealToolsItem(play)
                         fun expectActions(state: String, canPlay: Boolean, canManage: Boolean) {
                             await("Unexpected recording actions while $state") {
@@ -697,6 +711,7 @@ class ToolsScreenStateContractTest {
                         assertTrue(model.recordings.value.isEmpty())
                         assertTrue(absent(remove))
                         assertTrue(absent(text(R.string.btn_export)))
+                        assertTrue(absent(text(R.string.tools_refresh)))
                         assertTrue(appLaunches.isEmpty())
                         assertTrue(selected.isFile)
                     }
