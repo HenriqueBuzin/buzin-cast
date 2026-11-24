@@ -844,6 +844,27 @@ class ReceiverIntegrationTest {
         }
     }
 
+    @Test fun dlnaFallsBackAfterUnusableCallbackAddresses() {
+        val loopback = InetAddress.getByName("127.0.0.1")
+        val registry = SubscriptionRegistry()
+        try {
+            ServerSocket(0, 1, loopback).use { callback ->
+                callback.soTimeout = 5000
+                val callbacks = listOf(
+                    "http:/missing-host",
+                    "http://127.89.0.1/default-port",
+                    "http://127.0.0.1:${callback.localPort}/fallback",
+                )
+                val sid = registry.subscribe("avt", callbacks, 120)
+                val event = "<event>ready</event>"
+                registry.publishInitial(sid, event)
+                assertEquals(event, receiveDlnaEvent(callback, "/fallback", sid, 0))
+            }
+        } finally {
+            registry.shutdown()
+        }
+    }
+
     @Test fun dlnaSkipsExpiredAndRemovedSubscriptions() {
         val registry = SubscriptionRegistry()
         try {

@@ -3212,3 +3212,8 @@ infinite, overflowing, and maximum values. With the matching API28 and
 earlier API25 profiles, the registry reached 693/700 instructions,
 49/52 branches, 100/100 lines, 52/55 complexity, 29/29 methods and
 3/3 classes.
+
+An API25 registry test delivered the initial event to the next callback
+after an address without a host and an unreachable loopback callback on
+the default HTTP port. With the earlier matching profiles, the registry
+reached 697/700 instructions, 51/52 branches and 54/55 complexity.
