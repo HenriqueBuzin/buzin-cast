@@ -1757,6 +1757,76 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun androidMediaVolumeDrivesTheSenderWithoutEchoingSenderChanges() = withoutAutoLaunch {
+        val prefs = context.getSharedPreferences(Prefs.NAME, 0)
+        val key = Prefs.SYNC_CLIENT_VOLUME.key
+        val previousSync = prefs.all[key] as? Boolean
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val originalIndex = audio.getStreamVolume(stream)
+        val maximum = audio.getStreamMaxVolume(stream)
+        assertTrue("Expected an adjustable emulator media stream", maximum > 2 && !audio.isVolumeFixed)
+        val lower = if (originalIndex > 1) originalIndex - 1 else originalIndex
+        val upper = lower + 1
+        val controllerField = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
+        val echoes = AirPlayService::class.java.getDeclaredField("_pendingServerVolEchoes").apply { isAccessible = true }
+        val originalDacp = service.dacpController
+
+        DacpHttpContractTest.Sender().use { sender ->
+            val dacp = DacpController { _, listener ->
+                listener.onServiceResolved(NsdServiceInfo().apply {
+                    host = InetAddress.getByName("127.0.0.1")
+                    port = sender.port
+                })
+            }
+            fun commands() = sender.requests.map { it.first().split(' ')[1].substringAfterLast('/') }
+            fun senderVolume(index: Int) {
+                main { service.onClientVolume(-30f + 30f * index / maximum) }
+                instrumentation.waitForIdleSync()
+            }
+            try {
+                main {
+                    assertTrue(prefs.edit().putBoolean(key, true).commit())
+                    controllerField.set(service, dacp)
+                    service.onDacpId("android-volume-fixture", "android-volume-contract")
+                    service.onConnectionInit()
+                }
+                instrumentation.waitForIdleSync()
+                assertTrue(dacp.ready)
+                senderVolume(originalIndex)
+
+                val other = if (originalIndex == lower) upper else lower
+                val expected = mutableListOf<String>()
+                for ((from, to) in listOf(originalIndex to other, other to originalIndex)) {
+                    expected += if (to > from) "volumeup" else "volumedown"
+                    main { audio.setStreamVolume(stream, to, 0) }
+                    await("Android did not forward the media-volume change to the sender") { commands() == expected }
+                    senderVolume(to)
+                }
+
+                senderVolume(other)
+                await("The sender's volume change did not reach Android or its echo was not consumed") {
+                    var consumed = false
+                    main { consumed = audio.getStreamVolume(stream) == other && echoes.getInt(service) == 0 }
+                    consumed
+                }
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals("The service echoed the sender's volume change", expected + "playresume", commands())
+            } finally {
+                main {
+                    controllerField.set(service, originalDacp)
+                    dacp.release()
+                    if (service.connectionCount.value > 0) service.onConnectionDestroy()
+                    val restore = prefs.edit()
+                    if (previousSync == null) restore.remove(key) else restore.putBoolean(key, previousSync)
+                    assertTrue(restore.commit())
+                }
+                instrumentation.waitForIdleSync()
+                main { audio.setStreamVolume(stream, originalIndex, 0) }
+            }
+        }
+    }
+
     @Test fun synchronizedMuteRestoresReceiverVolumeWhenTheSenderDisconnects() {
         val prefs = context.getSharedPreferences(Prefs.NAME, 0)
         val syncKey = Prefs.SYNC_CLIENT_VOLUME.key

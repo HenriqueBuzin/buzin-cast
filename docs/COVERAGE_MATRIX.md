@@ -3464,3 +3464,10 @@ sender commands and the playback action still paused locally. Adding
 the matching profile to the service-destruction and standard API28
 profiles raised service coverage to 510/601 branches and 436/538
 complexity points.
+
+The API25 Android media-volume test delivered both a volume increase
+and decrease to a local DACP sender, then confirmed that a
+sender-initiated change updated the Android stream without sending a
+command back. Adding the matching profile raised service coverage
+from 510/601 to 511/601 branches and from 436/538 to 437/538
+complexity points.
