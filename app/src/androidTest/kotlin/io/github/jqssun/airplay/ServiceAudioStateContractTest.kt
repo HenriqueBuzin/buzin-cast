@@ -1886,6 +1886,9 @@ class ServiceAudioStateContractTest {
         val upper = lower + 1
         val controllerField = AirPlayService::class.java.getDeclaredField("dacpController").apply { isAccessible = true }
         val echoes = AirPlayService::class.java.getDeclaredField("_pendingServerVolEchoes").apply { isAccessible = true }
+        val target = AirPlayService::class.java.getDeclaredField("_clientVolTarget").apply { isAccessible = true }
+        val receiver = AirPlayService::class.java.getDeclaredField("volumeReceiver").apply { isAccessible = true }
+            .get(service) as BroadcastReceiver
         val originalDacp = service.dacpController
 
         DacpHttpContractTest.Sender().use { sender ->
@@ -1912,6 +1915,16 @@ class ServiceAudioStateContractTest {
                 senderVolume(originalIndex)
 
                 val other = if (originalIndex == lower) upper else lower
+                main {
+                    // Omitted extras are invalid, even when the other index is valid.
+                    for ((index, prior) in listOf(null to originalIndex, other to null, other to other)) {
+                        val event = Intent(VolumeBroadcast.ACTION).putExtra(VolumeBroadcast.EXTRA_STREAM_TYPE, stream)
+                        if (index != null) event.putExtra(VolumeBroadcast.EXTRA_VALUE, index)
+                        if (prior != null) event.putExtra(VolumeBroadcast.EXTRA_PREV_VALUE, prior)
+                        receiver.onReceive(context, event)
+                        assertTrue("Invalid or unchanged volume started a sender command", target.getFloat(service) < 0f)
+                    }
+                }
                 val expected = mutableListOf<String>()
                 for ((from, to) in listOf(originalIndex to other, other to originalIndex)) {
                     expected += if (to > from) "volumeup" else "volumedown"

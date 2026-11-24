@@ -3499,3 +3499,9 @@ before the test started. A fresh installation with runtime permissions
 granted passed with the same APK pair. Matching service profiles
 reached 512/601 branches, 894/911 lines, 441/538 complexity points,
 and 225/236 methods.
+
+The API25 media-volume test also fed the registered receiver events
+with no current index, no previous index, and two equal indices.
+These events left the sender volume target idle. With the earlier
+matching profiles, service coverage reached 515/601 branches and
+444/538 complexity points.
