@@ -3445,3 +3445,8 @@ before starting the agent. It checks that the bind failure is reported
 and that the same agent announces startup, refresh and shutdown after
 the port is released. The passing focused run covered 14/24 branches
 and 12/22 complexity points in `SsdpAgent`.
+
+Running both SSDP integration cases on the same API25 APK also verified
+LAN search replies alongside port recovery and multicast announcements.
+The matched profile covered 391/425 instructions, 18/24 branches,
+74/76 lines, 17/22 complexity points, 10/10 methods, and 1/1 classes.
