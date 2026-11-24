@@ -1768,6 +1768,28 @@ class ServiceAudioStateContractTest {
                         !service.videoPlaybackActive.value && service.sessionSnapshot() == null
                     }
                 }
+
+                // The controller stays usable when playback exists only in the
+                // receiver's audio state and no sender controller is attached.
+                main {
+                    field.set(service, null)
+                    service.onProgress(0, 44_100 * 5L, 44_100 * 60L)
+                }
+                transport.pause()
+                await("MediaSession could not pause without a sender controller") { !service.playing.value }
+                transport.seekTo(30_000)
+                transport.stop()
+                transport.skipToNext()
+                transport.skipToPrevious()
+                transport.play()
+                await("MediaSession could not resume without a sender controller") { service.playing.value }
+                transport.pause()
+                await("The receiver-only audio state did not pause again") { !service.playing.value }
+                assertTrue("Video seek or stop changed the receiver-only audio position",
+                    service.currentPositionMs() in 5_000L until 30_000L)
+                assertNull(service.sessionSnapshot())
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals(audioCommands + listOf("playresume", "playresume"), commands())
             } finally {
                 main {
                     field.set(service, originalDacp)

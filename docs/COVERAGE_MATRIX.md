@@ -3511,3 +3511,10 @@ callback before the first video packet leaves the relay connected.
 After forwarding audio and video, the same callback ended the
 authenticated session gracefully on both peers. The case confirmed
 the behavior already reflected by the combined service counters.
+
+The API25 MediaSession contract exercised audio transport without
+a sender controller after the video ended. Local playback paused
+and resumed, and video seek and stop left the audio position intact.
+Skip actions did not reach the detached sender. Matching profiles
+raised service coverage from 515/601 to 521/601 branches and
+from 444/538 to 450/538 complexity points.
