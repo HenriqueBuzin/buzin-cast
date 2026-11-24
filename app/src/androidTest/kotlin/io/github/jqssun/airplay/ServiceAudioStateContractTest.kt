@@ -974,6 +974,42 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun mirrorTakeoverStopsThePreviousLocalVideoAndKeepsTheMirrorOwner() = withoutAutoLaunch {
+        withLocalVideoFixture { location ->
+            lateinit var mirror: SessionToken
+            main {
+                service.playLocalVideo(location)
+                service.setVideoPlaying(false)
+                assertTrue(service.videoPlaybackActive.value)
+                assertEquals(Protocol.LOCAL, service.networkPlaybackOwner)
+                service.onConnectionInit()
+                service.onMirrorRunning(true)
+                service.onVideoSize(1280f, 720f, 1280f, 720f)
+                val session = requireNotNull(service.sessionSnapshot())
+                assertEquals(SessionKind.MIRROR, session.kind)
+                assertEquals(Protocol.AIRPLAY, session.token.protocol)
+                mirror = session.token
+            }
+            try {
+                await("The mirror did not retire the previous video") { !service.videoPlaybackActive.value }
+                main {
+                    assertNull(service.networkPlaybackOwner)
+                    assertEquals(mirror, service.sessionSnapshot()?.token)
+                    assertTrue(service.mirroringActive.value)
+                    assertEquals("1280x720", service.videoResolution.value)
+                    assertFalse(mediaSession.isActive)
+                }
+            } finally {
+                main {
+                    service.onMirrorRunning(false)
+                    service.onConnectionDestroy()
+                }
+            }
+            assertFalse(service.mirroringActive.value)
+            assertNull(service.sessionSnapshot())
+        }
+    }
+
     @Test fun queuedMirrorTakeoverDoesNotStopNewerLocalPlayback() = withoutAutoLaunch {
         withLocalVideoFixture { location ->
             lateinit var successor: SessionToken
