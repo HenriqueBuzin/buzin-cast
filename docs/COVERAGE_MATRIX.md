@@ -3153,3 +3153,10 @@ access through Android's permission controller and checks that the
 receiver starts on its own. With `--coverage`, it records the denied
 and granted paths separately. The host automation test verifies that
 the runner selects the app's retry button between the two dialog actions.
+
+The normal edition API25 recording contract passed after forcing the
+writer queue to fill. A restart was refused while the previous worker
+still had queued packets. After the worker finished, recording could be
+armed again and the saved file remained present. Adding this profile to
+the matching recorder classes advanced branches from 48/66 to 52/66 and
+complexity from 31/47 to 34/47.

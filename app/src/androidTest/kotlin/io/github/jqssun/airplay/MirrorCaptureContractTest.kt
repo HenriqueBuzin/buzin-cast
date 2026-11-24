@@ -165,10 +165,21 @@ class MirrorCaptureContractTest {
             assertTrue("Worker did not reach first keyframe", blocked.await(10, TimeUnit.SECONDS))
             repeat(121) { recorder.offer(MirrorPacket.Audio(ByteArray(4096), 1_040_000_000L + it * 23_000_000L, 44100, 2)) }
             assertFalse("Full queue must stop accepting packets", recorder.active())
+            val draining = recorder.state.value
+            recorder.start()
+            assertFalse("A second capture must wait for the previous worker to finish", recorder.active())
+            assertEquals(draining, recorder.state.value)
         } finally { release.countDown() }
         await("Recorder did not drain after queue overflow") { !recorder.state.value.armed }
         recorder.close()
         assertEquals(context.getString(R.string.capture_slow_storage), recorder.state.value.message)
-        assertTrue(recorder.directory.listFiles().orEmpty().single().length() > 100)
+        val savedRecording = recorder.directory.listFiles().orEmpty().single()
+        assertTrue(savedRecording.length() > 100)
+
+        recorder.start()
+        assertTrue("The capture did not restart after draining", recorder.active())
+        assertEquals(context.getString(R.string.capture_waiting_keyframe), recorder.state.value.message)
+        recorder.close()
+        assertEquals(savedRecording, recorder.directory.listFiles().orEmpty().single())
     }
 }
