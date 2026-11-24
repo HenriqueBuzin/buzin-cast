@@ -30,6 +30,7 @@ import java.net.ServerSocket
 import java.net.ConnectException
 import java.net.InetAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -738,7 +739,7 @@ class ReceiverIntegrationTest {
     }
 
     private fun receiveDlnaEvent(
-        server: ServerSocket, path: String, sid: String, seq: Int, status: String = "200 OK",
+        server: ServerSocket, path: String, sid: String, seq: Int, status: String? = "200 OK",
         beforeReply: () -> Unit = {},
     ): String =
         server.accept().use { socket ->
@@ -751,7 +752,11 @@ class ReceiverIntegrationTest {
             val size = headers.first { it.startsWith("CONTENT-LENGTH:") }.substringAfter(':').trim().toInt()
             val body = buildString { repeat(size) { append(input.read().also { assertTrue(it >= 0) }.toChar()) } }
             beforeReply()
-            socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
+            if (status == null) {
+                socket.setSoLinger(true, 0)
+            } else {
+                socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
+            }
             body
         }
 
@@ -771,12 +776,13 @@ class ReceiverIntegrationTest {
             ServerSocket(0).use { callback ->
                 callback.soTimeout = 5000
                 val base = "http://$ip:${callback.localPort}"
-                val response = eventRequest("SUBSCRIBE", "CALLBACK: <$base/fail> <$base/notify?source=test>",
+                val response = eventRequest("SUBSCRIBE", "CALLBACK: <$base/reset> <$base/fail> <$base/notify?source=test>",
                     "NT: upnp:event", "TIMEOUT: SECOND-120")
                 assertTrue(response, response.startsWith("HTTP/1.1 200"))
                 assertTrue(response, response.contains("TIMEOUT: Second-120", ignoreCase = true))
                 val sid = response.lineSequence().first { it.startsWith("SID:", ignoreCase = true) }.substringAfter(':').trim()
 
+                assertTrue("LastChange" in receiveDlnaEvent(callback, "/reset", sid, 0, status = null))
                 assertTrue("LastChange" in receiveDlnaEvent(callback, "/fail", sid, 0, "500 Diagnostic 200"))
                 assertTrue("LastChange" in receiveDlnaEvent(callback, "/notify?source=test", sid, 0))
                 val renewed = eventRequest("SUBSCRIBE", "SID: $sid", "TIMEOUT: Second-10")
@@ -841,6 +847,29 @@ class ReceiverIntegrationTest {
                 }
                 assertEquals("<event>first</event>", first)
                 assertEquals("<event>next</event>", receiveDlnaEvent(callback, "/active", active, 1))
+            }
+        } finally {
+            registry.shutdown()
+        }
+    }
+
+    @Test fun dlnaIgnoresNotificationsRacingRegistryShutdown() {
+        val registry = SubscriptionRegistry()
+        try {
+            ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { callback ->
+                callback.soTimeout = 250
+                val url = listOf("http://127.0.0.1:${callback.localPort}/notify")
+                val existing = registry.subscribe("avt", url, 120)
+
+                registry.shutdown()
+                assertFalse(registry.renew(existing, 120))
+                registry.publishInitial(existing, "<event>removed</event>")
+
+                val late = registry.subscribe("avt", url, 120)
+                registry.publishInitial(late, "<event>initial</event>")
+                registry.publish("rcs", "<event>unsubscribed-service</event>")
+                registry.publish("avt", "<event>update</event>")
+                assertThrows(SocketTimeoutException::class.java) { callback.accept().close() }
             }
         } finally {
             registry.shutdown()

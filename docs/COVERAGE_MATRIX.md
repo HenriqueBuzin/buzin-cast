@@ -3198,3 +3198,9 @@ subscription could not renew and that unsubscribing a client discarded
 its pending event. A following event reached the remaining subscriber
 in order. The two new API25 subscription profiles combined with
 the matching API28 classes cover 44/52 branches and 47/55 complexity.
+
+Two API25 DLNA tests verified callback fallback after a TCP reset and
+event submission racing registry shutdown. The stopped registry
+discarded late notifications. Combining these profiles with the
+earlier matching subscription runs covered 100/100 lines, 45/52
+branches, and 48/55 complexity points in the subscription registry.
