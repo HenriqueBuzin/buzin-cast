@@ -3546,3 +3546,9 @@ The API25 native receiver integration test set the audio delay to
 26,460 samples of latency at 44.1 kHz. Combining this run with the
 matching startup-recovery profiles covered 125/599 service branches
 and 134/537 complexity points in those focused scenarios.
+
+The API25 integration test also switched the audio delay back to
+automatic while the server was running. It waited for the replacement
+receiver and verified the default RTSP latency of 11,025 samples
+(250 ms at 44.1 kHz) on the same port. The matching focused profiles
+reached 129/599 service branches and 136/537 complexity points.

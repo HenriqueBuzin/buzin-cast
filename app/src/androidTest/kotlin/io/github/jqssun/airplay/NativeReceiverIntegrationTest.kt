@@ -48,36 +48,37 @@ class NativeReceiverIntegrationTest {
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
             while (receiver.serverState.value != AirPlayService.ServerState.RUNNING) { assertTrue("Native server startup failed", System.nanoTime() < deadline); Thread.sleep(50) }
             val field = AirPlayService::class.java.getDeclaredField("airPlayReceiver").apply { isAccessible = true }
-            val port = (field.get(receiver) as AirPlayReceiverAdapter).port
+            val originalAdapter = field.get(receiver) as AirPlayReceiverAdapter
+            val port = originalAdapter.port
             actualPort = port
-            Socket(requireNotNull(Net.lanIpv4()), port).use { socket ->
+            val address = requireNotNull(Net.lanIpv4())
+            Socket(address, port).use { socket ->
                 socket.soTimeout = 5000
                 // Fragment the request to exercise actual stream framing rather than callback injection.
                 socket.getOutputStream().write("OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n".toByteArray())
                 Thread.sleep(20)
                 socket.getOutputStream().write("User-Agent: BuzinIntegration\r\n\r\n".toByteArray())
-                val input = socket.getInputStream()
-                fun readHead(): String {
-                    val head = StringBuilder()
-                    while (!head.endsWith("\r\n\r\n")) {
-                        val value = input.read()
-                        assertTrue("The receiver closed RTSP before sending a complete response", value >= 0)
-                        head.append(value.toChar())
-                        assertTrue(head.length < 16_384)
-                    }
-                    return head.toString()
-                }
-                val options = readHead()
+                val options = readHead(socket)
                 assertTrue(options, options.startsWith("RTSP/1.0 200"))
                 assertTrue(options, options.contains("CSeq: 1", ignoreCase = true))
+                assertRecordLatency(socket, 2, configuredLatencyMs)
+            }
 
-                socket.getOutputStream().write("RECORD * RTSP/1.0\r\nCSeq: 2\r\n\r\n".toByteArray())
-                val record = readHead()
-                assertTrue(record, record.startsWith("RTSP/1.0 200"))
-                val latency = record.lineSequence()
-                    .single { it.startsWith("Audio-Latency:", ignoreCase = true) }
-                    .substringAfter(':').trim().toInt()
-                assertEquals(configuredLatencyMs * 44_100 / 1_000, latency)
+            assertTrue(prefs.edit().putInt(latencyKey, Prefs.AUDIO_LATENCY_MS.def).commit())
+            val restartDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
+            while (true) {
+                var restarted = false
+                instrumentation.runOnMainSync {
+                    restarted = receiver.serverState.value == AirPlayService.ServerState.RUNNING &&
+                        field.get(receiver) !== originalAdapter
+                }
+                if (restarted) break
+                assertTrue("Turning off custom audio latency did not restart the receiver", System.nanoTime() < restartDeadline)
+                Thread.sleep(50)
+            }
+            Socket(address, port).use { socket ->
+                socket.soTimeout = 5000
+                assertRecordLatency(socket, 1, 250)
             }
             instrumentation.runOnMainSync { receiver.stopServer() }
             java.net.ServerSocket(0).use { occupied ->
@@ -112,5 +113,27 @@ class NativeReceiverIntegrationTest {
             assertTrue("Native socket still accepts after service shutdown", System.nanoTime() < end)
             Thread.sleep(50)
         }
+    }
+
+    private fun assertRecordLatency(socket: Socket, sequence: Int, expectedMs: Int) {
+        socket.getOutputStream().write("RECORD * RTSP/1.0\r\nCSeq: $sequence\r\n\r\n".toByteArray())
+        val response = readHead(socket)
+        assertTrue(response, response.startsWith("RTSP/1.0 200"))
+        val latency = response.lineSequence()
+            .single { it.startsWith("Audio-Latency:", ignoreCase = true) }
+            .substringAfter(':').trim().toInt()
+        assertEquals(expectedMs * 44_100 / 1_000, latency)
+    }
+
+    private fun readHead(socket: Socket): String {
+        val input = socket.getInputStream()
+        val head = StringBuilder()
+        while (!head.endsWith("\r\n\r\n")) {
+            val value = input.read()
+            assertTrue("The receiver closed RTSP before sending a complete response", value >= 0)
+            head.append(value.toChar())
+            assertTrue(head.length < 16_384)
+        }
+        return head.toString()
     }
 }
