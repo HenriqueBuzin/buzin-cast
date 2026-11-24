@@ -11,8 +11,10 @@ import android.opengl.EGLConfig
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.buzincast.media.NalUnits
 import io.github.jqssun.airplay.renderer.EglCore
 import io.github.jqssun.airplay.renderer.VideoPipeline
+import io.github.jqssun.airplay.renderer.VideoRenderer
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -93,6 +95,62 @@ class VideoPipelineContractTest {
                 }
             } finally {
                 pipeline.release()
+            }
+        }
+    }
+
+    @Test fun avcFramesReachTheDisplayWithScheduledAndImmediateRelease() {
+        val width = 64
+        val height = 48
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val nals = context.assets.open("mirror/sample.h264").use { NalUnits.split(it.readBytes()) }
+        val units = mutableListOf<MutableList<ByteArray>>()
+        for (nal in nals) {
+            if (units.isEmpty() || NalUnits.type(nal, hevc = false) == 9) units += mutableListOf<ByteArray>()
+            units.last().add(nal)
+        }
+        val startCode = byteArrayOf(0, 0, 0, 1)
+        val frames = units.map { unit -> unit.fold(byteArrayOf()) { frame, nal -> frame + startCode + nal } }
+        assertEquals(10, frames.size)
+
+        val format = windowPixelFormat()
+        for (scheduled in listOf(true, false)) {
+            ImageReader.newInstance(width, height, format, 3).use { reader ->
+                val renderer = VideoRenderer(context)
+                try {
+                    renderer.scheduledOutputBufferRelease = scheduled
+                    renderer.selectDecoders(width, height, fps = 10, h265 = false)
+                    renderer.setResolution(width, height)
+                    renderer.setSurface(reader.surface)
+                    renderer.startSession()
+                    var coloredFrame = false
+                    var images = 0
+                    fun readFrame() {
+                        reader.acquireLatestImage()?.use {
+                            images++
+                            if (Color.red(pixel(it, width / 2, 10)) > 80) coloredFrame = true
+                        }
+                    }
+                    frames.forEachIndexed { index, frame ->
+                        renderer.feedFrame(frame, 1_000_000_000L + index * 100_000_000L, isH265 = false)
+                        val nextFrame = SystemClock.elapsedRealtime() + 100L
+                        do {
+                            readFrame()
+                            SystemClock.sleep(10)
+                        } while (SystemClock.elapsedRealtime() < nextFrame)
+                    }
+                    val deadline = SystemClock.elapsedRealtime() + 5_000L
+                    while (!coloredFrame && SystemClock.elapsedRealtime() < deadline) {
+                        readFrame()
+                        SystemClock.sleep(20)
+                    }
+                    assertTrue("No decoded color for scheduled=$scheduled, images=$images, codec=${renderer.codecName}",
+                        coloredFrame)
+                    assertTrue(renderer.codecName.startsWith("H.264"))
+                    assertEquals(frames.size.toLong(), renderer.frameCount)
+                } finally {
+                    renderer.release()
+                }
             }
         }
     }
