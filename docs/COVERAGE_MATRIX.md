@@ -3224,3 +3224,17 @@ generic reader adapter. All 15 DLNA integration tests passed on API25
 with the rebuilt normal edition APK. The matching subscription registry
 classes reached 683/683 instructions, 50/50 branches, 102/102 lines,
 54/54 complexity, 29/29 methods and 3/3 classes in that run.
+
+The standard compact API22 replay of `83a913b` passed all 409 Android
+instrumentation tests. Combining its instrumentation checkpoint with
+the complete API28 native profiles for the same APK, test APK, mapping
+binary and native test executable covered all six native metrics:
+912/912 branches, 203/203 functions, 205/205 instantiations, 1,751/1,751
+lines, 171/171 MC/DC conditions and 1,500/1,500 regions.
+
+The normal edition API25 SSDP integration test passed using real UDP
+sockets. It verified the renderer identity and description address in
+the reply, ignored unrelated datagrams and unsupported search targets,
+and suppressed replies to a loopback sender. Adding the matching
+profile raised `SsdpAgent` from 13/24 to 19/24 branches and from 9/22
+to 16/22 complexity points, reaching 73/73 lines.

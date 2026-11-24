@@ -17,9 +17,11 @@ import java.security.cert.X509Certificate
 import io.github.jqssun.airplay.discovery.*
 import io.leancast.app.ControlServer
 import io.leancast.app.Net
+import io.leancast.app.SsdpAgent
 import io.leancast.app.SubscriptionRegistry
 import io.leancast.domain.cast.CastSession
 import io.leancast.domain.cast.PlayerPort
+import io.leancast.domain.ssdp.SsdpIdentity
 import io.leancast.domain.upnp.RendererDescription
 import io.leancast.domain.upnp.SoapRouter
 import org.junit.Assert.*
@@ -28,9 +30,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.ServerSocket
 import java.net.ConnectException
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -438,6 +443,53 @@ class ReceiverIntegrationTest {
             receiver.start()
             val line = log.filter { it.contains("receiver started on") }.singleOrNull() ?: error(log.toString())
             test(playback, DlnaControl(line.substringAfterLast(':').toInt(), receiver))
+        }
+    }
+
+    @Test fun dlnaSsdpRepliesOnlyToSupportedSearchesFromTheLan() {
+        val lan = InetAddress.getByName(ip)
+        val loopback = InetAddress.getByName("127.0.0.1")
+        val identity = SsdpIdentity("uuid:${UUID.randomUUID()}", "http://$ip:49152/desc.xml", "BuzinTest/1")
+        val agent = SsdpAgent(identity)
+        val supported = "urn:schemas-upnp-org:device:MediaRenderer:1"
+        val unsupported = "urn:schemas-upnp-org:device:MediaServer:1"
+        fun search(target: String) = "M-SEARCH * HTTP/1.1\r\nHOST: ${SsdpAgent.GROUP}:${SsdpAgent.PORT}\r\n" +
+            "MAN: \"ssdp:discover\"\r\nST: $target\r\nMX: 0\r\n\r\n"
+        fun DatagramSocket.sendRequest(request: String) {
+            val bytes = request.toByteArray()
+            send(DatagramPacket(bytes, bytes.size))
+        }
+        fun DatagramSocket.receiveReply(): String {
+            val bytes = ByteArray(2048)
+            val response = DatagramPacket(bytes, bytes.size)
+            receive(response)
+            return String(bytes, 0, response.length, Charsets.UTF_8)
+        }
+        try {
+            agent.start()
+            agent.start()
+            DatagramSocket(0, lan).use { client ->
+                client.connect(lan, SsdpAgent.PORT)
+                client.soTimeout = 5000
+                client.sendRequest("NOTIFY * HTTP/1.1\r\n\r\n")
+                client.sendRequest(search(unsupported))
+                client.sendRequest(search(supported))
+                val reply = client.receiveReply()
+                assertTrue(reply, reply.startsWith("HTTP/1.1 200 OK\r\n"))
+                assertTrue(reply, "USN: ${identity.uuid}::$supported\r\n" in reply)
+                assertTrue(reply, "LOCATION: ${identity.location}\r\n" in reply)
+                client.soTimeout = 350
+                assertThrows(SocketTimeoutException::class.java) { client.receiveReply() }
+            }
+            DatagramSocket(0, loopback).use { client ->
+                client.connect(loopback, SsdpAgent.PORT)
+                client.soTimeout = 350
+                client.sendRequest(search(supported))
+                assertThrows(SocketTimeoutException::class.java) { client.receiveReply() }
+            }
+        } finally {
+            agent.stop()
+            agent.stop()
         }
     }
 
