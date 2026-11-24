@@ -10,6 +10,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -38,15 +40,19 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.layout.ContentScale
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -1112,6 +1118,10 @@ private fun VolumeSlider(
     enabled: Boolean = true,
     onValueChangeFinished: (() -> Unit)? = null
 ) {
+    val changeVolume by rememberUpdatedState(onValueChange)
+    val finishVolumeChange by rememberUpdatedState(onValueChangeFinished)
+    val layoutDirection = LocalLayoutDirection.current
+    val volumeFocus = remember { FocusRequester() }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(12.dp))
@@ -1128,7 +1138,42 @@ private fun VolumeSlider(
                 onValueChangeFinished = onValueChangeFinished,
                 modifier = Modifier
                     .semantics { contentDescription = label }
+                    .focusRequester(volumeFocus)
                     .dpadFocus()
+                    .pointerInput(enabled, layoutDirection) {
+                        if (!enabled) return@pointerInput
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            if (down.type != PointerType.Touch) return@awaitEachGesture
+                            var dragging = false
+                            try {
+                                // Use the finger's position once horizontal intent is clear. On some
+                                // Android versions Material3 can start a drag from an unset offset.
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val move = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (move.isConsumed) break
+                                    if (!move.pressed) {
+                                        if (dragging) volumeFocus.requestFocus()
+                                        break
+                                    }
+                                    if (!dragging) {
+                                        val delta = move.position - down.position
+                                        val slop = viewConfiguration.touchSlop
+                                        if (abs(delta.y) > slop && abs(delta.y) >= abs(delta.x)) break
+                                        dragging = abs(delta.x) > slop
+                                    }
+                                    if (dragging) {
+                                        move.consume()
+                                        val fraction = (move.position.x / size.width).coerceIn(0f, 1f)
+                                        changeVolume(if (layoutDirection == LayoutDirection.Rtl) 1f - fraction else fraction)
+                                    }
+                                }
+                            } finally {
+                                if (dragging) finishVolumeChange?.invoke()
+                            }
+                        }
+                    }
                     .dpadAdjust(onLeft = { onStep(-1) }, onRight = { onStep(1) })
             )
         }

@@ -3652,3 +3652,12 @@ points, 2,273/2,367 methods, and 308/314 classes. All six native
 metrics reach 100%. The lowest metric across the four latest
 complete edition reports is now normal DE/AT JVM complexity,
 at 4,375/5,121 (85.43%).
+
+On an API25 emulator with a narrow viewport, the complete
+`MainActivityLifecycleContractTest` class passed all 29 cases after the
+volume control began processing horizontal drags from the finger's
+position and keeping focus when the drag ends. The test uses Android
+touch events with the finger tool type, checks that the volume never
+dips during a rightward drag, and verifies the next left and right
+D-pad steps. The class also exercises hold/release/cancel for sender
+scan and returns from the Tools mini player to the overview.

@@ -23,9 +23,11 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.WindowManager
+import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
+import android.view.Window
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -1236,11 +1238,47 @@ class MainActivityLifecycleContractTest {
                 receiverBounds = bounds
                 SystemClock.elapsedRealtime() - stableSince >= 150L
             }
-            val touchX = receiverBounds.left + receiverBounds.width() * 0.85f
+            await("The emulator did not apply the initial media volume $initial") {
+                audio.getStreamVolume(stream) == initial
+            }
             val touchY = receiverBounds.exactCenterY()
-            pointerGesture(touchX, touchY, touchY, activity)
-            await("Touch on receiver volume did not raise the media stream") { audio.getStreamVolume(stream) > initial + 1 }
+            val thumbX = receiverBounds.left + receiverBounds.width() * initial.toFloat() / maximum
+            val targetX = receiverBounds.left + receiverBounds.width() * 0.85f
+            val events = mutableListOf<String>()
+            var minimumDuringDrag = initial
+            lateinit var originalCallback: Window.Callback
+            main {
+                originalCallback = activity.window.callback
+                activity.window.callback = object : Window.Callback by originalCallback {
+                    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                        val accepted = originalCallback.dispatchTouchEvent(event)
+                        val volume = audio.getStreamVolume(stream)
+                        minimumDuringDrag = minOf(minimumDuringDrag, volume)
+                        events += "${MotionEvent.actionToString(event.actionMasked)} " +
+                            "(${event.x}, ${event.y}) tool=${event.getToolType(0)} " +
+                            "handled=$accepted volume=$volume"
+                        return accepted
+                    }
+                }
+            }
+            try {
+                pointerGesture(thumbX, touchY, touchY, endX = targetX)
+            } finally {
+                main { activity.window.callback = originalCallback }
+            }
+            awaitAudioGesture("receiver-volume", activity, receiverBounds) {
+                try {
+                    await("Dragging receiver volume from $initial did not raise the media stream") {
+                        audio.getStreamVolume(stream) > initial + 1
+                    }
+                } catch (failure: AssertionError) {
+                    throw AssertionError(
+                        "${failure.message}; volume=${audio.getStreamVolume(stream)}/$maximum; events=$events", failure)
+                }
+            }
             val raised = audio.getStreamVolume(stream)
+            assertTrue("Dragging right lowered the volume below $initial: $events", minimumDuringDrag >= initial)
+            instrumentation.waitForIdleSync()
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
             await("Left on receiver volume did not lower the media stream one step") { audio.getStreamVolume(stream) == raised - 1 }
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -1645,13 +1683,14 @@ class MainActivityLifecycleContractTest {
                     }
                     val started = SystemClock.uptimeMillis()
                     fun dispatch(action: Int) {
-                        val event = MotionEvent.obtain(started, SystemClock.uptimeMillis(), action,
-                            bounds.exactCenterX(), bounds.exactCenterY(), 0)
-                        try { dispatchActivityTouch(activity, event) } finally { event.recycle() }
+                        val event = fingerEvent(started, action, bounds.exactCenterX(), bounds.exactCenterY())
+                        try { sendTouch(event) } finally { event.recycle() }
                     }
                     dispatch(MotionEvent.ACTION_DOWN)
                     try {
-                        await("Press did not send the scan command before release") { commands() == expected }
+                        awaitAudioGesture("audio-scan", activity, bounds) {
+                            await("Press did not send the scan command before release") { commands() == expected }
+                        }
                     } finally {
                         dispatch(completion)
                     }
@@ -1674,35 +1713,50 @@ class MainActivityLifecycleContractTest {
         }
     }
 
-    private fun dispatchActivityTouch(activity: MainActivity, event: MotionEvent) {
-        main {
-            val origin = IntArray(2)
-            activity.window.decorView.getLocationOnScreen(origin)
-            event.offsetLocation(-origin[0].toFloat(), -origin[1].toFloat())
-            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
-            activity.dispatchTouchEvent(event)
+    private fun sendTouch(event: MotionEvent) {
+        instrumentation.sendPointerSync(event)
+    }
+
+    private fun fingerEvent(start: Long, action: Int, x: Float, y: Float): MotionEvent {
+        val pointer = MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER }
+        val position = MotionEvent.PointerCoords().apply { this.x = x; this.y = y; pressure = 1f; size = 1f }
+        return MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, 1, arrayOf(pointer), arrayOf(position),
+            0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+    }
+
+    private fun awaitAudioGesture(name: String, activity: MainActivity, bounds: Rect, wait: () -> Unit) {
+        try {
+            wait()
+        } catch (failure: AssertionError) {
+            val visible = Rect()
+            var windowFocused = false
+            main {
+                activity.window.decorView.getWindowVisibleDisplayFrame(visible)
+                windowFocused = activity.hasWindowFocus()
+            }
+            saveContractScreenshot("main-contract-$name.png")
+            throw AssertionError("${failure.message}; control=$bounds, window=$visible, focused=$windowFocused", failure)
         }
     }
 
-    private fun pointerGesture(x: Float, startY: Float, endY: Float, activity: MainActivity? = null) {
+    private fun pointerGesture(startX: Float, startY: Float, endY: Float, endX: Float = startX) {
         val time = SystemClock.uptimeMillis()
-        fun send(action: Int, y: Float) {
-            val event = MotionEvent.obtain(time, SystemClock.uptimeMillis(), action, x, y, 0)
-            try {
-                if (activity == null) instrumentation.sendPointerSync(event) else dispatchActivityTouch(activity, event)
-            } finally { event.recycle() }
+        fun send(action: Int, x: Float, y: Float) {
+            val event = fingerEvent(time, action, x, y)
+            try { sendTouch(event) } finally { event.recycle() }
         }
-        send(MotionEvent.ACTION_DOWN, startY)
-        if (startY != endY) {
+        send(MotionEvent.ACTION_DOWN, startX, startY)
+        if (startX != endX || startY != endY) {
             for (step in 1..5) {
                 Thread.sleep(16)
-                send(MotionEvent.ACTION_MOVE, startY + (endY - startY) * step / 5)
+                send(MotionEvent.ACTION_MOVE,
+                    startX + (endX - startX) * step / 5, startY + (endY - startY) * step / 5)
             }
             // Keep the finger still before release so the scroll does not fling.
             Thread.sleep(120)
-            send(MotionEvent.ACTION_MOVE, endY)
+            send(MotionEvent.ACTION_MOVE, endX, endY)
         }
-        send(MotionEvent.ACTION_UP, endY)
+        send(MotionEvent.ACTION_UP, endX, endY)
     }
 
     private fun awaitVolumeControl(
@@ -1721,6 +1775,7 @@ class MainActivityLifecycleContractTest {
         val visibleControls = linkedSetOf<String>()
         val windowPackages = linkedSetOf<String>()
         fun visit(node: AccessibilityNodeInfo): Boolean {
+            if (!node.refresh()) return false
             val nodeDescription = node.contentDescription?.toString()
             if (!nodeDescription.isNullOrBlank()) {
                 val bounds = Rect().also(node::getBoundsInScreen)
@@ -1735,6 +1790,7 @@ class MainActivityLifecycleContractTest {
             return false
         }
         fun scroll(node: AccessibilityNodeInfo, action: Int): Boolean {
+            if (!node.refresh()) return false
             if (node.isVisibleToUser && node.isScrollable && node.performAction(action)) return true
             for (index in 0 until node.childCount) {
                 val child = node.getChild(index) ?: continue
@@ -1775,13 +1831,17 @@ class MainActivityLifecycleContractTest {
         } finally {
             automation.serviceInfo = automation.serviceInfo.apply { flags = originalFlags }
         }
-        automation.takeScreenshot()?.let { image ->
+        saveContractScreenshot("main-contract-failure.png")
+        fail("Control did not expose its expected state: $label. Windows: $windowPackages. Visible controls: $visibleControls")
+    }
+
+    private fun saveContractScreenshot(name: String) {
+        instrumentation.uiAutomation.takeScreenshot()?.let { image ->
             try {
-                File(context.filesDir, "main-contract-failure.png").outputStream().use {
+                File(context.filesDir, name).outputStream().use {
                     image.compress(Bitmap.CompressFormat.PNG, 100, it)
                 }
             } finally { image.recycle() }
         }
-        fail("Control did not expose its expected state: $label. Windows: $windowPackages. Visible controls: $visibleControls")
     }
 }
