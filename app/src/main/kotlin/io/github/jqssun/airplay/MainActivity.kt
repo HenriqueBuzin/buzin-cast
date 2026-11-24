@@ -150,13 +150,9 @@ class MainActivity : ComponentActivity() {
 
     private fun _syncLocalNetwork(requested: Boolean = false) {
         if (Build.VERSION.SDK_INT < LOCAL_NETWORK_API) return
-        val p = LOCAL_NETWORK_PERMISSION
         val prev = viewModel.localNetwork.value
-        val now = when {
-            hasLocalNetwork() -> LocalNetworkAccess.GRANTED
-            shouldShowRequestPermissionRationale(p) -> LocalNetworkAccess.ASK
-            requested || prev == LocalNetworkAccess.SETTINGS -> LocalNetworkAccess.SETTINGS
-            else -> LocalNetworkAccess.ASK
+        val now = resolveLocalNetworkAccess(hasLocalNetwork(), requested, prev) {
+            shouldShowRequestPermissionRationale(LOCAL_NETWORK_PERMISSION)
         }
         viewModel.setLocalNetwork(now)
         if (now == LocalNetworkAccess.GRANTED && prev != LocalNetworkAccess.GRANTED) _autoStart()

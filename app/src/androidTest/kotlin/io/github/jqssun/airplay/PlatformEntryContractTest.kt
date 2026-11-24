@@ -13,6 +13,7 @@ import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.service.AirPlayService
+import io.github.jqssun.airplay.viewmodel.LocalNetworkAccess
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
@@ -162,5 +163,20 @@ class PlatformEntryContractTest {
                 context.hasLocalNetwork())
             assertEquals(if (Build.VERSION.SDK_INT < LOCAL_NETWORK_API) emptyList<String>() else listOf(LOCAL_NETWORK_PERMISSION), checked)
         }
+    }
+
+    @Test fun localNetworkPermissionDecidesWhetherToAskAgainOrOpenSettings() {
+        val ask = LocalNetworkAccess.ASK
+        val settings = LocalNetworkAccess.SETTINGS
+        val granted = LocalNetworkAccess.GRANTED
+
+        assertEquals(granted, resolveLocalNetworkAccess(granted = true, requested = true, previous = settings) {
+            error("Granted permission should not query rationale")
+        })
+        assertEquals(ask, resolveLocalNetworkAccess(granted = false, requested = false, previous = ask) { false })
+        assertEquals(ask, resolveLocalNetworkAccess(granted = false, requested = false, previous = granted) { false })
+        assertEquals(ask, resolveLocalNetworkAccess(granted = false, requested = true, previous = settings) { true })
+        assertEquals(settings, resolveLocalNetworkAccess(granted = false, requested = true, previous = ask) { false })
+        assertEquals(settings, resolveLocalNetworkAccess(granted = false, requested = false, previous = settings) { false })
     }
 }

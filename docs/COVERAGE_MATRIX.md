@@ -3018,3 +3018,8 @@ enabled, frame and bitrate accounting, operation without a callback,
 and reset on a new session. Adding its profile after both decoder
 format runs brought renderer coverage to 95/120 branches, 194/216
 lines and 74/101 complexity.
+
+Six JVM cases executed the compiled local-network permission policy.
+They covered all 21 instructions, 8 branches, 6 lines and 5 complexity
+points in the decision method, including the case where a granted
+permission should bypass the rationale query.
