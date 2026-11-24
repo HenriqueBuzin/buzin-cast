@@ -229,6 +229,7 @@ class ReceiverIntegrationTest {
         val invalidLoads = listOf(
             request("content", "inline content") to "Inline manifests are not supported; send an HTTP(S) URL",
             request("url", "https://example.test/" + "a".repeat(8192)) to "Expected HTTP(S) media URL",
+            request("url", "https:/audio.mp3") to "Expected HTTP(S) media URL",
             request("container", "audio/" + "a".repeat(120)) to "Unsupported media type",
             request("time", -1) to "Invalid time",
             request("headers", JSONObject().apply { repeat(25) { put("X-Field-$it", "value") } }) to null,
@@ -255,6 +256,25 @@ class ReceiverIntegrationTest {
         assertTrue(loaded.headers.isEmpty())
         assertEquals(Protocol.FCAST, playback.mediaOwner)
         assertTrue(playback.mediaActive)
+    }
+
+    @Test fun fcastAcceptsMetadataAtTheInclusiveLoadLimits() = withFcast { playback, socket ->
+        val url = "https://example.test/".padEnd(8192, 'a')
+        val mime = "audio/".padEnd(120, 'a')
+        val headerName = "X-Field-".padEnd(80, 'a')
+        val headers = (1..23).associate { "X-Field-$it" to "value-$it" } +
+            (headerName to "a".repeat(4096))
+        val request = JSONObject().put("url", url).put("container", mime)
+            .put("headers", JSONObject(headers)).put("time", 31_536_000).put("speed", 0.25)
+
+        FCastFrame(1, request.toString()).writeTo(socket.getOutputStream())
+        eventually { playback.events.contains("speed:0.25") }
+
+        val loaded = playback.requests.single()
+        assertEquals(url, loaded.location)
+        assertEquals(mime, loaded.mime)
+        assertEquals(31_536_000f, loaded.time)
+        assertEquals(headers, loaded.headers)
     }
 
     @Test fun fcastCannotTakeOverActiveMirroring() = withFcast { playback, socket ->
