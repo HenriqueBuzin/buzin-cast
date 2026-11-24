@@ -3683,3 +3683,12 @@ without changing media volume and verified that leaving playback
 restored the window's system-managed brightness. The test confirmed
 that the live fullscreen playback controls could be shown and hidden
 before sending the vertical gestures.
+
+The sealed compact DE/AT `6673022` replay on API22 passed 433 Android
+tests, 21 native UBSan tests, and all 15 required runtime results with
+a 3 GiB emulator. Its API22-only report measures 4,354/5,129 JVM
+complexity points (84.89%). The uncovered native audio paths include
+decoder selection on API23 and later and AAudio output reporting.
+The previous combined API22/API28 result of 85.59% belongs to
+`1e66f5c`; a new combined result requires both runtime archives from
+the exact `6673022` app and test APKs.
