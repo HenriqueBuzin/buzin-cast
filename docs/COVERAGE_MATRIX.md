@@ -3668,3 +3668,12 @@ for their destruction before releasing the service. The new fullscreen
 gesture case passed in that run and in a focused API30 run that waited
 for the landscape window to settle. It verified independent brightness
 and volume changes and checked that playback stayed paused.
+
+The normal DE/AT API28 run from `37ce3d7` passed 433 Android tests,
+21 native UBSan tests, all 15 required runtime results, and the VPN
+and offline diagnostics. The sealed report covers 81,963/86,274 JVM
+instructions, 5,085/5,899 branches, 8,294/8,519 lines, 4,411/5,130
+complexity points (85.98%), 2,260/2,374 methods, and 310/317 classes.
+All six native metrics reached 100%. Across the four latest complete
+edition reports, the minimum is now compact DE/AT JVM complexity at
+4,384/5,122 (85.59%).
