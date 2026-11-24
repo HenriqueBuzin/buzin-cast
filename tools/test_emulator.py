@@ -486,6 +486,14 @@ class Suite:
             self.debug("startserver")
             self.debug("playurl",url=f"http://10.0.2.2:{server.server_port}/controls.wav")
             self.wait(lambda:self.debug().get("positionMs",0)>1000,"Media did not start")
+            self.wait(lambda: not any(n.get("class") == "android.widget.SeekBar" for n in self.ui().iter()),
+                      "Playback controls did not hide before the remote seek")
+            before = self.debug()["positionMs"]
+            self.key(22)
+            self.wait(lambda: self.debug()["positionMs"] > before + 8000, "Right did not seek with controls hidden")
+            after = self.debug()["positionMs"]
+            self.key(21)
+            self.wait(lambda: self.debug()["positionMs"] < after - 7000, "Left did not seek with controls hidden")
             self.key(127)  # MEDIA_PAUSE: remote keys must reach the actual player.
             self.wait(lambda:not self.debug().get("playing"),"Remote pause did not apply")
             before=self.debug()["positionMs"]

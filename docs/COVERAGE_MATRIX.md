@@ -3377,3 +3377,8 @@ when the playback slider has focus. Playback stayed paused, and the
 full media controls scenario passed. With matching compiled classes,
 the additional profile raised `MainScreenKt` to 867/884 lines,
 325/399 complexity points and 190/208 methods.
+
+The API25 media controls test now sends Right and Left while the
+playback controls are hidden and verifies both seeks against the
+player's reported position. The full scenario passed. The matching
+MainScreen profiles reached 434/535 branches, up from 433/535.
