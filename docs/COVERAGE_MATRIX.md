@@ -3387,3 +3387,10 @@ The API25 playback screen test verified that the remote's first OK
 press reveals the hidden locked controls and the second unlocks them.
 Playback stays active throughout. The matching MainScreen profiles
 now cover 435/535 branches and 868/884 lines.
+
+The API25 ordinary Android overview test verified the ready state,
+the prompt after a sender connects, and the stopped state when the
+server update reaches the screen before the sender count clears.
+Removing the sender restored the welcome view. The matching
+MainScreen profiles reached 437/535 branches, 869/884 lines and
+327/399 complexity points.

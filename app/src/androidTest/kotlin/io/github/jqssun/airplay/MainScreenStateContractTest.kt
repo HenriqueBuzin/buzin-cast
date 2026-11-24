@@ -406,6 +406,38 @@ class MainScreenStateContractTest {
         }
     }
 
+    @Test fun ordinaryOverviewUpdatesWhenTheReceiverStartsConnectsAndStops() = screen(ordinaryScreen = true) {
+        main {
+            model.setLocalNetwork(LocalNetworkAccess.GRANTED)
+            state("_serverState", ServerState.STOPPED)
+        }
+        val start = text(R.string.btn_start)
+        val stop = text(R.string.btn_stop)
+        val stopped = text(R.string.stopped_label)
+        val waiting = text(R.string.waiting_for_playback)
+        val ready = text(R.string.buzin_ready)
+        val welcome = text(R.string.app_name)
+        await("A stopped receiver did not expose its Start action") { has(welcome) && has(stopped) && control(start) }
+
+        main { state("_serverState", ServerState.RUNNING) }
+        await("A running receiver did not display its ready state") { has(ready) && control(stop) }
+
+        main { state("_connectionCount", 1) }
+        await("The connected sender did not show the playback prompt") {
+            has(waiting) && has(text(R.string.connected_count, 1)) && control(stop)
+        }
+
+        // The service state can reach the screen before its sender count is cleared.
+        main { state("_serverState", ServerState.STOPPED) }
+        await("Stopping did not replace the previous sender's playback prompt") {
+            has(stopped) && control(start) && !has(waiting) && !has(welcome)
+        }
+        main { state("_connectionCount", 0) }
+        await("Clearing the sender count did not restore the welcome screen") {
+            has(welcome) && has(stopped) && control(start)
+        }
+    }
+
     @Test fun pinConfirmationAndBackClearBothStateAndDialog() = screen {
         for ((pin, back) in listOf("1234" to false, "9876" to true)) {
             main { model.showPin(pin) }
