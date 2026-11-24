@@ -3044,3 +3044,10 @@ policy's 8/8 branches in the Android build. Two DE/AT API28 lifecycle
 cases passed. The enabled auto-start preference started the receiver
 on binding, and recreating the activity kept the same receiver instance.
 The focused run covered 6/8 branches in `MainActivity._autoStart`.
+
+The standard normal API28 recording test verified that playback is
+disabled while a sender or relay is streaming. It also checked that
+playback, export and deletion all become unavailable during recording
+and return when capture stops. The matching 13 `ToolsScreenKt` class
+files advanced from 119/159 to 124/159 branches and from 104/155 to
+109/155 complexity points when the new profile was added.

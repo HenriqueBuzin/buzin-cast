@@ -639,6 +639,28 @@ class ToolsScreenStateContractTest {
                                 has(confirm) && has(selected.name)
                             }
                         }
+                        val play = text(R.string.tools_play)
+                        val export = text(R.string.btn_export)
+                        revealToolsItem(play)
+                        fun expectActions(state: String, canPlay: Boolean, canManage: Boolean) {
+                            await("Unexpected recording actions while $state") {
+                                buttonEnabled(play) == canPlay && buttonEnabled(export) == canManage &&
+                                    buttonEnabled(remove) == canManage
+                            }
+                        }
+                        expectActions("idle", canPlay = true, canManage = true)
+                        main { state("_connectionCount", 1) }
+                        expectActions("a sender is connected", canPlay = false, canManage = true)
+                        main { state("_connectionCount", 0) }
+                        expectActions("the sender has disconnected", canPlay = true, canManage = true)
+                        main { state("_relayState", MirrorRelay.State(receiving = true)) }
+                        expectActions("a relay is streaming", canPlay = false, canManage = true)
+                        main { state("_relayState", MirrorRelay.State()) }
+                        expectActions("the relay has stopped", canPlay = true, canManage = true)
+                        main { state("_captureState", MirrorCapture.State(armed = true, recording = true)) }
+                        expectActions("capture is active", canPlay = false, canManage = false)
+                        main { state("_captureState", MirrorCapture.State()) }
+                        expectActions("capture has stopped", canPlay = true, canManage = true)
                         openConfirmation()
                         tap(text(R.string.tv_edit_cancel))
                         await("Cancel did not restore the recording list") { recordingListVisible() && selected.isFile }
