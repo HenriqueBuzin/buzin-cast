@@ -3524,3 +3524,12 @@ applies the benchmark preference and forwards real renderer statistics,
 including the active display size, to the service log listener.
 Rendering continued with no listener attached. Matching service
 profiles reached 523/601 branches and 452/538 complexity points.
+
+The complete standard normal API28 run from `447d309` passed
+427 Android tests, 21 native UBSan cases, all 15 runtime results,
+and VPN and offline diagnostics. Coverage reached 83,010/86,789
+JVM instructions, 5,141/5,973 branches, 8,278/8,508 lines,
+4,435/5,156 complexity points (86.02%), 2,268/2,367 methods, and
+308/314 classes. All six native metrics reached 100%. The normal
+DE/AT edition now has the lowest confirmed full-run measurement,
+4,346/5,119 JVM complexity points (84.90%) from `9f7d980`.
