@@ -3005,3 +3005,9 @@ The decoder format test passed on DE/AT APIs 28 and 30. It verified
 SDR color overrides, input-buffer sizing and frame-drop options on
 the supported API. The matching renderer files increased from
 87/120 to 91/120 branches and from 67/101 to 70/101 complexity.
+
+The DE/AT API28 renderer benchmark test verified reporting only when
+enabled, frame and bitrate accounting, operation without a callback,
+and reset on a new session. Adding its profile after both decoder
+format runs brought renderer coverage to 95/120 branches, 194/216
+lines and 74/101 complexity.

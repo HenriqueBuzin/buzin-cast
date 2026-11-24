@@ -170,6 +170,45 @@ class RelayPlaybackContractTest {
         }
     }
 
+    @Test fun benchmarkPublishesFrameStatisticsOnlyWhenEnabled() {
+        val renderer = session().renderer
+        val window = VideoRenderer::class.java.getDeclaredField("_lastStatReset").apply { isAccessible = true }
+        val reference = ByteArray(1000).apply { this[3] = 1; this[4] = 0x61 }
+        val lines = mutableListOf<String>()
+        renderer.setResolution(640, 360)
+        renderer.startSession()
+        renderer.benchmarkLogCallback = { lines += it }
+
+        renderer.benchmarkLog = false
+        window.setLong(renderer, 0L)
+        renderer.feedFrame(reference, 0L, isH265 = false)
+        // Keep both samples in the same reporting window even on a busy emulator.
+        window.setLong(renderer, System.currentTimeMillis() + 60_000L)
+        renderer.feedFrame(reference, 1L, isH265 = false)
+        assertTrue(lines.isEmpty())
+
+        renderer.benchmarkLog = true
+        window.setLong(renderer, 0L)
+        renderer.feedFrame(reference, 2L, isH265 = false)
+        assertEquals(2, renderer.fps)
+        assertEquals(16_000L, renderer.bitrateBps)
+        assertEquals(3L, renderer.frameCount)
+        assertEquals("fps=2 bitrate=16kbps jitter=0us frames=2 dropped=0 codec= res=640x360", lines.single())
+
+        renderer.benchmarkLogCallback = null
+        window.setLong(renderer, 0L)
+        renderer.feedFrame(reference, 3L, isH265 = false)
+        assertEquals(1, lines.size)
+        assertEquals(1, renderer.fps)
+        assertEquals(8_000L, renderer.bitrateBps)
+        assertEquals(4L, renderer.frameCount)
+
+        renderer.startSession()
+        assertEquals(0, renderer.fps)
+        assertEquals(0L, renderer.bitrateBps)
+        assertEquals(0L, renderer.frameCount)
+    }
+
     @Test fun videoChangesAnnounceDimensionsAndOnlyNewSessionsResetTheClockAnchor() {
         val session = session()
         val firstPts = 1_000_000_000L
