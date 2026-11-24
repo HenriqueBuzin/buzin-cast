@@ -354,7 +354,8 @@ class MainScreenStateContractTest {
             assertEquals(listOf(Intent.ACTION_VIEW, Intent.ACTION_VIEW), links.map { it.action })
             assertEquals(listOf("https://buzin.solutions", "https://github.com/HenriqueBuzin/buzin-cast"),
                 links.map { it.dataString })
-            assertTrue("A missing browser closed the dialog", has(aboutVersion))
+            await("About was not visible after the missing-browser message") { has(aboutVersion) }
+            assertEquals("A missing browser dismissed About", 0, dismissals.get())
 
             repeat(2) { index ->
                 click(text(R.string.buzin_licenses))
