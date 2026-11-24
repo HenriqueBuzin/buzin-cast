@@ -3708,3 +3708,12 @@ attached. Applying the texture transform when each frame is consumed
 preserved its orientation. The corrected APK passed both rendering
 contracts, including display replacement and margin changes without
 a new input frame.
+
+The sealed normal DE/AT `83801aa` run on API28 passed 439 Android
+tests, 21 native UBSan tests, all 15 required runtime results, and VPN
+and offline diagnostics. It covers 82,037/86,276 JVM instructions,
+5,103/5,903 branches, 8,299/8,515 lines, 4,424/5,132 complexity
+points (86.20%), 2,260/2,374 methods, and 310/317 classes. All six
+native metrics reached 100%. Across the four latest complete edition
+reports, the minimum is now standard normal JVM complexity, at
+4,435/5,156 (86.02%).
