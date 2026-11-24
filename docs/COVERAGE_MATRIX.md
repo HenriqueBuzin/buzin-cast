@@ -3239,6 +3239,13 @@ binary and native test executable covered all six native metrics:
 912/912 branches, 203/203 functions, 205/205 instantiations, 1,751/1,751
 lines, 171/171 MC/DC conditions and 1,500/1,500 regions.
 
+The complete API22 replay also passed all 15 runtime results for that
+edition. Merging its verified snapshot with the matching API28 report
+covered 82,202/86,755 JVM instructions, 5,108/5,977 branches,
+8,235/8,496 lines, 4,381/5,153 complexity points, 2,245/2,362 methods
+and 308/314 classes. The complete merge confirms all six native metrics
+at 100%.
+
 The normal edition API25 SSDP integration test passed using real UDP
 sockets. It verified the renderer identity and description address in
 the reply, ignored unrelated datagrams and unsupported search targets,
