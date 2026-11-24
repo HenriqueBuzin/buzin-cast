@@ -3382,3 +3382,8 @@ The API25 media controls test now sends Right and Left while the
 playback controls are hidden and verifies both seeks against the
 player's reported position. The full scenario passed. The matching
 MainScreen profiles reached 434/535 branches, up from 433/535.
+
+The API25 playback screen test verified that the remote's first OK
+press reveals the hidden locked controls and the second unlocks them.
+Playback stays active throughout. The matching MainScreen profiles
+now cover 435/535 branches and 868/884 lines.

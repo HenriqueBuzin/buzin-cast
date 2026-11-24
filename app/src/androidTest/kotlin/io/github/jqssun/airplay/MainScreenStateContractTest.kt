@@ -503,6 +503,30 @@ class MainScreenStateContractTest {
         }
     }
 
+    @Test fun remoteCenterRevealsHiddenLockedControlsBeforeUnlocking() = screen(allowVideo = true) {
+        main {
+            state("_videoPlaybackActive", true)
+            state("_videoDurationMs", 120_000L)
+            state("_videoPlaying", false)
+            model.showVideoOverlay()
+        }
+        val lock = text(R.string.cd_lock_controls)
+        val unlock = text(R.string.cd_unlock_controls)
+        click(lock)
+        await("Lock did not replace the regular video controls") { has(unlock) && !has(lock) }
+        main { state("_videoPlaying", true) }
+        await("The locked controls did not hide during playback") {
+            snapshot(requireText = false)?.none { it.description == lock || it.description == unlock } == true
+        }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        await("The first press did not reveal the controls while keeping them locked") {
+            has(unlock) && !has(lock)
+        }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        await("The second press did not unlock the video controls") { has(lock) && !has(unlock) }
+        assertTrue(model.videoPlaying.value)
+    }
+
     @Test fun diagnosticsNavigationReturnsToOverviewWhenDeveloperOptionsAreDisabled() = screen {
         main { model.set(Prefs.DEVELOPER_OPTIONS, true) }
         await("Developer logs tab missing") { control(text(R.string.tab_logs)) }
