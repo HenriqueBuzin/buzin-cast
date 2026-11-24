@@ -3147,12 +3147,15 @@ first denial. Granting permission in Android's dialog auto-started the
 receiver. Adding that profile raised the matching activity branches to
 89/114 and complexity to 77/102.
 
-The emulator runner exposes this denial-and-retry flow on API37 with
-`--case "local network permission dialog retry"`. The case grants
-access through Android's permission controller and checks that the
-receiver starts on its own. With `--coverage`, it records the denied
-and granted paths separately. The host automation test verifies that
+The API37 emulator suite runs this denial-and-retry flow. Select
+`--case "local network permission dialog retry"` to run it by itself.
+The case grants access through Android's permission controller and
+checks that the receiver starts on its own. With `--coverage`, it
+records denial and grant profiles. The host automation test verifies that
 the runner selects the app's retry button between the two dialog actions.
+The instrumented API37 case passed on the archived normal DE/AT APK.
+Adding its two profiles to the complete API28 profile covered 88/114
+activity branches, up from 70/114.
 
 The normal edition API25 recording contract passed after forcing the
 writer queue to fill. A restart was refused while the previous worker
@@ -3160,3 +3163,8 @@ still had queued packets. After the worker finished, recording could be
 armed again and the saved file remained present. Adding this profile to
 the matching recorder classes advanced branches from 48/66 to 52/66 and
 complexity from 31/47 to 34/47.
+
+The normal edition API25 recording contract also wrote a readable
+Matroska file to internal storage when the external location was
+unavailable. Combining both new recorder profiles with the matching
+API28 mappings now covers 53/66 branches and 35/47 complexity points.

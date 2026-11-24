@@ -742,9 +742,7 @@ class Suite:
                 cases.append(extended)
             if api >= 37:
                 cases.append(("local network permission and receiver recovery", self.local_network_service_permission))
-                dialog = ("local network permission dialog retry", self.local_network_permission_dialog)
-                if self.args.case and any(pattern in dialog[0] for pattern in self.args.case):
-                    cases.append(dialog)
+                cases.append(("local network permission dialog retry", self.local_network_permission_dialog))
             selected=[(name,test) for name,test in cases if not self.args.case or any(pattern in name for pattern in self.args.case)]
             assert selected,"No test matches --case"
             for name,test in selected:

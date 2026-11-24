@@ -30,15 +30,16 @@ class MirrorCaptureContractTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val roots = mutableListOf<File>()
     private val captures = mutableListOf<MirrorCapture>()
-    private fun isolatedContext(): Context {
+    private fun isolatedContext(externalStorageAvailable: Boolean): Context {
         val root = File(context.cacheDir, "capture-contract-${System.nanoTime()}").also { it.mkdirs(); roots += it }
         return object : ContextWrapper(context) {
-            override fun getExternalFilesDir(type: String?): File = root
+            override fun getExternalFilesDir(type: String?): File? =
+                if (externalStorageAvailable) File(root, "external") else null
             override fun getFilesDir(): File = root
         }
     }
-    private fun capture(changed: () -> Unit = {}): MirrorCapture =
-        MirrorCapture(isolatedContext(), changed).also { captures += it }
+    private fun capture(externalStorageAvailable: Boolean = true, changed: () -> Unit = {}): MirrorCapture =
+        MirrorCapture(isolatedContext(externalStorageAvailable), changed).also { captures += it }
     private fun video(hevc: Boolean = false, width: Int = 64, pts: Long = 1_000_000_000L) =
         MirrorPacket.Video(context.assets.open("mirror/sample.${if (hevc) "h265" else "h264"}").use { it.readBytes() }, pts, width, 48, hevc)
     private fun await(message: String, predicate: () -> Boolean) {
@@ -115,7 +116,10 @@ class MirrorCaptureContractTest {
 
     @Test fun avcAndHevcRecordingsContainReadableVideoAndPcmTracks() {
         for (hevc in listOf(false, true)) {
-            val capture = capture()
+            val capture = capture(externalStorageAvailable = !hevc)
+            val root = roots.last()
+            val expectedStorage = if (hevc) root else File(root, "external")
+            assertEquals(File(expectedStorage, "recordings"), capture.directory)
             capture.start(); capture.offer(video(hevc))
             await("Keyframe did not start recording") { capture.state.value.recording }
             capture.offer(video(hevc, pts = 1_040_000_000L))
