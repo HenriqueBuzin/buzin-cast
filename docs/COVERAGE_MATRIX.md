@@ -3095,3 +3095,12 @@ measured AVC support or beyond both decoders' capabilities. Adding the
 API36 profile to the three matching decoder class files advanced branches
 from 138/196 to 152/196 and complexity from 109/156 to 118/156. The API30
 profile exercised the missing-candidate path and added no new probes.
+
+The normal DE/AT APKs from `83a913b` passed 409 Android tests and
+21 native UBSan tests on API28. The same archived application and test
+APKs passed three focused API36 lifecycle cases: narrow paused playback
+in picture-in-picture, return to the same activity, and a disconnected
+activity binding. For `MainActivity` and its nested classes, adding the
+API36 profiles to the API28 instrumentation profile raised classes from
+8/12 to 12/12, branches from 70/114 to 76/114, and complexity from 58/102
+to 67/102. This comparison covers the matched activity mappings.
