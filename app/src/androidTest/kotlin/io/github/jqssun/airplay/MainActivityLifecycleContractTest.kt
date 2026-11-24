@@ -1124,11 +1124,18 @@ class MainActivityLifecycleContractTest {
                 kotlin.math.abs(model(activity).videoPlaybackAspect.value - .25f) < .001f
         }
         val session = requireNotNull(service.sessionSnapshot()).token
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        instrumentation.waitForIdleSync()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val params = MainActivity::class.java.getDeclaredMethod("_pipParams").apply { isAccessible = true }
+            main {
+                val current = params.invoke(activity) as android.app.PictureInPictureParams
+                assertTrue("Active video must enable Android's automatic PiP", current.isAutoEnterEnabled)
+                assertEquals(android.util.Rational(419, 1000), current.aspectRatio)
+            }
+            shell("input keyevent KEYCODE_HOME")
+        } else {
             assertTrue("Android did not accept the Home action",
                 instrumentation.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME))
-        } else {
-            main { activity.enterPip() }
         }
         await("Android did not pin the narrow playback activity") {
             activity.isInPip.value && activity.isInPictureInPictureMode
