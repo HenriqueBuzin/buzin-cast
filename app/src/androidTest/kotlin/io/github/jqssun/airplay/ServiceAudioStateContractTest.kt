@@ -487,6 +487,45 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun standaloneAudioClosesAnIdleRelayAndKeepsItsSessionWhenFormatIsRepeated() = withoutAutoLaunch {
+        main {
+            service.relay.listen()
+            assertTrue(service.relay.state.value.listening)
+            service.onConnectionInit()
+            try {
+                service.onDisplayPin("1234")
+                val pins = mutableListOf<String?>()
+                service.pinCallback = { pins.add(it) }
+
+                service.onAudioFormat(2, 352, false)
+                val session = requireNotNull(service.sessionSnapshot())
+                assertEquals(Protocol.AIRPLAY, session.token.protocol)
+                assertEquals(SessionKind.AUDIO, session.kind)
+                assertEquals(SessionPhase.PLAYING, session.phase)
+                assertEquals(listOf("1234", null), pins)
+                assertFalse(service.relay.state.value.listening)
+                assertTrue(service.audioOnly.value)
+                assertTrue(mediaSession.isActive)
+
+                service.onMetadata(item("mlit", text("minm", "Current track")))
+                val progressAt = SystemClock.elapsedRealtime()
+                service.onProgress(0, 44100, 44100 * 60L)
+                service.onAudioFormat(2, 352, false)
+                assertEquals(session, service.sessionSnapshot())
+                assertEquals("Current track", service.trackInfo.value.title)
+                val maximumPosition = 1000L + (SystemClock.elapsedRealtime() - progressAt)
+                assertTrue("The new format reset or jumped the playback position",
+                    service.positionMs.value in 1000L..maximumPosition)
+                assertEquals(60000L, service.durationMs.value)
+                assertEquals(listOf("1234"), pins.filterNotNull())
+                assertNull(pins.last())
+                assertTrue(mediaSession.isActive)
+            } finally {
+                service.onConnectionDestroy()
+            }
+        }
+    }
+
     @Test fun mirrorSizeRejectsInvalidDimensionsAndUpdatesAnOwnedSession() = withoutAutoLaunch {
         main {
             val initialResolution = service.videoResolution.value
