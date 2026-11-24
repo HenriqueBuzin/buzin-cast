@@ -29,6 +29,7 @@ import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.net.ServerSocket
+import java.net.BindException
 import java.net.ConnectException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -503,6 +504,12 @@ class ReceiverIntegrationTest {
         val identity = SsdpIdentity("uuid:${UUID.randomUUID()}", "http://$ip:49152/desc.xml",
             "BuzinTest/1", maxAgeSeconds = 2)
         val agent = SsdpAgent(identity)
+        agent.stop()
+        DatagramSocket(null).use { occupied ->
+            occupied.reuseAddress = false
+            occupied.bind(InetSocketAddress(SsdpAgent.PORT))
+            assertThrows(BindException::class.java) { agent.start() }
+        }
         MulticastSocket(null).use { observer ->
             observer.reuseAddress = true
             observer.bind(InetSocketAddress(SsdpAgent.PORT))
@@ -523,6 +530,7 @@ class ReceiverIntegrationTest {
                 return matches
             }
             try {
+                agent.start()
                 agent.start()
                 // Three startup announcements are followed by a periodic refresh at max-age/2.
                 val alive = awaitAnnouncements("ssdp:alive", 4)

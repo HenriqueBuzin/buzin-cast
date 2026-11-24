@@ -3439,3 +3439,9 @@ license callback test. The test exercises the registered listener
 with locally constructed responses for every SDK license status.
 Billing coverage reached 107/111 instructions, 2/2 branches,
 28/30 lines, 11/12 complexity points, 10/11 methods, and 2/2 classes.
+
+The API25 SSDP announcement test now occupies the discovery port
+before starting the agent. It checks that the bind failure is reported
+and that the same agent announces startup, refresh and shutdown after
+the port is released. The passing focused run covered 14/24 branches
+and 12/22 complexity points in `SsdpAgent`.

@@ -25,16 +25,21 @@ class SsdpAgent(
     private var listenThread: Thread? = null
     private val scheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
+    @Synchronized
     fun start() {
         if (running) return
-        running = true
         val group = InetAddress.getByName(GROUP)
-        val sock = MulticastSocket(null).apply {
-            reuseAddress = true
-            bind(InetSocketAddress(PORT))
-            joinGroup(group)
+        val sock = MulticastSocket(null)
+        try {
+            sock.reuseAddress = true
+            sock.bind(InetSocketAddress(PORT))
+            sock.joinGroup(group)
+        } catch (e: Exception) {
+            sock.close()
+            throw e
         }
         socket = sock
+        running = true
 
         listenThread = Thread {
             val buf = ByteArray(2048)
@@ -73,6 +78,7 @@ class SsdpAgent(
         )
     }
 
+    @Synchronized
     fun stop() {
         if (!running) return
         running = false
