@@ -974,6 +974,66 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @Test fun competingNetworkProtocolsCannotControlTheActivePlayer() = withoutAutoLaunch {
+        val portField = AirPlayService::class.java.getDeclaredField("playbackPort").apply { isAccessible = true }
+        val playback = portField.get(service) as ReceiverPlaybackPort
+        val player = service.airPlayVideoPlayer
+        val playerField = player.javaClass.getDeclaredField("player").apply { isAccessible = true }
+        val owner = Protocol.CAST_V2
+        val competitor = Protocol.DLNA
+
+        withLocalVideoFixture("playback/remote-seek.mp4") { location ->
+            main {
+                service.onConnectionInit()
+                try {
+                    assertThrows(IllegalStateException::class.java) { playback.load(MediaRequest(location, owner)) }
+                    assertFalse(playback.mediaActive)
+                } finally {
+                    service.onConnectionDestroy()
+                }
+            }
+            main {
+                playback.load(MediaRequest(location, owner))
+                playback.playing(owner, false)
+            }
+            await("The network video did not become ready and paused") {
+                playback.mediaActive && playback.playbackInfo.let { !it.playing && !it.buffering && it.durationMs >= 30_000 }
+            }
+            var initialPosition = 0L
+            main {
+                val engine = playerField.get(player) as ExoPlayer
+                initialPosition = engine.currentPosition
+                playback.playing(competitor, true)
+                playback.seek(competitor, 15f)
+                playback.gain(competitor, 0.25f)
+                playback.speed(competitor, 2f)
+                playback.stop(competitor)
+            }
+            main {
+                assertEquals(owner, playback.mediaOwner)
+                val engine = playerField.get(player) as ExoPlayer
+                assertFalse(engine.playWhenReady)
+                assertEquals(initialPosition, engine.currentPosition)
+                assertEquals(1f, engine.volume, 0f)
+                assertEquals(1f, engine.playbackParameters.speed, 0f)
+                playback.seek(owner, 15f)
+                playback.gain(owner, 0.25f)
+                playback.speed(owner, 2f)
+            }
+            await("The owner could not seek its network video") { playback.playbackInfo.positionMs == 15_000L }
+            main {
+                val engine = playerField.get(player) as ExoPlayer
+                assertFalse(engine.playWhenReady)
+                assertEquals(0.25f, engine.volume, 0f)
+                assertEquals(2f, engine.playbackParameters.speed, 0f)
+                playback.stop(owner)
+                assertFalse(playback.mediaActive)
+                assertNull(playback.mediaOwner)
+            }
+        }
+    }
+
     @Test fun sizeTitleAndEndCallbacksOnlyAffectTheirOwnPlayer() = withoutAutoLaunch {
         withLocalVideoFixture { location ->
             main {

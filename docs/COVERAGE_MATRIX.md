@@ -3483,3 +3483,10 @@ points (85.59%), 2,245/2,367 methods, and 307/314 classes.
 All six native metrics reached 100%. The standard normal edition
 now has the lowest confirmed full-run result among the four editions,
 with 4,362/5,153 JVM complexity points (84.65%) in its API28 report.
+
+The API25 network playback test confirmed that the service rejects a
+competing load during an AirPlay connection. With Cast playback active,
+DLNA playback, seek, speed, gain, and stop requests left the current
+player unchanged. The Cast owner could seek, change speed and gain while
+paused, and stop playback. The matching service profiles reached
+438/538 complexity points, 887/911 lines, and 222/236 methods.
