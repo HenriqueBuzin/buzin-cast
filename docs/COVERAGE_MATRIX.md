@@ -3134,3 +3134,11 @@ subscription renewal over the compatibility POST route. Volume changes
 continued notifying the same subscription, and renewal after removal was
 rejected. The matching control-server classes advanced from 107/146 to
 111/146 branches and from 73/110 to 75/110 complexity points.
+
+The same archived normal DE/AT APK from `83a913b` handled two local
+network permission denials on API37 and opened Android app settings
+from the permission action. Adding those profiles to the complete API28
+profile raised `MainActivity` and its nested classes from 70/114 to
+87/114 branches and from 58/102 to 76/102 complexity points. Android's
+system process stopped responding after opening Settings, so the
+return-from-Settings scenario still needs a complete run.
