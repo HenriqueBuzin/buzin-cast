@@ -3127,6 +3127,13 @@ callback class, the matching API28 and API22 profiles cover 250/306
 instructions, 28/34 branches, 33/40 lines and 21/27 complexity points.
 The API28 profile alone covered 26/34 branches and 19/27 complexity
 points.
+
+The same normal API28 build passed the VPN transition test on API25,
+including restoration of the original network and suppression of a
+queued callback after close. Combining the matching API22, API25 and
+API28 profiles raised `NetworkRecovery` to 298/306 instructions,
+32/34 branches, 40/40 lines and 25/27 complexity points. The API25
+offline scenario stopped at the emulator's radio-control command.
 The minimum among the latest complete reports for the four editions
 is now 4,222/5,111 complexity points in compact DE/AT (82.61%).
 
