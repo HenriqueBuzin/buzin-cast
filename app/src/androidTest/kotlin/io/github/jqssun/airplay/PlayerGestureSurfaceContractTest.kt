@@ -154,16 +154,17 @@ class PlayerGestureSurfaceContractTest {
             surface.appliedMode.get() == (enabled to locked)
         }
     }
-    private fun dispatchTouch(action: Int, first: Offset, second: Offset? = null) {
+    private fun dispatchTouch(action: Int, first: Offset, second: Offset? = null,
+                              eventTime: Long = SystemClock.uptimeMillis()) {
         val points = listOfNotNull(first, second)
-        if (action == MotionEvent.ACTION_DOWN) downTime = SystemClock.uptimeMillis()
+        if (action == MotionEvent.ACTION_DOWN) downTime = eventTime
         val properties = points.indices.map { index -> MotionEvent.PointerProperties().apply {
             id = index; toolType = MotionEvent.TOOL_TYPE_FINGER
         } }.toTypedArray()
         val coordinates = points.map { point -> MotionEvent.PointerCoords().apply {
             x = point.x; y = point.y; pressure = 1f; size = 1f
         } }.toTypedArray()
-        val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, points.size,
+        val event = MotionEvent.obtain(downTime, eventTime, action, points.size,
             properties, coordinates, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
         try { requireNotNull(target).dispatchTouchEvent(event) }
         finally { event.recycle() }
@@ -180,7 +181,15 @@ class PlayerGestureSurfaceContractTest {
         }
         instrumentation.waitForIdleSync()
     }
-    private fun doubleTap(point: Offset) { tap(point); Thread.sleep(60); tap(point) }
+    private fun doubleTap(point: Offset) = instrumentation.runOnMainSync {
+        // Frame and idle waits must not stretch the interval between the two taps.
+        val secondDown = SystemClock.uptimeMillis()
+        val firstDown = secondDown - 61L
+        dispatchTouch(MotionEvent.ACTION_DOWN, point, eventTime = firstDown)
+        dispatchTouch(MotionEvent.ACTION_UP, point, eventTime = firstDown + 1L)
+        dispatchTouch(MotionEvent.ACTION_DOWN, point, eventTime = secondDown)
+        dispatchTouch(MotionEvent.ACTION_UP, point, eventTime = secondDown)
+    }
     private fun drag(point: Offset, delta: Offset) {
         send(MotionEvent.ACTION_DOWN, point)
         send(MotionEvent.ACTION_MOVE, point + delta / 2f)
