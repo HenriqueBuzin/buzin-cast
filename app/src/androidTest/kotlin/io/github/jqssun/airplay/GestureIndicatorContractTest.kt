@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect as PixelRect
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.Settings
@@ -421,7 +422,19 @@ class GestureIndicatorContractTest {
         await("Playback preset did not reach the player") { changes.toList() == listOf(2.5f) }
         activateControl(context.getString(R.string.cd_reset_speed))
         await("Reset did not restore normal speed") { changes.toList() == listOf(2.5f, 1f) }
-        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        if (Build.VERSION.SDK_INT >= 30 && Settings.Secure.getInt(context.contentResolver, "navigation_mode", 0) == 2) {
+            // Use the platform Back gesture on gesture-navigation images and the remote key on TV images.
+            val window = PixelRect()
+            scenario.onActivity { window.set(it.windowManager.currentWindowMetrics.bounds) }
+            val x = window.left + 1
+            val y = window.centerY()
+            val end = window.left + window.width() / 4
+            ParcelFileDescriptor.AutoCloseInputStream(
+                instrumentation.uiAutomation.executeShellCommand("input swipe $x $y $end $y 300")
+            ).use { it.readBytes() }
+        } else {
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        }
         await("Back did not dismiss the landscape selector exactly once") {
             dismissals.get() == 1 && texts()?.let { ready in it && title !in it } == true
         }
