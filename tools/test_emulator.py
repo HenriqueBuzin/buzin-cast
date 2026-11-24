@@ -304,15 +304,21 @@ class Suite:
         version=re.search(r"\bversionName=(\S+)",package).group(1)
         self.start("home")
         self.activate("About BuzinCast","Sobre o BuzinCast")
-        self.wait(lambda:any(n.get("text") in ("Version "+version,"Versão "+version) for n in self.ui().iter()),
-                  "About does not show installed version "+version)
-        assert "Buzin Solutions" in self.texts(self.ui()), "About is missing company attribution"
-        assert "buzin.solutions" in self.texts(self.ui()), "About is missing the official website"
-        assert any(n.get("text") in ("Close", "Fechar") for n in self.ui().iter()), "About must keep Close visible without scrolling"
+        def installed_version_view():
+            view = self.ui()
+            if any(n.get("text") in ("Version "+version,"Versão "+version) for n in view.iter()):
+                return view
+        view = self.wait(installed_version_view, "About does not show installed version "+version)
+        text = self.texts(view)
+        assert "Buzin Solutions" in text, "About is missing company attribution"
+        assert "buzin.solutions" in text, "About is missing the official website"
+        assert any(n.get("text") in ("Close", "Fechar") for n in view.iter()), "About must keep Close visible without scrolling"
         self.shot("about-company")
         self.activate("Open source and licenses","Código aberto e licenças")
-        self.wait(lambda:"GNU GPL v3" in self.texts(self.ui()) and "jqssun" in self.texts(self.ui()),
-                  "Third-party credits and license are missing")
+        def license_details_visible():
+            text = self.texts(self.ui())
+            return "GNU GPL v3" in text and "jqssun" in text
+        self.wait(license_details_visible, "Third-party credits and license are missing")
         self.shot("about-licenses")
         self.activate("Back to About","Voltar ao Sobre")
         self.wait(lambda:"buzin.solutions" in self.texts(self.ui()), "Cannot return from licenses to About")

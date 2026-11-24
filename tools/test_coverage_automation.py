@@ -313,6 +313,29 @@ class CoverageAutomationTest(unittest.TestCase):
         self.assertEqual([call("shell", "input", "text", "_AUTOTEST")] * 3, suite.adb.call_args_list)
 
     @patch("test_emulator.time.sleep")
+    def test_about_verifies_visible_details_from_one_hierarchy(self, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.package = "com.buzincast.tv.deat"
+        suite.adb = Mock(return_value="versionName=0.6.7-nodownload")
+        suite.start = Mock()
+        suite.activate = Mock()
+        suite.key = Mock()
+        suite.shot = Mock()
+        about = ET.fromstring('<hierarchy><node text="Version 0.6.7-nodownload"/><node text="Buzin Solutions"/>'
+                              '<node text="buzin.solutions"/><node text="Close"/></hierarchy>')
+        licenses = ET.fromstring('<hierarchy><node text="GNU GPL v3"/><node text="jqssun"/></hierarchy>')
+        home = ET.fromstring('<hierarchy><node text="Overview"/></hierarchy>')
+        suite.ui = Mock(side_effect=[UiUnavailable("opening About"), about, licenses, about, home, about, home])
+
+        suite.about_version()
+
+        suite.start.assert_called_once_with("home")
+        self.assertEqual([call("about-company"), call("about-licenses")], suite.shot.call_args_list)
+        self.assertEqual(7, suite.ui.call_count)
+        suite.activate.assert_any_call("Close", "Fechar")
+        suite.key.assert_called_once_with(4)
+
+    @patch("test_emulator.time.sleep")
     @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
     def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):
         suite = Suite.__new__(Suite)
