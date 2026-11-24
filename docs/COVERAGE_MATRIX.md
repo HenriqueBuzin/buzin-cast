@@ -3540,3 +3540,9 @@ and restarting after release listened on the port again. A blank
 stored receiver name advertised the default. The service uses
 the existing preference validator for that fallback. The source
 change requires fresh full-run coverage for the affected service.
+
+The API25 native receiver integration test set the audio delay to
+600 ms and verified that the real RTSP RECORD response advertised
+26,460 samples of latency at 44.1 kHz. Combining this run with the
+matching startup-recovery profiles covered 125/599 service branches
+and 134/537 complexity points in those focused scenarios.

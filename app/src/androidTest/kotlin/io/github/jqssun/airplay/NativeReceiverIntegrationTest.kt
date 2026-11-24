@@ -26,6 +26,10 @@ class NativeReceiverIntegrationTest {
         val pin = Prefs.REQUIRE_PIN.read(prefs)
         val launch = Prefs.LAUNCH_ON_CONNECT.read(prefs)
         val originalPort = Prefs.SERVER_PORT.read(prefs)
+        val latencyKey = Prefs.AUDIO_LATENCY_MS.key
+        val originalLatency = prefs.takeIf { it.contains(latencyKey) }?.getInt(latencyKey, -1)
+        val configuredLatencyMs = 600
+        assertTrue(prefs.edit().putInt(latencyKey, configuredLatencyMs).commit())
         Prefs.APPROVE_CONNECTIONS.write(prefs,false); Prefs.REQUIRE_PIN.write(prefs,false); Prefs.LAUNCH_ON_CONNECT.write(prefs,false)
         val activity = instrumentation.startActivitySync(Intent(context, DebugTvPlaybackActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         val bound = CountDownLatch(1)
@@ -53,10 +57,27 @@ class NativeReceiverIntegrationTest {
                 Thread.sleep(20)
                 socket.getOutputStream().write("User-Agent: BuzinIntegration\r\n\r\n".toByteArray())
                 val input = socket.getInputStream()
-                val head = StringBuilder()
-                while (!head.endsWith("\r\n\r\n")) { val value = input.read(); assertTrue(value >= 0); head.append(value.toChar()); assertTrue(head.length < 16384) }
-                assertTrue(head.toString(),head.toString().startsWith("RTSP/1.0 200"))
-                assertTrue(head.toString(),head.toString().contains("CSeq: 1", ignoreCase = true))
+                fun readHead(): String {
+                    val head = StringBuilder()
+                    while (!head.endsWith("\r\n\r\n")) {
+                        val value = input.read()
+                        assertTrue("The receiver closed RTSP before sending a complete response", value >= 0)
+                        head.append(value.toChar())
+                        assertTrue(head.length < 16_384)
+                    }
+                    return head.toString()
+                }
+                val options = readHead()
+                assertTrue(options, options.startsWith("RTSP/1.0 200"))
+                assertTrue(options, options.contains("CSeq: 1", ignoreCase = true))
+
+                socket.getOutputStream().write("RECORD * RTSP/1.0\r\nCSeq: 2\r\n\r\n".toByteArray())
+                val record = readHead()
+                assertTrue(record, record.startsWith("RTSP/1.0 200"))
+                val latency = record.lineSequence()
+                    .single { it.startsWith("Audio-Latency:", ignoreCase = true) }
+                    .substringAfter(':').trim().toInt()
+                assertEquals(configuredLatencyMs * 44_100 / 1_000, latency)
             }
             instrumentation.runOnMainSync { receiver.stopServer() }
             java.net.ServerSocket(0).use { occupied ->
@@ -78,6 +99,9 @@ class NativeReceiverIntegrationTest {
             if (binding) context.unbindService(connection)
             instrumentation.waitForIdleSync()
             Prefs.SERVER_PORT.write(prefs,originalPort)
+            val restoreLatency = prefs.edit()
+            if (originalLatency == null) restoreLatency.remove(latencyKey) else restoreLatency.putInt(latencyKey, originalLatency)
+            assertTrue(restoreLatency.commit())
             Prefs.APPROVE_CONNECTIONS.write(prefs,approval); Prefs.REQUIRE_PIN.write(prefs,pin); Prefs.LAUNCH_ON_CONNECT.write(prefs,launch)
             if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
         }
