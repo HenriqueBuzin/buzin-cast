@@ -3238,3 +3238,9 @@ the reply, ignored unrelated datagrams and unsupported search targets,
 and suppressed replies to a loopback sender. Adding the matching
 profile raised `SsdpAgent` from 13/24 to 19/24 branches and from 9/22
 to 16/22 complexity points, reaching 73/73 lines.
+
+Two API25 SSDP integration tests also confirmed startup announcements,
+the refresh at half the advertised lifetime, and the shutdown
+announcement on a real multicast socket. With the matching API28
+profile, the agent reached 403/425 instructions, 19/24 branches,
+73/73 lines, 17/22 complexity points and 10/10 methods.

@@ -33,6 +33,9 @@ import java.net.ConnectException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.MulticastSocket
+import java.net.NetworkInterface
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.util.UUID
@@ -490,6 +493,45 @@ class ReceiverIntegrationTest {
         } finally {
             agent.stop()
             agent.stop()
+        }
+    }
+
+    @Test fun dlnaSsdpAnnouncesStartupRefreshAndShutdown() {
+        val lan = InetAddress.getByName(ip)
+        val network = requireNotNull(NetworkInterface.getByInetAddress(lan))
+        val group = InetSocketAddress(SsdpAgent.GROUP, SsdpAgent.PORT)
+        val identity = SsdpIdentity("uuid:${UUID.randomUUID()}", "http://$ip:49152/desc.xml",
+            "BuzinTest/1", maxAgeSeconds = 2)
+        val agent = SsdpAgent(identity)
+        MulticastSocket(null).use { observer ->
+            observer.reuseAddress = true
+            observer.bind(InetSocketAddress(SsdpAgent.PORT))
+            observer.joinGroup(group, network)
+            fun awaitAnnouncements(subtype: String, expected: Int): List<String> {
+                val matches = mutableListOf<String>()
+                val deadline = SystemClock.elapsedRealtime() + 3000
+                while (matches.size < expected) {
+                    val remaining = deadline - SystemClock.elapsedRealtime()
+                    assertTrue("Expected $expected $subtype announcements, received ${matches.size}", remaining > 0)
+                    observer.soTimeout = remaining.toInt()
+                    val packet = DatagramPacket(ByteArray(2048), 2048)
+                    observer.receive(packet)
+                    val message = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                    if ("USN: ${identity.uuid}::upnp:rootdevice\r\n" in message && "NTS: $subtype\r\n" in message)
+                        matches += message
+                }
+                return matches
+            }
+            try {
+                agent.start()
+                // Three startup announcements are followed by a periodic refresh at max-age/2.
+                val alive = awaitAnnouncements("ssdp:alive", 4)
+                assertTrue(alive.all { "LOCATION: ${identity.location}\r\n" in it && "CACHE-CONTROL: max-age=2\r\n" in it })
+                agent.stop()
+                assertTrue(awaitAnnouncements("ssdp:byebye", 1).single().startsWith("NOTIFY * HTTP/1.1\r\n"))
+            } finally {
+                agent.stop()
+            }
         }
     }
 
