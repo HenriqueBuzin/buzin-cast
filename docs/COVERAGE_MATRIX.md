@@ -3142,3 +3142,7 @@ profile raised `MainActivity` and its nested classes from 70/114 to
 87/114 branches and from 58/102 to 76/102 complexity points. Android's
 system process stopped responding after opening Settings, so the
 return-from-Settings scenario still needs a complete run.
+In a separate API37 run the app requested permission again after the
+first denial. Granting permission in Android's dialog auto-started the
+receiver. Adding that profile raised the matching activity branches to
+89/114 and complexity to 77/102.
