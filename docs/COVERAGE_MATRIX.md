@@ -3355,3 +3355,11 @@ The same rebuilt APK also passed all 22 decoder contracts on API36.
 Combining the matched API25 and API36 profiles covered 1,469/1,524
 instructions, 174/196 branches, 153/153 lines, 141/159 complexity
 points and all 61 methods.
+
+The API25 media controls run cycled through all four content-scale
+options with the remote and returned to the original option while
+playback stayed paused. The runner reads fresh accessibility XML
+through ADB's raw output path and still requires a complete parsed
+hierarchy. Combining the playback checkpoint with the matching
+normal API28 classes raised `MainScreenKt` from 856/884 to 861/884
+lines and from 322/399 to 323/399 complexity points.

@@ -107,7 +107,7 @@ class Suite:
             dumped=self.adb("shell", "uiautomator", "dump", "/data/local/tmp/buzin-test.xml",
                             empty_on_silent_failure=True)
             if "dumped" in dumped:
-                xml=self.adb("shell", "cat", "/data/local/tmp/buzin-test.xml")
+                xml=self.adb("exec-out", "cat", "/data/local/tmp/buzin-test.xml", binary=True)
                 try:
                     tree=ET.fromstring(xml)
                     if len(list(tree.iter()))>1:
@@ -514,6 +514,17 @@ class Suite:
             self.activate("No subtitles", "Sem legenda")
             self.wait(lambda:not self.debug().get("caption"),"Removing captions left stale text")
             self.key(127)
+            scales = [
+                ("Best fit", "Ajustar à tela", "Optimale Anpassung"),
+                ("Stretch", "Esticar", "Strecken"),
+                ("Crop", "Preencher com corte", "Zuschneiden"),
+                ("100%", "100 %"),
+            ]
+            for current, following in zip(scales, scales[1:] + scales[:1]):
+                self.activate(*current, description=True)
+                self.wait(lambda: any(n.get("content-desc") in following for n in self.ui().iter()),
+                          f"Content scale did not change to {following[0]}")
+            assert not self.debug()["playing"], "Changing content scale resumed paused media"
             self.activate("Lock controls","Bloquear controles",description=True)
             self.activate("Unlock controls","Desbloquear controles",description=True)
             self.key(126)

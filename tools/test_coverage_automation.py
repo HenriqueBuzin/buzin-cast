@@ -741,6 +741,7 @@ class CoverageAutomationTest(unittest.TestCase):
         ]
         self.assertEqual("Fresh screen", Suite.texts(suite.ui()).strip())
         self.assertEqual("uiautomator", run.call_args_list[1].args[0][4])
+        self.assertEqual(["exec-out", "cat", "/data/local/tmp/buzin-test.xml"], run.call_args_list[2].args[0][3:])
         with self.assertRaises(RuntimeError):
             suite.adb("shell", "getprop")
         with self.assertRaisesRegex(RuntimeError, "device offline"):
