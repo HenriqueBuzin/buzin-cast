@@ -3717,3 +3717,13 @@ points (86.20%), 2,260/2,374 methods, and 310/317 classes. All six
 native metrics reached 100%. Across the four latest complete edition
 reports, the minimum is now standard normal JVM complexity, at
 4,435/5,156 (86.02%).
+
+The sealed standard normal `33b3d3e` run on API36 passed 439 Android
+tests, 21 native UBSan tests, all 15 required runtime results, and VPN
+and offline diagnostics. It covers 84,003/87,113 JVM instructions,
+5,236/5,981 branches, 8,390/8,551 lines, 4,520/5,167 complexity
+points (87.48%), 2,294/2,374 methods, and 315/317 classes. The
+API36-only native report covers 907/908 branches and 1,493/1,494
+regions. Its remaining four native metrics reached 100%. The minimum
+across the four latest edition reports is now normal DE/AT JVM
+complexity, at 4,424/5,132 (86.20%).
