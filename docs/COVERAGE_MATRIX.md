@@ -3623,3 +3623,11 @@ packages on the emulator before starting instrumentation. Search
 responses, packet source, and multicast startup, refresh, and
 shutdown were verified. The matching API36 responder profile
 covered 20/26 branches and 18/23 complexity points.
+
+The focused API36 lifecycle run passed both paused-player rotation
+and receiver volume with disabled sender volume. It exercised
+the rotate control in both directions and verified that the same
+paused session survived. The fixture uses a 64x64 playback sample
+and searches app-owned accessibility windows for controls. The
+successful run kept the emulator display awake and dismissed its
+keyguard, after earlier attempts exposed only system windows.

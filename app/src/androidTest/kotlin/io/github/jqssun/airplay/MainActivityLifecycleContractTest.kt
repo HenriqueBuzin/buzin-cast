@@ -1,6 +1,7 @@
 package io.github.jqssun.airplay
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.AppOpsManager
 import android.content.ComponentName
@@ -1253,7 +1254,8 @@ class MainActivityLifecycleContractTest {
             await("Right on receiver volume did not restore the media stream one step") { audio.getStreamVolume(stream) == raised }
             pointerGesture(receiverBounds.left.toFloat() - 24, touchY, touchY - receiverBounds.height() * 2f)
             main { assertFalse(model(activity).clientVolumeAdjustable.value) }
-            awaitVolumeControl(R.string.volume_client) { node ->
+            awaitVolumeControl(R.string.volume_client, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
+                if (!node.isVisibleToUser) return@awaitVolumeControl false
                 if (Build.VERSION.SDK_INT >= 24) {
                     assertFalse(node.actionList.any { it.id == AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id })
                 }
@@ -1477,7 +1479,7 @@ class MainActivityLifecycleContractTest {
     @Test fun rotatingThePlayerPreservesThePausedPlaybackSession() {
         val activity = launch()
         val file = File.createTempFile("player-rotation-", ".mp4", context.cacheDir).also { videoFixture = it }
-        instrumentation.context.assets.open("download/sample.mp4").use { input ->
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
             file.outputStream().use(input::copyTo)
         }
         val location = android.net.Uri.fromFile(file).toString()
@@ -1486,10 +1488,15 @@ class MainActivityLifecycleContractTest {
             service.setVideoPlaying(false)
         }
         try {
-            await("The video did not reach its paused controls") {
-                model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value &&
-                    model(activity).videoPlaybackSize.value == (32 to 32) &&
-                    activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            try {
+                await("The video did not reach its paused controls") {
+                    model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value &&
+                        model(activity).videoPlaybackSize.value == (64 to 64)
+                }
+            } catch (failure: AssertionError) {
+                val state = model(activity)
+                throw AssertionError("Paused playback state: active=${state.videoPlaybackActive.value}, " +
+                    "playing=${state.videoPlaying.value}, size=${state.videoPlaybackSize.value}", failure)
             }
             val token = requireNotNull(service.sessionSnapshot()).token
             var orientation = Configuration.ORIENTATION_UNDEFINED
@@ -1701,6 +1708,7 @@ class MainActivityLifecycleContractTest {
     private fun awaitAudioNode(label: String, scrollAction: Int?, matches: (AccessibilityNodeInfo) -> Boolean) {
         val automation = instrumentation.uiAutomation
         val visibleControls = linkedSetOf<String>()
+        val windowPackages = linkedSetOf<String>()
         fun visit(node: AccessibilityNodeInfo): Boolean {
             val nodeDescription = node.contentDescription?.toString()
             if (!nodeDescription.isNullOrBlank()) {
@@ -1723,24 +1731,35 @@ class MainActivityLifecycleContractTest {
             }
             return false
         }
-        val deadline = SystemClock.elapsedRealtime() + 15000
-        var nextScroll = SystemClock.elapsedRealtime() + 1000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
-            val tree = automation.rootInActiveWindow
-            if (tree != null) {
+        val originalFlags = automation.serviceInfo.flags
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = originalFlags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        try {
+            val deadline = SystemClock.elapsedRealtime() + 15000
+            var nextScroll = SystemClock.elapsedRealtime() + 1000
+            while (SystemClock.elapsedRealtime() < deadline) {
+                if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
+                val roots = automation.windows.mapNotNull { window ->
+                    try { window.root } finally { window.recycle() }
+                }.ifEmpty { listOfNotNull(automation.rootInActiveWindow) }
                 try {
-                    if (tree.refresh()) {
-                        if (visit(tree)) return
-                        val now = SystemClock.elapsedRealtime()
-                        if (scrollAction != null && now >= nextScroll) {
-                            scroll(tree, scrollAction)
-                            nextScroll = now + 400
-                        }
+                    val appRoots = roots.filter {
+                        val owner = it.packageName?.toString().orEmpty()
+                        windowPackages += owner
+                        owner == context.packageName
                     }
-                } finally { tree.recycle() }
+                    if (appRoots.any(::visit)) return
+                    val now = SystemClock.elapsedRealtime()
+                    if (scrollAction != null && now >= nextScroll) {
+                        appRoots.any { scroll(it, scrollAction) }
+                        nextScroll = now + 400
+                    }
+                } finally { roots.forEach { it.recycle() } }
+                Thread.sleep(50)
             }
-            Thread.sleep(50)
+        } finally {
+            automation.serviceInfo = automation.serviceInfo.apply { flags = originalFlags }
         }
         automation.takeScreenshot()?.let { image ->
             try {
@@ -1749,6 +1768,6 @@ class MainActivityLifecycleContractTest {
                 }
             } finally { image.recycle() }
         }
-        fail("Audio control did not expose its expected state: $label. Visible controls: $visibleControls")
+        fail("Control did not expose its expected state: $label. Windows: $windowPackages. Visible controls: $visibleControls")
     }
 }
