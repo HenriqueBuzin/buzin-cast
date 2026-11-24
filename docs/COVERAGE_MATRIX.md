@@ -3350,3 +3350,8 @@ for Adreno 620, kept the maximum operating rate for other or unknown
 renderers, and cached the detection across attempts. The test included
 an absent GL renderer and an EGL failure. The newly compiled API25
 selector covered 134/196 branches and 56/61 methods.
+
+The same rebuilt APK also passed all 22 decoder contracts on API36.
+Combining the matched API25 and API36 profiles covered 1,469/1,524
+instructions, 174/196 branches, 153/153 lines, 141/159 complexity
+points and all 61 methods.
