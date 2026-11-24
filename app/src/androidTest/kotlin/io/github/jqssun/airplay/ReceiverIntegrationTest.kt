@@ -106,6 +106,27 @@ class ReceiverIntegrationTest {
         repeat(6) { if (FCastFrame.readFrom(socket.getInputStream()) == null) return@withFcast }
         fail("FCast kept the connection open after an unsupported version")
     }
+
+    @Test fun fcastKeepsAnIdleClientConnectedButClosesAnIncompleteFrame() = withFcast { _, socket ->
+        socket.soTimeout = 8_000
+        // A fully idle client can stay connected beyond the deadline for an incomplete frame.
+        SystemClock.sleep(5_200)
+        val output = socket.getOutputStream()
+        FCastFrame(12).writeTo(output)
+        assertEquals(13, frame(socket, 13).opcode)
+
+        output.write(1) // First length byte of an otherwise incomplete ping.
+        output.flush()
+        val deadline = SystemClock.elapsedRealtime() + 8_000
+        val input = socket.getInputStream()
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val remaining = (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1L)
+            socket.soTimeout = remaining.toInt()
+            val next = FCastFrame.readFrom(input) ?: return@withFcast
+            assertTrue("Unexpected frame while the receiver was waiting for the rest of the ping", next.opcode in 6..7)
+        }
+        fail("FCast did not close the incomplete frame")
+    }
     @Test fun fcastPlaybackControlsReachAndroidMainThread() = withFcast { playback, socket ->
         FCastFrame(1, """{"url":"http://example.test/movie.mp4","container":"video/mp4","time":3,"speed":1.5,"headers":{"X-Test":"yes"}}""").writeTo(socket.getOutputStream())
         eventually { playback.requests.size == 1 }
