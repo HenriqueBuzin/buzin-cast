@@ -170,6 +170,33 @@ class RelayPlaybackContractTest {
         }
     }
 
+    @Test fun advertisedResolutionTracksTheCurrentlySelectedDecoders() {
+        val renderer = session().renderer
+        fun bounds(info: MediaCodecInfo, mime: String): Pair<Int, Int> {
+            val video = requireNotNull(info.getCapabilitiesForType(mime).videoCapabilities)
+            return video.supportedWidths.upper to video.supportedHeights.upper
+        }
+
+        assertEquals(1920 to 1080, renderer.maxResolution())
+        assertFalse(renderer.selectDecoders(64, 48, fps = 24, h265 = false))
+        val avc = requireNotNull(field<MediaCodecInfo?>(renderer, "avcDecoder"))
+        val avcBounds = bounds(avc, DecoderSelector.AVC)
+        assertEquals(avcBounds, renderer.maxResolution())
+
+        val selectedHevc = renderer.selectDecoders(64, 48, fps = 24, h265 = true)
+        val hevc = field<MediaCodecInfo?>(renderer, "hevcDecoder")
+        assertEquals(hevc != null, selectedHevc)
+        val expected = hevc?.let {
+            val hevcBounds = bounds(it, DecoderSelector.HEVC)
+            minOf(avcBounds.first, hevcBounds.first) to minOf(avcBounds.second, hevcBounds.second)
+        } ?: avcBounds
+        assertEquals(expected, renderer.maxResolution())
+
+        assertFalse(renderer.selectDecoders(64, 48, fps = 24, h265 = false))
+        assertNull(field<MediaCodecInfo?>(renderer, "hevcDecoder"))
+        assertEquals(avcBounds, renderer.maxResolution())
+    }
+
     @Test fun benchmarkPublishesFrameStatisticsOnlyWhenEnabled() {
         val renderer = session().renderer
         val window = VideoRenderer::class.java.getDeclaredField("_lastStatReset").apply { isAccessible = true }
