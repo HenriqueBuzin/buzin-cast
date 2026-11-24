@@ -737,7 +737,10 @@ class ReceiverIntegrationTest {
         }
     }
 
-    private fun receiveDlnaEvent(server: ServerSocket, path: String, sid: String, seq: Int, status: String = "200 OK"): String =
+    private fun receiveDlnaEvent(
+        server: ServerSocket, path: String, sid: String, seq: Int, status: String = "200 OK",
+        beforeReply: () -> Unit = {},
+    ): String =
         server.accept().use { socket ->
             socket.soTimeout = 5000
             val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
@@ -747,6 +750,7 @@ class ReceiverIntegrationTest {
             assertTrue("SEQ: $seq" in headers)
             val size = headers.first { it.startsWith("CONTENT-LENGTH:") }.substringAfter(':').trim().toInt()
             val body = buildString { repeat(size) { append(input.read().also { assertTrue(it >= 0) }.toChar()) } }
+            beforeReply()
             socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
             body
         }
@@ -811,6 +815,32 @@ class ReceiverIntegrationTest {
                 assertTrue("A successful delivery should reset the consecutive failures", registry.renew(sid, 120))
                 deliver(6, 1, failed)
                 eventually { !registry.renew(sid, 120) }
+            }
+        } finally {
+            registry.shutdown()
+        }
+    }
+
+    @Test fun dlnaSkipsExpiredAndRemovedSubscriptions() {
+        val registry = SubscriptionRegistry()
+        try {
+            ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { callback ->
+                callback.soTimeout = 5000
+                val base = "http://127.0.0.1:${callback.localPort}"
+                val active = registry.subscribe("avt", listOf("$base/active"), 120)
+                val removed = registry.subscribe("avt", listOf("$base/removed"), 120)
+                val expired = registry.subscribe("avt", listOf("$base/expired"), 0)
+                assertFalse("An expired subscription cannot be renewed", registry.renew(expired, 120))
+
+                registry.publishInitial(active, "<event>first</event>")
+                val first = receiveDlnaEvent(callback, "/active", active, 0) {
+                    // The worker queues both callbacks while it waits for this response.
+                    registry.publishInitial(removed, "<event>discard</event>")
+                    assertTrue(registry.unsubscribe(removed))
+                    registry.publishInitial(active, "<event>next</event>")
+                }
+                assertEquals("<event>first</event>", first)
+                assertEquals("<event>next</event>", receiveDlnaEvent(callback, "/active", active, 1))
             }
         } finally {
             registry.shutdown()

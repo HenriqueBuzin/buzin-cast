@@ -3192,3 +3192,9 @@ complexity, 2,245/2,362 methods and 308/314 classes. Native functions,
 instantiations and MC/DC reached 100%. This API covered 909/912 native
 branches, 1,748/1,751 lines and 1,496/1,500 regions. The remaining native
 outcomes belong to the old-platform decoder path in `audio_decoder.h`.
+
+The normal edition API25 subscription test verified that an expired
+subscription could not renew and that unsubscribing a client discarded
+its pending event. A following event reached the remaining subscriber
+in order. The two new API25 subscription profiles combined with
+the matching API28 classes cover 44/52 branches and 47/55 complexity.
