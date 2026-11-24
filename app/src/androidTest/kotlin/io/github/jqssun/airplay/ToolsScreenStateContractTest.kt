@@ -31,6 +31,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.core.AsyncLogStore
+import io.buzincast.media.MirrorPacket
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
 import io.github.jqssun.airplay.ui.ToolsScreen
@@ -595,6 +596,22 @@ class ToolsScreenStateContractTest {
         }
     }
 
+    private fun recordedVideo(): ByteArray {
+        val isolated = object : ContextWrapper(context) {
+            override fun getExternalFilesDir(type: String?) = File(root, "recording-fixture")
+        }
+        val capture = MirrorCapture(isolated) {}
+        try {
+            val frame = context.assets.open("mirror/sample.h264").use { it.readBytes() }
+            capture.start()
+            capture.offer(MirrorPacket.Video(frame, 1_000_000_000L, 64, 48, false))
+            await("The recording fixture did not receive its keyframe") { capture.state.value.recording }
+        } finally {
+            capture.close()
+        }
+        return capture.directory.listFiles().orEmpty().single().readBytes()
+    }
+
     @Suppress("DEPRECATION")
     @Test fun recordingExportAndDeletionApplyToTheSelectedFile() {
         val connected = CountDownLatch(1)
@@ -622,7 +639,8 @@ class ToolsScreenStateContractTest {
             }
             try {
                 remaining.writeBytes(byteArrayOf(1, 2, 3))
-                selected.writeBytes(byteArrayOf(4, 5, 6))
+                val selectedBytes = if (BuildConfig.RECORDING_ENABLED) recordedVideo() else byteArrayOf(4, 5, 6)
+                selected.writeBytes(selectedBytes)
                 assertTrue(remaining.setLastModified(selected.lastModified() - 2_000))
                 main { model.bindService(service) }
                 val remove = text(R.string.tools_delete)
@@ -692,8 +710,23 @@ class ToolsScreenStateContractTest {
                         assertTrue(share.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
                         val uri = requireNotNull(share.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
                         assertEquals(expectedUri, uri)
-                        assertArrayEquals(byteArrayOf(4, 5, 6),
+                        assertArrayEquals(selectedBytes,
                             requireNotNull(context.contentResolver.openInputStream(uri)).use { it.readBytes() })
+                        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+                        val launch = Prefs.LAUNCH_ON_CONNECT
+                        val originalLaunch = prefs.takeIf { it.contains(launch.key) }?.let(launch::read)
+                        try {
+                            launch.write(prefs, false)
+                            click(play)
+                            await("Play did not open the selected recording") {
+                                service.videoPlaybackActive.value && service.videoLocation.value == uri.toString()
+                            }
+                        } finally {
+                            service.stopVideoPlayback()
+                            if (originalLaunch == null) prefs.edit().remove(launch.key).apply()
+                            else launch.write(prefs, originalLaunch)
+                        }
+                        await("The recording did not stop") { !service.videoPlaybackActive.value }
                         openConfirmation()
                         tap(text(R.string.tv_edit_cancel))
                         await("Cancel did not restore the recording list") { recordingListVisible() && selected.isFile }
