@@ -413,6 +413,27 @@ class CoverageAutomationTest(unittest.TestCase):
 
         self.assertEqual(call("shell", "pm", "grant", suite.package, permission), suite.adb.call_args)
 
+    def test_local_network_dialog_denies_retries_and_grants_through_the_ui(self):
+        suite = Suite.__new__(Suite)
+        suite.package = "com.buzincast.tv.deat"
+        suite.adb = Mock()
+        suite.setting = Mock()
+        suite.collect_coverage = Mock()
+        suite.debug = Mock(side_effect=[{"serverState": "STOPPED"}, {"serverState": "RUNNING"}])
+        suite.ui = Mock(side_effect=[ET.fromstring(tree) for tree in (
+            '<hierarchy><node resource-id="controller:id/permission_deny_button" bounds="[0,10][20,30]"/></hierarchy>',
+            '<hierarchy><node text="Allow" package="com.buzincast.tv.deat" bounds="[40,50][60,70]"/></hierarchy>',
+            '<hierarchy><node resource-id="controller:id/permission_allow_button" bounds="[90,100][110,120]"/></hierarchy>',
+        )])
+
+        suite.local_network_permission_dialog()
+
+        self.assertEqual([call("shell", "input", "tap", 10, 20), call("shell", "input", "tap", 50, 60),
+                          call("shell", "input", "tap", 100, 110)],
+                         [entry for entry in suite.adb.call_args_list if entry.args[:3] == ("shell", "input", "tap")])
+        suite.collect_coverage.assert_called_once_with()
+        self.assertEqual(2, suite.debug.call_count)
+
     @patch("test_emulator.time.sleep")
     @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
     def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):

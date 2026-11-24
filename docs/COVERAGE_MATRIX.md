@@ -3146,3 +3146,10 @@ In a separate API37 run the app requested permission again after the
 first denial. Granting permission in Android's dialog auto-started the
 receiver. Adding that profile raised the matching activity branches to
 89/114 and complexity to 77/102.
+
+The emulator runner exposes this denial-and-retry flow on API37 with
+`--case "local network permission dialog retry"`. The case grants
+access through Android's permission controller and checks that the
+receiver starts on its own. With `--coverage`, it records the denied
+and granted paths separately. The host automation test verifies that
+the runner selects the app's retry button between the two dialog actions.

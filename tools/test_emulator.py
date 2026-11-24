@@ -20,6 +20,7 @@ from pathlib import Path
 
 PKG = "com.buzincast.tv"
 BASE = "io.github.jqssun.airplay."
+LOCAL_NETWORK_PERMISSION = "android.permission.ACCESS_LOCAL_NETWORK"
 
 # Coverage snapshots require the complete instrumented/native/extended UI run.
 COVERAGE_REQUIRED_RESULTS = frozenset({
@@ -377,7 +378,7 @@ class Suite:
         self.wait(about_closed,"Launcher About did not close")
 
     def local_network_service_permission(self):
-        permission = "android.permission.ACCESS_LOCAL_NETWORK"
+        permission = LOCAL_NETWORK_PERMISSION
 
         def check_permission(granted):
             state = self.adb("shell", "dumpsys", "package", self.package)
@@ -405,6 +406,42 @@ class Suite:
             self.wait(lambda: self.debug()["serverState"] == "RUNNING", "Receiver did not recover after the permission grant")
         finally:
             grant()
+
+    def local_network_permission_dialog(self):
+        permission = LOCAL_NETWORK_PERMISSION
+
+        def tap_when_visible(matches, message):
+            def find():
+                return next(((node,) for node in self.ui().iter() if matches(node)), None)
+
+            node, = self.wait(find, message, 45)
+            left, top, right, bottom = map(int, re.findall(r"\d+", node.get("bounds", "")))
+            assert right > left and bottom > top, node.get("bounds")
+            self.adb("shell", "input", "tap", (right + left) // 2, (bottom + top) // 2)
+
+        def tap_permission_button(button):
+            tap_when_visible(lambda node: node.get("resource-id", "").endswith(f":id/{button}"),
+                             f"Android did not display {button}")
+
+        self.setting("auto_start", "true")
+        self.adb("shell", "am", "force-stop", self.package)
+        try:
+            self.adb("shell", "pm", "revoke", self.package, permission)
+            self.adb("shell", "pm", "clear-permission-flags", self.package, permission, "user-set", "user-fixed")
+            component = f"{self.package}/{BASE}MainActivity"
+            self.adb("shell", "am", "start", "-W", "-n", component)
+            tap_permission_button("permission_deny_button")
+            self.wait(lambda: self.debug()["serverState"] == "STOPPED", "Receiver started before permission was granted")
+            self.collect_coverage()
+
+            tap_when_visible(lambda node: node.get("package") == self.package and
+                             node.get("text") in ("Allow", "Permitir"),
+                             "The app did not offer to request permission again")
+            tap_permission_button("permission_allow_button")
+            self.wait(lambda: self.debug()["serverState"] == "RUNNING",
+                      "Receiver did not auto-start after permission was granted")
+        finally:
+            self.adb("shell", "pm", "grant", self.package, permission)
 
     def calibration(self):
         self.start("tools")
@@ -680,7 +717,7 @@ class Suite:
             self.adb("install","--no-streaming","-r",apk)
         api=int(self.adb("shell","getprop","ro.build.version.sdk").strip())
         if api>=33: self.adb("shell","pm","grant",self.package,"android.permission.POST_NOTIFICATIONS")
-        if api>=37: self.adb("shell","pm","grant",self.package,"android.permission.ACCESS_LOCAL_NETWORK")
+        if api>=37: self.adb("shell","pm","grant",self.package,LOCAL_NETWORK_PERMISSION)
         # First-run immersive hints obscure the fixture on API 35+; these are
         # emulator-only setup choices, not app permissions or skipped assertions.
         self.adb("shell","settings","put","secure","immersive_mode_confirmations","confirmed")
@@ -705,6 +742,9 @@ class Suite:
                 cases.append(extended)
             if api >= 37:
                 cases.append(("local network permission and receiver recovery", self.local_network_service_permission))
+                dialog = ("local network permission dialog retry", self.local_network_permission_dialog)
+                if self.args.case and any(pattern in dialog[0] for pattern in self.args.case):
+                    cases.append(dialog)
             selected=[(name,test) for name,test in cases if not self.args.case or any(pattern in name for pattern in self.args.case)]
             assert selected,"No test matches --case"
             for name,test in selected:
