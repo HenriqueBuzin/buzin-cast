@@ -3051,3 +3051,10 @@ playback, export and deletion all become unavailable during recording
 and return when capture stops. The matching 13 `ToolsScreenKt` class
 files advanced from 119/159 to 124/159 branches and from 104/155 to
 109/155 complexity points when the new profile was added.
+
+The standard compact API22 replay of `ccde252` found one failure in 404
+Android tests. The empty photo viewer's Close button initiated an
+asynchronous activity finish, and fixture teardown raced with it.
+The test now waits for the viewer's destruction before closing the
+scenario. Two focused runs and all three photo viewer contracts
+passed on API22 with the same application APK.

@@ -159,6 +159,7 @@ class PhotoViewerContractTest {
                 assertFalse(field<Job>(activity, "slideShow").isActive)
                 click(activity, R.string.buzin_close)
             }
+            awaitClosed()
         }
         assertFalse("Closed photo activity remained visible", PhotoActivity.isVisible())
         PhotoActivity.closePhoto()
