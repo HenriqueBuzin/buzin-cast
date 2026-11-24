@@ -3204,3 +3204,11 @@ event submission racing registry shutdown. The stopped registry
 discarded late notifications. Combining these profiles with the
 earlier matching subscription runs covered 100/100 lines, 45/52
 branches, and 48/55 complexity points in the subscription registry.
+
+The normal edition API25 subscription contract also passed when a
+callback closed without an HTTP response. It verified fallback to the
+remaining callbacks and the renewal timeout returned for absent, malformed,
+infinite, overflowing, and maximum values. With the matching API28 and
+earlier API25 profiles, the registry reached 693/700 instructions,
+49/52 branches, 100/100 lines, 52/55 complexity, 29/29 methods and
+3/3 classes.

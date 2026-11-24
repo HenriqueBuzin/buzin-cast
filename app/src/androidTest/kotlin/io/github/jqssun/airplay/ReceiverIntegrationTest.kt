@@ -740,6 +740,7 @@ class ReceiverIntegrationTest {
 
     private fun receiveDlnaEvent(
         server: ServerSocket, path: String, sid: String, seq: Int, status: String? = "200 OK",
+        resetConnection: Boolean = false,
         beforeReply: () -> Unit = {},
     ): String =
         server.accept().use { socket ->
@@ -752,9 +753,9 @@ class ReceiverIntegrationTest {
             val size = headers.first { it.startsWith("CONTENT-LENGTH:") }.substringAfter(':').trim().toInt()
             val body = buildString { repeat(size) { append(input.read().also { assertTrue(it >= 0) }.toChar()) } }
             beforeReply()
-            if (status == null) {
+            if (resetConnection) {
                 socket.setSoLinger(true, 0)
-            } else {
+            } else if (status != null) {
                 socket.getOutputStream().write(("HTTP/1.1 $status\r\nContent-Length: 0\r\n\r\n").toByteArray())
             }
             body
@@ -776,13 +777,15 @@ class ReceiverIntegrationTest {
             ServerSocket(0).use { callback ->
                 callback.soTimeout = 5000
                 val base = "http://$ip:${callback.localPort}"
-                val response = eventRequest("SUBSCRIBE", "CALLBACK: <$base/reset> <$base/fail> <$base/notify?source=test>",
+                val response = eventRequest("SUBSCRIBE",
+                    "CALLBACK: <$base/reset> <$base/eof> <$base/fail> <$base/notify?source=test>",
                     "NT: upnp:event", "TIMEOUT: SECOND-120")
                 assertTrue(response, response.startsWith("HTTP/1.1 200"))
                 assertTrue(response, response.contains("TIMEOUT: Second-120", ignoreCase = true))
                 val sid = response.lineSequence().first { it.startsWith("SID:", ignoreCase = true) }.substringAfter(':').trim()
 
-                assertTrue("LastChange" in receiveDlnaEvent(callback, "/reset", sid, 0, status = null))
+                assertTrue("LastChange" in receiveDlnaEvent(callback, "/reset", sid, 0, resetConnection = true))
+                assertTrue("LastChange" in receiveDlnaEvent(callback, "/eof", sid, 0, status = null))
                 assertTrue("LastChange" in receiveDlnaEvent(callback, "/fail", sid, 0, "500 Diagnostic 200"))
                 assertTrue("LastChange" in receiveDlnaEvent(callback, "/notify?source=test", sid, 0))
                 val renewed = eventRequest("SUBSCRIBE", "SID: $sid", "TIMEOUT: Second-10")
@@ -792,6 +795,20 @@ class ReceiverIntegrationTest {
                 assertTrue(legacyRenewal, legacyRenewal.startsWith("HTTP/1.1 200"))
                 assertTrue(legacyRenewal, legacyRenewal.contains("SID: $sid", ignoreCase = true))
                 assertTrue(legacyRenewal, legacyRenewal.contains("TIMEOUT: Second-120", ignoreCase = true))
+                val timeoutCases = listOf(
+                    null to 1_800,
+                    "Minutes-5" to 1_800,
+                    "Second-Infinite" to 1_800,
+                    "Second-2147483648" to 1_800,
+                    "Second-86400" to 86_400,
+                    "Second-86401" to 86_400,
+                )
+                for ((header, expected) in timeoutCases) {
+                    val headers = listOfNotNull("SID: $sid", header?.let { "TIMEOUT: $it" })
+                    val renewal = eventRequest("SUBSCRIBE", *headers.toTypedArray())
+                    assertTrue("Timeout $header: $renewal", renewal.startsWith("HTTP/1.1 200"))
+                    assertTrue("Timeout $header: $renewal", renewal.contains("TIMEOUT: Second-$expected", ignoreCase = true))
+                }
                 assertTrue(eventRequest("UNSUBSCRIBE", "SID: $sid").startsWith("HTTP/1.1 200"))
                 assertTrue(eventRequest("SUBSCRIBE", "SID: $sid").startsWith("HTTP/1.1 412"))
                 assertTrue(eventRequest("UNSUBSCRIBE", "SID: $sid").startsWith("HTTP/1.1 412"))
