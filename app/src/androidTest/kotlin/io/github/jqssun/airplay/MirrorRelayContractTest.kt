@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.DataInputStream
 import java.net.Inet4Address
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
@@ -262,16 +263,7 @@ class MirrorRelayContractTest {
                 sender.connect(requireNotNull(address.hostAddress), server.localPort, code)
                 server.accept().use { socket ->
                     socket.soTimeout = 15_000
-                    val input = DataInputStream(socket.getInputStream())
-                    val output = socket.getOutputStream()
-                    val magic = ByteArray(SecureMirrorChannel.MAGIC.size).also(input::readFully)
-                    assertArrayEquals(SecureMirrorChannel.MAGIC, magic)
-                    val salt = ByteArray(16) { it.toByte() }
-                    output.write(salt)
-                    output.flush()
-                    val channel = SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(code, salt))
-                    assertArrayEquals("hello".toByteArray(), channel.receive())
-                    respond(channel)
+                    respond(senderChannel(socket, code))
                 }
             }
 
@@ -295,6 +287,64 @@ class MirrorRelayContractTest {
                     !sender.state.value.sending && sender.state.value.message == context.getString(R.string.relay_ended)
                 }
             }
+        }
+    }
+
+    @Test fun senderStopsAndReportsBackpressureWhenThePeerStopsReading() {
+        val address = localAddress()
+        val code = "ABCDEFGHIJKL"
+        val sender = relay()
+        val previousThreads = Thread.getAllStackTraces().keys
+        ServerSocket().use { server ->
+            server.receiveBufferSize = 1024
+            server.bind(InetSocketAddress(address, 0), 1)
+            server.soTimeout = 10_000
+            sender.connect(requireNotNull(address.hostAddress), server.localPort, code)
+            server.accept().use { peer ->
+                peer.soTimeout = 5_000
+                val channel = senderChannel(peer, code)
+                val outbound = MirrorRelay::class.java.getDeclaredField("socket").apply { isAccessible = true }
+                    .get(sender) as Socket
+                outbound.sendBufferSize = 8192
+                channel.send("ready".toByteArray())
+                await("The sender did not authenticate") { sender.state.value.sending }
+                val worker = Thread.getAllStackTraces().keys.single {
+                    it.name == "buzin-relay-send" && it !in previousThreads
+                }
+
+                val video = MirrorPacket.Video(ByteArray(1024 * 1024), 0L, 640, 480, false)
+                sender.offer(video)
+                // Read only the encrypted frame header. The constrained peer
+                // cannot accept the complete frame until it starts reading again.
+                val input = DataInputStream(peer.getInputStream())
+                var length = input.readInt()
+                repeat(4) {
+                    if (length != 16) return@repeat
+                    input.readFully(ByteArray(8 + 12 + length)) // sequence, nonce and empty keepalive tag
+                    length = input.readInt()
+                }
+                assertTrue("The worker did not start sending the video", length > video.data.size)
+                repeat(121) { sender.offer(video) }
+
+                val failure = MirrorRelay.State(message = context.getString(R.string.relay_slow_network))
+                await("The sender did not stop on a full queue") { sender.state.value == failure }
+                worker.join(5_000)
+                assertFalse("The blocked sender worker still owns its socket", worker.isAlive)
+                assertEquals("The old worker overwrote the slow-network message", failure, sender.state.value)
+            }
+        }
+    }
+
+    private fun senderChannel(socket: Socket, code: String): SecureMirrorChannel {
+        val input = DataInputStream(socket.getInputStream())
+        val output = socket.getOutputStream()
+        val magic = ByteArray(SecureMirrorChannel.MAGIC.size).also(input::readFully)
+        assertArrayEquals(SecureMirrorChannel.MAGIC, magic)
+        val salt = ByteArray(16) { it.toByte() }
+        output.write(salt)
+        output.flush()
+        return SecureMirrorChannel(input, output, SecureMirrorChannel.deriveKey(code, salt)).also { channel ->
+            assertArrayEquals("hello".toByteArray(), channel.receive())
         }
     }
 

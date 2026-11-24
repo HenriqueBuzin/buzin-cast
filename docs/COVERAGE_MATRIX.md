@@ -3032,3 +3032,9 @@ instructions, 5,063/5,977 branches, 8,208/8,494 lines, 4,344/5,151
 complexity, 2,243/2,360 methods and 308/314 classes. Native functions,
 instantiations and MC/DC reached 100%. API28 alone covered 909/912
 native branches, 1,748/1,751 lines and 1,496/1,500 regions.
+
+Two DE/AT API28 mirror relay tests passed. A peer stopped reading after
+authentication, the sender filled its queue, and the slow-network state
+survived the old worker's exit. The matching relay mappings advanced
+from 88/122 to 89/122 branches and from 1,271/1,557 to 1,293/1,557
+instructions.
