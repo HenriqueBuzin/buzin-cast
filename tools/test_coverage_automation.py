@@ -772,6 +772,17 @@ class CoverageAutomationTest(unittest.TestCase):
         self.assertIn("Only an explicit emulator-<port> serial is permitted",result.stderr)
         self.assertNotIn("Traceback",result.stderr)
 
+    def test_matrix_accepts_only_positive_instrumentation_timeouts(self):
+        script = Path(__file__).with_name("run_android_coverage.py")
+        command = [sys.executable, str(script), "--serial", "192.0.2.10:5555", "--instrumentation-timeout"]
+        invalid = subprocess.run([*command, "0"], capture_output=True, text=True)
+        self.assertEqual(2, invalid.returncode)
+        self.assertIn("argument --instrumentation-timeout", invalid.stderr)
+
+        valid = subprocess.run([*command, "1800"], capture_output=True, text=True)
+        self.assertEqual(2, valid.returncode)
+        self.assertIn("Only an explicit emulator-<port> serial is permitted", valid.stderr)
+
 
 if __name__=="__main__":
     unittest.main()

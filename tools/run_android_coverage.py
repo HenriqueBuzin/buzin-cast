@@ -18,6 +18,8 @@ import uuid
 from pathlib import Path
 from zipfile import ZipFile
 
+from test_emulator import positive_seconds
+
 
 VARIANTS = {
     "normal": (False, False),
@@ -182,6 +184,8 @@ def main():
     parser.add_argument("--sdk-root", type=Path)
     parser.add_argument("--bash-dir", type=Path, help="Windows POSIX tool directory used by native Gradle tasks")
     parser.add_argument("--output", type=Path, help="Separate report destination, for example build/coverage-api22")
+    parser.add_argument("--instrumentation-timeout", type=positive_seconds,
+                        help="Override the Android test runner's instrumentation timeout in seconds")
     parser.add_argument("--require-100", action="store_true", help="Fail unless every selected variant reaches all metrics")
     args = parser.parse_args()
     if not re.fullmatch(r"emulator-\d+", args.serial):
@@ -265,6 +269,8 @@ def main():
                 if "package:" + candidate in installed:
                     run([adb, "-s", args.serial, "uninstall", candidate], report / ("uninstall-test.log" if candidate.endswith(".test") else "uninstall-app.log"))
             command = [sys.executable, root / "tools/test_emulator.py", "--serial", args.serial, "--adb", adb, "--apk", snapshot/"inputs/app.apk", "--test-apk", snapshot/"inputs/test.apk", "--native-tests", snapshot/"inputs/native_core_tests", "--coverage", "--extended", "--package", package, "--output", profiles]
+            if args.instrumentation_timeout is not None:
+                command.extend(("--instrumentation-timeout", str(args.instrumentation_timeout)))
             if regional:
                 command.append("--no-download")
             if api >= 23:

@@ -382,6 +382,8 @@ runs native tests with UBSan, runs Android instrumentation and all UI/media
 scenarios including extended playback tests, and writes separate JaCoCo/LLVM
 reports. Runtime assertions fail immediately; insufficient coverage is reported
 as `target_met: false` while the remaining selected variants are measured.
+Use `--instrumentation-timeout 1800` to allow up to 30 minutes for the Android
+test suite on a slower emulator.
 
 Select a subset by repeating `--variant`:
 
