@@ -3677,3 +3677,9 @@ complexity points (85.98%), 2,260/2,374 methods, and 310/317 classes.
 All six native metrics reached 100%. Across the four latest complete
 edition reports, the minimum is now compact DE/AT JVM complexity at
 4,384/5,122 (85.59%).
+
+The focused API30 fullscreen gesture test also lowered brightness
+without changing media volume and verified that leaving playback
+restored the window's system-managed brightness. The test confirmed
+that the live fullscreen playback controls could be shown and hidden
+before sending the vertical gestures.

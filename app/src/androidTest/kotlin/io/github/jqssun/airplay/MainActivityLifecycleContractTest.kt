@@ -1418,13 +1418,16 @@ class MainActivityLifecycleContractTest {
                 audio.setStreamVolume(stream, initialVolume, 0)
             }
             assertFalse(viewport.isEmpty)
-            if (nodeBounds("CC") != null) {
+            fun tapVideo() {
                 val x = viewport.left + viewport.width() * .25f
                 pointerGesture(x, viewport.exactCenterY(), viewport.exactCenterY())
-                val deadline = SystemClock.elapsedRealtime() + 3_000
-                while (nodeBounds("CC") != null && SystemClock.elapsedRealtime() < deadline) Thread.sleep(25)
-                assertNull("The playback controls still cover the video", nodeBounds("CC"))
             }
+            if (nodeBounds("CC") == null) tapVideo()
+            awaitVisiblePlayerLabel("CC")
+            tapVideo()
+            val controlsDeadline = SystemClock.elapsedRealtime() + 3_000
+            while (nodeBounds("CC") != null && SystemClock.elapsedRealtime() < controlsDeadline) Thread.sleep(25)
+            assertNull("The playback controls still cover the video", nodeBounds("CC"))
             await("The fixture did not apply its starting media volume") { audio.getStreamVolume(stream) == initialVolume }
             val fromY = viewport.top + viewport.height() * .84f
             val toY = viewport.top + viewport.height() * .16f
@@ -1444,6 +1447,18 @@ class MainActivityLifecycleContractTest {
                 assertEquals("A volume gesture changed window brightness",
                     raisedBrightness, activity.window.attributes.screenBrightness, 0.001f)
                 assertFalse("The gestures resumed the paused video", model(activity).videoPlaying.value)
+            }
+            val raisedVolume = audio.getStreamVolume(stream)
+            pointerGesture(viewport.left + viewport.width() * .25f, toY, fromY)
+            await("Dragging down on the left did not lower brightness") {
+                activity.window.attributes.screenBrightness < raisedBrightness
+            }
+            assertEquals("Lowering brightness changed media volume", raisedVolume, audio.getStreamVolume(stream))
+
+            main { service.stopVideoPlayback() }
+            await("Leaving the video did not release the brightness override") {
+                !model(activity).videoPlaybackActive.value &&
+                    activity.window.attributes.screenBrightness == WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             }
         } finally {
             main {
