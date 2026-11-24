@@ -3122,3 +3122,9 @@ from `c09ec21`. JVM coverage reached 80,566/85,930 instructions,
 1,745/1,745 lines, 171/171 MC/DC conditions and 1,494/1,494 regions.
 The minimum among the latest complete reports for the four editions
 is now 4,222/5,111 complexity points in compact DE/AT (82.61%).
+
+Two standard normal API25 FCast contracts passed. The receiver closed
+the connection after an unsupported protocol version and discarded a
+valid load already queued for the main looper when the receiver closed.
+Adding the run to the matching FCast mappings raised branches from
+161/208 to 164/208 and complexity from 83/128 to 86/128.

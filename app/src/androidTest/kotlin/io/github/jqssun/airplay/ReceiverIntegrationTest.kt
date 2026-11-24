@@ -91,6 +91,10 @@ class ReceiverIntegrationTest {
     @Test fun fcastHandshakePingAndUnknownOpcode() = withFcast { _, socket ->
         FCastFrame(12).writeTo(socket.getOutputStream()); assertEquals(13, frame(socket, 13).opcode)
         FCastFrame(99).writeTo(socket.getOutputStream()); assertTrue(frame(socket, 9).body.contains("Unsupported"))
+        FCastFrame(11, """{"version":1}""").writeTo(socket.getOutputStream())
+        // Periodic status updates already in flight can precede EOF.
+        repeat(6) { if (FCastFrame.readFrom(socket.getInputStream()) == null) return@withFcast }
+        fail("FCast kept the connection open after an unsupported version")
     }
     @Test fun fcastPlaybackControlsReachAndroidMainThread() = withFcast { playback, socket ->
         FCastFrame(1, """{"url":"http://example.test/movie.mp4","container":"video/mp4","time":3,"speed":1.5,"headers":{"X-Test":"yes"}}""").writeTo(socket.getOutputStream())
@@ -337,6 +341,27 @@ class ReceiverIntegrationTest {
         FCastFrame(4).writeTo(socket.getOutputStream()); frame(socket, 9)
         assertFalse(playback.events.contains("stop:FCAST"))
     }
+
+    @Test fun fcastClosingTheReceiverDropsAnAlreadyQueuedLoad() {
+        val playback = Playback()
+        FCastReceiver(context, playback, "Buzin close test", {}, requestedPort = 0).use { receiver ->
+            receiver.start()
+            Socket(ip, receiver.listeningPort).use { socket ->
+                socket.soTimeout = 4000
+                frame(socket, 11)
+                whileMainIsGated {
+                    val output = socket.getOutputStream()
+                    FCastFrame(1, """{"url":"https://example.test/movie.mp4","container":"video/mp4"}""").writeTo(output)
+                    FCastFrame(12).writeTo(output)
+                    frame(socket, 13)
+                    receiver.close()
+                }
+                assertTrue(playback.requests.isEmpty())
+                assertNull(playback.mediaOwner)
+            }
+        }
+    }
+
     @Test fun fcastReconnectsAfterMalformedFrame() {
         val playback = Playback()
         FCastReceiver(context, playback, "Buzin integration", {}, requestedPort = 0).use { receiver ->
@@ -641,7 +666,7 @@ class ReceiverIntegrationTest {
             resume.countDown()
             instrumentation.waitForIdleSync()
         }
-        assertTrue("The SOAP request did not complete while the main looper was gated", resumedInTime.get())
+        assertTrue("The action did not complete while the main looper was gated", resumedInTime.get())
     }
 
     @Test fun dlnaPendingLoadChecksAirPlayOwnershipAgainOnMainThread() = withDlna { playback, control ->
