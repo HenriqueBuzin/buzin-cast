@@ -270,6 +270,35 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun recoverableNetworkFailureRepreparesThePausedPlayerForTheSameOwner() {
+        val owner = token()
+        renderer.play(Uri.fromFile(fixture).toString(), 0f, token = owner)
+        renderer.setPlaying(false, owner)
+        await("The fixture did not become ready before recovery") { player().playbackState == Player.STATE_READY }
+
+        val original = main {
+            val current = player()
+            current.stop()
+            assertEquals(Player.STATE_IDLE, current.playbackState)
+            recoveries.clear()
+            val listener = playerField("activeListener") as Player.Listener
+            listener.onPlayerError(PlaybackException("Temporary network failure", null,
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
+            assertEquals(owner to context.getString(R.string.network_playback_retry, 1), recoveries.single())
+            current
+        }
+
+        await("The recovery retry did not prepare the same paused player") {
+            player() === original && !original.playWhenReady && original.playbackState == Player.STATE_READY &&
+                recoveries.lastOrNull() == (owner to "")
+        }
+        main {
+            assertTrue(failures.isEmpty())
+            assertTrue(ended.isEmpty())
+            assertTrue(recoveries.all { it.first == owner })
+        }
+    }
+
     @Test fun textCaptionsIgnoreBitmapCuesAndKeepTheDisplayLengthBounded() {
         val owner = token()
         renderer.play(Uri.fromFile(fixture).toString(), 0f, token = owner)
