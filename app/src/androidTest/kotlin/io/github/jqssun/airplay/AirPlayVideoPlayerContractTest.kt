@@ -246,6 +246,46 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun controlsQueuedAfterStopLeaveTheNextVideoAtItsDefaults() {
+        val first = token()
+        val url = Uri.fromFile(fixture).toString()
+        renderer.play(url, 0f, token = first)
+        renderer.setRate(0f, first)
+        await("First video never became ready") { player().playbackState == Player.STATE_READY }
+
+        renderer.stop(first)
+        renderer.scrub(1f)
+        renderer.setSubtitle(Uri.fromFile(File(fixture.parentFile, "unused-caption.vtt")))
+        renderer.setScrubbing(true)
+        renderer.setRate(2f, first)
+        renderer.setPlaying(true)
+        renderer.setSpeed(3f)
+        renderer.setSkipSilence(true)
+        renderer.seekBy(500)
+        main {
+            assertNull(playerField("player"))
+            assertEquals("", renderer.subtitleText.value)
+            assertEquals(first, snapshots.last().first)
+            assertEquals(-1f, snapshots.last().second.duration, 0f)
+            assertTrue(failures.isEmpty())
+        }
+
+        val second = token()
+        renderer.play(url, 0f, token = second)
+        renderer.setRate(0f, second)
+        await("Next video never became ready") { player().playbackState == Player.STATE_READY }
+        main {
+            val next = player()
+            assertEquals(0L, next.currentPosition)
+            assertEquals(1f, next.playbackParameters.speed, 0f)
+            assertFalse(next.isScrubbingModeEnabled)
+            assertFalse(next.skipSilenceEnabled)
+            assertTrue(requireNotNull(next.currentMediaItem?.localConfiguration).subtitleConfigurations.isEmpty())
+            assertEquals(second, snapshots.last().first)
+            assertTrue(failures.isEmpty())
+        }
+    }
+
     @Test fun missingLocalVideoReportsAnErrorAndEndsTheOwningSession() {
         val owner = token()
         val missing = File(fixture.parentFile, "${fixture.name}.missing")

@@ -262,6 +262,40 @@ class ReceiverIntegrationTest {
         FCastFrame(1, """{"url":"http://example.test/a","container":"video/mp4"}""").writeTo(socket.getOutputStream())
         assertTrue(frame(socket, 9).body.contains("Another screen")); assertTrue(playback.requests.isEmpty())
     }
+
+    @Test fun fcastPlaybackControlsEnforceTheirInclusiveNumericLimits() = withFcast { playback, socket ->
+        val output = socket.getOutputStream()
+        FCastFrame(1, """{"url":"https://example.test/movie.mp4","container":"video/mp4"}""").writeTo(output)
+        eventually { playback.events.contains("speed:1.0") }
+        assertEquals(Protocol.FCAST, playback.mediaOwner)
+        playback.events.clear()
+
+        data class Control(val opcode: Int, val key: String, val event: String, val min: Double, val max: Double)
+        val controls = listOf(
+            Control(5, "time", "seek", 0.0, 31536000.0),
+            Control(8, "volume", "gain", 0.0, 1.0),
+            Control(10, "speed", "speed", 0.25, 4.0),
+        )
+        for ((opcode, key, _, min, max) in controls) {
+            for (outside in listOf(min - 0.01, max + 0.01)) {
+                FCastFrame(opcode, JSONObject().put(key, outside).toString()).writeTo(output)
+                assertEquals("Invalid $key", JSONObject(frame(socket, 9).body).getString("message"))
+            }
+        }
+        assertTrue("Rejected controls must leave playback unchanged", playback.events.isEmpty())
+        assertTrue(playback.mediaActive)
+
+        for ((opcode, key, _, min, max) in controls) {
+            for (boundary in listOf(min, max)) {
+                FCastFrame(opcode, JSONObject().put(key, boundary).toString()).writeTo(output)
+            }
+        }
+        val expected = controls.flatMap { (_, _, event, min, max) ->
+            listOf("$event:${min.toFloat()}", "$event:${max.toFloat()}")
+        }
+        eventually { playback.events.size >= expected.size }
+        assertEquals(expected, playback.events.toList())
+    }
     @Test fun fcastDefersPlaybackUntilRelayReceptionEnds() = withFcast { playback, socket ->
         val output = socket.getOutputStream()
         val load = FCastFrame(1, JSONObject()
