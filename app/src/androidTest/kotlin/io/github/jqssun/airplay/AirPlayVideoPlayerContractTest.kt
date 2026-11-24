@@ -27,6 +27,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** Runs Media3 on Android using synthetic local video fixtures. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -358,23 +360,41 @@ class AirPlayVideoPlayerContractTest {
         val live = File(fixture.parentFile, "${fixture.name}.live")
         assertTrue(live.mkdir())
         val owner = token()
+        val texture = SurfaceTexture(false)
+        val surface = Surface(texture)
+        val publisher = Executors.newSingleThreadScheduledExecutor()
         try {
             instrumentation.context.assets.open("playback/live-hls-segment.ts").use { input ->
                 File(live, "sample.ts").outputStream().use { input.copyTo(it) }
             }
-            val playlist = File(live, "live.m3u8").apply {
-                writeText(buildString {
+            val playlist = File(live, "live.m3u8")
+            val pending = File(live, "live.next")
+            fun publish(segmentCount: Int) {
+                pending.writeText(buildString {
                     append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:100\n")
-                    repeat(5) { index ->
+                    append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
+                    repeat(segmentCount) { index ->
                         if (index > 0) append("#EXT-X-DISCONTINUITY\n")
                         append("#EXTINF:1.0,\nsample.ts\n")
                     }
                 })
+                check(pending.renameTo(playlist)) { "Could not publish the live test playlist" }
             }
+            var segmentCount = 5
+            publish(segmentCount)
+            val updates = publisher.scheduleAtFixedRate({ publish(++segmentCount) }, 1, 1, TimeUnit.SECONDS)
 
+            renderer.setSurface(surface)
             renderer.play(Uri.fromFile(playlist).toString(), 0f, token = owner)
+            await("The live timeline did not become ready before pausing") {
+                if (updates.isDone) updates.get()
+                check(failures.isEmpty()) { "Live playback failed: $failures" }
+                player().isCurrentMediaItemLive && player().playbackState == Player.STATE_READY
+            }
             renderer.setRate(0f, owner)
             await("The live timeline did not report paused readiness") {
+                if (updates.isDone) updates.get()
+                check(failures.isEmpty()) { "Paused live playback failed: $failures" }
                 player().isCurrentMediaItemLive && player().playbackState == Player.STATE_READY &&
                     snapshots.lastOrNull()?.let { (token, snapshot) ->
                         token == owner && snapshot.ready && !snapshot.playWhenReady && snapshot.rate == 0f
@@ -387,8 +407,12 @@ class AirPlayVideoPlayerContractTest {
                 assertTrue(failures.isEmpty())
             }
         } finally {
+            publisher.shutdownNow()
+            assertTrue("The live playlist publisher did not stop", publisher.awaitTermination(5, TimeUnit.SECONDS))
             renderer.stop(owner)
-            main { }
+            main { renderer.clearSurface(surface) }
+            surface.release()
+            texture.release()
             live.deleteRecursively()
         }
     }

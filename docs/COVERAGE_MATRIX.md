@@ -3588,3 +3588,11 @@ completed 427 Android tests with four failures: paused HLS
 readiness, paused playback rotation, the sender volume control,
 and SSDP multicast announcements. The failed replay has no
 complete coverage report.
+
+The focused API36 HLS case passed after the test began publishing
+an advancing live playlist, used a synthetic 96x96 AVC segment,
+and awaited playback readiness before pausing. It verified that
+the live player stayed ready while reporting a zero playback rate.
+The initial rebuilt test launch stopped before instrumentation.
+Installing the same APK pair without streamed installation allowed
+the focused run to complete.
