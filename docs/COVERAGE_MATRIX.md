@@ -3337,3 +3337,9 @@ Left in the diagnostics dialog. Cancel returned focus to the relay
 button, and Left kept the diagnostic report open. The matching
 profiles now cover all 164 Tools lines, 131/159 branches, 4,260/4,324
 instructions, 122/155 complexity points and 69/75 methods.
+
+All 21 decoder selection contracts passed on API36 with the normal
+DE/AT APK and test APK archived from `9f7d980`. The matching API28
+and API36 decoder mappings cover 1,402/1,493 instructions, 165/196
+branches, all 150 lines, 130/156 complexity points and 57/58 methods.
+The API28 profile alone covered 138/196 branches and 142/150 lines.
