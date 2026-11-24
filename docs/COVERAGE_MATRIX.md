@@ -3735,3 +3735,14 @@ verified identical compiled inputs and covers 84,081/87,113 JVM
 instructions, 5,258/5,981 branches, 8,398/8,551 lines, 4,540/5,167
 complexity points (87.87%), 2,295/2,374 methods, and 315/317 classes.
 All six native metrics reached 100% in the combined report.
+
+The standard Compact `96d3de0` run on API22 passed 444 Android tests,
+21 native UBSan tests, and all 15 required runtime results. The sealed
+report in `build/coverage-96d3de0-compat-api22/run/compat` covers
+83,067/87,091 JVM instructions, 5,148/5,979 branches (86.10%),
+8,300/8,551 lines, 4,458/5,166 complexity points, 2,278/2,374 methods,
+and 311/317 classes. Native coverage reaches 100% for functions and
+instantiations, with 904/912 branches, 1,748/1,751 lines, 170/171 MCDC
+conditions, and 1,496/1,500 regions. These figures describe API22 alone.
+A matching API28 replay is needed to compare combined coverage with the
+previous API22/API28 checkpoint.
