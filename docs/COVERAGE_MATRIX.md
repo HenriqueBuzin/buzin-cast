@@ -3533,3 +3533,10 @@ JVM instructions, 5,141/5,973 branches, 8,278/8,508 lines,
 308/314 classes. All six native metrics reached 100%. The normal
 DE/AT edition now has the lowest confirmed full-run measurement,
 4,346/5,119 JVM complexity points (84.90%) from `9f7d980`.
+
+The startup recovery test passed on API25 and API30 with the same
+rebuilt APK pair. An automatic start reported the occupied port,
+and restarting after release listened on the port again. A blank
+stored receiver name advertised the default. The service uses
+the existing preference validator for that fallback. The source
+change requires fresh full-run coverage for the affected service.

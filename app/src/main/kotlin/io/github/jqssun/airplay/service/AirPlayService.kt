@@ -474,7 +474,7 @@ class AirPlayService : LifecycleService(), RaopCallbackHandler, LogListener {
             _failStart()
             return
         }
-        val effectiveName = prefs[Prefs.SERVER_NAME].ifBlank { Prefs.SERVER_NAME.def }
+        val effectiveName = prefs[Prefs.SERVER_NAME]
 
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "airplay:server").apply { acquire() }

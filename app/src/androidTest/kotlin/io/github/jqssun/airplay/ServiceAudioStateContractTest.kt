@@ -189,10 +189,12 @@ class ServiceAudioStateContractTest {
         val usbKey = Prefs.USB_ONLY.key
         val audioKey = Prefs.ADVERTISE_AUDIO.key
         val benchmarkKey = Prefs.BENCHMARK_LOG.key
+        val nameKey = Prefs.SERVER_NAME.key
         val originalPort = prefs.takeIf { it.contains(portKey) }?.let(Prefs.SERVER_PORT::read)
         val originalUsbMode = prefs.takeIf { it.contains(usbKey) }?.let(Prefs.USB_ONLY::read)
         val originalAudio = prefs.takeIf { it.contains(audioKey) }?.let(Prefs.ADVERTISE_AUDIO::read)
         val originalBenchmark = prefs.takeIf { it.contains(benchmarkKey) }?.let(Prefs.BENCHMARK_LOG::read)
+        val originalName = prefs.getString(nameKey, null)
         val loopback = InetAddress.getByName("127.0.0.1")
         fun isListening(port: Int) = runCatching {
             Socket(loopback, port).use { it.isConnected }
@@ -201,10 +203,11 @@ class ServiceAudioStateContractTest {
         try {
             val port = ServerSocket(0, 1, loopback).use { occupied ->
                 assertTrue(prefs.edit().putInt(portKey, occupied.localPort).putBoolean(usbKey, true)
-                    .putBoolean(benchmarkKey, true).commit())
-                main {
-                    service.startServer()
-                    assertEquals(AirPlayService.ServerState.ERROR, service.serverState.value)
+                    .putBoolean(benchmarkKey, true).putString(nameKey, "   ").commit())
+                ContextCompat.startForegroundService(context, Intent(context, AirPlayService::class.java)
+                    .setAction(AirPlayService.ACTION_START_SERVER))
+                await("The automatic start did not report the occupied port") {
+                    service.serverState.value == AirPlayService.ServerState.ERROR
                 }
                 occupied.localPort
             }
@@ -256,6 +259,7 @@ class ServiceAudioStateContractTest {
                     .get(advertiser) as List<*>
                 assertEquals(listOf("_airplay._tcp" to replacementPort),
                     published.filterIsInstance<MdnsService>().map { it.type to it.port })
+                assertEquals(Prefs.SERVER_NAME.def, published.filterIsInstance<MdnsService>().single().name)
             }
         } finally {
             main { service.stopServer() }
@@ -264,6 +268,7 @@ class ServiceAudioStateContractTest {
             if (originalUsbMode == null) restore.remove(usbKey) else restore.putBoolean(usbKey, originalUsbMode)
             if (originalAudio == null) restore.remove(audioKey) else restore.putBoolean(audioKey, originalAudio)
             if (originalBenchmark == null) restore.remove(benchmarkKey) else restore.putBoolean(benchmarkKey, originalBenchmark)
+            if (originalName == null) restore.remove(nameKey) else restore.putString(nameKey, originalName)
             assertTrue(restore.commit())
         }
     }
