@@ -3324,3 +3324,10 @@ complexity points, 2,224/2,362 methods and 307/314 classes. All six
 native metrics remain at 100%. The normal DE/AT edition has the
 lowest JVM metric at 83.94% complexity among the latest complete
 reports.
+
+The ordinary Android relay form test passed on API25. It checked that
+the empty form and a port above 65,535 cannot connect, that typed port
+and pairing-code values are normalized, and that a valid target
+submits and returns focus to Tools. Combined matching Tools profiles
+now cover 4,240/4,324 instructions, 128/159 branches, 162/164 lines,
+118/155 complexity points and 67/75 methods.

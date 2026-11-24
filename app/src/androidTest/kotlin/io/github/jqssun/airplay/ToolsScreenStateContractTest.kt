@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
@@ -35,6 +36,7 @@ import io.buzincast.media.MirrorPacket
 import io.github.jqssun.airplay.service.AirPlayService
 import io.github.jqssun.airplay.service.AirPlayService.ServerState
 import io.github.jqssun.airplay.ui.ToolsScreen
+import io.github.jqssun.airplay.ui.isTvDevice
 import io.github.jqssun.airplay.media.MirrorRelay
 import io.github.jqssun.airplay.media.MirrorCapture
 import io.github.jqssun.airplay.ui.theme.AirPlayTheme
@@ -369,6 +371,70 @@ class ToolsScreenStateContractTest {
             relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
             await("Accepted relay values did not survive reopening") {
                 withRelayFields { fields -> fields.map { it.text?.toString() } == listOf("127.0.0.1", "7123", "ABCD-EFGH-IJKL") }
+            }
+        } finally {
+            automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
+        }
+    }
+
+    @Test fun relayTouchFormRejectsInvalidPortAndSubmitsValidTarget() {
+        val automation = instrumentation.uiAutomation
+        val flags = automation.serviceInfo.flags
+        automation.serviceInfo = automation.serviceInfo.apply {
+            this.flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        try {
+            screen(wrapContext = { target ->
+                val config = Configuration(target.resources.configuration).apply {
+                    uiMode = (uiMode and Configuration.UI_MODE_TYPE_MASK.inv()) or Configuration.UI_MODE_TYPE_NORMAL
+                }
+                val ordinary = target.createConfigurationContext(config)
+                assertFalse("The touch form needs ordinary Android mode", ordinary.isTvDevice())
+                ordinary
+            }) {
+                val open = text(R.string.tools_relay_connect)
+                val connect = text(R.string.tools_connect)
+                val address = text(R.string.tools_other_tv_ip)
+                val port = text(R.string.tools_port)
+                val code = text(R.string.tools_pairing_code)
+                revealToolsItem(open)
+                click(open)
+                fun field(label: String, action: (AccessibilityNodeInfo) -> Boolean): Boolean = withRelayNodes { root ->
+                    fun find(node: AccessibilityNodeInfo): Boolean {
+                        repeat(node.childCount) { index ->
+                            val child = node.getChild(index) ?: return@repeat
+                            try {
+                                if (node.className?.toString() == "android.widget.EditText" &&
+                                    child.text?.toString() == label
+                                ) return action(node)
+                                if (find(child)) return true
+                            } finally { child.recycle() }
+                        }
+                        return false
+                    }
+                    find(root)
+                }
+                fun type(label: String, value: String, expected: String) {
+                    revealToolsItem(label)
+                    val args = Bundle().apply {
+                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
+                    }
+                    await("Touch field $label did not accept text") {
+                        field(label) { it.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) }
+                    }
+                    await("Touch field $label did not show the expected value") {
+                        field(label) { it.text?.toString() == expected }
+                    }
+                }
+                await("The empty form allowed connecting") { buttonEnabled(connect) == false }
+                type(address, " 127.0.0.1 ", " 127.0.0.1 ")
+                type(port, "x65536!", "65536")
+                type(code, "ABCD-EFGH-IJKL-X", "ABCD-EFGH-IJKL")
+                await("An out-of-range port allowed connecting") { buttonEnabled(connect) == false }
+                type(port, "x7123!", "7123")
+                await("A valid relay target could not connect") { buttonEnabled(connect) == true }
+                click(connect)
+                await("The submitted touch form did not close") { relayControlFocused(open) }
             }
         } finally {
             automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
