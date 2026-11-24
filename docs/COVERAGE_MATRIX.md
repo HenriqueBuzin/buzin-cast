@@ -3316,3 +3316,11 @@ regional editions now share the 83.94% minimum among the latest
 complete reports. The API22 replay is still needed for the complete
 legacy merge. Its instrumentation checkpoint already covers the
 three remaining native branch outcomes from API28.
+
+The compact DE/AT API22 replay then passed all 15 runtime results.
+The complete merge with the same API28 build covers 80,704/85,918
+instructions, 5,020/5,899 branches, 8,184/8,460 lines, 4,321/5,118
+complexity points, 2,224/2,362 methods and 307/314 classes. All six
+native metrics remain at 100%. The normal DE/AT edition has the
+lowest JVM metric at 83.94% complexity among the latest complete
+reports.
