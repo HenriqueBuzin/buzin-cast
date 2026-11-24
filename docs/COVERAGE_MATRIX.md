@@ -3616,3 +3616,10 @@ Android tests and all runtime checks, including VPN and offline
 diagnostics. Its single-API report covered 4,446/5,156 JVM
 complexity points (86.23%) and 1,748/1,751 native lines. The
 matching API22 replay is needed for the combined edition report.
+
+Both focused SSDP tests also passed on API36 using the same APK pair
+as the API25 tests. The successful retry compiled both installed
+packages on the emulator before starting instrumentation. Search
+responses, packet source, and multicast startup, refresh, and
+shutdown were verified. The matching API36 responder profile
+covered 20/26 branches and 18/23 complexity points.
