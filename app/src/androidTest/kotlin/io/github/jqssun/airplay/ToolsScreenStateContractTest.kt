@@ -405,6 +405,7 @@ class ToolsScreenStateContractTest {
             }) {
                 val open = text(R.string.tools_relay_connect)
                 val connect = text(R.string.tools_connect)
+                val cancel = text(R.string.tv_edit_cancel)
                 val address = text(R.string.tools_other_tv_ip)
                 val port = text(R.string.tools_port)
                 val code = text(R.string.tools_pairing_code)
@@ -414,27 +415,26 @@ class ToolsScreenStateContractTest {
                     await("The touch relay form did not open") { withRelayFields { true } }
                     var dismissed = false
                     await("The relay form actions are not visible") {
-                        if (buttonEnabled(connect) != null) return@await true
-                        if (!dismissed) {
-                            val windows = automation.windows
-                            val keyboardShown = try {
-                                windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-                            } finally {
-                                windows.forEach { it.recycle() }
-                            }
-                            if (keyboardShown) {
-                                relayKey(KeyEvent.KEYCODE_BACK)
-                                dismissed = true
-                            }
+                        val windows = automation.windows
+                        val keyboardShown = try {
+                            windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                        } finally {
+                            windows.forEach { it.recycle() }
                         }
-                        false
+                        if (keyboardShown && !dismissed) {
+                            relayKey(KeyEvent.KEYCODE_BACK)
+                            dismissed = true
+                            return@await false
+                        }
+                        !keyboardShown && withRelayFields { true } &&
+                            buttonEnabled(cancel) == true && buttonEnabled(connect) != null
                     }
                 }
                 revealToolsItem(open)
                 click(open)
                 showDialogActions()
                 await("The empty form allowed connecting") { buttonEnabled(connect) == false }
-                click(text(R.string.tv_edit_cancel))
+                tap(cancel)
                 await("Cancel did not close the relay form and restore focus") { relayControlFocused(open) }
                 click(open)
                 fun field(label: String, action: (AccessibilityNodeInfo) -> Boolean): Boolean = withRelayNodes { root ->
@@ -475,7 +475,7 @@ class ToolsScreenStateContractTest {
                 type(port, "x7123!", "7123")
                 showDialogActions()
                 await("A valid relay target could not connect") { buttonEnabled(connect) == true }
-                click(connect)
+                tap(connect)
                 await("The submitted touch form did not close") { relayControlFocused(open) }
             }
         } finally {

@@ -159,14 +159,22 @@ class TvFocusContractTest {
                     }
                 }
             }
+            fun openFocusedEditor() {
+                scenario.onActivity {
+                    // The previous IME can still own input while its hide animation runs.
+                    // Deliver the key to the focused Compose host, then verify the real editor.
+                    editorHost.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER))
+                    editorHost.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER))
+                }
+            }
             runBlocking { withTimeout(10_000) { firstFocused.await() } }
             instrumentation.waitForIdleSync()
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+            openFocusedEditor()
             deliverEditorAction(scenario, editorHost, EditorInfo.IME_ACTION_NEXT)
             runBlocking { withTimeout(10_000) { secondFocused.await() } }
             assertFalse(submitted.isCompleted)
             instrumentation.waitForIdleSync()
-            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+            openFocusedEditor()
             deliverEditorAction(scenario, editorHost, EditorInfo.IME_ACTION_DONE)
             runBlocking { withTimeout(10_000) { submitted.await() } }
         }
