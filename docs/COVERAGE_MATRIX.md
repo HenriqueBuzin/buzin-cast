@@ -3661,3 +3661,10 @@ touch events with the finger tool type, checks that the volume never
 dips during a rightward drag, and verifies the next left and right
 D-pad steps. The class also exercises hold/release/cancel for sender
 scan and returns from the Tools mini player to the overview.
+
+The standard compact API22 lifecycle run passed all 30 cases after
+the fixture tracked activities relaunched by the receiver and waited
+for their destruction before releasing the service. The new fullscreen
+gesture case passed in that run and in a focused API30 run that waited
+for the landscape window to settle. It verified independent brightness
+and volume changes and checked that playback stayed paused.

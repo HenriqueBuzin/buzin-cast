@@ -216,16 +216,16 @@ class MainActivityLifecycleContractTest {
     }
 
     private fun finishActivities() {
-        // Also find a replacement activity if recreation failed before the test
-        // could save its reference.
-        var open = emptyList<Activity>()
-        main {
-            open = Stage.entries.filter { it != Stage.DESTROYED }
+        val observed = mutableSetOf<Activity>()
+        await("The lifecycle test's activities were not destroyed") {
+            // The receiver may relaunch MainActivity without the test's intent extra.
+            val open = Stage.entries.filter { it != Stage.DESTROYED }
                 .flatMap(activityMonitor::getActivitiesInStage)
-                .filter { it.intent?.getStringExtra("lifecycle_contract_owner") == activityToken }
-            open.forEach(Activity::finish)
+                .filter { it is MainActivity || it.intent?.getStringExtra("lifecycle_contract_owner") == activityToken }
+            observed.addAll(open)
+            open.filterNot(Activity::isFinishing).forEach(Activity::finish)
+            observed.all(Activity::isDestroyed)
         }
-        await("The lifecycle test's activities were not destroyed") { open.all { it.isDestroyed } }
         cover = null
     }
 
@@ -1382,6 +1382,76 @@ class MainActivityLifecycleContractTest {
         }
         return try { if (root.refresh() && root.packageName?.toString() == context.packageName) visit(root) else null }
             finally { root.recycle() }
+    }
+
+    @Test fun verticalVideoGesturesAdjustOnlyTheirOwnSide() {
+        val activity = launch()
+        val file = File.createTempFile("vertical-gestures-", ".mp4", context.cacheDir).also { videoFixture = it }
+        instrumentation.context.assets.open("playback/remote-seek.mp4").use { input ->
+            file.outputStream().use(input::copyTo)
+        }
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val stream = AudioManager.STREAM_MUSIC
+        val originalVolume = audio.getStreamVolume(stream)
+        val initialVolume = audio.getStreamMaxVolume(stream) / 2
+        val initialBrightness = .35f
+        try {
+            main {
+                service.playLocalVideo(android.net.Uri.fromFile(file).toString())
+                service.setVideoPlaying(false)
+            }
+            await("The paused video did not become seekable") {
+                model(activity).videoPlaybackActive.value && !model(activity).videoPlaying.value &&
+                    model(activity).videoDurationMs.value >= 30_000
+            }
+            await("Fullscreen video did not settle in its landscape window") {
+                val decor = activity.window.decorView
+                activity.hasWindowFocus() && decor.width > decor.height &&
+                    activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            }
+            val viewport = Rect()
+            main {
+                val decor = activity.window.decorView
+                val location = IntArray(2).also(decor::getLocationOnScreen)
+                viewport.set(location[0], location[1], location[0] + decor.width, location[1] + decor.height)
+                activity.window.attributes = activity.window.attributes.apply { screenBrightness = initialBrightness }
+                audio.setStreamVolume(stream, initialVolume, 0)
+            }
+            assertFalse(viewport.isEmpty)
+            if (nodeBounds("CC") != null) {
+                val x = viewport.left + viewport.width() * .25f
+                pointerGesture(x, viewport.exactCenterY(), viewport.exactCenterY())
+                val deadline = SystemClock.elapsedRealtime() + 3_000
+                while (nodeBounds("CC") != null && SystemClock.elapsedRealtime() < deadline) Thread.sleep(25)
+                assertNull("The playback controls still cover the video", nodeBounds("CC"))
+            }
+            await("The fixture did not apply its starting media volume") { audio.getStreamVolume(stream) == initialVolume }
+            val fromY = viewport.top + viewport.height() * .84f
+            val toY = viewport.top + viewport.height() * .16f
+            pointerGesture(viewport.left + viewport.width() * .25f, fromY, toY)
+            awaitAudioGesture("video-brightness", activity, viewport) {
+                await("The left side did not increase window brightness") {
+                    activity.window.attributes.screenBrightness > initialBrightness
+                }
+            }
+            assertEquals("A brightness gesture changed media volume", initialVolume, audio.getStreamVolume(stream))
+            var raisedBrightness = initialBrightness
+            main { raisedBrightness = activity.window.attributes.screenBrightness }
+
+            pointerGesture(viewport.left + viewport.width() * .75f, fromY, toY)
+            await("The right side did not increase media volume") { audio.getStreamVolume(stream) > initialVolume }
+            main {
+                assertEquals("A volume gesture changed window brightness",
+                    raisedBrightness, activity.window.attributes.screenBrightness, 0.001f)
+                assertFalse("The gestures resumed the paused video", model(activity).videoPlaying.value)
+            }
+        } finally {
+            main {
+                service.stopVideoPlayback()
+                audio.setStreamVolume(stream, originalVolume, 0)
+            }
+            finishActivities()
+        }
     }
 
     @Test fun pendingVideoKeepsItsToolbarUntilRemoteBackCancelsIt() {
