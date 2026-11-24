@@ -260,6 +260,9 @@ class ToolsScreenStateContractTest {
     @Suppress("DEPRECATION")
     private fun withRelayNodes(action: (AccessibilityNodeInfo) -> Boolean): Boolean {
         val automation = instrumentation.uiAutomation
+        if (Build.VERSION.SDK_INT >= 34) check(automation.clearCache()) {
+            "Could not invalidate the relay form accessibility cache"
+        }
         val windows = automation.windows
         try {
             for (window in windows.sortedByDescending { it.isFocused }) {
