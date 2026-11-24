@@ -40,7 +40,12 @@ class VideoPipelineContractTest {
         pipeline.start()
         assertSame(input, pipeline.inputSurface)
         ImageReader.newInstance(size, size, format, 3).use { first ->
-            ImageReader.newInstance(size, size, format, 3).use { second ->
+            ImageReader.newInstance(96, size, format, 3).use { second ->
+                fun awaitWideDisplay(insideOriginalPicture: Int) {
+                    awaitColors(second, listOf(Color.MAGENTA, Color.BLACK, insideOriginalPicture, Color.MAGENTA)) { frame ->
+                        listOf(48, 1, 17, 23).map { x -> pixel(frame, x, 32) }
+                    }
+                }
                 try {
                     pipeline.setDisplaySurface(first.surface)
                     val canvas = input.lockCanvas(null)
@@ -52,12 +57,12 @@ class VideoPipelineContractTest {
                     awaitPixels(first, Color.MAGENTA, Color.MAGENTA)
 
                     pipeline.setDisplaySurface(second.surface)
-                    awaitPixels(second, Color.MAGENTA, Color.MAGENTA)
+                    awaitWideDisplay(Color.MAGENTA)
                     assertSame(input, pipeline.inputSurface)
-                    pipeline.setMarginPercent(10)
-                    awaitPixels(second, Color.MAGENTA, Color.BLACK)
-                    pipeline.setMarginPercent(0)
-                    awaitPixels(second, Color.MAGENTA, Color.MAGENTA)
+                    pipeline.setMarginPercent(15)
+                    awaitWideDisplay(Color.BLACK)
+                    pipeline.setMarginPercent(-5)
+                    awaitWideDisplay(Color.MAGENTA)
                 } finally {
                     pipeline.release()
                 }
@@ -221,9 +226,9 @@ class VideoPipelineContractTest {
     private fun awaitPixels(reader: ImageReader, center: Int, edge: Int) =
         awaitColors(reader, center to edge) { image -> pixel(image, 32, 32) to pixel(image, 1, 32) }
 
-    private fun awaitColors(reader: ImageReader, expected: Pair<Int, Int>, sample: (Image) -> Pair<Int, Int>) {
+    private fun <T> awaitColors(reader: ImageReader, expected: T, sample: (Image) -> T) {
         val deadline = SystemClock.elapsedRealtime() + 10_000L
-        var observed: Pair<Int, Int>? = null
+        var observed: T? = null
         while (SystemClock.elapsedRealtime() < deadline) {
             reader.acquireLatestImage()?.use { observed = sample(it) }
             if (observed == expected) return
