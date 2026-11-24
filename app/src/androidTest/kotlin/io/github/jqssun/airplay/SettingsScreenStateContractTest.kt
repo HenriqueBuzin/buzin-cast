@@ -167,11 +167,26 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun reveal(value: String) {
+    private fun settingNode(root: AccessibilityNodeInfo, value: String, within: String?): AccessibilityNodeInfo? {
+        if (within == null) return find(root) { it.isVisibleToUser && matches(it, value) }
+        var row = find(root) { matches(it, within) } ?: return null
+        try {
+            while (!row.isScrollable) {
+                find(row) { it.isVisibleToUser && matches(it, value) }?.let { return it }
+                val parent = row.parent ?: return null
+                row.recycle()
+                row = parent
+            }
+            return null
+        } finally { row.recycle() }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun reveal(value: String, within: String? = null) {
         var direction = 1
-        await("Setting not reachable: $value") {
+        await("Setting not reachable: ${within?.let { "$it / " }.orEmpty()}$value") {
             val visible = tree { root ->
-                find(root) { it.isVisibleToUser && matches(it, value) }?.let { it.recycle(); true } == true
+                settingNode(root, value, within)?.let { it.recycle(); true } == true
             } == true
             if (visible) return@await true
             // The preference can persist before its new text has been composed.
@@ -318,11 +333,11 @@ class SettingsScreenStateContractTest {
     }
 
     @Suppress("DEPRECATION")
-    private fun click(value: String) {
-        reveal(value)
+    private fun click(value: String, within: String? = null) {
+        reveal(value, within)
         await("No clickable setting: $value") {
             tree { root ->
-                var node = find(root) { it.isVisibleToUser && matches(it, value) } ?: return@tree false
+                var node = settingNode(root, value, within) ?: return@tree false
                 try {
                     repeat(8) {
                         if (node.isClickable && node.isEnabled) return@tree node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -744,6 +759,20 @@ class SettingsScreenStateContractTest {
             click(label(R.string.setting_calibrate_corners))
             await("Corner calibration did not open") { activities.isNotEmpty() }
             assertEquals("io.github.jqssun.airplay.media.CalibrationActivity", activities.single().component?.className)
+        }
+    }
+
+    @Test fun bothDecoderSettingsPersistEveryTriStateSelection() {
+        assertTrue(Prefs.DEVELOPER_OPTIONS.write(prefs, true))
+        val choices = listOf(Prefs.ON to R.string.chip_on, Prefs.AUTO to R.string.chip_auto, Prefs.OFF to R.string.chip_off)
+        screen {
+            for ((setting, pref) in listOf(R.string.setting_h265 to Prefs.H265, R.string.setting_operating_rate to Prefs.OPERATING_RATE)) {
+                val title = label(setting)
+                for ((value, chip) in choices) {
+                    click(label(chip), within = title)
+                    await("$title did not save ${label(chip)}") { pref.read(prefs) == value }
+                }
+            }
         }
     }
 

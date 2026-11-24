@@ -2973,3 +2973,14 @@ port open, verified the AirPlay startup error, then confirmed that the
 same service could retry and accept a connection on the released port.
 The matching service mappings rose from 504/601 to 505/601 branches
 and from 430/538 to 431/538 complexity.
+
+Three DE/AT Android 36 audio cases passed after adapting the test input
+to the smaller scrollable playback viewport. The cases verified remote
+volume steps, touch scan release and cancellation, and the track title
+after tapping the mini player to return to the overview.
+
+The DE/AT API28 decoder settings test selected On, Auto and Off for
+both HEVC and the decoder operating rate. Each selection was verified
+against its own stored preference. On the matching settings class
+files, it raised instructions from 8,109/8,345 to 8,125/8,345,
+complexity from 232/268 to 234/268 and methods from 173/187 to 175/187.

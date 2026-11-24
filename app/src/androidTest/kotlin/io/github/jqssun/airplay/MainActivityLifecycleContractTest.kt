@@ -1204,7 +1204,7 @@ class MainActivityLifecycleContractTest {
                 service.onAudioFormat(2, 352, false)
                 service.onProgress(0L, 44100L, 44100L * 90)
             }
-            awaitVolumeControl(R.string.cd_rewind) { node ->
+            awaitVolumeControl(R.string.cd_rewind, scrollToControl = true) { node ->
                 val bounds = Rect().also(node::getBoundsInScreen)
                 if (bounds.isEmpty) return@awaitVolumeControl false
                 // Swipe beside the playback buttons to reveal both sliders.
@@ -1554,7 +1554,7 @@ class MainActivityLifecycleContractTest {
                 service.onConnectionInit()
                 service.onAudioFormat(2, 352, false)
             }
-            awaitVolumeControl(R.string.cd_rewind) { it.isVisibleToUser }
+            awaitVolumeControl(R.string.cd_rewind, scrollToControl = true) { it.isVisibleToUser }
             tap(tools)
             // The overview's rewind action is absent while the Tools tab shows the mini player.
             val deadline = SystemClock.elapsedRealtime() + 15_000
@@ -1566,8 +1566,10 @@ class MainActivityLifecycleContractTest {
 
             main { service.onMetadata(item("mlit", item("minm", title.toByteArray()))) }
             tap(title)
-            awaitVolumeControl(R.string.cd_rewind) { it.isVisibleToUser }
-            assertNotNull("Overview did not show the same title after opening the mini player", nodeBounds(title))
+            awaitVolumeControl(R.string.cd_rewind, scrollToControl = true) { it.isVisibleToUser }
+            awaitAudioNode(title, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) { node ->
+                node.isVisibleToUser && node.text?.toString() == title
+            }
         } finally {
             main { if (service.connectionCount.value > 0) service.onConnectionDestroy() }
             finishActivities()
@@ -1598,7 +1600,7 @@ class MainActivityLifecycleContractTest {
 
                 fun hold(label: Int, expected: List<String>, completion: Int) {
                     val bounds = Rect()
-                    awaitVolumeControl(label) { node ->
+                    awaitVolumeControl(label, scrollToControl = true) { node ->
                         node.getBoundsInScreen(bounds)
                         node.isVisibleToUser && !bounds.isEmpty
                     }
@@ -1652,8 +1654,19 @@ class MainActivityLifecycleContractTest {
         send(MotionEvent.ACTION_UP, endY)
     }
 
-    private fun awaitVolumeControl(label: Int, action: (AccessibilityNodeInfo) -> Boolean) {
+    private fun awaitVolumeControl(
+        label: Int,
+        scrollToControl: Boolean = false,
+        action: (AccessibilityNodeInfo) -> Boolean,
+    ) {
         val description = context.getString(label)
+        val scroll = if (scrollToControl) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else null
+        awaitAudioNode(description, scroll) { node ->
+            node.contentDescription?.toString() == description && action(node)
+        }
+    }
+
+    private fun awaitAudioNode(label: String, scrollAction: Int?, matches: (AccessibilityNodeInfo) -> Boolean) {
         val automation = instrumentation.uiAutomation
         val visibleControls = linkedSetOf<String>()
         fun visit(node: AccessibilityNodeInfo): Boolean {
@@ -1663,19 +1676,37 @@ class MainActivityLifecycleContractTest {
                 visibleControls += "$nodeDescription bounds=$bounds enabled=${node.isEnabled} " +
                     "focusable=${node.isFocusable} focused=${node.isFocused} actions=${node.actionList.map { it.id }}"
             }
-            if (nodeDescription == description && action(node)) return true
+            if (matches(node)) return true
             for (index in 0 until node.childCount) {
                 val child = node.getChild(index) ?: continue
                 try { if (visit(child)) return true } finally { child.recycle() }
             }
             return false
         }
+        fun scroll(node: AccessibilityNodeInfo, action: Int): Boolean {
+            if (node.isVisibleToUser && node.isScrollable && node.performAction(action)) return true
+            for (index in 0 until node.childCount) {
+                val child = node.getChild(index) ?: continue
+                try { if (scroll(child, action)) return true } finally { child.recycle() }
+            }
+            return false
+        }
         val deadline = SystemClock.elapsedRealtime() + 15000
+        var nextScroll = SystemClock.elapsedRealtime() + 1000
         while (SystemClock.elapsedRealtime() < deadline) {
             if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
             val tree = automation.rootInActiveWindow
             if (tree != null) {
-                try { if (tree.refresh() && visit(tree)) return } finally { tree.recycle() }
+                try {
+                    if (tree.refresh()) {
+                        if (visit(tree)) return
+                        val now = SystemClock.elapsedRealtime()
+                        if (scrollAction != null && now >= nextScroll) {
+                            scroll(tree, scrollAction)
+                            nextScroll = now + 400
+                        }
+                    }
+                } finally { tree.recycle() }
             }
             Thread.sleep(50)
         }
@@ -1686,6 +1717,6 @@ class MainActivityLifecycleContractTest {
                 }
             } finally { image.recycle() }
         }
-        fail("Audio volume control did not expose its expected state: $description. Visible controls: $visibleControls")
+        fail("Audio control did not expose its expected state: $label. Visible controls: $visibleControls")
     }
 }
