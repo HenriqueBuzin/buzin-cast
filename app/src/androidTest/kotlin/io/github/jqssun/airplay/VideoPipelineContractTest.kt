@@ -102,20 +102,8 @@ class VideoPipelineContractTest {
     @Test fun avcFramesReachTheDisplayWithScheduledAndImmediateRelease() {
         val width = 32
         val height = 32
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val context = instrumentation.targetContext
-        // The Annex B version of the existing blue, constrained-baseline MP4 fixture.
-        val nals = instrumentation.context.assets.open("playback/mirror-baseline.h264").use {
-            NalUnits.split(it.readBytes())
-        }
-        val units = mutableListOf<MutableList<ByteArray>>()
-        for (nal in nals) {
-            if (units.isEmpty() || NalUnits.type(nal, hevc = false) == 9) units += mutableListOf<ByteArray>()
-            units.last().add(nal)
-        }
-        val startCode = byteArrayOf(0, 0, 0, 1)
-        val frames = units.map { unit -> unit.fold(byteArrayOf()) { frame, nal -> frame + startCode + nal } }
-        assertEquals(10, frames.size)
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val frames = avcFrames()
 
         val format = windowPixelFormat()
         for (scheduled in listOf(true, false)) {
@@ -163,6 +151,60 @@ class VideoPipelineContractTest {
                 }
             }
         }
+    }
+
+    @Test fun switchingCodecsWaitsForANewKeyframeAndKeepsThePipeline() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val renderer = VideoRenderer(context)
+        val codec = VideoRenderer::class.java.getDeclaredField("codec").apply { isAccessible = true }
+        val inputPipeline = VideoRenderer::class.java.getDeclaredField("pipeline")
+            .apply { isAccessible = true }.get(renderer) as VideoPipeline
+        val (keyframe, reference) = avcFrames()
+        val hevcReference = context.assets.open("mirror/sample.h265").use { input ->
+            val slice = NalUnits.split(input.readBytes()).first { NalUnits.type(it, hevc = true) == 1 }
+            byteArrayOf(0, 0, 0, 1) + slice
+        }
+        try {
+            renderer.selectDecoders(32, 32, fps = 10, h265 = false)
+            renderer.startSession()
+            renderer.feedFrame(keyframe, 0, isH265 = false)
+            assertNull("A decoder opened before receiving a size", codec.get(renderer))
+            renderer.setResolution(32, 32)
+            renderer.feedFrame(reference, 100_000_000L, isH265 = false)
+            assertNull("A reference frame opened a decoder", codec.get(renderer))
+
+            renderer.feedFrame(keyframe, 200_000_000L, isH265 = false)
+            val original = requireNotNull(codec.get(renderer))
+            val surface = requireNotNull(inputPipeline.inputSurface)
+            renderer.feedFrame(hevcReference, 300_000_000L, isH265 = true)
+            assertNull("The old AVC decoder survived the codec change", codec.get(renderer))
+            assertSame(surface, inputPipeline.inputSurface)
+
+            renderer.feedFrame(reference, 400_000_000L, isH265 = false)
+            assertNull(codec.get(renderer))
+            renderer.feedFrame(keyframe, 500_000_000L, isH265 = false)
+            assertNotSame(original, requireNotNull(codec.get(renderer)))
+            assertSame(surface, inputPipeline.inputSurface)
+        } finally {
+            renderer.release()
+        }
+    }
+
+    private fun avcFrames(): List<ByteArray> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        // The Annex B version of the existing blue, constrained-baseline MP4 fixture.
+        val nals = instrumentation.context.assets.open("playback/mirror-baseline.h264").use {
+            NalUnits.split(it.readBytes())
+        }
+        val units = mutableListOf<MutableList<ByteArray>>()
+        for (nal in nals) {
+            if (units.isEmpty() || NalUnits.type(nal, hevc = false) == 9) units += mutableListOf<ByteArray>()
+            units.last().add(nal)
+        }
+        val startCode = byteArrayOf(0, 0, 0, 1)
+        val frames = units.map { unit -> unit.fold(byteArrayOf()) { frame, nal -> frame + startCode + nal } }
+        assertEquals(10, frames.size)
+        return frames
     }
 
     private fun windowPixelFormat(): Int = EglCore().use { egl ->
