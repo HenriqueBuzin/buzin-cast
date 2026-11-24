@@ -982,6 +982,11 @@ class MainActivityLifecycleContractTest {
         await("AirPlay rate commands were not applied") {
             !player().playWhenReady && player().playbackParameters.speed == 1.5f
         }
+        main { service.onVideoScrub(12f) }
+        await("The AirPlay seek did not update the paused player and its published position") {
+            !player().playWhenReady && player().currentPosition == 12_000L &&
+                service.videoPlaybackInfo.value.positionMs == 12_000L
+        }
         main {
             assertFalse(player().playWhenReady)
             assertEquals(1.5f, player().playbackParameters.speed, 0f)
@@ -1040,6 +1045,8 @@ class MainActivityLifecycleContractTest {
             start(activity)
             main {
                 repeat(2) { service.onConnectionInit() }
+                service.onVideoSessionPoll()
+                assertTrue("A fresh sender poll did not mark video as pending", service.videoSessionPending())
                 service.onVideoPlay(location, 0f)
             }
             await("The restarted receiver did not accept a new video request") {
@@ -1064,6 +1071,19 @@ class MainActivityLifecycleContractTest {
                 service.onVideoPlay(location, 0f)
             }
             await("The next AirPlay sender did not start video") {
+                service.videoPlaybackActive.value && service.networkPlaybackOwner == Protocol.AIRPLAY
+            }
+            main { service.onVideoStop() }
+            await("The AirPlay stop command did not release its video") {
+                !service.videoPlaybackActive.value && service.sessionSnapshot() == null
+            }
+            main {
+                service.onVideoSessionPoll()
+                assertFalse("A late sender poll reopened the stopped video", service.videoSessionPending())
+                assertEquals(1, service.connectionCount.value)
+                service.onVideoPlay(location, 0f)
+            }
+            await("The stopped AirPlay sender did not start its next video") {
                 service.videoPlaybackActive.value && service.networkPlaybackOwner == Protocol.AIRPLAY
             }
             main {
