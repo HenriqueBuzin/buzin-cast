@@ -33,5 +33,6 @@ class NativeOutputContractTest {
         })
         assertTrue(messages.toString(), messages.any { it.startsWith("Oboe out: ?, mmap=no,") })
         assertTrue(messages.toString(), messages.any { it.startsWith("Oboe out: AAudio, mmap=yes,") })
+        assertTrue(messages.toString(), messages.any { it.startsWith("Oboe out: AAudio (low-latency), mmap=yes,") })
     }
 }

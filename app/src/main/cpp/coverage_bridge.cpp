@@ -430,11 +430,17 @@ struct ScopedAudioStreamClosure {
     ~ScopedAudioStreamClosure() { audioStreamClosure = previous; }
 };
 
+struct DiagnosticAudioConfig {
+    oboe::AudioApi api;
+    oboe::PerformanceMode performanceMode;
+};
+
 // Exercise diagnostic values that a particular emulator may never report.
 class DiagnosticOboeStream final : public oboe::AudioStream {
 public:
-    DiagnosticOboeStream(const oboe::AudioStreamBuilder &builder, oboe::AudioApi api)
-        : AudioStream(builder), mApi(api) {
+    DiagnosticOboeStream(const oboe::AudioStreamBuilder &builder, const DiagnosticAudioConfig &config)
+        : AudioStream(builder), mApi(config.api) {
+        mPerformanceMode = config.performanceMode;
         mFramesPerBurst = 192;
         mBufferSizeInFrames = 192;
         mBufferCapacityInFrames = 384;
@@ -466,12 +472,11 @@ private:
     bool mFirstPoll = true;
 };
 
-thread_local const oboe::AudioApi *diagnosticAudioApi = nullptr;
+thread_local const DiagnosticAudioConfig *diagnosticAudio = nullptr;
 struct ScopedAudioDiagnostics {
-    const oboe::AudioApi api;
-    const oboe::AudioApi *previous = diagnosticAudioApi;
-    explicit ScopedAudioDiagnostics(oboe::AudioApi value) : api(value) { diagnosticAudioApi = &api; }
-    ~ScopedAudioDiagnostics() { diagnosticAudioApi = previous; }
+    const DiagnosticAudioConfig *previous = diagnosticAudio;
+    explicit ScopedAudioDiagnostics(const DiagnosticAudioConfig &config) { diagnosticAudio = &config; }
+    ~ScopedAudioDiagnostics() { diagnosticAudio = previous; }
 };
 }
 
@@ -484,8 +489,8 @@ extern "C" oboe::Result wrapOboeOpenStream(
     asm("__wrap__ZN4oboe18AudioStreamBuilder10openStreamERNSt6__ndk110shared_ptrINS_11AudioStreamEEE");
 extern "C" oboe::Result wrapOboeOpenStream(
     oboe::AudioStreamBuilder *builder, std::shared_ptr<oboe::AudioStream> &stream) {
-    if (diagnosticAudioApi) {
-        stream = std::make_shared<DiagnosticOboeStream>(*builder, *diagnosticAudioApi);
+    if (diagnosticAudio) {
+        stream = std::make_shared<DiagnosticOboeStream>(*builder, *diagnosticAudio);
         return oboe::Result::OK;
     }
     // OpenSL ES retains readable buffer metadata after close. Android API 28
@@ -504,7 +509,7 @@ extern "C" bool realOboeIsMMapUsed(oboe::AudioStream *)
 extern "C" bool wrapOboeIsMMapUsed(oboe::AudioStream *)
     asm("__wrap__ZN4oboe14OboeExtensions10isMMapUsedEPNS_11AudioStreamE");
 extern "C" bool wrapOboeIsMMapUsed(oboe::AudioStream *stream) {
-    return diagnosticAudioApi ? *diagnosticAudioApi == oboe::AudioApi::AAudio : realOboeIsMMapUsed(stream);
+    return diagnosticAudio ? diagnosticAudio->api == oboe::AudioApi::AAudio : realOboeIsMMapUsed(stream);
 }
 
 // Deliberately invokes the real post-close callback; no physical disconnection
@@ -589,9 +594,14 @@ Java_io_github_jqssun_airplay_DebugCoverage_nativeOutputContracts(JNIEnv *env, j
         output->stop();
         OUTPUT_CONTRACT(stream->getState() == oboe::StreamState::Closed);
     } else if (scenario == 5) {
-        for (const auto api : {oboe::AudioApi::Unspecified, oboe::AudioApi::AAudio}) {
+        const DiagnosticAudioConfig configs[] = {
+            {oboe::AudioApi::Unspecified, oboe::PerformanceMode::None},
+            {oboe::AudioApi::AAudio, oboe::PerformanceMode::PowerSaving},
+            {oboe::AudioApi::AAudio, oboe::PerformanceMode::LowLatency},
+        };
+        for (const auto &config : configs) {
             {
-                ScopedAudioDiagnostics diagnostics(api);
+                ScopedAudioDiagnostics diagnostics(config);
                 OUTPUT_CONTRACT(output->start());
             }
             auto stream = AudioOutputContractAccess::stream(output);
