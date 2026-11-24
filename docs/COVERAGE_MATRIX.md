@@ -3280,3 +3280,10 @@ four opens, save and cancel behavior, and both margin bounds. The
 API25 profile added the calibration click handler, taking
 `ToolsScreenKt` from 61/75 to 62/75 methods and from 109/155 to 110/155
 complexity points.
+
+The Tools recording contract passed on API25 with the TV viewport.
+The Export button shared the selected file through a readable
+`FileProvider` URI with a read grant. The same test confirmed that
+cancel and Back preserved the file, and that confirmation removed only
+the selected recording. The matching Tools profiles now cover 63/75
+methods and 111/155 complexity points.

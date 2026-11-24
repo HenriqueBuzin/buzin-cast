@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -19,6 +20,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
+import androidx.core.content.FileProvider
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -59,6 +61,7 @@ class ToolsScreenStateContractTest {
     private lateinit var model: MainViewModel
     private lateinit var store: ViewModelStore
     private lateinit var logs: AsyncLogStore
+    private val appLaunches = CopyOnWriteArrayList<Intent>()
     private var lastNodes = emptyList<Node>()
     private var originalLocale: Locale = Locale.ROOT
     private class TestApplication(base: Context) : Application() { init { attachBaseContext(base) } }
@@ -74,6 +77,7 @@ class ToolsScreenStateContractTest {
             override fun getFilesDir() = root
             override fun getCacheDir() = root
             override fun getSharedPreferences(name: String, mode: Int) = super.getSharedPreferences(preferenceName, mode)
+            override fun startActivity(intent: Intent) { appLaunches += intent }
         }
         instrumentation.runOnMainSync {
             model = MainViewModel(TestApplication(isolated))
@@ -591,7 +595,8 @@ class ToolsScreenStateContractTest {
         }
     }
 
-    @Test fun recordingDeletionRequiresConfirmationAndKeepsTheOtherFile() {
+    @Suppress("DEPRECATION")
+    @Test fun recordingExportAndDeletionApplyToTheSelectedFile() {
         val connected = CountDownLatch(1)
         var boundService: AirPlayService? = null
         val connection = object : ServiceConnection {
@@ -661,6 +666,20 @@ class ToolsScreenStateContractTest {
                         expectActions("capture is active", canPlay = false, canManage = false)
                         main { state("_captureState", MirrorCapture.State()) }
                         expectActions("capture has stopped", canPlay = true, canManage = true)
+                        // Resolve FileProvider's cached roots against the real app directories.
+                        val expectedUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", selected)
+                        click(export)
+                        await("Export did not launch a sharing chooser") { appLaunches.isNotEmpty() }
+                        val chooser = appLaunches.single()
+                        assertEquals(Intent.ACTION_CHOOSER, chooser.action)
+                        val share = requireNotNull(chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT))
+                        assertEquals(Intent.ACTION_SEND, share.action)
+                        assertEquals("video/x-matroska", share.type)
+                        assertTrue(share.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+                        val uri = requireNotNull(share.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+                        assertEquals(expectedUri, uri)
+                        assertArrayEquals(byteArrayOf(4, 5, 6),
+                            requireNotNull(context.contentResolver.openInputStream(uri)).use { it.readBytes() })
                         openConfirmation()
                         tap(text(R.string.tv_edit_cancel))
                         await("Cancel did not restore the recording list") { recordingListVisible() && selected.isFile }
@@ -677,6 +696,8 @@ class ToolsScreenStateContractTest {
                         revealToolsItem(text(R.string.tools_native_open))
                         assertTrue(model.recordings.value.isEmpty())
                         assertTrue(absent(remove))
+                        assertTrue(absent(text(R.string.btn_export)))
+                        assertTrue(appLaunches.isEmpty())
                         assertTrue(selected.isFile)
                     }
                     assertArrayEquals(byteArrayOf(1, 2, 3), remaining.readBytes())
