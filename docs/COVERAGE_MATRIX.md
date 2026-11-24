@@ -2954,3 +2954,16 @@ request body, rejected a header naming a different action, and verified
 that description URLs reject control and event methods. The matching
 `ControlServer` mappings reached 1,506/1,726 instructions, 119/146
 branches, and 82/110 complexity.
+
+Three focused tests passed on the standard API28 APK. The picture-fit
+case saved all four fixed margins, switched overscan on and off, and
+opened corner calibration. Adding the profile to the matching settings
+class files raised complexity from 236/268 to 239/268 and methods from
+175/187 to 178/187. The USB mDNS case kept the current advertisement
+for incomplete or unrelated responses and sent goodbye records only
+after a complete foreign response. It raised matching branch coverage
+from 163/217 to 172/217 and complexity from 114/161 to 122/161. The
+FCast socket case rejected invalid load fields and accepted explicit
+null options with the default playback settings. It raised matching
+branch coverage from 161/208 to 171/208 and complexity from 83/128 to
+93/128. These are scoped counter gains for matching class files.

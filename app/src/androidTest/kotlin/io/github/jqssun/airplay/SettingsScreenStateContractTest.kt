@@ -725,6 +725,28 @@ class SettingsScreenStateContractTest {
         }
     }
 
+    @Test fun pictureFitPresetsPersistAndCornerCalibrationOpens() {
+        val activities = CopyOnWriteArrayList<Intent>()
+        val intercept: (Context) -> Context = { base ->
+            object : ContextWrapper(base) {
+                override fun startActivity(intent: Intent) { activities += Intent(intent) }
+            }
+        }
+        screen(wrapContext = intercept) {
+            for (margin in listOf(3, 5, 8, 2)) {
+                click("$margin%")
+                await("Picture fit did not save $margin%") { Prefs.TV_MARGIN.read(prefs) == margin }
+            }
+
+            switch(R.string.setting_overscanned, Prefs.OVERSCANNED, true)
+            switch(R.string.setting_overscanned, Prefs.OVERSCANNED, false)
+
+            click(label(R.string.setting_calibrate_corners))
+            await("Corner calibration did not open") { activities.isNotEmpty() }
+            assertEquals("io.github.jqssun.airplay.media.CalibrationActivity", activities.single().component?.className)
+        }
+    }
+
     @Test fun launchOnConnectUsesTheOverlayPermissionOrApplicationSettings() {
         val preference = Prefs.LAUNCH_ON_CONNECT
         assertTrue(prefs.edit().putBoolean(preference.key, false).commit())

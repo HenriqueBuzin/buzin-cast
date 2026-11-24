@@ -301,4 +301,46 @@ class UsbMdnsResponderContractTest {
             assertTrue("Malformed probe emitted goodbye records", socket.sent.isEmpty())
         }
     }
+
+    @Test fun malformedResponsesPreserveTheAdvertisementUntilACompleteForeignRecordArrives() {
+        val socket = CapturedSocket()
+        val fixture = fixture(socket)
+        fixture.state("ACTIVE")
+
+        val validResponse = foreign(listOf("other-host", "local"))
+        val serviceRecord = validResponse.copyOfRange(12, validResponse.size)
+        val responseHeader = validResponse.copyOf(12)
+        val question = query(instance to 33).let { it.copyOfRange(12, it.size) }
+        val headerWithQuestion = responseHeader.copyOf().apply { this[5] = 1 }
+        val recordHeader = bytes { name(instance); writeShort(33); writeShort(0x8001); writeInt(120) }
+        val invalidTargetRecord = recordHeader + bytes {
+            writeShort(7); writeShort(0); writeShort(0); writeShort(7000); writeByte(0xc0)
+        }
+        val shortServiceRecord = recordHeader + bytes {
+            writeShort(6); writeShort(0); writeShort(0); writeShort(7000)
+        }
+        val unrelatedRecord = bytes {
+            name(instance); writeShort(16); writeShort(1); writeInt(120); writeShort(1); writeByte(0)
+        }
+
+        val ignored = listOf(
+            headerWithQuestion + byteArrayOf(0xc0.toByte()),
+            responseHeader + recordHeader,
+            validResponse.copyOf(validResponse.size - 1),
+            responseHeader + invalidTargetRecord,
+            responseHeader + shortServiceRecord,
+            responseHeader + unrelatedRecord,
+        )
+        for (packet in ignored) {
+            fixture.packet(packet)
+            assertEquals("An incomplete or unrelated response displaced the receiver", "ACTIVE", fixture.state())
+            assertTrue("The receiver sent goodbye records before detecting a peer", socket.sent.isEmpty())
+        }
+
+        fixture.packet(headerWithQuestion + question + serviceRecord)
+        assertEquals("YIELDED", fixture.state())
+        val goodbye = reply(socket.sent.single())
+        assertEquals(listOf(33, 33, 1), goodbye.records.map { it.type })
+        assertTrue(goodbye.records.all { it.ttl == 0 })
+    }
 }

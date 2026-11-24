@@ -206,6 +206,43 @@ class ReceiverIntegrationTest {
         )) { FCastFrame(1, body).writeTo(socket.getOutputStream()); frame(socket, 9) }
         assertTrue(playback.requests.isEmpty())
     }
+
+    @Test fun fcastRejectsInvalidLoadFieldsAndAcceptsExplicitNullOptions() = withFcast { playback, socket ->
+        val url = "https://example.test/audio.mp3"
+        val mime = "audio/mpeg"
+        fun request(field: String, value: Any) = JSONObject().put("url", url).put("container", mime).put(field, value)
+
+        val invalidLoads = listOf(
+            request("content", "inline content") to "Inline manifests are not supported; send an HTTP(S) URL",
+            request("url", "https://example.test/" + "a".repeat(8192)) to "Expected HTTP(S) media URL",
+            request("container", "audio/" + "a".repeat(120)) to "Unsupported media type",
+            request("time", -1) to "Invalid time",
+            request("headers", JSONObject().apply { repeat(25) { put("X-Field-$it", "value") } }) to null,
+            request("headers", JSONObject().put("Invalid key", "value")) to null,
+            request("headers", JSONObject().put("X-Long", "a".repeat(4097))) to null,
+            request("headers", JSONObject().put("X-Control", "value\ncontinued")) to null,
+        )
+        val output = socket.getOutputStream()
+        for ((request, message) in invalidLoads) {
+            FCastFrame(1, request.toString()).writeTo(output)
+            val error = JSONObject(frame(socket, 9).body).getString("message")
+            if (message != null) assertEquals(message, error) else assertTrue(error.isNotBlank())
+            assertTrue(playback.requests.isEmpty())
+        }
+
+        val valid = request("content", JSONObject.NULL).put("headers", JSONObject.NULL)
+            .put("time", JSONObject.NULL).put("speed", JSONObject.NULL)
+        FCastFrame(1, valid.toString()).writeTo(output)
+        eventually { playback.events.contains("speed:1.0") }
+        val loaded = playback.requests.single()
+        assertEquals(url, loaded.location)
+        assertEquals(mime, loaded.mime)
+        assertEquals(0f, loaded.time)
+        assertTrue(loaded.headers.isEmpty())
+        assertEquals(Protocol.FCAST, playback.mediaOwner)
+        assertTrue(playback.mediaActive)
+    }
+
     @Test fun fcastCannotTakeOverActiveMirroring() = withFcast { playback, socket ->
         playback.activeConnections = 1
         FCastFrame(1, """{"url":"http://example.test/a","container":"video/mp4"}""").writeTo(socket.getOutputStream())
