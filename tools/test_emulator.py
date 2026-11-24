@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import wave
@@ -789,10 +790,27 @@ class Suite:
             if getattr(self.args, "diagnostic_networks", False):
                 self.diagnostic_networks()
         finally:
-            (self.out/"results.json").write_text(json.dumps(self.results,indent=2,ensure_ascii=False),encoding="utf-8")
-            (self.out/"logcat.txt").write_text(self.adb("logcat","-d","-t","1500"),encoding="utf-8")
-            self.adb("shell","am","force-stop",self.package)
-            self.adb("shell","wm","size","reset");self.adb("shell","wm","density","reset")
+            self.finish_run(run_failed=sys.exc_info()[0] is not None)
+
+    def finish_run(self, run_failed):
+        operations = (
+            ("write results", lambda: (self.out / "results.json").write_text(
+                json.dumps(self.results, indent=2, ensure_ascii=False), encoding="utf-8")),
+            ("collect logcat", lambda: (self.out / "logcat.txt").write_text(
+                self.adb("logcat", "-d", "-t", "1500"), encoding="utf-8")),
+            ("stop app", lambda: self.adb("shell", "am", "force-stop", self.package)),
+            ("reset display size", lambda: self.adb("shell", "wm", "size", "reset")),
+            ("reset display density", lambda: self.adb("shell", "wm", "density", "reset")),
+        )
+        failures = []
+        for name, operation in operations:
+            try:
+                operation()
+            except Exception as error:
+                failures.append(error)
+                print(f"Emulator cleanup failed ({name}): {error}", file=sys.stderr, flush=True)
+        if failures and not run_failed:
+            raise failures[0]
 
 
 if __name__=="__main__":

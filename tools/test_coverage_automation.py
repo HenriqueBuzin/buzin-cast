@@ -7,6 +7,7 @@ import subprocess
 import sys
 import unittest
 import xml.etree.ElementTree as ET
+from contextlib import redirect_stderr
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import Mock, call, patch
@@ -59,6 +60,48 @@ class CoverageAutomationTest(unittest.TestCase):
         suite.out=Path(directory);suite.package="com.buzincast.tv"
         suite.results=[];suite.checkpoint=0;suite.adb=Mock(return_value="Success")
         return suite
+
+    def test_suite_keeps_the_original_failure_when_emulator_cleanup_also_fails(self):
+        with TemporaryDirectory() as directory:
+            suite = self.instrumentation_fixture(directory)
+            suite.args.apk = suite.args.native_tests = None
+            suite.setting = Mock()
+            primary = RuntimeError("Instrumentation aborted because Android crashed")
+            suite.check_system_ui = Mock(side_effect=primary)
+
+            def adb(*args):
+                if args == ("shell", "getprop", "sys.boot_completed"):
+                    return "1"
+                if args == ("shell", "getprop", "ro.build.version.sdk"):
+                    return "28"
+                if args == ("logcat", "-d", "-t", "1500"):
+                    return "Emulator system crash"
+                if args == ("shell", "am", "force-stop", suite.package):
+                    raise RuntimeError("activity service unavailable")
+                return "Success"
+
+            suite.adb = Mock(side_effect=adb)
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(RuntimeError) as raised:
+                suite.run()
+            self.assertIs(primary, raised.exception)
+            self.assertEqual([], json.loads((suite.out / "results.json").read_text(encoding="utf-8")))
+            self.assertEqual("Emulator system crash", (suite.out / "logcat.txt").read_text(encoding="utf-8"))
+            self.assertIn("activity service unavailable", stderr.getvalue())
+            self.assertEqual([
+                call("shell", "wm", "size", "reset"),
+                call("shell", "wm", "density", "reset"),
+            ], suite.adb.call_args_list[-2:])
+
+    def test_cleanup_error_still_fails_an_otherwise_passing_suite(self):
+        with TemporaryDirectory() as directory:
+            suite = self.instrumentation_fixture(directory)
+            missing_log = RuntimeError("logcat unavailable")
+            suite.adb.side_effect = [missing_log, "Success", "Success", "Success"]
+            with redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError) as raised:
+                suite.finish_run(run_failed=False)
+            self.assertIs(missing_log, raised.exception)
+            self.assertEqual(4, suite.adb.call_count)
 
     def test_instrumentation_streams_progress_and_honors_default_or_selected_timeout(self):
         output=b"INSTRUMENTATION_STATUS_CODE: 1\nINSTRUMENTATION_STATUS_CODE: 0\nOK (1 test)\n"
