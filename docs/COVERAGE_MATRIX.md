@@ -3518,3 +3518,9 @@ and resumed, and video seek and stop left the audio position intact.
 Skip actions did not reach the detached sender. Matching profiles
 raised service coverage from 515/601 to 521/601 branches and
 from 444/538 to 450/538 complexity points.
+
+The API25 startup retry test confirmed that the restarted receiver
+applies the benchmark preference and forwards real renderer statistics,
+including the active display size, to the service log listener.
+Rendering continued with no listener attached. Matching service
+profiles reached 523/601 branches and 452/538 complexity points.

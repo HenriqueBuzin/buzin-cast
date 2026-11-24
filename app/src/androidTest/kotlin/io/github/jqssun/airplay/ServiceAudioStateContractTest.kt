@@ -188,9 +188,11 @@ class ServiceAudioStateContractTest {
         val portKey = Prefs.SERVER_PORT.key
         val usbKey = Prefs.USB_ONLY.key
         val audioKey = Prefs.ADVERTISE_AUDIO.key
+        val benchmarkKey = Prefs.BENCHMARK_LOG.key
         val originalPort = prefs.takeIf { it.contains(portKey) }?.let(Prefs.SERVER_PORT::read)
         val originalUsbMode = prefs.takeIf { it.contains(usbKey) }?.let(Prefs.USB_ONLY::read)
         val originalAudio = prefs.takeIf { it.contains(audioKey) }?.let(Prefs.ADVERTISE_AUDIO::read)
+        val originalBenchmark = prefs.takeIf { it.contains(benchmarkKey) }?.let(Prefs.BENCHMARK_LOG::read)
         val loopback = InetAddress.getByName("127.0.0.1")
         fun isListening(port: Int) = runCatching {
             Socket(loopback, port).use { it.isConnected }
@@ -198,7 +200,8 @@ class ServiceAudioStateContractTest {
 
         try {
             val port = ServerSocket(0, 1, loopback).use { occupied ->
-                assertTrue(prefs.edit().putInt(portKey, occupied.localPort).putBoolean(usbKey, true).commit())
+                assertTrue(prefs.edit().putInt(portKey, occupied.localPort).putBoolean(usbKey, true)
+                    .putBoolean(benchmarkKey, true).commit())
                 main {
                     service.startServer()
                     assertEquals(AirPlayService.ServerState.ERROR, service.serverState.value)
@@ -213,6 +216,26 @@ class ServiceAudioStateContractTest {
                 assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
             }
             await("Receiver did not listen on the released port") { isListening(port) }
+            main {
+                val renderer = service.videoRenderer
+                assertTrue("Receiver did not enable benchmark logs", renderer.benchmarkLog)
+                val originalLogCallback = service.logCallback
+                val lines = mutableListOf<String>()
+                try {
+                    val sample = byteArrayOf(0, 0, 0, 1, 0x61)
+                    service.logCallback = null
+                    renderer.feedFrame(sample, 0, isH265 = false)
+                    service.logCallback = { lines += it }
+                    val window = renderer.javaClass.getDeclaredField("_lastStatReset").apply { isAccessible = true }
+                    window.setLong(renderer, 0)
+                    renderer.feedFrame(sample, 1, isH265 = false)
+                    val line = lines.single { it.startsWith("fps=") }
+                    assertTrue("Benchmark message omitted the receiver resolution: $line",
+                        line.endsWith("res=${service.videoResolution.value}"))
+                } finally {
+                    service.logCallback = originalLogCallback
+                }
+            }
 
             val replacementPort = ServerSocket(0, 1, loopback).use { occupied ->
                 assertTrue(prefs.edit().putInt(portKey, occupied.localPort).putBoolean(audioKey, false).commit())
@@ -240,6 +263,7 @@ class ServiceAudioStateContractTest {
             if (originalPort == null) restore.remove(portKey) else restore.putInt(portKey, originalPort)
             if (originalUsbMode == null) restore.remove(usbKey) else restore.putBoolean(usbKey, originalUsbMode)
             if (originalAudio == null) restore.remove(audioKey) else restore.putBoolean(audioKey, originalAudio)
+            if (originalBenchmark == null) restore.remove(benchmarkKey) else restore.putBoolean(benchmarkKey, originalBenchmark)
             assertTrue(restore.commit())
         }
     }
