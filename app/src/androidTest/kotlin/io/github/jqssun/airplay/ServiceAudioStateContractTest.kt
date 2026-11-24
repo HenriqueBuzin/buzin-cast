@@ -1954,6 +1954,14 @@ class ServiceAudioStateContractTest {
                 }
                 instrumentation.waitForIdleSync()
                 assertTrue(dacp.ready)
+                assertEquals("The sender has not reported volume yet", 1f, service.clientVolume(), 0.001f)
+                main { service.setClientVolume(0.5f) }
+                awaitCommand(0, "volumedown")
+                feedback(-15f)
+                dacp.playResume().get(5, TimeUnit.SECONDS)
+                assertEquals(listOf("/ctrl-int/1/volumedown", "/ctrl-int/1/playresume"), commands())
+                sender.requests.clear()
+
                 feedback(-22.5f)
                 assertEquals(0.25f, service.clientVolume(), 0.001f)
                 assertEquals(-22.5f, service.onClientVolumeQuery(), 0.001f)
