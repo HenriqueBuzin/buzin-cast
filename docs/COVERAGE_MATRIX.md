@@ -3363,3 +3363,11 @@ through ADB's raw output path and still requires a complete parsed
 hierarchy. Combining the playback checkpoint with the matching
 normal API28 classes raised `MainScreenKt` from 856/884 to 861/884
 lines and from 322/399 to 323/399 complexity points.
+
+The complete normal DE/AT API28 report for `9f7d980` passed all 420
+Android tests, 21 native UBSan cases, 15 runtime results and VPN and
+offline diagnostics. JVM coverage reached 81,316/85,929 instructions,
+5,031/5,897 branches, 8,206/8,466 lines, 4,346/5,119 complexity points,
+2,235/2,364 methods and 307/314 classes. All six native metrics reached
+100%. Compact DE/AT now has the lowest metric among the latest
+complete editions, with 4,321/5,118 JVM complexity points (84.43%).
