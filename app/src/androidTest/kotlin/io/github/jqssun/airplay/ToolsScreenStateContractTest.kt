@@ -409,6 +409,9 @@ class ToolsScreenStateContractTest {
                 val port = text(R.string.tools_port)
                 val code = text(R.string.tools_pairing_code)
                 fun showDialogActions() {
+                    // A previous dialog's keyboard can still be reported while the next dialog opens.
+                    // Wait for the active app window to contain the form before sending Back to the IME.
+                    await("The touch relay form did not open") { withRelayFields { true } }
                     var dismissed = false
                     await("The relay form actions are not visible") {
                         if (buttonEnabled(connect) != null) return@await true
