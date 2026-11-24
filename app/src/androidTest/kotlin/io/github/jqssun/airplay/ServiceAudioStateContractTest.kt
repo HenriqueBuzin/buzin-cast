@@ -761,7 +761,7 @@ class ServiceAudioStateContractTest {
         }
     }
 
-    @Test fun mirrorCallbacksForwardAudioAndSizedVideoToTheAuthenticatedPeer() = withoutAutoLaunch {
+    @Test fun mirrorCallbacksForwardAudioAndSizedVideoBeforeEndingTheRelay() = withoutAutoLaunch {
         val packets = LinkedBlockingQueue<MirrorPacket>()
         val peer = MirrorRelay(context, {}, { packets.add(it) }, {}, { true })
         val pcm = byteArrayOf(1, 0, 2, 0, 3, 0, 4, 0)
@@ -785,6 +785,8 @@ class ServiceAudioStateContractTest {
                 sender.sending && receiver.receiving
             }
             main {
+                service.onMirrorRunning(false)
+                assertTrue("A stop before any video closed the relay", service.relay.state.value.sending)
                 // The receiver must see the audio first. A video callback before
                 // dimensions are known must not emit an unusable video packet.
                 service.onVideoData(byteArrayOf(0, 0, 0, 1, 0x65, 0x00), 1_000, false)
@@ -808,6 +810,14 @@ class ServiceAudioStateContractTest {
             assertEquals(640, video.width)
             assertEquals(480, video.height)
             assertFalse(video.hevc)
+
+            main { service.onMirrorRunning(false) }
+            val ended = context.getString(R.string.relay_ended)
+            await("The mirror stop did not end the authenticated relay gracefully") {
+                val sender = service.relay.state.value
+                val receiver = peer.state.value
+                !sender.sending && !receiver.receiving && sender.message == ended && receiver.message == ended
+            }
         } finally {
             main { service.relay.stop() }
             peer.stop()

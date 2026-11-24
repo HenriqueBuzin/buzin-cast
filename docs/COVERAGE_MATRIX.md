@@ -3505,3 +3505,9 @@ with no current index, no previous index, and two equal indices.
 These events left the sender volume target idle. With the earlier
 matching profiles, service coverage reached 515/601 branches and
 444/538 complexity points.
+
+The API25 relay regression test verified that an AirPlay mirror-stop
+callback before the first video packet leaves the relay connected.
+After forwarding audio and video, the same callback ended the
+authenticated session gracefully on both peers. The case confirmed
+the behavior already reflected by the combined service counters.
