@@ -3639,3 +3639,14 @@ the sliders, wait for control positions to settle, and dispatch
 touches to the activity in window coordinates. Both API25 cases
 passed, including volume changes and DACP scan release and
 cancellation.
+
+The completed standard compact API22 replay of `0280ba0` passed
+429 Android tests, 21 native UBSan tests, and all 15 required
+runtime results. The merge with the API28 run verified matching
+app APKs, test APKs, JVM class mappings, and native libraries.
+The combined report covers 83,193/86,777 instructions,
+5,172/5,973 branches, 8,303/8,508 lines, 4,464/5,156 complexity
+points, 2,273/2,367 methods, and 308/314 classes. All six native
+metrics reach 100%. The lowest metric across the four latest
+complete edition reports is now normal DE/AT JVM complexity,
+at 4,375/5,121 (85.43%).
