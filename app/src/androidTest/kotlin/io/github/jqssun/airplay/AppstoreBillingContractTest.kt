@@ -80,9 +80,7 @@ class AppstoreBillingContractTest {
         val fulfillments = mutableListOf<Pair<String, FulfillmentResult>>()
         for (status in PurchaseResponse.RequestStatus.entries) {
             val response = PurchaseResponseBuilder().setRequestId(request).setRequestStatus(status)
-            if (status == PurchaseResponse.RequestStatus.SUCCESSFUL) {
-                response.setUserData(user).setReceipt(receipt)
-            }
+                .setUserData(user).setReceipt(receipt)
             AppstoreBilling.onPurchaseResponse(response.build()) { id, result ->
                 fulfillments += id to result
             }

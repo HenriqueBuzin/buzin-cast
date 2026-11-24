@@ -70,10 +70,11 @@ object AppstoreBilling : PurchasingListener {
         response: PurchaseResponse,
         notifyFulfillment: (String, FulfillmentResult) -> Unit,
     ) {
-        when (response.requestStatus) {
-            PurchaseResponse.RequestStatus.SUCCESSFUL ->
-                notifyFulfillment(response.receipt.receiptId, FulfillmentResult.FULFILLED)
-            else -> Log.d(TAG, "Purchase not completed: ${response.requestStatus}")
+        val status = response.requestStatus
+        if (status == PurchaseResponse.RequestStatus.SUCCESSFUL) {
+            notifyFulfillment(response.receipt.receiptId, FulfillmentResult.FULFILLED)
+        } else {
+            Log.d(TAG, "Purchase not completed: $status")
         }
     }
 

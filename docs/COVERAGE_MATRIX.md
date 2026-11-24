@@ -3427,3 +3427,9 @@ resolution, showed the waiting and active recording indicators, and
 removed the indicator after recording stopped. Back returned to the
 overview. The matching MainScreen profiles reached 438/535 branches
 and 328/399 complexity points.
+
+All four Amazon billing contracts passed on API25 with SDK response
+fixtures. Only successful responses requested fulfillment, even when
+an unsuccessful response carried a receipt. The callback compares
+the single success status directly. The resulting billing code
+covered both branches on API25.
