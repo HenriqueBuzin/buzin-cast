@@ -3331,3 +3331,9 @@ and pairing-code values are normalized, and that a valid target
 submits and returns focus to Tools. Combined matching Tools profiles
 now cover 4,240/4,324 instructions, 128/159 branches, 162/164 lines,
 118/155 complexity points and 67/75 methods.
+
+Two API25 Tools tests passed after adding Cancel in the relay form and
+Left in the diagnostics dialog. Cancel returned focus to the relay
+button, and Left kept the diagnostic report open. The matching
+profiles now cover all 164 Tools lines, 131/159 branches, 4,260/4,324
+instructions, 122/155 complexity points and 69/75 methods.

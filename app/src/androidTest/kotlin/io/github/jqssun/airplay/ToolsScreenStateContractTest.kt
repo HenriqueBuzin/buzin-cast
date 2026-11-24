@@ -399,6 +399,10 @@ class ToolsScreenStateContractTest {
                 val code = text(R.string.tools_pairing_code)
                 revealToolsItem(open)
                 click(open)
+                await("The empty form allowed connecting") { buttonEnabled(connect) == false }
+                click(text(R.string.tv_edit_cancel))
+                await("Cancel did not close the relay form and restore focus") { relayControlFocused(open) }
+                click(open)
                 fun field(label: String, action: (AccessibilityNodeInfo) -> Boolean): Boolean = withRelayNodes { root ->
                     fun find(node: AccessibilityNodeInfo): Boolean {
                         repeat(node.childCount) { index ->
@@ -426,7 +430,7 @@ class ToolsScreenStateContractTest {
                         field(label) { it.text?.toString() == expected }
                     }
                 }
-                await("The empty form allowed connecting") { buttonEnabled(connect) == false }
+                await("The reopened empty form allowed connecting") { buttonEnabled(connect) == false }
                 type(address, " 127.0.0.1 ", " 127.0.0.1 ")
                 type(port, "x65536!", "65536")
                 type(code, "ABCD-EFGH-IJKL-X", "ABCD-EFGH-IJKL")
@@ -588,6 +592,12 @@ class ToolsScreenStateContractTest {
                 val expected = text(if (running) R.string.diag_receiver_running else R.string.diag_receiver_stopped)
                 await("Diagnostic report has wrong receiver status") {
                     snapshot(requireFocusedWindow = true)?.any { it.text.contains(expected) } == true
+                }
+                if (!back) {
+                    instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT)
+                    await("Remote Left dismissed the diagnostics dialog") {
+                        snapshot(requireFocusedWindow = true)?.any { it.text.contains(expected) } == true
+                    }
                 }
                 if (back) {
                     instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
