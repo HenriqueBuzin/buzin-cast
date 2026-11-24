@@ -3023,3 +3023,12 @@ Six JVM cases executed the compiled local-network permission policy.
 They covered all 21 instructions, 8 branches, 6 lines and 5 complexity
 points in the decision method, including the case where a granted
 permission should bypass the rationale query.
+
+The standard compact API28 replay from `ccde252` passed 404 Android
+tests, 21 native UBSan cases, all 15 runtime gates, and VPN and offline
+diagnostics. The sealed-build replay generated a complete report using
+its new runtime profiles. JVM counters reached 82,002/86,745
+instructions, 5,063/5,977 branches, 8,208/8,494 lines, 4,344/5,151
+complexity, 2,243/2,360 methods and 308/314 classes. Native functions,
+instantiations and MC/DC reached 100%. API28 alone covered 909/912
+native branches, 1,748/1,751 lines and 1,496/1,500 regions.
