@@ -788,6 +788,35 @@ class ReceiverIntegrationTest {
             }
         }
     }
+
+    @Test fun dlnaCallbackSuccessResetsFailuresBeforeTheSubscriberIsRemoved() {
+        val registry = SubscriptionRegistry()
+        try {
+            ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { callback ->
+                callback.soTimeout = 5000
+                val sid = registry.subscribe("avt", listOf("http://127.0.0.1:${callback.localPort}"), 120)
+                fun deliver(index: Int, sequence: Int, status: String) {
+                    val body = "<event>$index</event>"
+                    registry.publish("avt", body)
+                    assertEquals(body, receiveDlnaEvent(callback, "/", sid, sequence, status))
+                }
+
+                val failed = "503 Service Unavailable"
+                deliver(1, 0, failed)
+                deliver(2, 0, failed)
+                deliver(3, 0, "200 OK")
+
+                deliver(4, 1, failed)
+                deliver(5, 1, failed)
+                assertTrue("A successful delivery should reset the consecutive failures", registry.renew(sid, 120))
+                deliver(6, 1, failed)
+                eventually { !registry.renew(sid, 120) }
+            }
+        } finally {
+            registry.shutdown()
+        }
+    }
+
     private fun withCastV2(test: (Playback, SSLSocket) -> Unit) {
         val playback = Playback()
         val log = CopyOnWriteArrayList<String>()

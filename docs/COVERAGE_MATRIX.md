@@ -3176,3 +3176,10 @@ the worker reported exhausted space and preserved a readable video frame.
 On the same compiled APK, adding this test advanced recorder branches
 from 50/66 to 53/66, lines from 57/60 to 60/60, and complexity from
 34/49 to 37/49.
+
+The normal edition API25 DLNA event test confirmed that a successful
+callback resets consecutive failures. Three later failed deliveries
+removed the subscription. The server sent events to the root path
+when the callback URL omitted a path. Adding this profile to the three
+matching subscription registry classes advanced branches from 35/52
+to 42/52, methods from 28/29 to 29/29, and complexity from 38/55 to 45/55.
