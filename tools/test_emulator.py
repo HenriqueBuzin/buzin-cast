@@ -71,7 +71,7 @@ class Suite:
             for profile in (self.out/"coverage").glob("*"):
                 if re.fullmatch(r"\d+-(android\.ec|native\.profraw|native-unit\.profraw)",profile.name): profile.unlink()
 
-    def adb(self, *args, binary=False):
+    def adb(self, *args, binary=False, empty_on_silent_failure=False):
         timeout = 240 if args and args[0] == "install" else 45
         for attempt in range(3):
             result = subprocess.run([self.args.adb, "-s", self.args.serial, *map(str,args)],
@@ -82,6 +82,8 @@ class Suite:
             if result.returncode and any(text in error for text in ("cannot connect to daemon", "daemon still not running")) and attempt<2:
                 time.sleep(1); continue
             if result.returncode:
+                if empty_on_silent_failure and not (result.stdout or result.stderr):
+                    return b"" if binary else ""
                 raise RuntimeError("ADB failed: "+error+("" if binary else result.stdout.decode("utf-8","replace")))
             return result.stdout if binary else result.stdout.decode("utf-8", "replace")
 
@@ -99,7 +101,10 @@ class Suite:
         # An empty dump during a transition must not count as proof that a
         # dialog/caption/keyboard disappeared. Never return a fabricated tree.
         for attempt in range(3):
-            dumped=self.adb("shell", "uiautomator", "dump", "/data/local/tmp/buzin-test.xml")
+            # Older Android images can crash the dumper on a disappearing node
+            # and return no output. Retry without reading the previous XML.
+            dumped=self.adb("shell", "uiautomator", "dump", "/data/local/tmp/buzin-test.xml",
+                            empty_on_silent_failure=True)
             if "dumped" in dumped:
                 xml=self.adb("shell", "cat", "/data/local/tmp/buzin-test.xml")
                 try:

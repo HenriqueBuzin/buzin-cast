@@ -660,6 +660,26 @@ class CoverageAutomationTest(unittest.TestCase):
         self.assertEqual("uiautomator",suite.adb.call_args_list[1].args[1])
 
     @patch("test_emulator.time.sleep")
+    @patch("test_emulator.subprocess.run")
+    def test_silent_dump_exit_retries_but_other_adb_failures_are_reported(self, run, _sleep):
+        suite = Suite.__new__(Suite)
+        suite.args = argparse.Namespace(adb="adb", serial="emulator-5554")
+        silent = subprocess.CompletedProcess([], 1, b"", b"")
+        run.side_effect = [
+            silent,
+            subprocess.CompletedProcess([], 0, b"UI hierarchy dumped", b""),
+            subprocess.CompletedProcess([], 0, b'<hierarchy><node text="Fresh screen"/></hierarchy>', b""),
+            silent,
+            subprocess.CompletedProcess([], 1, b"", b"device offline"),
+        ]
+        self.assertEqual("Fresh screen", Suite.texts(suite.ui()).strip())
+        self.assertEqual("uiautomator", run.call_args_list[1].args[0][4])
+        with self.assertRaises(RuntimeError):
+            suite.adb("shell", "getprop")
+        with self.assertRaisesRegex(RuntimeError, "device offline"):
+            suite.ui()
+
+    @patch("test_emulator.time.sleep")
     def test_malformed_or_empty_tree_cannot_prove_dialog_closed(self, _sleep):
         suite=Suite.__new__(Suite)
         suite.adb=Mock(side_effect=["UI hierarchy dumped", "<hierarchy/>", "UI hierarchy dumped", "<broken", "UI hierarchy dumped", '<hierarchy><node text="Dialog remains open"/></hierarchy>'])

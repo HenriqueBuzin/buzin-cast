@@ -3068,3 +3068,9 @@ probing sockets, as those launches could keep the service bound on API25.
 Against the 33 matching service classes, the API25 profile advanced from
 504/601 to 507/601 branches and from 430/538 to 433/538 complexity points.
 The API28 profile advanced the same baseline to 506/601 and 432/538.
+
+The `140d648` normal DE/AT API28 replay passed 407 Android tests and
+21 native UBSan tests. At the launcher gate Android's accessibility
+dumper crashed while reading a disappearing node and exited without
+output. The runner now retries a silent dump exit and requires a fresh
+XML tree. ADB failures with diagnostics still fail the gate.
