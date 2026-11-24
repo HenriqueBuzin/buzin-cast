@@ -3433,3 +3433,9 @@ fixtures. Only successful responses requested fulfillment, even when
 an unsuccessful response carried a receipt. The callback compares
 the single success status directly. The resulting billing code
 covered both branches on API25.
+
+All five Amazon billing contracts passed on API25 after adding the
+license callback test. The test exercises the registered listener
+with locally constructed responses for every SDK license status.
+Billing coverage reached 107/111 instructions, 2/2 branches,
+28/30 lines, 11/12 complexity points, 10/11 methods, and 2/2 classes.

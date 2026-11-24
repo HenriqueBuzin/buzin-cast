@@ -25,13 +25,13 @@ object AppstoreBilling : PurchasingListener {
     fun init(context: Context) = init(
         context,
         registerListener = { PurchasingService.registerListener(it, this) },
-        verifyLicense = { LicensingService.verifyLicense(it, LicenseCheck) },
+        verifyLicense = { app, listener -> LicensingService.verifyLicense(app, listener) },
     )
 
     internal fun init(
         context: Context,
         registerListener: (Context) -> Unit,
-        verifyLicense: (Context) -> Unit,
+        verifyLicense: (Context, LicensingListener) -> Unit,
     ) {
         try {
             registerListener(context)
@@ -39,7 +39,7 @@ object AppstoreBilling : PurchasingListener {
             Log.w(TAG, "Appstore purchasing listener registration failed", e)
         }
         try {
-            verifyLicense(context.applicationContext)
+            verifyLicense(context.applicationContext, LicenseCheck)
         } catch (e: Exception) {
             Log.w(TAG, "Appstore license verification could not be started", e)
         }

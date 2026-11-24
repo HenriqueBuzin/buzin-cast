@@ -3,6 +3,9 @@ package io.github.jqssun.airplay
 import android.content.ContextWrapper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.amazon.device.drm.a.c.a as LicenseResponseBuilder
+import com.amazon.device.drm.model.LicenseResponse
+import com.amazon.device.drm.model.RequestId as LicenseRequestId
 import com.amazon.device.iap.internal.model.ProductDataResponseBuilder
 import com.amazon.device.iap.internal.model.PurchaseResponseBuilder
 import com.amazon.device.iap.internal.model.PurchaseUpdatesResponseBuilder
@@ -43,8 +46,8 @@ class AppstoreBillingContractTest {
                 calls += "register"
                 throw IllegalStateException("Resource already registered")
             },
-            verifyLicense = {
-                assertSame(app, it)
+            verifyLicense = { context, _ ->
+                assertSame(app, context)
                 calls += "verify"
             },
         )
@@ -59,13 +62,27 @@ class AppstoreBillingContractTest {
                 assertSame(startupContext, it)
                 calls += "register"
             },
-            verifyLicense = {
-                assertSame(app, it)
+            verifyLicense = { context, _ ->
+                assertSame(app, context)
                 calls += "verify"
                 throw IllegalStateException("License service unavailable")
             },
         )
         assertEquals(listOf("register", "verify"), calls)
+    }
+
+    @Test fun theRegisteredLicenseListenerHandlesEverySdkResponseStatus() {
+        val handled = mutableListOf<LicenseResponse.RequestStatus>()
+        AppstoreBilling.init(startupContext, registerListener = {}, verifyLicense = { context, listener ->
+            assertSame(app, context)
+            for (status in LicenseResponse.RequestStatus.entries) {
+                // Appstore SDK 3.0.9 exposes the DRM response builder under an obfuscated name.
+                val response = LicenseResponseBuilder().a(LicenseRequestId()).a(status).a()
+                listener.onLicenseCommandResponse(response)
+                handled += status
+            }
+        })
+        assertEquals(LicenseResponse.RequestStatus.entries.toList(), handled)
     }
 
     @Test fun onlySuccessfulPurchasesRequestFulfillmentForTheirReceipt() {
