@@ -37,7 +37,9 @@ class DownloadPublicationContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
     private val roots = mutableListOf<File>()
-    private enum class Destination { NORMAL, MISSING, UNWRITABLE, STREAM_UNAVAILABLE, FINALIZATION_REJECTED }
+    private enum class Destination {
+        NORMAL, MISSING, UNWRITABLE, STREAM_UNAVAILABLE, FINALIZATION_REJECTED, CLEANUP_REJECTED
+    }
     private enum class QueryResult { PATH, NULL_CURSOR, EMPTY_CURSOR, NULL_PATH, PATH_LOOKUP_FAILED }
 
     private class Store(val output: File, val destination: Destination, val queryResult: QueryResult) : ContentProvider() {
@@ -52,10 +54,14 @@ class DownloadPublicationContractTest {
         }
         override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?): Int {
             updates += ContentValues(requireNotNull(values))
-            return if (destination == Destination.FINALIZATION_REJECTED) 0 else 1
+            return when (destination) {
+                Destination.FINALIZATION_REJECTED, Destination.CLEANUP_REJECTED -> 0
+                else -> 1
+            }
         }
         override fun delete(uri: Uri, selection: String?, args: Array<out String>?): Int {
             deletes += uri
+            if (destination == Destination.CLEANUP_REJECTED) throw SecurityException("Cannot remove pending copy")
             if (output.exists()) check(output.delete())
             return 1
         }
@@ -183,6 +189,20 @@ class DownloadPublicationContractTest {
         assertEquals(0, store.updates.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
         assertEquals(listOf(Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "1")), store.deletes)
         assertFalse("Failed publication left a pending copy", store.output.exists())
+        assertArrayEquals(bytes, source.readBytes())
+    }
+
+    @Test fun cleanupRejectionStillReportsFailureAndPreservesTheExport() {
+        if (Build.VERSION.SDK_INT < 29) return
+        val fixture = fixture(Destination.CLEANUP_REJECTED)
+        val bytes = byteArrayOf(5, 10, 15, 20)
+        val source = File(fixture.root, "source.bin").apply { writeBytes(bytes) }
+
+        assertNull(publish(fixture, source))
+        val store = requireNotNull(fixture.store)
+        assertEquals(1, store.inserts.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
+        assertEquals(0, store.updates.single().getAsInteger(MediaStore.MediaColumns.IS_PENDING).toInt())
+        assertEquals(listOf(Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "1")), store.deletes)
         assertArrayEquals(bytes, source.readBytes())
     }
 

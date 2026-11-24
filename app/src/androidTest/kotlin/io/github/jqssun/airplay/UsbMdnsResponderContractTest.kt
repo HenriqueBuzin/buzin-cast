@@ -35,10 +35,11 @@ class UsbMdnsResponderContractTest {
     private inner class Fixture(
         val socket: MulticastSocket,
         onLink: (String?, Inet4Address?) -> Unit,
+        bindPort: Int = 5353,
         findLink: (() -> Pair<NetworkInterface, InterfaceAddress>?)? = null,
     ) {
         val advertiser = if (findLink == null) UsbMdnsAdvertiser(listOf(service, second), onLink)
-            else UsbMdnsAdvertiser(listOf(service, second), onLink, findLink)
+            else UsbMdnsAdvertiser(listOf(service, second), onLink, findLink, bindPort)
         val link: Any
         init {
             val type = advertiser.javaClass.declaredClasses.single { it.simpleName == "Link" }
@@ -354,15 +355,16 @@ class UsbMdnsResponderContractTest {
         val reports = mutableListOf<Pair<String?, Inet4Address?>>()
         val previous = CapturedSocket()
         var selected: Pair<NetworkInterface, InterfaceAddress>? = next
-        val fixture = Fixture(previous, { name, ip -> reports += name to ip }) { selected }.also { fixtures += it }
-        val link = fixture.advertiser.javaClass.getDeclaredField("link").apply { isAccessible = true }
-        link.set(fixture.advertiser, fixture.link)
-        fixture.state("ACTIVE")
+        DatagramSocket(null).use { occupied ->
+            occupied.reuseAddress = false
+            occupied.bind(InetSocketAddress(0))
+            val fixture = Fixture(previous, { name, ip -> reports += name to ip }, occupied.localPort) { selected }
+                .also { fixtures += it }
+            val link = fixture.advertiser.javaClass.getDeclaredField("link").apply { isAccessible = true }
+            link.set(fixture.advertiser, fixture.link)
+            fixture.state("ACTIVE")
 
-        try {
-            DatagramSocket(null).use { occupied ->
-                occupied.reuseAddress = false
-                occupied.bind(InetSocketAddress(5353))
+            try {
                 fixture.call("_scan", 1_000L)
                 assertTrue(previous.isClosed)
                 assertNull(link.get(fixture.advertiser))
@@ -372,16 +374,17 @@ class UsbMdnsResponderContractTest {
                 assertNull(link.get(fixture.advertiser))
                 instrumentation.waitForIdleSync()
                 assertEquals(listOf(null to null), reports)
-            }
 
-            fixture.call("_scan", 3_000L)
-            assertNotNull("The available discovery port did not reopen", link.get(fixture.advertiser))
-            assertEquals("CHECKING", fixture.state())
-            instrumentation.waitForIdleSync()
-            assertEquals(listOf(null to null, network.name to address), reports)
-        } finally {
-            selected = null
-            fixture.call("_scan", 4_000L)
+                occupied.close()
+                fixture.call("_scan", 3_000L)
+                assertNotNull("The available discovery port did not reopen", link.get(fixture.advertiser))
+                assertEquals("CHECKING", fixture.state())
+                instrumentation.waitForIdleSync()
+                assertEquals(listOf(null to null, network.name to address), reports)
+            } finally {
+                selected = null
+                fixture.call("_scan", 4_000L)
+            }
         }
     }
 

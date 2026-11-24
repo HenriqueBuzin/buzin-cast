@@ -27,6 +27,7 @@ class UsbMdnsAdvertiser internal constructor(
     private val services: List<MdnsService>,
     private val onLink: (iface: String?, addr: Inet4Address?) -> Unit,
     private val findLink: () -> Pair<NetworkInterface, InterfaceAddress>?,
+    private val bindPort: Int = MDNS_PORT,
 ) {
     constructor(services: List<MdnsService>, onLink: (String?, Inet4Address?) -> Unit) :
         this(services, onLink, ::findUsbLink)
@@ -116,7 +117,7 @@ class UsbMdnsAdvertiser internal constructor(
         val socket = MulticastSocket(null)
         return try {
             socket.reuseAddress = true
-            socket.bind(InetSocketAddress(MDNS_PORT))
+            socket.bind(InetSocketAddress(bindPort))
             socket.joinGroup(GROUP, ni)
             socket.networkInterface = ni
             socket.timeToLive = 255
