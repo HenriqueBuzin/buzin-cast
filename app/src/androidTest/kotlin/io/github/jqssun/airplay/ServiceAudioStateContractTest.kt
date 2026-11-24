@@ -66,6 +66,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.net.InetAddress
+import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.util.concurrent.CountDownLatch
@@ -73,7 +74,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-/** Real bound service and MediaSession contracts without starting a receiver. */
+/** Real bound service and MediaSession contracts. Each case leaves the receiver stopped. */
 @RunWith(AndroidJUnit4::class)
 class ServiceAudioStateContractTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
@@ -151,7 +152,7 @@ class ServiceAudioStateContractTest {
             if (::service.isInitialized) main {
                 if (::controller.isInitialized) controller.unregisterCallback(callback)
                 service.pinCallback = null
-                assertEquals("Audio-state contracts started a receiver", AirPlayService.ServerState.STOPPED,
+                assertEquals("Audio-state contract left a receiver running", AirPlayService.ServerState.STOPPED,
                     service.serverState.value)
             }
         } finally {
@@ -173,6 +174,42 @@ class ServiceAudioStateContractTest {
                 assertTrue("Preference restoration did not flush", editor.commit())
             }
             if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
+        }
+    }
+
+    @Test fun occupiedReceiverPortCanBeRetriedAfterItIsReleased() {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val portKey = Prefs.SERVER_PORT.key
+        val usbKey = Prefs.USB_ONLY.key
+        val originalPort = prefs.takeIf { it.contains(portKey) }?.let(Prefs.SERVER_PORT::read)
+        val originalUsbMode = prefs.takeIf { it.contains(usbKey) }?.let(Prefs.USB_ONLY::read)
+        val loopback = InetAddress.getByName("127.0.0.1")
+
+        try {
+            val port = ServerSocket(0, 1, loopback).use { occupied ->
+                assertTrue(prefs.edit().putInt(portKey, occupied.localPort).putBoolean(usbKey, true).commit())
+                main {
+                    service.startServer()
+                    assertEquals(AirPlayService.ServerState.ERROR, service.serverState.value)
+                }
+                occupied.localPort
+            }
+
+            main {
+                service.startServer()
+                assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+                service.startServer()
+                assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            }
+            await("Receiver did not listen on the released port") {
+                runCatching { Socket(loopback, port).use { it.isConnected } }.getOrDefault(false)
+            }
+        } finally {
+            main { service.stopServer() }
+            val restore = prefs.edit()
+            if (originalPort == null) restore.remove(portKey) else restore.putInt(portKey, originalPort)
+            if (originalUsbMode == null) restore.remove(usbKey) else restore.putBoolean(usbKey, originalUsbMode)
+            assertTrue(restore.commit())
         }
     }
 

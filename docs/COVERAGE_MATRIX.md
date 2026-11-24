@@ -2967,3 +2967,9 @@ FCast socket case rejected invalid load fields and accepted explicit
 null options with the default playback settings. It raised matching
 branch coverage from 161/208 to 171/208 and complexity from 83/128 to
 93/128. These are scoped counter gains for matching class files.
+
+The standard API28 receiver lifecycle test held the configured loopback
+port open, verified the AirPlay startup error, then confirmed that the
+same service could retry and accept a connection on the released port.
+The matching service mappings rose from 504/601 to 505/601 branches
+and from 430/538 to 431/538 complexity.
