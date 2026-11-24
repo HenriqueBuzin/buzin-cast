@@ -3273,3 +3273,10 @@ offline diagnostics. JVM coverage reached 82,072/86,767 instructions,
 2,244/2,362 methods and 308/314 classes. All six native metrics reached
 100%: 908/908 branches, 203/203 functions, 205/205 instantiations,
 1,745/1,745 lines, 171/171 MC/DC conditions and 1,494/1,494 regions.
+
+The guided calibration check now opens the preview from the Tools
+screen with the remote. On API25 the matching normal APK passed all
+four opens, save and cancel behavior, and both margin bounds. The
+API25 profile added the calibration click handler, taking
+`ToolsScreenKt` from 61/75 to 62/75 methods and from 109/155 to 110/155
+complexity points.

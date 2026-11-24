@@ -462,6 +462,20 @@ class CoverageAutomationTest(unittest.TestCase):
             suite.activate("Next", description=True)
         suite.key.assert_not_called()
 
+    def test_calibration_opens_through_the_tools_control(self):
+        suite = Suite.__new__(Suite)
+        for operation in ("start", "activate", "wait", "key", "shot", "setting"):
+            setattr(suite, operation, Mock())
+        suite.debug = Mock(return_value={"margin": 3})
+
+        suite.calibration()
+
+        suite.start.assert_called_once_with("tools")
+        self.assertEqual([call("Calibrate picture", "Calibrar imagem", "Bild kalibrieren")] * 4,
+                         suite.activate.call_args_list)
+        suite.debug.assert_called_once_with()
+        self.assertEqual(call("tv_margin", 3), suite.setting.call_args)
+
     def test_archived_source_changes_cannot_keep_a_valid_compilation_fingerprint(self):
         with TemporaryDirectory(prefix="coverage-source-fingerprint-") as directory:
             snapshot = Path(directory)

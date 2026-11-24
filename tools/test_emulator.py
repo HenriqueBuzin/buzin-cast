@@ -447,7 +447,7 @@ class Suite:
         self.start("tools")
         original=self.debug()["margin"]
         def open_preview():
-            self.debug("calibrate")
+            self.activate("Calibrate picture", "Calibrar imagem", "Bild kalibrieren")
             self.wait(lambda: re.search(r"mCurrentFocus=.*CalibrationActivity",self.adb("shell","dumpsys","window")),"Calibration did not open")
         def saved(value):
             self.wait(lambda:self.debug().get("margin")==value,"Calibration did not save margin: "+str(value))
