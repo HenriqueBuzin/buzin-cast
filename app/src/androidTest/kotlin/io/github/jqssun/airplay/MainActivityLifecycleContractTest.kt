@@ -52,6 +52,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.net.ConnectException
@@ -1204,7 +1205,7 @@ class MainActivityLifecycleContractTest {
                 service.onAudioFormat(2, 352, false)
                 service.onProgress(0L, 44100L, 44100L * 90)
             }
-            awaitVolumeControl(R.string.cd_rewind, scrollToControl = true) { node ->
+            awaitVolumeControl(R.string.cd_rewind, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
                 val bounds = Rect().also(node::getBoundsInScreen)
                 if (bounds.isEmpty) return@awaitVolumeControl false
                 // Swipe beside the playback buttons to reveal both sliders.
@@ -1532,6 +1533,8 @@ class MainActivityLifecycleContractTest {
         val unknown = context.getString(R.string.unknown_track)
         val rewind = context.getString(R.string.cd_rewind)
         val title = "Mini player contract track"
+        val artist = "Mini player contract artist"
+        val album = "Mini player contract album"
 
         fun tap(label: String) {
             lateinit var bounds: Rect
@@ -1554,7 +1557,7 @@ class MainActivityLifecycleContractTest {
                 service.onConnectionInit()
                 service.onAudioFormat(2, 352, false)
             }
-            awaitVolumeControl(R.string.cd_rewind, scrollToControl = true) { it.isVisibleToUser }
+            awaitVolumeControl(R.string.cd_rewind, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { it.isVisibleToUser }
             tap(tools)
             // The overview's rewind action is absent while the Tools tab shows the mini player.
             val deadline = SystemClock.elapsedRealtime() + 15_000
@@ -1564,11 +1567,26 @@ class MainActivityLifecycleContractTest {
                 Thread.sleep(30)
             }
 
-            main { service.onMetadata(item("mlit", item("minm", title.toByteArray()))) }
+            val cover = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+            val art = try {
+                cover.eraseColor(0xFF13A56A.toInt())
+                ByteArrayOutputStream().use { stream ->
+                    assertTrue(cover.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                    stream.toByteArray()
+                }
+            } finally { cover.recycle() }
+            main {
+                val track = item("minm", title.toByteArray()) + item("asar", artist.toByteArray()) + item("asal", album.toByteArray())
+                service.onMetadata(item("mlit", track))
+                service.onCoverArt(art)
+            }
             tap(title)
-            awaitVolumeControl(R.string.cd_rewind, scrollToControl = true) { it.isVisibleToUser }
-            awaitAudioNode(title, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) { node ->
-                node.isVisibleToUser && node.text?.toString() == title
+            awaitVolumeControl(R.string.cd_rewind, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { it.isVisibleToUser }
+            awaitVolumeControl(R.string.cd_cover_art, scrollAction = AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) { it.isVisibleToUser }
+            for (label in listOf(title, artist, album)) {
+                awaitAudioNode(label, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
+                    node.isVisibleToUser && node.text?.toString() == label
+                }
             }
         } finally {
             main { if (service.connectionCount.value > 0) service.onConnectionDestroy() }
@@ -1600,7 +1618,7 @@ class MainActivityLifecycleContractTest {
 
                 fun hold(label: Int, expected: List<String>, completion: Int) {
                     val bounds = Rect()
-                    awaitVolumeControl(label, scrollToControl = true) { node ->
+                    awaitVolumeControl(label, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) { node ->
                         node.getBoundsInScreen(bounds)
                         node.isVisibleToUser && !bounds.isEmpty
                     }
@@ -1656,12 +1674,11 @@ class MainActivityLifecycleContractTest {
 
     private fun awaitVolumeControl(
         label: Int,
-        scrollToControl: Boolean = false,
+        scrollAction: Int? = null,
         action: (AccessibilityNodeInfo) -> Boolean,
     ) {
         val description = context.getString(label)
-        val scroll = if (scrollToControl) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else null
-        awaitAudioNode(description, scroll) { node ->
+        awaitAudioNode(description, scrollAction) { node ->
             node.contentDescription?.toString() == description && action(node)
         }
     }
