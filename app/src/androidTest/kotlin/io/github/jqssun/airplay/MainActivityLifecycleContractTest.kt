@@ -578,24 +578,27 @@ class MainActivityLifecycleContractTest {
                 service.stopServer()
             }
         } finally {
-            if (bound) {
-                context.unbindService(connection)
-                context.stopService(Intent(context, AirPlayService::class.java))
-                bound = false
-                await("Receiver service did not reach DESTROYED") {
-                    service.lifecycle.currentState == Lifecycle.State.DESTROYED
+            try {
+                if (bound) {
+                    context.unbindService(connection)
+                    context.stopService(Intent(context, AirPlayService::class.java))
+                    bound = false
+                    await("Receiver service did not reach DESTROYED") {
+                        service.lifecycle.currentState == Lifecycle.State.DESTROYED
+                    }
                 }
+            } finally {
+                val restore = preferences.edit()
+                original.forEach { (key, value) -> if (value == null) restore.remove(key) else restore.putBoolean(key, value) }
+                assertTrue(restore.commit())
+                if (Build.VERSION.SDK_INT >= 26) previousPipMode?.let {
+                    shell("appops set ${context.packageName} PICTURE_IN_PICTURE $it")
+                    assertEquals("PiP policy was not restored", previousPipEffectiveMode, effectivePipMode())
+                    android.util.Log.i("LifecycleContract", "PiP policy restored: $it, effective=$previousPipEffectiveMode")
+                }
+                videoFixture?.let { if (it.exists()) assertTrue(it.delete()) }
+                if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
             }
-            videoFixture?.let { if (it.exists()) assertTrue(it.delete()) }
-            val restore = preferences.edit()
-            original.forEach { (key, value) -> if (value == null) restore.remove(key) else restore.putBoolean(key, value) }
-            assertTrue(restore.commit())
-            if (Build.VERSION.SDK_INT >= 26) previousPipMode?.let {
-                shell("appops set ${context.packageName} PICTURE_IN_PICTURE $it")
-                assertEquals("PiP policy was not restored", previousPipEffectiveMode, effectivePipMode())
-                android.util.Log.i("LifecycleContract", "PiP policy restored: $it, effective=$previousPipEffectiveMode")
-            }
-            if (runCatching { Class.forName("org.jacoco.agent.rt.RT") }.isSuccess) DebugCoverage.dump(context)
         }
     }
 

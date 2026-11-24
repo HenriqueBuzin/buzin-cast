@@ -3413,3 +3413,11 @@ run passed both lifecycle cases in an isolated API22 replay. The
 focused run confirmed first-sender launch and activity recreation.
 The earlier full-suite failures remain pending reproduction with
 the complete lifecycle test class.
+
+The subsequent compact DE/AT API22 run from `d62e95e` completed all
+423 Android tests with one failure in the older relay form test.
+Both lifecycle tests that had failed previously passed in that run.
+The lifecycle fixture now restores preferences and PiP policy even
+when waiting for service destruction fails, so a failed assertion
+does not leave test settings for the next case. Both focused lifecycle
+tests passed on API25 with that cleanup.
