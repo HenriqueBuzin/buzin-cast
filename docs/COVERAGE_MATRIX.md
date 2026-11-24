@@ -3573,3 +3573,18 @@ link, reported a disconnect once across repeated failures, and
 opened a fresh socket after the port was released. The matching
 responder profile reached 192/217 branches and 140/162 complexity
 points.
+
+The complete normal DE/AT run from `0280ba0` passed 429 Android
+tests, 21 native UBSan cases, all 15 runtime results, and VPN and
+offline diagnostics on API28. It covered 81,525/85,952 JVM
+instructions, 5,053/5,895 branches, 8,235/8,472 lines,
+4,375/5,121 complexity points (85.43%), 2,248/2,367 methods,
+and 307/314 classes. All six native metrics reached 100%.
+The lowest confirmed complete report among the current four
+variants is now standard compact JVM complexity at 85.02%.
+
+Replaying the standard normal `447d309` snapshot on API36
+completed 427 Android tests with four failures: paused HLS
+readiness, paused playback rotation, the sender volume control,
+and SSDP multicast announcements. The failed replay has no
+complete coverage report.
