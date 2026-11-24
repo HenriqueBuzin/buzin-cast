@@ -399,15 +399,23 @@ class ToolsScreenStateContractTest {
                 val port = text(R.string.tools_port)
                 val code = text(R.string.tools_pairing_code)
                 fun showDialogActions() {
-                    if (buttonEnabled(connect) != null) return
-                    val windows = automation.windows
-                    val keyboardShown = try {
-                        windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-                    } finally {
-                        windows.forEach { it.recycle() }
+                    var dismissed = false
+                    await("The relay form actions are not visible") {
+                        if (buttonEnabled(connect) != null) return@await true
+                        if (!dismissed) {
+                            val windows = automation.windows
+                            val keyboardShown = try {
+                                windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                            } finally {
+                                windows.forEach { it.recycle() }
+                            }
+                            if (keyboardShown) {
+                                relayKey(KeyEvent.KEYCODE_BACK)
+                                dismissed = true
+                            }
+                        }
+                        false
                     }
-                    if (keyboardShown) relayKey(KeyEvent.KEYCODE_BACK)
-                    await("The relay form actions are not visible") { buttonEnabled(connect) != null }
                 }
                 revealToolsItem(open)
                 click(open)
@@ -432,6 +440,7 @@ class ToolsScreenStateContractTest {
                     find(root)
                 }
                 fun type(label: String, value: String, expected: String) {
+                    showDialogActions()
                     revealToolsItem(label)
                     val args = Bundle().apply {
                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)

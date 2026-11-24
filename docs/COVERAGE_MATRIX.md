@@ -3401,3 +3401,9 @@ dismisses the keyboard only when the action is unavailable and an
 input-method window is visible. The corrected form test passed on
 API28, including the disabled button for port 65,536 and enabled
 submission with a valid port.
+
+The wider API22 run also found that the keyboard could cover the
+pairing-code field before validation. The test now waits for the form
+actions before editing each field and dismisses a keyboard that appears
+during that wait. The focused relay-form test passed with the rebuilt
+compact DE/AT APK on API22.
