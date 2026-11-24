@@ -3471,3 +3471,15 @@ sender-initiated change updated the Android stream without sending a
 command back. Adding the matching profile raised service coverage
 from 510/601 to 511/601 branches and from 436/538 to 437/538
 complexity points.
+
+The compact DE/AT snapshot from `1e66f5c` passed all 423 Android
+tests on both API22 and API28, as well as the 21 native UBSan cases
+and all applicable runtime checks, including VPN and offline
+diagnostics on API28. The merge verified matching APK, test APK,
+JVM classes, and native library inputs across the two executions.
+The combined report reached 81,598/85,948 JVM instructions,
+5,071/5,897 branches, 8,241/8,469 lines, 4,384/5,122 complexity
+points (85.59%), 2,245/2,367 methods, and 307/314 classes.
+All six native metrics reached 100%. The standard normal edition
+now has the lowest confirmed full-run result among the four editions,
+with 4,362/5,153 JVM complexity points (84.65%) in its API28 report.
