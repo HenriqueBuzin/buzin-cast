@@ -84,8 +84,10 @@ fun ToolsScreen(viewModel: MainViewModel) {
         Text("Miracast", style = MaterialTheme.typography.titleLarge)
         Text(stringResource(R.string.tools_native_help))
         OutlinedButton(onClick = {
-            runCatching { context.startActivity(Intent().setComponent(ComponentName("com.amazon.cast.sink", "com.amazon.cast.sink.DisplayMirroringSinkActivity"))) }
-                .onFailure { mirroringUnavailable = true }
+            mirroringUnavailable = runCatching {
+                val sink = ComponentName("com.amazon.cast.sink", "com.amazon.cast.sink.DisplayMirroringSinkActivity")
+                context.startActivity(Intent().setComponent(sink))
+            }.isFailure
         }, modifier = Modifier.dpadFocus()) { Text(stringResource(R.string.tools_native_open)) }
         if (mirroringUnavailable) Text(stringResource(R.string.tools_native_unavailable))
         if (io.github.jqssun.airplay.BuildConfig.RECORDING_ENABLED) {

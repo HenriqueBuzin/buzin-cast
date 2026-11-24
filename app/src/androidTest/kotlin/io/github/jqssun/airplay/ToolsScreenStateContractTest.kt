@@ -341,7 +341,7 @@ class ToolsScreenStateContractTest {
         visit(root)
     }
 
-    @Test fun relayTvFormKeepsFieldsReadOnlyUntilOkAndRetainsAcceptedValues() = screen {
+    @Test fun relayTvFormKeepsAcceptedValuesAndDiscardsEditsOnBack() = screen {
         val automation = instrumentation.uiAutomation
         val flags = automation.serviceInfo.flags
         automation.serviceInfo = automation.serviceInfo.apply {
@@ -372,6 +372,16 @@ class ToolsScreenStateContractTest {
             relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
             await("Accepted relay values did not survive reopening") {
                 withRelayFields { fields -> fields.map { it.text?.toString() } == listOf("127.0.0.1", "7123", "ABCD-EFGH-IJKL") }
+            }
+
+            editRelayField(0, KeyEvent.KEYCODE_DPAD_CENTER, "192.0.2.10", "192.0.2.10")
+            relayKey(KeyEvent.KEYCODE_DPAD_DOWN)
+            await("The remote did not leave the address editor") { relayFieldFocused(1) }
+            relayKey(KeyEvent.KEYCODE_BACK)
+            await("Back did not dismiss the relay form and restore focus") { relayControlFocused(open) }
+            relayKey(KeyEvent.KEYCODE_DPAD_CENTER)
+            await("Back saved a draft instead of keeping the accepted relay address") {
+                withRelayFields { fields -> fields[0].text?.toString() == "127.0.0.1" }
             }
         } finally {
             automation.serviceInfo = automation.serviceInfo.apply { this.flags = flags }
@@ -648,7 +658,7 @@ class ToolsScreenStateContractTest {
         }
     }
 
-    @Test fun missingSystemMirroringAppShowsRecoveryInstructions() {
+    @Test fun systemMirroringLaunchErrorClearsAfterSuccessfulRetry() {
         val requests = CopyOnWriteArrayList<ComponentName>()
         val missing = AtomicBoolean(false)
         val sink = ComponentName("com.amazon.cast.sink", "com.amazon.cast.sink.DisplayMirroringSinkActivity")
@@ -674,6 +684,11 @@ class ToolsScreenStateContractTest {
             click(open)
             revealToolsItem(unavailable)
             assertEquals(listOf(sink, sink), requests.toList())
+
+            missing.set(false)
+            click(open)
+            await("Successful retry did not clear the mirroring error") { requests.size == 3 && absent(unavailable) }
+            assertEquals(listOf(sink, sink, sink), requests.toList())
         }
     }
 
