@@ -45,6 +45,7 @@ import io.buzincast.core.Protocol
 import io.buzincast.core.ReceiverPlaybackPort
 import io.buzincast.core.SessionKind
 import io.github.jqssun.airplay.audio.DacpController
+import io.github.jqssun.airplay.bridge.NativeBridge
 import io.github.jqssun.airplay.media.NetworkRecovery
 import io.github.jqssun.airplay.renderer.AirPlayVideoPlayer
 import io.github.jqssun.airplay.service.AirPlayService
@@ -337,6 +338,50 @@ class MainActivityLifecycleContractTest {
             }
         }
         start(activity)
+    }
+
+    @Test fun receiverRestartAppliesAdvertisementAndRendererPreferences() {
+        val options = listOf(
+            Prefs.ADVERTISE_VIDEO, Prefs.ADVERTISE_MIRRORING, Prefs.ADVERTISE_AUDIO,
+            Prefs.ENFORCE_SDR, Prefs.KEY_ALLOW_FRAME_DROP, Prefs.SCHEDULED_OUTPUT_BUFFER_RELEASE,
+        )
+        for (pref in options) {
+            original[pref.key] = if (preferences.contains(pref.key)) pref.read(preferences) else null
+            set(pref, true)
+        }
+        val handleField = AirPlayService::class.java.getDeclaredField("nativeHandle").apply { isAccessible = true }
+        fun assertApplied(enabled: Boolean) {
+            val renderer = service.videoRenderer
+            assertEquals(enabled, renderer.enforceSdr)
+            assertEquals(enabled, renderer.keyAllowFrameDrop)
+            assertEquals(enabled, renderer.scheduledOutputBufferRelease)
+            val handle = handleField.getLong(service)
+            assertNotEquals(0L, handle)
+            val txt = requireNotNull(NativeBridge.nativeGetAirplayTxtRecords(handle))
+            val lowWord = requireNotNull(txt["features"]).substringBefore(',').removePrefix("0x").toLong(16)
+            for (bit in listOf(0, NativeBridge.FT_MIRROR, NativeBridge.FT_AUDIO)) {
+                assertEquals("Advertised feature bit $bit", enabled, lowWord and (1L shl bit) != 0L)
+            }
+        }
+
+        val activity = launch()
+        start(activity)
+        main {
+            val sameHandle = handleField.getLong(service)
+            service.startServer()
+            assertEquals(sameHandle, handleField.getLong(service))
+            assertApplied(true)
+        }
+        val changes = preferences.edit()
+        options.forEach { changes.putBoolean(it.key, false) }
+        assertTrue(changes.commit())
+        await("Receiver did not apply the changed renderer settings on restart") {
+            service.serverState.value == AirPlayService.ServerState.RUNNING &&
+                !service.videoRenderer.enforceSdr &&
+                !service.videoRenderer.keyAllowFrameDrop &&
+                !service.videoRenderer.scheduledOutputBufferRelease
+        }
+        main { assertApplied(false) }
     }
 
     @Test fun occupiedPortDuringForegroundRestartClosesTheListenerAndAllowsRetry() {
