@@ -624,6 +624,12 @@ class ReceiverIntegrationTest {
                         assertTrue(body, TextUtils.htmlEncode("""<Volume channel="Master" val="$percent"/>""") in body)
                     }
                     expectNotification(0, original * 100 / max)
+                    val renewalHeaders = "SID: $sid\r\nTIMEOUT: Second-120\r\n"
+                    val renewed = control.request("POST", "/evt/rcs", renewalHeaders)
+                    assertTrue(renewed, renewed.startsWith("HTTP/1.1 200"))
+                    assertTrue(renewed, renewed.lineSequence().any { it.equals("SID: $sid", ignoreCase = true) })
+                    assertTrue(renewed, renewed.lineSequence().any { it.equals("TIMEOUT: Second-120", ignoreCase = true) })
+
                     playback.allowed = false
                     val denied = control.rendering("SetVolume", "DesiredVolume" to "0")
                     assertTrue(denied, denied.startsWith("HTTP/1.1 403"))
@@ -642,6 +648,8 @@ class ReceiverIntegrationTest {
                     }
                     val removed = control.request("UNSUBSCRIBE", "/evt/rcs", "SID: $sid\r\n")
                     assertTrue(removed, removed.startsWith("HTTP/1.1 200"))
+                    val expired = control.request("SUBSCRIBE", "/evt/rcs", renewalHeaders)
+                    assertTrue(expired, expired.startsWith("HTTP/1.1 412"))
                 }
             }
         } finally {

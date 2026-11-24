@@ -3128,3 +3128,9 @@ the connection after an unsupported protocol version and discarded a
 valid load already queued for the main looper when the receiver closed.
 Adding the run to the matching FCast mappings raised branches from
 161/208 to 164/208 and complexity from 83/128 to 86/128.
+
+The normal edition API25 DLNA volume contract passed with a real
+subscription renewal over the compatibility POST route. Volume changes
+continued notifying the same subscription, and renewal after removal was
+rejected. The matching control-server classes advanced from 107/146 to
+111/146 branches and from 73/110 to 75/110 complexity points.
