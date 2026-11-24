@@ -381,6 +381,27 @@ class CoverageAutomationTest(unittest.TestCase):
         suite.activate.assert_any_call("Close", "Fechar")
         suite.key.assert_called_once_with(4)
 
+    def test_launcher_uses_receiver_status_when_about_starts_below_the_fold(self):
+        suite = Suite.__new__(Suite)
+        suite.package = "com.buzincast.tv.deat"
+        suite.setting = Mock()
+        suite.adb = Mock()
+        suite.debug = Mock(return_value={"serverState": "RUNNING"})
+        suite.keyboard = Mock(return_value=False)
+        suite.key = Mock()
+        suite.shot = Mock()
+        suite.activate = Mock()
+        home = ET.fromstring('<hierarchy><node text="Ready to connect"/></hierarchy>')
+        about = ET.fromstring('<hierarchy><node text="buzin.solutions"/></hierarchy>')
+        suite.ui = Mock(side_effect=[home, home, about, home])
+
+        suite.launcher_entry()
+
+        suite.setting.assert_called_once_with("auto_start", "true")
+        self.assertEqual([call("About BuzinCast", "Sobre o BuzinCast"), call("Close", "Fechar")],
+                         suite.activate.call_args_list)
+        self.assertEqual(4, suite.ui.call_count)
+
     @patch("test_emulator.time.sleep")
     @patch("test_emulator.time.monotonic", side_effect=[0, 0, 20])
     def test_persistent_missing_hierarchy_cannot_be_reported_as_empty_focus(self, _clock, _sleep):

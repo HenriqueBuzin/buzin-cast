@@ -347,8 +347,16 @@ class Suite:
         self.setting("auto_start","true")
         component=f"{self.package}/{BASE}MainActivity"
         self.adb("shell","am","start","-S","-n",component)
+        about_labels = ("About BuzinCast", "Sobre o BuzinCast")
+        home_labels = (*about_labels, "Ready to connect", "Pronto para conectar")
+
+        def has_home_controls(tree):
+            return any(n.get("text") in home_labels for n in tree.iter())
+
         def home_ready():
-            return any(n.get("text") in ("About BuzinCast","Sobre o BuzinCast") for n in self.ui().iter())
+            # On a short viewport the focusable About button starts below the
+            # fold. The receiver status identifies Home before activating it.
+            return has_home_controls(self.ui())
         self.wait(home_ready,"Launcher did not present the home controls",45)
         self.wait(lambda:self.debug().get("serverState")=="RUNNING","Launcher did not auto-start receiver")
         assert not self.keyboard(),"Launcher unexpectedly opened the keyboard"
@@ -358,10 +366,15 @@ class Suite:
         self.wait(home_ready,"Launcher did not resume its home controls",45)
         assert self.debug().get("serverState")=="RUNNING"
         self.shot("launcher-entry-resume")
-        self.activate("About BuzinCast","Sobre o BuzinCast")
+        self.activate(*about_labels)
         self.wait(lambda:"buzin.solutions" in self.texts(self.ui()),"Launcher home controls are not interactive")
         self.activate("Close","Fechar")
-        self.wait(lambda:home_ready() and "buzin.solutions" not in self.texts(self.ui()),"Launcher About did not close")
+
+        def about_closed():
+            tree = self.ui()
+            return has_home_controls(tree) and "buzin.solutions" not in self.texts(tree)
+
+        self.wait(about_closed,"Launcher About did not close")
 
     def calibration(self):
         self.start("tools")

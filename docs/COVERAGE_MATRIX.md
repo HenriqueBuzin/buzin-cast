@@ -3081,3 +3081,9 @@ active responder, a delayed goodbye did not reset it, and a malformed
 question was ignored. Adding this profile to the API28 compact snapshot
 with six identical responder class files advanced branches from 174/217
 to 178/217 and complexity from 124/161 to 128/161.
+
+The launcher smoke initially timed out on a short Android viewport
+because the About button started below the visible area. The launcher
+gate now recognizes the ready status and then verifies focus, About
+opening and About dismissal. The regional launcher passed that sequence
+on API25 using the archived application APK.
