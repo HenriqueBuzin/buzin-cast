@@ -600,10 +600,19 @@ class MainActivityLifecycleContractTest {
     }
 
     @Test fun configurationRecreationKeepsTheIdleReceiverAndReplacesOnlyItsOwnCallbacks() {
+        set(Prefs.AUTO_START, true)
         val activity = launch()
-        start(activity)
+        await("The enabled preference did not start the receiver on binding") {
+            service.serverState.value == AirPlayService.ServerState.RUNNING &&
+                model(activity).serverState.value == AirPlayService.ServerState.RUNNING
+        }
+        val receiverField = AirPlayService::class.java.getDeclaredField("airPlayReceiver").apply { isAccessible = true }
+        lateinit var receiver: Any
         lateinit var retained: MainViewModel
-        main { retained = model(activity) }
+        main {
+            receiver = requireNotNull(receiverField.get(service))
+            retained = model(activity)
+        }
         val previousPin = service.pinCallback
         main { service.onDisplayPin("2468") }
         assertEquals("2468", retained.pinCode.value)
@@ -613,7 +622,10 @@ class MainActivityLifecycleContractTest {
         }
         main { assertSame(retained, model(requireNotNull(resumedActivity<MainActivity>()))) }
         await("Recreated activity did not replace the old callback") { service.pinCallback !== previousPin && service.pinCallback != null }
-        main { assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value) }
+        main {
+            assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            assertSame("Activity recreation restarted the receiver", receiver, receiverField.get(service))
+        }
         val logs = MainViewModel::class.java.getDeclaredField("logStore").apply { isAccessible = true }
             .get(retained) as AsyncLogStore
         finishActivities()

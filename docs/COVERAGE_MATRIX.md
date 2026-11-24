@@ -3038,3 +3038,9 @@ authentication, the sender filled its queue, and the slow-network state
 survived the old worker's exit. The matching relay mappings advanced
 from 88/122 to 89/122 branches and from 1,271/1,557 to 1,293/1,557
 instructions.
+
+The DE/AT API37 instrumentation confirmed the local-network permission
+policy's 8/8 branches in the Android build. Two DE/AT API28 lifecycle
+cases passed. The enabled auto-start preference started the receiver
+on binding, and recreating the activity kept the same receiver instance.
+The focused run covered 6/8 branches in `MainActivity._autoStart`.
