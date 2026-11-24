@@ -1,7 +1,9 @@
 package io.github.jqssun.airplay
 
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.SurfaceTexture
 import android.media.Image
 import android.media.ImageReader
 import android.opengl.EGL14
@@ -63,6 +65,38 @@ class VideoPipelineContractTest {
         assertFalse(input.isValid)
     }
 
+    @Test fun firstFrameConsumedWithoutADisplayKeepsItsOrientationWhenOneAttaches() {
+        val size = 64
+        val format = windowPixelFormat()
+        pipeline.setVideoSize(size, size)
+        pipeline.start()
+        val input = requireNotNull(pipeline.inputSurface)
+        val texture = VideoPipeline::class.java.getDeclaredField("surfaceTexture")
+            .apply { isAccessible = true }.get(pipeline) as SurfaceTexture
+        val paint = Paint().apply { color = Color.RED }
+        val canvas = input.lockCanvas(null)
+        try {
+            canvas.drawColor(Color.BLUE)
+            canvas.drawRect(0f, 0f, size.toFloat(), size / 2f, paint)
+        } finally {
+            input.unlockCanvasAndPost(canvas)
+        }
+        val deadline = SystemClock.elapsedRealtime() + 10_000L
+        while (texture.timestamp == 0L && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(20)
+        assertTrue("The frame was not consumed before display attachment", texture.timestamp != 0L)
+
+        ImageReader.newInstance(size, size, format, 3).use { reader ->
+            try {
+                pipeline.setDisplaySurface(reader.surface)
+                awaitColors(reader, Color.RED to Color.BLUE) { image ->
+                    pixel(image, 32, 16) to pixel(image, 32, 48)
+                }
+            } finally {
+                pipeline.release()
+            }
+        }
+    }
+
     private fun windowPixelFormat(): Int = EglCore().use { egl ->
         // EGL can select RGBX or RGBA. ImageReader must match the producer's native format.
         val config = EglCore::class.java.getDeclaredField("config")
@@ -74,17 +108,18 @@ class VideoPipelineContractTest {
         value[0]
     }
 
-    private fun awaitPixels(reader: ImageReader, center: Int, edge: Int) {
+    private fun awaitPixels(reader: ImageReader, center: Int, edge: Int) =
+        awaitColors(reader, center to edge) { image -> pixel(image, 32, 32) to pixel(image, 1, 32) }
+
+    private fun awaitColors(reader: ImageReader, expected: Pair<Int, Int>, sample: (Image) -> Pair<Int, Int>) {
         val deadline = SystemClock.elapsedRealtime() + 10_000L
         var observed: Pair<Int, Int>? = null
         while (SystemClock.elapsedRealtime() < deadline) {
-            reader.acquireLatestImage()?.use { image ->
-                observed = pixel(image, 32, 32) to pixel(image, 1, 32)
-            }
-            if (observed == (center to edge)) return
+            reader.acquireLatestImage()?.use { observed = sample(it) }
+            if (observed == expected) return
             SystemClock.sleep(20)
         }
-        assertEquals("Last rendered center and edge colors", center to edge, observed)
+        assertEquals("Last rendered pixel colors", expected, observed)
     }
 
     private fun pixel(image: Image, x: Int, y: Int): Int {

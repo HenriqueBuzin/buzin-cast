@@ -3692,3 +3692,19 @@ decoder selection on API23 and later and AAudio output reporting.
 The previous combined API22/API28 result of 85.59% belongs to
 `1e66f5c`; a new combined result requires both runtime archives from
 the exact `6673022` app and test APKs.
+
+The compact DE/AT API28 replay matched the API22 compiled inputs and
+passed the same 433 Android tests, 21 native UBSan tests, and 15
+required runtime results, plus VPN and offline diagnostics. The
+combined `6673022` report covers 82,087/86,252 JVM instructions,
+5,111/5,897 branches, 8,311/8,519 lines, 4,432/5,129 complexity points
+(86.41%), 2,261/2,374 methods, and 310/317 classes. All six native
+metrics reach 100%. The lowest metric in the four edition reports is
+now normal DE/AT JVM complexity, at 4,411/5,130 (85.98%).
+
+The focused compact DE/AT API22 rendering test reproduced a flipped
+frame when the pipeline consumed it offscreen before a display
+attached. Applying the texture transform when each frame is consumed
+preserved its orientation. The corrected APK passed both rendering
+contracts, including display replacement and margin changes without
+a new input frame.

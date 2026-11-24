@@ -139,18 +139,13 @@ class VideoPipeline {
     private fun _consumeAndDraw() {
         val st = surfaceTexture ?: return
         val egl = egl ?: return
-        if (window == EGL14.EGL_NO_SURFACE) {
-            // no display: keep consuming so decoder doesn't stall
-            egl.makeCurrent()
-            st.updateTexImage()
-            hasFrame = true
-            return
-        }
-        egl.makeCurrent(window)
+        val displayAttached = window != EGL14.EGL_NO_SURFACE
+        // Keep consuming offscreen so the decoder can continue while displays change.
+        if (displayAttached) egl.makeCurrent(window) else egl.makeCurrent()
         st.updateTexImage()
         st.getTransformMatrix(texMatrix)
         hasFrame = true
-        _render()
+        if (displayAttached) _render()
     }
 
     private fun _render() {
