@@ -3727,3 +3727,11 @@ API36-only native report covers 907/908 branches and 1,493/1,494
 regions. Its remaining four native metrics reached 100%. The minimum
 across the four latest edition reports is now normal DE/AT JVM
 complexity, at 4,424/5,132 (86.20%).
+
+The matching standard normal `33b3d3e` API28 replay passed all 439
+Android tests, 21 native UBSan tests, and 15 runtime results, plus
+VPN and offline diagnostics. The combined API28/API36 report
+verified identical compiled inputs and covers 84,081/87,113 JVM
+instructions, 5,258/5,981 branches, 8,398/8,551 lines, 4,540/5,167
+complexity points (87.87%), 2,295/2,374 methods, and 315/317 classes.
+All six native metrics reached 100% in the combined report.
