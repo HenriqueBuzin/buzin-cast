@@ -3566,3 +3566,10 @@ interfaces and verified socket reuse, preservation on enumeration
 failure, socket replacement and notification upon disconnect.
 The focused report covered 26/34 scan branches and 188/217 total
 responder branches, with 139/162 complexity points.
+
+The API25 USB mDNS suite passed 12 cases after adding an exclusive
+UDP bind on the discovery port. The advertiser withdrew its old
+link, reported a disconnect once across repeated failures, and
+opened a fresh socket after the port was released. The matching
+responder profile reached 192/217 branches and 140/162 complexity
+points.

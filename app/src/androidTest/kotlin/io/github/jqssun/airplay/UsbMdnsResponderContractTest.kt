@@ -347,6 +347,44 @@ class UsbMdnsResponderContractTest {
         }
     }
 
+    @Test fun occupiedDiscoveryPortWithdrawsTheOldLinkAndRetriesAfterRelease() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val network = requireNotNull(NetworkInterface.getByInetAddress(address))
+        val next = network to network.interfaceAddresses.single { it.address == address }
+        val reports = mutableListOf<Pair<String?, Inet4Address?>>()
+        val previous = CapturedSocket()
+        var selected: Pair<NetworkInterface, InterfaceAddress>? = next
+        val fixture = Fixture(previous, { name, ip -> reports += name to ip }) { selected }.also { fixtures += it }
+        val link = fixture.advertiser.javaClass.getDeclaredField("link").apply { isAccessible = true }
+        link.set(fixture.advertiser, fixture.link)
+        fixture.state("ACTIVE")
+
+        try {
+            DatagramSocket(null).use { occupied ->
+                occupied.reuseAddress = false
+                occupied.bind(InetSocketAddress(5353))
+                fixture.call("_scan", 1_000L)
+                assertTrue(previous.isClosed)
+                assertNull(link.get(fixture.advertiser))
+                assertTrue(reply(previous.sent.single()).records.all { it.ttl == 0 })
+
+                fixture.call("_scan", 2_000L)
+                assertNull(link.get(fixture.advertiser))
+                instrumentation.waitForIdleSync()
+                assertEquals(listOf(null to null), reports)
+            }
+
+            fixture.call("_scan", 3_000L)
+            assertNotNull("The available discovery port did not reopen", link.get(fixture.advertiser))
+            assertEquals("CHECKING", fixture.state())
+            instrumentation.waitForIdleSync()
+            assertEquals(listOf(null to null, network.name to address), reports)
+        } finally {
+            selected = null
+            fixture.call("_scan", 4_000L)
+        }
+    }
+
     @Test fun openingAMulticastLinkConfiguresTheSocketAndUsesTheInterfaceSubnet() {
         val network = requireNotNull(NetworkInterface.getByInetAddress(address))
         val ipv4 = network.interfaceAddresses.single { it.address == address }
