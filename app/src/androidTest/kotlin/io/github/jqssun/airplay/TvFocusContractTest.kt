@@ -165,6 +165,7 @@ class TvFocusContractTest {
             deliverEditorAction(scenario, editorHost, EditorInfo.IME_ACTION_NEXT)
             runBlocking { withTimeout(10_000) { secondFocused.await() } }
             assertFalse(submitted.isCompleted)
+            instrumentation.waitForIdleSync()
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
             deliverEditorAction(scenario, editorHost, EditorInfo.IME_ACTION_DONE)
             runBlocking { withTimeout(10_000) { submitted.await() } }
@@ -173,19 +174,26 @@ class TvFocusContractTest {
 
     private fun deliverEditorAction(scenario: ActivityScenario<DebugTvPreviewActivity>, host: View, action: Int) {
         val deadline = SystemClock.elapsedRealtime() + 10_000
+        var windowFocused = false
+        var hasTextEditor = false
+        var reportedAction: Int? = null
         while (SystemClock.elapsedRealtime() < deadline) {
             var delivered = false
             scenario.onActivity {
-                if (!host.hasWindowFocus() || !host.onCheckIsTextEditor()) return@onActivity
+                windowFocused = host.hasWindowFocus()
+                hasTextEditor = host.onCheckIsTextEditor()
+                if (!windowFocused || !hasTextEditor) return@onActivity
                 val info = EditorInfo()
                 val connection = host.onCreateInputConnection(info) ?: return@onActivity
-                if ((info.imeOptions and EditorInfo.IME_MASK_ACTION) == action) {
+                reportedAction = info.imeOptions and EditorInfo.IME_MASK_ACTION
+                if (reportedAction == action) {
                     delivered = connection.performEditorAction(action)
                 }
             }
             if (delivered) return
             SystemClock.sleep(25)
         }
-        fail("Focused TV editor did not accept IME action $action")
+        fail("TV editor did not accept IME action $action: windowFocused=$windowFocused, " +
+            "hasTextEditor=$hasTextEditor, reportedAction=$reportedAction")
     }
 }
