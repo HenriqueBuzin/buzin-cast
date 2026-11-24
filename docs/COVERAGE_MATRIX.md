@@ -3371,3 +3371,9 @@ offline diagnostics. JVM coverage reached 81,316/85,929 instructions,
 2,235/2,364 methods and 307/314 classes. All six native metrics reached
 100%. Compact DE/AT now has the lowest metric among the latest
 complete editions, with 4,321/5,118 JVM complexity points (84.43%).
+
+The API25 media controls test also verified that Left and Right seek
+when the playback slider has focus. Playback stayed paused, and the
+full media controls scenario passed. With matching compiled classes,
+the additional profile raised `MainScreenKt` to 867/884 lines,
+325/399 complexity points and 190/208 methods.

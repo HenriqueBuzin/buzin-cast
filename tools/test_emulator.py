@@ -494,6 +494,20 @@ class Suite:
             after=self.debug()["positionMs"]
             self.key(89)
             self.wait(lambda:self.debug().get("positionMs",0)<after-8000,"Remote rewind did not seek")
+            for _ in range(40):
+                tree = self.wait(self.ui, "Accessibility unavailable while focusing the playback slider")
+                if any(n.get("class") == "android.widget.SeekBar" and n.get("focused") == "true" for n in tree.iter()):
+                    break
+                self.key(61)
+            else:
+                raise AssertionError("The playback slider did not receive remote focus")
+            before = self.debug()["positionMs"]
+            self.key(22)
+            self.wait(lambda: self.debug()["positionMs"] > before + 8000, "Right did not seek on the focused slider")
+            after = self.debug()["positionMs"]
+            self.key(21)
+            self.wait(lambda: self.debug()["positionMs"] < after - 8000, "Left did not seek on the focused slider")
+            assert not self.debug()["playing"], "Seeking with the slider resumed paused media"
             self.activate("Playback speed","Velocidade de reprodução",description=True)
             self.activate("2.0")
             self.wait(lambda:sum(n.get("text")=="2.0" for n in self.ui().iter())>=2,"Speed did not update")
