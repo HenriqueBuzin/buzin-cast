@@ -293,6 +293,7 @@ class CoverageAutomationTest(unittest.TestCase):
                     return
                 self.assertEqual("test_emulator.py", Path(command[1]).name)
                 self.assertEqual(api >= 23, "--diagnostic-networks" in command)
+                self.assertEqual("1800", command[command.index("--instrumentation-timeout") + 1])
                 execution = Path(command[command.index("--output") + 1])
                 profiles = execution / "coverage"
                 profiles.mkdir(parents=True)
@@ -301,7 +302,7 @@ class CoverageAutomationTest(unittest.TestCase):
                 (execution / "results.json").write_text("[]", encoding="utf-8")
 
             args = ["replay", "--serial", "emulator-5558", "--snapshot", str(source),
-                    "--sdk-root", directory, "--output", str(output)]
+                    "--sdk-root", directory, "--output", str(output), "--instrumentation-timeout", "1800"]
             if not compiled_only:
                 args.append("--collect-only")
             with patch("replay_android_coverage.replay_source", return_value=(manifest, compiled_only)), \

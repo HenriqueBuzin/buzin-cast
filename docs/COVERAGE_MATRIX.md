@@ -3596,3 +3596,9 @@ the live player stayed ready while reporting a zero playback rate.
 The initial rebuilt test launch stopped before instrumentation.
 Installing the same APK pair without streamed installation allowed
 the focused run to complete.
+
+The standard compact API22 replay of `0280ba0` reached Android
+test 401 of 429 before the host's 900-second instrumentation timeout.
+The replay command now accepts `--instrumentation-timeout` and passes
+it through to the runner. The retry uses 1,800 seconds and the same
+sealed APK inputs after the matching API28 execution completes.

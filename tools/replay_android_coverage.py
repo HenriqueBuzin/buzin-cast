@@ -16,6 +16,7 @@ from run_android_coverage import (
     COMPILED_MANIFEST, VARIANTS, compiled_auxiliary_hashes, coverage_identity,
     filesystem_path, packaged_native_library, source_identity,
 )
+from test_emulator import positive_seconds
 
 
 def replay_source(source):
@@ -76,6 +77,8 @@ def main():
     parser.add_argument("--sdk-root", type=Path)
     parser.add_argument("--collect-only", action="store_true",
                         help="Archive the completed runtime and raw profiles without running Gradle or merging reports")
+    parser.add_argument("--instrumentation-timeout", type=positive_seconds,
+                        help="Override the Android test runner's instrumentation timeout in seconds")
     parser.add_argument("--require-100", action="store_true")
     args = parser.parse_args()
     if args.collect_only and args.require_100:
@@ -152,6 +155,8 @@ def main():
                        "--apk", snapshot / "inputs/app.apk", "--test-apk", snapshot / "inputs/test.apk",
                        "--native-tests", snapshot / "inputs/native_core_tests", "--coverage", "--extended",
                        "--package", package, "--output", execution]
+            if args.instrumentation_timeout is not None:
+                command.extend(("--instrumentation-timeout", str(args.instrumentation_timeout)))
             if regional:
                 command.append("--no-download")
             if api >= 23:
