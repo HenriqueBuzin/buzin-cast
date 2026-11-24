@@ -3306,3 +3306,13 @@ six native metrics: 912/912 branches, 203/203 functions, 205/205
 instantiations, 1,751/1,751 lines, 171/171 MC/DC conditions and
 1,500/1,500 regions. The broader runtime replays continued beyond
 these checkpoints.
+
+The complete compact DE/AT API28 report for `83a913b` passed all 409
+Android tests, 21 native UBSan cases, 15 runtime results, and the VPN
+and offline diagnostics. JVM coverage reached 80,578/85,918
+instructions, 4,992/5,899 branches, 8,171/8,460 lines, 4,296/5,118
+complexity points, 2,223/2,362 methods and 307/314 classes. Both
+regional editions now share the 83.94% minimum among the latest
+complete reports. The API22 replay is still needed for the complete
+legacy merge. Its instrumentation checkpoint already covers the
+three remaining native branch outcomes from API28.
