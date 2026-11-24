@@ -100,10 +100,14 @@ class VideoPipelineContractTest {
     }
 
     @Test fun avcFramesReachTheDisplayWithScheduledAndImmediateRelease() {
-        val width = 64
-        val height = 48
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val nals = context.assets.open("mirror/sample.h264").use { NalUnits.split(it.readBytes()) }
+        val width = 32
+        val height = 32
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        // The Annex B version of the existing blue, constrained-baseline MP4 fixture.
+        val nals = instrumentation.context.assets.open("playback/mirror-baseline.h264").use {
+            NalUnits.split(it.readBytes())
+        }
         val units = mutableListOf<MutableList<ByteArray>>()
         for (nal in nals) {
             if (units.isEmpty() || NalUnits.type(nal, hevc = false) == 9) units += mutableListOf<ByteArray>()
@@ -128,16 +132,22 @@ class VideoPipelineContractTest {
                     fun readFrame() {
                         reader.acquireLatestImage()?.use {
                             images++
-                            if (Color.red(pixel(it, width / 2, 10)) > 80) coloredFrame = true
+                            val color = pixel(it, width / 2, height / 2)
+                            if (Color.blue(color) > 160 && Color.red(color) < 80) coloredFrame = true
                         }
                     }
-                    frames.forEachIndexed { index, frame ->
-                        renderer.feedFrame(frame, 1_000_000_000L + index * 100_000_000L, isH265 = false)
-                        val nextFrame = SystemClock.elapsedRealtime() + 100L
-                        do {
-                            readFrame()
-                            SystemClock.sleep(10)
-                        } while (SystemClock.elapsedRealtime() < nextFrame)
+                    var sent = 0L
+                    // Allow extra input for decoders that buffer multiple access units before rendering.
+                    while (!coloredFrame && sent < frames.size * 3L) {
+                        for (frame in frames) {
+                            renderer.feedFrame(frame, 1_000_000_000L + sent * 100_000_000L, isH265 = false)
+                            sent++
+                            val nextFrame = SystemClock.elapsedRealtime() + 100L
+                            do {
+                                readFrame()
+                                SystemClock.sleep(10)
+                            } while (SystemClock.elapsedRealtime() < nextFrame)
+                        }
                     }
                     val deadline = SystemClock.elapsedRealtime() + 5_000L
                     while (!coloredFrame && SystemClock.elapsedRealtime() < deadline) {
@@ -147,7 +157,7 @@ class VideoPipelineContractTest {
                     assertTrue("No decoded color for scheduled=$scheduled, images=$images, codec=${renderer.codecName}",
                         coloredFrame)
                     assertTrue(renderer.codecName.startsWith("H.264"))
-                    assertEquals(frames.size.toLong(), renderer.frameCount)
+                    assertEquals(sent, renderer.frameCount)
                 } finally {
                     renderer.release()
                 }
