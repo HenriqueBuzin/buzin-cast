@@ -3111,3 +3111,14 @@ from `83a913b` reported a start error on denial and ran after the grant.
 Adding the two API37 profiles to the matching API28 instrumentation
 profile raised service branches from 493/599 to 497/599 and complexity
 from 418/537 to 422/537.
+
+The complete normal DE/AT API28 report for `83a913b` passed all 409
+Android tests, 21 native UBSan cases, all 15 runtime gates, and VPN and
+offline diagnostics. This run used the viewport-aware launcher harness
+from `c09ec21`. JVM coverage reached 80,566/85,930 instructions,
+4,991/5,899 branches, 8,166/8,460 lines, 4,296/5,118 complexity,
+2,222/2,362 methods and 307/314 classes. All six native metrics reached
+100%: 908/908 branches, 203/203 functions, 205/205 instantiations,
+1,745/1,745 lines, 171/171 MC/DC conditions and 1,494/1,494 regions.
+The minimum among the latest complete reports for the four editions
+is now 4,222/5,111 complexity points in compact DE/AT (82.61%).
