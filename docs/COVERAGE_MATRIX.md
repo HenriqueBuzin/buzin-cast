@@ -3394,3 +3394,10 @@ server update reaches the screen before the sender count clears.
 Removing the sender restored the welcome view. The matching
 MainScreen profiles reached 437/535 branches, 869/884 lines and
 327/399 complexity points.
+
+The compact DE/AT API28 run from `6bc2cac` found that the software
+keyboard could cover the relay form's Connect button. The test now
+dismisses the keyboard only when the action is unavailable and an
+input-method window is visible. The corrected form test passed on
+API28, including the disabled button for port 65,536 and enabled
+submission with a valid port.

@@ -20,6 +20,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.activity.compose.setContent
 import androidx.core.content.FileProvider
 import androidx.compose.runtime.CompositionLocalProvider
@@ -397,8 +398,20 @@ class ToolsScreenStateContractTest {
                 val address = text(R.string.tools_other_tv_ip)
                 val port = text(R.string.tools_port)
                 val code = text(R.string.tools_pairing_code)
+                fun showDialogActions() {
+                    if (buttonEnabled(connect) != null) return
+                    val windows = automation.windows
+                    val keyboardShown = try {
+                        windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                    } finally {
+                        windows.forEach { it.recycle() }
+                    }
+                    if (keyboardShown) relayKey(KeyEvent.KEYCODE_BACK)
+                    await("The relay form actions are not visible") { buttonEnabled(connect) != null }
+                }
                 revealToolsItem(open)
                 click(open)
+                showDialogActions()
                 await("The empty form allowed connecting") { buttonEnabled(connect) == false }
                 click(text(R.string.tv_edit_cancel))
                 await("Cancel did not close the relay form and restore focus") { relayControlFocused(open) }
@@ -430,12 +443,15 @@ class ToolsScreenStateContractTest {
                         field(label) { it.text?.toString() == expected }
                     }
                 }
+                showDialogActions()
                 await("The reopened empty form allowed connecting") { buttonEnabled(connect) == false }
                 type(address, " 127.0.0.1 ", " 127.0.0.1 ")
                 type(port, "x65536!", "65536")
                 type(code, "ABCD-EFGH-IJKL-X", "ABCD-EFGH-IJKL")
+                showDialogActions()
                 await("An out-of-range port allowed connecting") { buttonEnabled(connect) == false }
                 type(port, "x7123!", "7123")
+                showDialogActions()
                 await("A valid relay target could not connect") { buttonEnabled(connect) == true }
                 click(connect)
                 await("The submitted touch form did not close") { relayControlFocused(open) }
