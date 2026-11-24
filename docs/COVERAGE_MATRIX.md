@@ -3610,3 +3610,9 @@ the packet source matched the advertised address during startup,
 refresh, and shutdown. The focused profile covered 20/26 branches
 and 18/23 complexity points. The first API36 check was terminated
 during Android app startup and did not execute the SSDP assertions.
+
+The standard compact API28 run from `0280ba0` completed all 429
+Android tests and all runtime checks, including VPN and offline
+diagnostics. Its single-API report covered 4,446/5,156 JVM
+complexity points (86.23%) and 1,748/1,751 native lines. The
+matching API22 replay is needed for the combined edition report.
