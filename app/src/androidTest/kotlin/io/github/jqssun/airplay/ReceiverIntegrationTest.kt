@@ -755,7 +755,7 @@ class ReceiverIntegrationTest {
             }
         }
     }
-    @Test fun castV2TlsHeartbeatStatusAndUnsupportedApp() {
+    private fun withCastV2(test: (Playback, SSLSocket) -> Unit) {
         val playback = Playback()
         val log = CopyOnWriteArrayList<String>()
         CastV2Receiver(context, playback, "Buzin integration", { log += it }).use { receiver ->
@@ -769,17 +769,62 @@ class ReceiverIntegrationTest {
             }
             val tls = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
             (tls.socketFactory.createSocket(ip, port) as SSLSocket).use { socket ->
-                socket.soTimeout = 5000; socket.startHandshake()
-                fun exchange(namespace: String, body: String): JSONObject {
-                    CastEnvelope("sender-test", "receiver-0", "urn:x-cast:com.google.cast.$namespace", body).writeTo(socket.getOutputStream())
-                    return JSONObject(requireNotNull(CastEnvelope.readFrom(socket.getInputStream())).text!!)
-                }
-                assertEquals("PONG", exchange("tp.heartbeat", """{"type":"PING"}""").getString("type"))
-                assertEquals("RECEIVER_STATUS", exchange("receiver", """{"type":"GET_STATUS","requestId":1}""").getString("type"))
-                val unsupported = exchange("receiver", """{"type":"LAUNCH","requestId":2,"appId":"UNKNOWN"}""")
-                assertEquals("LAUNCH_ERROR", unsupported.getString("type")); assertEquals("NOT_FOUND", unsupported.getString("reason"))
-                assertTrue(playback.requests.isEmpty())
+                socket.soTimeout = 5000
+                socket.startHandshake()
+                test(playback, socket)
             }
         }
+    }
+
+    private fun castExchange(socket: SSLSocket, namespace: String, body: String, destination: String = "receiver-0"): JSONObject {
+        val wireNamespace = "urn:x-cast:com.google.cast.$namespace"
+        val request = JSONObject(body).optInt("requestId", -1)
+        CastEnvelope("sender-test", destination, wireNamespace, body).writeTo(socket.outputStream)
+        repeat(8) {
+            val frame = requireNotNull(CastEnvelope.readFrom(socket.inputStream))
+            val reply = JSONObject(requireNotNull(frame.text))
+            if (frame.namespace == wireNamespace && reply.optInt("requestId", -1) == request) return reply
+        }
+        error("Cast V2 reply not received for $namespace request $request")
+    }
+
+    @Test fun castV2TlsHeartbeatStatusAndUnsupportedApp() = withCastV2 { playback, socket ->
+        assertEquals("PONG", castExchange(socket, "tp.heartbeat", """{"type":"PING"}""").getString("type"))
+        assertEquals("RECEIVER_STATUS", castExchange(socket, "receiver", """{"type":"GET_STATUS","requestId":1}""").getString("type"))
+        val unsupported = castExchange(socket, "receiver", """{"type":"LAUNCH","requestId":2,"appId":"UNKNOWN"}""")
+        assertEquals("LAUNCH_ERROR", unsupported.getString("type"))
+        assertEquals("NOT_FOUND", unsupported.getString("reason"))
+        assertTrue(playback.requests.isEmpty())
+    }
+
+    @Test fun castV2ReportsPlaybackWhileIdleAndKeepsTheSessionAfterAnInvalidCommand() = withCastV2 { playback, socket ->
+        val launch = castExchange(socket, "receiver", """{"type":"LAUNCH","requestId":1,"appId":"CC1AD845"}""")
+        val transport = launch.getJSONObject("status").getJSONArray("applications").getJSONObject(0).getString("transportId")
+        val url = "https://example.test/clip.mp4"
+        playback.playbackInfo = PlaybackInfo(positionMs = 4200, durationMs = 12000, speed = 0.75f, playing = true)
+        val load = castExchange(socket, "media",
+            """{"type":"LOAD","requestId":2,"media":{"contentId":"$url","contentType":"video/mp4"}}""", transport)
+        assertEquals(url, playback.requests.single().location)
+        assertEquals(Protocol.CAST_V2, playback.mediaOwner)
+        val session = load.getJSONArray("status").getJSONObject(0).getInt("mediaSessionId")
+
+        val unsolicited = requireNotNull(CastEnvelope.readFrom(socket.inputStream))
+        assertEquals(transport, unsolicited.source)
+        assertEquals("sender-test", unsolicited.destination)
+        val update = JSONObject(requireNotNull(unsolicited.text))
+        assertEquals("MEDIA_STATUS", update.getString("type"))
+        assertFalse(update.has("requestId"))
+        val item = update.getJSONArray("status").getJSONObject(0)
+        assertEquals(session, item.getInt("mediaSessionId"))
+        assertEquals("PLAYING", item.getString("playerState"))
+        assertEquals(4.2, item.getDouble("currentTime"), 0.001)
+        assertEquals(0.75, item.getDouble("playbackRate"), 0.001)
+
+        val invalid = castExchange(socket, "media", """{"type":"SEEK","requestId":3,"mediaSessionId":$session,"currentTime":-1}""", transport)
+        assertEquals("INVALID_REQUEST", invalid.getString("type"))
+        assertTrue(playback.events.none { it.startsWith("seek:") })
+        val current = castExchange(socket, "media", """{"type":"GET_STATUS","requestId":4}""", transport)
+        assertEquals(session, current.getJSONArray("status").getJSONObject(0).getInt("mediaSessionId"))
+        assertTrue(playback.mediaActive)
     }
 }

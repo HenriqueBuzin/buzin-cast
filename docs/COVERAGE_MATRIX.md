@@ -2984,3 +2984,14 @@ both HEVC and the decoder operating rate. Each selection was verified
 against its own stored preference. On the matching settings class
 files, it raised instructions from 8,109/8,345 to 8,125/8,345,
 complexity from 232/268 to 234/268 and methods from 173/187 to 175/187.
+
+The compact standard volume restoration case passed on APIs 22 and
+28. The emulator media stream began at 11 of 15 on API22 and at 2 on
+API28, exercising the wait for the initial volume-change broadcast
+before connecting, muting and disconnecting the sender.
+
+Two DE/AT API28 Cast V2 socket tests passed. The new case launched and
+loaded a session, verified an unsolicited playback update and confirmed
+the session stayed active after an invalid seek. The matching receiver
+class files advanced from 209/260 to 217/260 branches, from 182/198 to
+188/198 lines, and from 117/163 to 121/163 complexity.
