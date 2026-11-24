@@ -148,35 +148,40 @@ class ToolsScreenStateContractTest {
         val tree = instrumentation.uiAutomation.rootInActiveWindow ?: return false
         try {
             if (tree.packageName?.toString() != context.packageName || tree.childCount == 0) return false
-            fun visit(node: AccessibilityNodeInfo): Boolean {
-                if (node.isVisibleToUser && (node.text?.toString() == label || node.contentDescription?.toString() == label)) {
-                    var parent: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(node)
-                    try {
-                        var depth = 0
-                        while (parent != null && parent.packageName?.toString() == context.packageName) {
-                            check(depth++ < 64) { "Accessibility parent chain exceeded its bound for $label" }
-                            // Selected tabs expose selection on a non-clickable ancestor.
-                            if (selected && parent.isSelected) return true
-                            if (!selected && parent.isClickable) {
-                                if (action == null) return true
-                                if (action == AccessibilityNodeInfo.ACTION_FOCUS) {
-                                    if (parent.isFocused) return true
-                                    parent.performAction(action)
-                                    return false
-                                }
-                                return parent.performAction(action)
-                            }
-                            val next = parent.parent; parent.recycle(); parent = next
-                        }
-                    } finally { parent?.recycle() }
-                }
-                repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
-                    try { if (visit(child)) return true } finally { child.recycle() }
-                } }
-                return false
-            }
-            return visit(tree)
+            return controlInWindow(tree, label, selected, action)
         } finally { tree.recycle() }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun controlInWindow(tree: AccessibilityNodeInfo, label: String, selected: Boolean, action: Int?): Boolean {
+        fun visit(node: AccessibilityNodeInfo): Boolean {
+            if (node.isVisibleToUser && (node.text?.toString() == label || node.contentDescription?.toString() == label)) {
+                var parent: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(node)
+                try {
+                    var depth = 0
+                    while (parent != null && parent.packageName?.toString() == context.packageName) {
+                        check(depth++ < 64) { "Accessibility parent chain exceeded its bound for $label" }
+                        // A selected tab may expose its selection on an ancestor.
+                        if (selected && parent.isSelected) return true
+                        if (!selected && parent.isClickable) {
+                            if (action == null) return true
+                            if (action == AccessibilityNodeInfo.ACTION_FOCUS) {
+                                if (parent.isFocused) return true
+                                parent.performAction(action)
+                                return false
+                            }
+                            return parent.performAction(action)
+                        }
+                        val next = parent.parent; parent.recycle(); parent = next
+                    }
+                } finally { parent?.recycle() }
+            }
+            repeat(node.childCount) { index -> node.getChild(index)?.let { child ->
+                try { if (visit(child)) return true } finally { child.recycle() }
+            } }
+            return false
+        }
+        return visit(tree)
     }
     private fun click(label: String) { await("No actionable control: $label") { control(label, action = AccessibilityNodeInfo.ACTION_CLICK) } }
 
@@ -409,7 +414,7 @@ class ToolsScreenStateContractTest {
                 val address = text(R.string.tools_other_tv_ip)
                 val port = text(R.string.tools_port)
                 val code = text(R.string.tools_pairing_code)
-                fun showDialogActions() {
+                fun showDialogActions(action: () -> Boolean = { true }) {
                     // A previous dialog's keyboard can still be reported while the next dialog opens.
                     // Wait for the active app window to contain the form before sending Back to the IME.
                     await("The touch relay form did not open") { withRelayFields { true } }
@@ -427,14 +432,21 @@ class ToolsScreenStateContractTest {
                             return@await false
                         }
                         !keyboardShown && withRelayFields { true } &&
-                            buttonEnabled(cancel) == true && buttonEnabled(connect) != null
+                            buttonEnabled(cancel) == true && buttonEnabled(connect) != null && action()
+                    }
+                }
+                fun clickDialogAction(label: String) {
+                    showDialogActions {
+                        withRelayNodes { root ->
+                            controlInWindow(root, label, selected = false, action = AccessibilityNodeInfo.ACTION_CLICK)
+                        }
                     }
                 }
                 revealToolsItem(open)
                 click(open)
                 showDialogActions()
                 await("The empty form allowed connecting") { buttonEnabled(connect) == false }
-                tap(cancel)
+                clickDialogAction(cancel)
                 await("Cancel did not close the relay form and restore focus") { relayControlFocused(open) }
                 click(open)
                 fun field(label: String, action: (AccessibilityNodeInfo) -> Boolean): Boolean = withRelayNodes { root ->
@@ -475,7 +487,7 @@ class ToolsScreenStateContractTest {
                 type(port, "x7123!", "7123")
                 showDialogActions()
                 await("A valid relay target could not connect") { buttonEnabled(connect) == true }
-                tap(connect)
+                clickDialogAction(connect)
                 await("The submitted touch form did not close") { relayControlFocused(open) }
             }
         } finally {
