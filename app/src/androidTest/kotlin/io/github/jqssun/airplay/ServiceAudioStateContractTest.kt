@@ -243,6 +243,50 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun androidServiceDestructionClosesTheActiveReceiverAndMediaSession() = withoutAutoLaunch {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val portKey = Prefs.SERVER_PORT.key
+        val originalPort = prefs.takeIf { it.contains(portKey) }?.let(Prefs.SERVER_PORT::read)
+        val loopback = InetAddress.getByName("127.0.0.1")
+        val port = ServerSocket(0, 1, loopback).use { it.localPort }
+        val sessionDestroyed = CountDownLatch(1)
+        val sessionCallback = object : MediaControllerCompat.Callback() {
+            override fun onSessionDestroyed() { sessionDestroyed.countDown() }
+        }
+
+        try {
+            assertTrue(prefs.edit().putInt(portKey, port).commit())
+            main {
+                controller.registerCallback(sessionCallback, Handler(Looper.getMainLooper()))
+                service.startServer()
+                assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+            }
+            Socket(loopback, port).use { assertTrue(it.isConnected) }
+            context.unbindService(connection)
+            binding = false
+            assertTrue("Android did not stop the started service",
+                context.stopService(Intent(context, AirPlayService::class.java)))
+
+            assertTrue("The receiver kept its media session after Android stopped the service",
+                sessionDestroyed.await(10, TimeUnit.SECONDS))
+            await("Android did not destroy the receiver service") {
+                var destroyed = false
+                main { destroyed = service.lifecycle.currentState == Lifecycle.State.DESTROYED }
+                destroyed
+            }
+            assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
+            assertThrows(java.net.ConnectException::class.java) { Socket(loopback, port).close() }
+        } finally {
+            main {
+                if (binding) service.stopServer()
+                controller.unregisterCallback(sessionCallback)
+            }
+            val restore = prefs.edit()
+            if (originalPort == null) restore.remove(portKey) else restore.putInt(portKey, originalPort)
+            assertTrue(restore.commit())
+        }
+    }
+
     @Test fun pauseFreezesExtrapolatedPositionAndResumeContinuesFromIt() {
         main { service.onProgress(0, 44100, 44100 * 60L) }
         await("Position did not extrapolate from the sender report") { service.currentPositionMs() >= 1300 }

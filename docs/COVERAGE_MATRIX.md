@@ -3450,3 +3450,10 @@ Running both SSDP integration cases on the same API25 APK also verified
 LAN search replies alongside port recovery and multicast announcements.
 The matched profile covered 391/425 instructions, 18/24 branches,
 74/76 lines, 17/22 complexity points, 10/10 methods, and 1/1 classes.
+
+The API25 service integration test stopped a running receiver through
+Android's service manager. It observed media-session destruction,
+the stopped service state, and a refused connection on the former
+listener port. Adding the matching profile to the standard API28
+service coverage raised branches from 506/601 to 507/601 and
+complexity from 432/538 to 433/538.
