@@ -286,6 +286,27 @@ class UsbMdnsResponderContractTest {
         assertEquals("An unchanged or stopped advertiser reported a link", expected, reports)
     }
 
+    @Test fun openingAMulticastLinkConfiguresTheSocketAndUsesTheInterfaceSubnet() {
+        val network = requireNotNull(NetworkInterface.getByInetAddress(address))
+        val ipv4 = network.interfaceAddresses.single { it.address == address }
+        val fixture = fixture()
+        val link = requireNotNull(fixture.call("_open", network, ipv4))
+        val socket = link.javaClass.getDeclaredField("socket").apply { isAccessible = true }.get(link) as MulticastSocket
+        val covers = link.javaClass.getDeclaredMethod("covers", Inet4Address::class.java).apply { isAccessible = true }
+        try {
+            assertTrue(socket.isBound)
+            assertEquals(5353, socket.localPort)
+            assertEquals(network.name, socket.networkInterface.name)
+            assertEquals(255, socket.timeToLive)
+            assertTrue("The responder rejected its own interface address", covers.invoke(link, address) == true)
+            assertFalse("The responder accepted a different subnet", covers.invoke(link, InetAddress.getByName("192.0.2.1")) == true)
+            fixture.call("_close", link)
+            assertTrue(socket.isClosed)
+        } finally {
+            socket.close()
+        }
+    }
+
     @Test fun truncatedProbeDoesNotWithdrawAnActiveResponder() {
         val socket = CapturedSocket(); val fixture = fixture(socket)
         fixture.state("ACTIVE")

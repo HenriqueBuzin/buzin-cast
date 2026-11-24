@@ -2995,3 +2995,8 @@ loaded a session, verified an unsolicited playback update and confirmed
 the session stayed active after an invalid seek. The matching receiver
 class files advanced from 209/260 to 217/260 branches, from 182/198 to
 188/198 lines, and from 117/163 to 121/163 complexity.
+
+The DE/AT API28 USB mDNS test opened a multicast socket on the
+emulator's real loopback interface and checked its interface, port,
+TTL, subnet and cleanup. The matching advertiser classes gained
+69 instructions, 12 lines and two branches, reaching 165/217 branches.
