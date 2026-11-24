@@ -778,6 +778,16 @@ class ServiceAudioStateContractTest {
             assertEquals(Protocol.RELAY, session.token.protocol)
             assertEquals(SessionKind.MIRROR, session.kind)
             assertEquals(SessionPhase.PLAYING, session.phase)
+            val portField = AirPlayService::class.java.getDeclaredField("playbackPort").apply { isAccessible = true }
+            val playback = portField.get(service) as ReceiverPlaybackPort
+            main {
+                assertTrue(playback.relayReceiving)
+                assertThrows(IllegalStateException::class.java) {
+                    playback.load(MediaRequest("file:///unused-relay-owner-test.mp4", Protocol.FCAST))
+                }
+                assertFalse(playback.mediaActive)
+                assertEquals(session, service.sessionSnapshot())
+            }
 
             sendRelayVideo(channel, 360, 640, 1_033_000_000)
             assertEquals(session, service.sessionSnapshot())
@@ -1034,8 +1044,11 @@ class ServiceAudioStateContractTest {
                 }
             }
             main {
+                service.relay.listen()
+                assertTrue("The idle relay did not open a listener", service.relay.state.value.listening)
                 playback.load(MediaRequest(location, owner))
                 playback.playing(owner, false)
+                assertFalse("Starting network playback left an idle relay listener open", service.relay.state.value.listening)
             }
             await("The network video did not become ready and paused") {
                 playback.mediaActive && playback.playbackInfo.let { !it.playing && !it.buffering && it.durationMs >= 30_000 }

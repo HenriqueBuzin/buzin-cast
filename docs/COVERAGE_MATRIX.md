@@ -3552,3 +3552,10 @@ automatic while the server was running. It waited for the replacement
 receiver and verified the default RTSP latency of 11,025 samples
 (250 ms at 44.1 kHz) on the same port. The matching focused profiles
 reached 129/599 service branches and 136/537 complexity points.
+
+Two API25 service ownership cases passed with an authenticated
+relay and a real local video fixture. An active mirror rejected
+a competing FCast load and retained its session. A listener still
+waiting for a peer closed when Cast video took ownership. Matching
+focused profiles covered 202/599 branches and 183/537 complexity
+points across the startup and ownership cases.
