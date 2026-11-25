@@ -162,10 +162,10 @@ class MainScreenStateContractTest {
         return null
     }
 
-    // Android 11 can return cached descendants after refreshing the root.
-    // Refresh individual nodes on these APIs, where clearCache is unavailable.
+    // Legacy accessibility caches can retain stale descendants after the root refreshes.
+    // Refresh individual nodes where clearCache is unavailable and this was observed.
     private fun readCurrent(node: AccessibilityNodeInfo): Boolean =
-        Build.VERSION.SDK_INT !in 30..33 || node.refresh()
+        Build.VERSION.SDK_INT !in 28..33 || node.refresh()
     @Suppress("DEPRECATION")
     private fun snapshot(requireText: Boolean = true): List<Node>? {
         val tree = appRoot() ?: return null
