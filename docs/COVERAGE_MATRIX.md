@@ -3746,3 +3746,12 @@ instantiations, with 904/912 branches, 1,748/1,751 lines, 170/171 MCDC
 conditions, and 1,496/1,500 regions. These figures describe API22 alone.
 A matching API28 replay is needed to compare combined coverage with the
 previous API22/API28 checkpoint.
+
+The matching `96d3de0` API28 replay passed all 444 Android tests,
+21 native UBSan tests, and 15 runtime results, including VPN and offline
+diagnostics for the Android integration result. The combined report in
+`build/coverage-96d3de0-compat-api22-api28/merged` verified matching APK,
+test APK, classes, native library, sources, and compiled auxiliary inputs.
+It covers 83,729/87,091 JVM instructions, 5,226/5,979 branches (87.41%),
+8,363/8,551 lines, 4,522/5,166 complexity points (87.53%), 2,289/2,374 methods,
+and 311/317 classes. All six native metrics reached 100% in the combined report.
