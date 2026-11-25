@@ -341,6 +341,36 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun exhaustedNetworkRecoveryEndsTheSessionAndResetsForTheNextVideo() {
+        val url = Uri.fromFile(fixture).toString()
+        val first = token()
+        val offline = PlaybackException("Offline", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
+        renderer.play(url, 0f, token = first)
+        renderer.setPlaying(false, first)
+        await("The first video did not become ready") { player().playbackState == Player.STATE_READY }
+
+        main {
+            val listener = playerField("activeListener") as Player.Listener
+            recoveries.clear()
+            repeat(4) { listener.onPlayerError(offline) }
+            assertEquals((1..3).map { first to context.getString(R.string.network_playback_retry, it) }, recoveries)
+            assertEquals(listOf(first to "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"), failures)
+            assertEquals(listOf(first), ended)
+        }
+
+        val next = token()
+        renderer.play(url, 0f, token = next)
+        renderer.setPlaying(false, next)
+        await("The replacement video did not become ready") { player().playbackState == Player.STATE_READY }
+        main {
+            val listener = playerField("activeListener") as Player.Listener
+            recoveries.clear()
+            listener.onPlayerError(offline)
+            assertEquals(listOf(next to context.getString(R.string.network_playback_retry, 1)), recoveries)
+            assertEquals(listOf(first), ended)
+        }
+    }
+
     @Test fun textCaptionsIgnoreBitmapCuesAndKeepTheDisplayLengthBounded() {
         val owner = token()
         renderer.play(Uri.fromFile(fixture).toString(), 0f, token = owner)
