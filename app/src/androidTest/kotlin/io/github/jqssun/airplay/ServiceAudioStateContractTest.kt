@@ -1201,6 +1201,7 @@ class ServiceAudioStateContractTest {
                         assertFalse(playback.mediaActive)
                         assertNull(playback.mediaOwner)
                         service.playLocalVideo(location)
+                        playback.playing(Protocol.LOCAL, false)
                     }
                     await("Starting video again did not close the photo viewer") {
                         var closed = false
