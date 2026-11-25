@@ -143,7 +143,6 @@ class VideoPipeline {
         // Keep consuming offscreen so the decoder can continue while displays change.
         if (displayAttached) egl.makeCurrent(window) else egl.makeCurrent()
         st.updateTexImage()
-        st.getTransformMatrix(texMatrix)
         hasFrame = true
         if (displayAttached) _render()
     }
@@ -155,6 +154,8 @@ class VideoPipeline {
         winW = egl?.query(window, EGL14.EGL_WIDTH) ?: winW
         winH = egl?.query(window, EGL14.EGL_HEIGHT) ?: winH
         if (winW <= 0 || winH <= 0 || videoW <= 0 || videoH <= 0) return
+        // A retained frame is drawn only after the display's EGL surface is current.
+        surfaceTexture?.getTransformMatrix(texMatrix)
         val fit = io.buzincast.media.DisplayFit.viewport(winW, winH, videoW, videoH, marginPercent)
         GLES20.glViewport(fit.x, fit.y, fit.width, fit.height)
         GLES20.glUseProgram(program)

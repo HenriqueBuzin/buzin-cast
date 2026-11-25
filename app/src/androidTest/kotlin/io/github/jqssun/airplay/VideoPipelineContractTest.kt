@@ -8,7 +8,9 @@ import android.media.Image
 import android.media.ImageReader
 import android.opengl.EGL14
 import android.opengl.EGLConfig
+import android.os.Build
 import android.os.SystemClock
+import android.view.Surface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.buzincast.media.NalUnits
@@ -78,19 +80,8 @@ class VideoPipelineContractTest {
         pipeline.setVideoSize(size, size)
         pipeline.start()
         val input = requireNotNull(pipeline.inputSurface)
-        val texture = VideoPipeline::class.java.getDeclaredField("surfaceTexture")
-            .apply { isAccessible = true }.get(pipeline) as SurfaceTexture
-        val paint = Paint().apply { color = Color.RED }
-        val canvas = input.lockCanvas(null)
-        try {
-            canvas.drawColor(Color.BLUE)
-            canvas.drawRect(0f, 0f, size.toFloat(), size / 2f, paint)
-        } finally {
-            input.unlockCanvasAndPost(canvas)
-        }
-        val deadline = SystemClock.elapsedRealtime() + 10_000L
-        while (texture.timestamp == 0L && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(20)
-        assertTrue("The frame was not consumed before display attachment", texture.timestamp != 0L)
+        drawOrientationPattern(input, size)
+        awaitFirstConsumedFrame()
 
         ImageReader.newInstance(size, size, format, 3).use { reader ->
             try {
@@ -104,11 +95,67 @@ class VideoPipelineContractTest {
         }
     }
 
+    @Test fun aDisplayAttachedBeforeItsFirstFrameRendersTheSameOrientation() {
+        val size = 64
+        val format = windowPixelFormat()
+        pipeline.setVideoSize(size, size)
+        pipeline.start()
+        val input = requireNotNull(pipeline.inputSurface)
+
+        ImageReader.newInstance(size, size, format, 3).use { reader ->
+            try {
+                pipeline.setDisplaySurface(reader.surface)
+                drawOrientationPattern(input, size)
+                awaitColors(reader, Color.RED to Color.BLUE) { image ->
+                    pixel(image, 32, 16) to pixel(image, 32, 48)
+                }
+            } finally {
+                pipeline.release()
+            }
+        }
+    }
+
+    @Test fun releasedDisplayDoesNotPreventRenderingToTheNextSurface() {
+        val size = 64
+        val format = windowPixelFormat()
+        pipeline.start()
+        pipeline.setVideoSize(size, size)
+        val input = requireNotNull(pipeline.inputSurface)
+
+        ImageReader.newInstance(size, size, format, 3).use { retired ->
+            val invalidDisplay = retired.surface
+            invalidDisplay.release()
+            assertFalse(invalidDisplay.isValid)
+            pipeline.setDisplaySurface(invalidDisplay)
+
+            val canvas = input.lockCanvas(null)
+            try {
+                canvas.drawColor(Color.CYAN)
+            } finally {
+                input.unlockCanvasAndPost(canvas)
+            }
+            awaitFirstConsumedFrame()
+        }
+
+        ImageReader.newInstance(size, size, format, 3).use { replacement ->
+            try {
+                pipeline.setDisplaySurface(replacement.surface)
+                awaitPixels(replacement, Color.CYAN, Color.CYAN)
+                assertSame(input, pipeline.inputSurface)
+            } finally {
+                pipeline.release()
+            }
+        }
+    }
+
     @Test fun avcFramesReachTheDisplayWithScheduledAndImmediateRelease() {
-        val width = 32
-        val height = 32
+        // Legacy OMX requires the constrained-baseline fixture. The newer
+        // Goldfish decoder accepts it but yields no frames at that size.
+        val legacy = Build.VERSION.SDK_INT < 26
+        val width = if (legacy) 32 else 64
+        val height = if (legacy) 32 else 48
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val frames = avcFrames()
+        val frames = avcFrames(legacy)
 
         val format = windowPixelFormat()
         for (scheduled in listOf(true, false)) {
@@ -125,8 +172,10 @@ class VideoPipelineContractTest {
                     fun readFrame() {
                         reader.acquireLatestImage()?.use {
                             images++
-                            val color = pixel(it, width / 2, height / 2)
-                            if (Color.blue(color) > 160 && Color.red(color) < 80) coloredFrame = true
+                            val color = pixel(it, width / 2, if (legacy) height / 2 else 10)
+                            val matches = if (legacy) Color.blue(color) > 160 && Color.red(color) < 80
+                                else Color.red(color) > 80
+                            if (matches) coloredFrame = true
                         }
                     }
                     var sent = 0L
@@ -195,12 +244,31 @@ class VideoPipelineContractTest {
         }
     }
 
-    private fun avcFrames(): List<ByteArray> {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        // The Annex B version of the existing blue, constrained-baseline MP4 fixture.
-        val nals = instrumentation.context.assets.open("playback/mirror-baseline.h264").use {
-            NalUnits.split(it.readBytes())
+    private fun drawOrientationPattern(input: Surface, size: Int) {
+        val paint = Paint().apply { color = Color.RED }
+        val canvas = input.lockCanvas(null)
+        try {
+            canvas.drawColor(Color.BLUE)
+            canvas.drawRect(0f, 0f, size.toFloat(), size / 2f, paint)
+        } finally {
+            input.unlockCanvasAndPost(canvas)
         }
+    }
+
+    private fun awaitFirstConsumedFrame() {
+        val texture = VideoPipeline::class.java.getDeclaredField("surfaceTexture")
+            .apply { isAccessible = true }.get(pipeline) as SurfaceTexture
+        val deadline = SystemClock.elapsedRealtime() + 10_000L
+        while (texture.timestamp == 0L && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(20)
+        assertTrue("The frame was not consumed before display attachment", texture.timestamp != 0L)
+    }
+
+    private fun avcFrames(legacy: Boolean = true): List<ByteArray> {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        // The blue legacy fixture is the Annex B version of the baseline MP4.
+        val assets = if (legacy) instrumentation.context.assets else instrumentation.targetContext.assets
+        val path = if (legacy) "playback/mirror-baseline.h264" else "mirror/sample.h264"
+        val nals = assets.open(path).use { NalUnits.split(it.readBytes()) }
         val units = mutableListOf<MutableList<ByteArray>>()
         for (nal in nals) {
             if (units.isEmpty() || NalUnits.type(nal, hevc = false) == 9) units += mutableListOf<ByteArray>()
