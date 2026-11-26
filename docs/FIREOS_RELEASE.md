@@ -251,3 +251,9 @@ vídeo pela rede local e reportou avanço da posição antes do comando de
 parada. Os relatórios `*.nodownload-aftmm-lan-playback-retry.json` vinculam
 os testes aos SHA-256 dos candidatos assinados. Os APKs de teste foram
 removidos e a edição geral foi reaberta.
+
+Os dois APKs legados assinados (48 e 49) também reproduziram o mesmo MP4
+no Android 4.2 x86. O teste passou pela entrada AirPlay por URL,
+requisição HTTP do vídeo, avanço da reprodução e comando de parada.
+Os relatórios `legacy.*-api17-playback.json` registram a API, a ABI e o
+SHA-256 de cada APK. Os pacotes foram desinstalados ao final.
