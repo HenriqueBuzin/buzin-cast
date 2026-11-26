@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.jqssun.airplay.ui.gestures.*
 import io.github.jqssun.airplay.viewmodel.MainViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -113,7 +115,10 @@ class PlayerGestureSurfaceContractTest {
             return Offset(b.left + b.width * x, b.top + b.height * y)
         }
     }
-    private fun surface(block: (Surface) -> Unit) {
+    private fun surface(
+        createTapState: () -> TapGestureState = { TapGestureState(model, scope) },
+        block: (Surface) -> Unit,
+    ) {
         ActivityScenario.launch<DebugTvPreviewActivity>(Intent(context, DebugTvPreviewActivity::class.java).putExtra("screen", "contract_host")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).use { scenario ->
             val state = Surface()
@@ -122,7 +127,7 @@ class PlayerGestureSurfaceContractTest {
                 target = activity.window.decorView
                 originalBrightness = activity.window.attributes.screenBrightness
                 activity.window.attributes = activity.window.attributes.apply { screenBrightness = .5f }
-                state.tap = TapGestureState(model, scope)
+                state.tap = createTapState()
                 state.seek = SeekGestureState(model)
                 state.brightness = BrightnessState(activity.window)
                 state.volume = ServerVolumeState(context)
@@ -223,15 +228,21 @@ class PlayerGestureSurfaceContractTest {
         }
     }
 
-    @Test fun activeDoubleTapSuppressesControlTapUntilSeekIndicatorExpires() = surface { surface ->
-        doubleTap(surface.point(.9f))
-        await("Enabled double tap did not seek") { read { surface.tap.seekMillis } == 10_000L }
-        tap(surface.point(.5f))
-        Thread.sleep(400)
-        assertEquals("Tap during accumulated seeking toggled controls", 0, surface.taps.get())
-        await("Seek indicator never expired") { read { surface.tap.seekMillis } == 0L }
-        tap(surface.point(.5f))
-        await("Normal tapping did not recover") { surface.taps.get() == 1 }
+    @Test fun activeDoubleTapSuppressesControlTapUntilSeekIndicatorExpires() {
+        val expireIndicator = CompletableDeferred<Unit>()
+        surface(createTapState = { TapGestureState(model, scope) { expireIndicator.await() } }) { surface ->
+            doubleTap(surface.point(.9f))
+            await("Enabled double tap did not seek") { read { surface.tap.seekMillis } == 10_000L }
+            tap(surface.point(.5f))
+            SystemClock.sleep(ViewConfiguration.getDoubleTapTimeout().toLong() + 100L)
+            instrumentation.waitForIdleSync()
+            assertEquals("Tap during accumulated seeking toggled controls", 0, surface.taps.get())
+            expireIndicator.complete(Unit)
+            await("Seek indicator never expired") { read { surface.tap.seekMillis } == 0L }
+            tap(surface.point(.5f))
+            await("Normal tapping did not recover") { surface.taps.get() >= 1 }
+            assertEquals("The earlier tap toggled controls after the indicator expired", 1, surface.taps.get())
+        }
     }
 
     @Test fun dragAndPinchReachProductionStatesOnlyWhenUnlockedAndEnabled() = surface { surface ->

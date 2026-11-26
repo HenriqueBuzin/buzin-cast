@@ -32,10 +32,13 @@ import kotlinx.coroutines.launch
 
 // zones: left 35% = back, right 35% = forward, middle = play/pause
 @Stable
-class TapGestureState(
+class TapGestureState internal constructor(
     private val viewModel: MainViewModel,
     private val scope: CoroutineScope,
+    private val waitForIndicator: suspend (Long) -> Unit,
 ) {
+    constructor(viewModel: MainViewModel, scope: CoroutineScope) : this(viewModel, scope, ::delay)
+
     // accumulated double-tap seek shown by the indicator; sign is the direction
     var seekMillis by mutableLongStateOf(0L)
         private set
@@ -60,7 +63,7 @@ class TapGestureState(
         interactionSource.tryEmit(PressInteraction.Press(offset))
         resetJob?.cancel()
         resetJob = scope.launch {
-            delay(INDICATOR_TIMEOUT_MS)
+            waitForIndicator(INDICATOR_TIMEOUT_MS)
             seekMillis = 0
         }
     }
