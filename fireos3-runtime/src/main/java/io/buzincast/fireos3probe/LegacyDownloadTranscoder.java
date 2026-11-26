@@ -51,7 +51,8 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
         if(video && (format.width<=0 || format.height<=0 || (format.width&1)!=0 || (format.height&1)!=0 ||
             format.width>1920 || format.height>1920 || (long)format.width*format.height>1920L*1080))return false;
         if(!video && (format.sampleRate<1000 || format.sampleRate>384000 || format.channelCount<1 || format.channelCount>8))return false;
-        return codec(format.sampleMimeType,false,false)!=null && codec(video?"video/avc":"audio/mp4a-latm",true,video)!=null;
+        boolean decoderAvailable=video?videoDecoder(format.sampleMimeType)!=null:codec(format.sampleMimeType,false,false)!=null;
+        return decoderAvailable && codec(video?"video/avc":"audio/mp4a-latm",true,video)!=null;
     }
     private static int aacRate(int rate) {
         int[] rates={8000,11025,12000,16000,22050,24000,32000,44100,48000};int closest=rates[0];
@@ -68,6 +69,27 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
             }catch(RuntimeException unavailable) { /* Try another installed component. */ }
         }
         return null;
+    }
+    private static MediaCodecInfo videoDecoder(String mime) {
+        for(int i=0;i<MediaCodecList.getCodecCount();i++) {
+            MediaCodecInfo info=MediaCodecList.getCodecInfoAt(i);
+            if(!info.isEncoder() && decoderColor(info,mime)!=0)return info;
+        }
+        return null;
+    }
+    private static int decoderColor(MediaCodecInfo info,String mime) {
+        for(String type:info.getSupportedTypes())if(type.equalsIgnoreCase(mime))try {
+            return selectDecoderColor(info.getCapabilitiesForType(type).colorFormats);
+        }catch(RuntimeException unavailable) { /* Try another installed component. */ }
+        return 0;
+    }
+    static int selectDecoderColor(int[] colors) {
+        int supported=0;
+        for(int color:colors) {
+            if(color==MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar)return color;
+            if(color==MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)supported=color;
+        }
+        return supported;
     }
     private static int avcLevel(String name,int width,int height,int fps,int bitrate) throws IOException {
         int[][] limits={{1,99,1485,64000},{2,99,1485,128000},{4,396,3000,192000},{8,396,6000,384000},{16,396,11880,768000},
@@ -91,14 +113,16 @@ final class LegacyDownloadTranscoder implements java.io.Closeable {
         codedWidth=video?Math.max(176,(input.width+15)&~15):0;
         codedHeight=video?Math.max(144,(input.height+15)&~15):0;
         try {
-            String decodeName=codec(input.sampleMimeType,false,false),encodeName=codec(video?"video/avc":"audio/mp4a-latm",true,video);
+            MediaCodecInfo rawVideoDecoder=video?videoDecoder(input.sampleMimeType):null;
+            String decodeName=video?(rawVideoDecoder==null?null:rawVideoDecoder.getName()):codec(input.sampleMimeType,false,false);
+            String encodeName=codec(video?"video/avc":"audio/mp4a-latm",true,video);
             decoderName=decodeName;
             if(!available(input) || decodeName==null || encodeName==null)throw new IOException("No compatible download codec");
             if(!video)primingFrames=AacEncoderPriming.frames(encodeName,audioRate,audioChannels);
             MediaFormat source=video?MediaFormat.createVideoFormat(input.sampleMimeType,input.width,input.height):
                 MediaFormat.createAudioFormat(input.sampleMimeType,input.sampleRate,input.channelCount);
             source.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE,LIMIT);
-            if(video)source.setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar);
+            if(video)source.setInteger(MediaFormat.KEY_COLOR_FORMAT,decoderColor(rawVideoDecoder,input.sampleMimeType));
             for(int i=0;i<input.initializationData.size();i++)source.setByteBuffer("csd-"+i,ByteBuffer.wrap(input.initializationData.get(i)));
             decoder=MediaCodec.createByCodecName(decodeName);decoder.configure(source,null,null,0);decoder.start();decoderStarted=true;
             decoderInputs=decoder.getInputBuffers();decoderOutputs=decoder.getOutputBuffers();
