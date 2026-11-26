@@ -72,6 +72,17 @@ class ExperienceProfilesContractTest {
         assertEquals(original, preferences.all)
     }
 
+    @Test fun aMissingOrUnavailableAvcDecoderDoesNotAdvertiseVideoModes() {
+        val expected = DeviceCapabilities(emptySet(), lowLatency = false)
+        val otherCodecs = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.filter {
+            it.isEncoder || it.supportedTypes.none { type -> type.equals("video/avc", ignoreCase = true) }
+        }.toTypedArray()
+        assertTrue("The emulator must expose codecs other than AVC decoders", otherCodecs.isNotEmpty())
+        assertEquals(expected, DeviceCapabilityProbe.read { otherCodecs })
+        assertEquals(expected, DeviceCapabilityProbe.read { emptyArray() })
+        assertEquals(expected, DeviceCapabilityProbe.read { error("Codec service unavailable") })
+    }
+
     @Test fun implicitProfileUsesTheAvcModesAdvertisedByAndroid() {
         val codecs = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
             .filterNot { it.isEncoder }
