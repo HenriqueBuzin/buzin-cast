@@ -216,9 +216,14 @@ SHA-256 `6cba0573843b141687f65ec43a0c50e8be146e459051be23e979d540473fae8c`.
 O resultado `api17-native-loader-result.txt` confirma as dependências e
 os inicializadores nativos nessa combinação. O executável de teste usou
 essa mesma biblioteca para iniciar o receptor e confirmou `RTSP/1.0 200`
-em loopback, registrado em `api17-native-receiver-result.txt`. A instalação
-do app completo continua pendente nesse emulador. O watchdog reiniciou seu
-gerenciador de pacotes e uma nova tentativa também excedeu o prazo do ADB.
+em loopback, registrado em `api17-native-receiver-result.txt`. Nas primeiras
+tentativas de instalação, o watchdog reiniciou o gerenciador de pacotes
+e outra tentativa excedeu o prazo do ADB. Com a imagem de dados já
+inicializada, o boot sem animação e prazo de ADB ampliado, os dois APKs
+legados completos instalaram e passaram na API17 ARMv7. Os relatórios
+`legacy.*-api17-armv7-warm/report.json` registram abertura, RTSP,
+navegação, tela Sobre, assinatura e chave pública de cada ficha. Os dois
+pacotes foram desinstalados ao final.
 
 Os seis APKs reconstruídos passaram no build, no lint de release e na
 verificação de pacote, API mínima, versão e assinatura em `signed-matrix.json`
