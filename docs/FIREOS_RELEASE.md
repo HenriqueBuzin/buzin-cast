@@ -268,3 +268,8 @@ no Android 4.2 x86. O teste passou pela entrada AirPlay por URL,
 requisição HTTP do vídeo, avanço da reprodução e comando de parada.
 Os relatórios `legacy.*-api17-playback.json` registram a API, a ABI e o
 SHA-256 de cada APK. Os pacotes foram desinstalados ao final.
+
+Os mesmos APKs também passaram nesse teste no Android 4.2 ARMv7, sem
+ponte de tradução. Os relatórios `legacy.*-api17-armv7-playback-verified.json`
+confirmam o SHA-256, a abertura e o avanço da reprodução nas duas edições.
+Os pacotes foram desinstalados após o teste.
