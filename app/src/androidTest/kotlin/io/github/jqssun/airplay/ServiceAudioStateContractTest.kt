@@ -621,6 +621,45 @@ class ServiceAudioStateContractTest {
         }
     }
 
+    @Test fun queuedAirPlayVideoCannotReopenPlaybackAfterTheReceiverStops() = withoutAutoLaunch {
+        val prefs = context.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
+        val portKey = Prefs.SERVER_PORT.key
+        val usbKey = Prefs.USB_ONLY.key
+        val originalPort = prefs.takeIf { it.contains(portKey) }?.let(Prefs.SERVER_PORT::read)
+        val originalUsbMode = prefs.takeIf { it.contains(usbKey) }?.let(Prefs.USB_ONLY::read)
+        val port = ServerSocket(0).use { it.localPort }
+        assertTrue(prefs.edit().putInt(portKey, port).putBoolean(usbKey, true).commit())
+        try {
+            withLocalVideoFixture("playback/remote-seek.mp4") { location ->
+                main {
+                    service.startServer()
+                    assertEquals(AirPlayService.ServerState.RUNNING, service.serverState.value)
+                    service.onVideoPlay(location, 4f)
+                }
+                await("An active receiver did not handle the AirPlay video request") {
+                    service.videoPlaybackActive.value && service.sessionSnapshot()?.token?.protocol == Protocol.AIRPLAY
+                }
+                assertEquals(location, service.videoLocation.value)
+
+                main {
+                    service.onVideoPlay(location, 8f)
+                    service.stopServer()
+                }
+                main {
+                    assertEquals(AirPlayService.ServerState.STOPPED, service.serverState.value)
+                    assertFalse("The queued request reopened playback after shutdown", service.videoPlaybackActive.value)
+                    assertNull(service.sessionSnapshot())
+                }
+            }
+        } finally {
+            main { service.stopServer() }
+            val restore = prefs.edit()
+            if (originalPort == null) restore.remove(portKey) else restore.putInt(portKey, originalPort)
+            if (originalUsbMode == null) restore.remove(usbKey) else restore.putBoolean(usbKey, originalUsbMode)
+            assertTrue(restore.commit())
+        }
+    }
+
     private fun withLocalVideoFixture(asset: String = "download/sample.mp4", block: (String) -> Unit) {
         val file = File.createTempFile("service-video-", ".mp4", context.cacheDir)
         try {
