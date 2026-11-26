@@ -208,3 +208,12 @@ na edição geral e ficou oculta na DE/AT. Os APKs, o relatório de assinatura
 `legacy-signed.json` e os relatórios de execução `legacy.*-api17/report.json`
 e `legacy.*-api30-armv7-clean/report.json` ficam em
 `outputs/fireos/coordinated/refresh-4bb3a05`.
+
+Uma execução adicional com Android 4.2 ARMv7 no emulador clássico
+(SDK Tools 25.2.5) carregou via `dlopen` a biblioteca `libfireos3_probe.so`
+extraída dos APKs assinados. O arquivo é idêntico nas duas edições, com
+SHA-256 `6cba0573843b141687f65ec43a0c50e8be146e459051be23e979d540473fae8c`.
+O resultado `api17-native-loader-result.txt` confirma as dependências e
+os inicializadores nativos nessa combinação. A instalação do app completo
+segue sem resultado nesse emulador, cujo gerenciador de pacotes foi
+reiniciado pelo watchdog durante a tentativa.
