@@ -1,5 +1,11 @@
 # Release coordenado para Fire TV Stick
 
+O objetivo atual é validar a compatibilidade técnica do BuzinCast com os
+modelos físicos da família Fire TV Stick, da primeira geração à mais recente.
+Neste PC, a matriz cobre os modelos com Fire OS. Os Sticks com Vega OS
+seguem na frente do Mac. A consulta de versões e modelos no console e o
+teste da licença pela Appstore ficam para a etapa futura de publicação.
+
 `gradle/fireos-release.properties` define a versão e os códigos das três
 edições Android, em ambas as fichas. Os dois projetos Gradle leem esse
 arquivo. Ao preparar a próxima versão, alterar o plano antes de compilar.
