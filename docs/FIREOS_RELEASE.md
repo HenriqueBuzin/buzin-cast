@@ -227,3 +227,12 @@ O relatório `verified-refreshed-matrix.json` vincula os mesmos seis APKs
 a 12 testes aprovados de abertura e RTSP nas APIs 17, 22, 25, 28 e 30.
 O teste no Fire TV Stick de 1ª geração, a licença pela Appstore e a atribuição
 de modelos na loja continuam pendentes.
+
+O APK moderno DE/AT (código 53) também foi instalado via ADB em um Fire TV
+Stick 4K de 1ª geração (`AFTMM`, Fire OS 6/API25). Com as duas edições
+ativas, a edição regional mostrou erro ao iniciar o receptor. A porta
+7000 só ficou livre ao parar a edição geral. Com a edição geral parada,
+a DE/AT abriu em primeiro plano e respondeu `RTSP/1.0 200`. Ao final, o
+APK de teste foi removido e a edição geral foi reaberta. O relatório
+`modern.nodownload-aftmm-isolated.json` registra o teste local. A licença
+pela loja segue pendente.
