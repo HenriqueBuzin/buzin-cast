@@ -192,3 +192,19 @@ hashes. Essa matriz precede o patch compartilhado UxPlay 0020.
 
 A validação em um Fire TV Stick antigo e a licença pela Appstore
 continuam pendentes.
+
+## APKs legados com UxPlay 0020
+
+Os APKs legados da revisão `4bb3a05` passaram no build e no lint de
+release. Mantêm a assinatura de produção, a API mínima 17 e os códigos 48
+e 49. Os SHA-256 são:
+
+- Geral: `2e97c1e7b236d325fa1aa8082bdecbe66dd1e14bd48a55bfd90f514c8c810791`.
+- DE/AT: `f5fb8f5481d2c754330bddb35de0314324fb102383cc883bd71145e90ae457fc`.
+
+Os dois abriram e responderam ao RTSP na API17 x86 e na API30 com ARMv7
+via `libndk_translation.so`. A ação de gravação apareceu em Ferramentas
+na edição geral e ficou oculta na DE/AT. Os APKs, o relatório de assinatura
+`legacy-signed.json` e os relatórios de execução `legacy.*-api17/report.json`
+e `legacy.*-api30-armv7-clean/report.json` ficam em
+`outputs/fireos/coordinated/refresh-4bb3a05`.
