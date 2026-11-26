@@ -236,3 +236,11 @@ a DE/AT abriu em primeiro plano e respondeu `RTSP/1.0 200`. Ao final, o
 APK de teste foi removido e a edição geral foi reaberta. O relatório
 `modern.nodownload-aftmm-isolated.json` registra o teste local. A licença
 pela loja segue pendente.
+
+No mesmo Fire OS 6 físico, os APKs DE/AT legado (49) e moderno (53) foram
+instalados e testados separadamente em `armeabi-v7a`. Ambos mostraram
+**Pronto para conectar** e responderam `RTSP/1.0 200`. Os relatórios
+`*.nodownload-aftmm-confirmed.json` e as capturas `*-aftmm-confirmed-home.png`
+ficam junto da matriz. Os dois APKs de teste foram removidos e a edição
+geral instalada anteriormente foi reaberta. O APK legado ainda precisa ser
+testado no Stick de 2014 (`AFTM`).
