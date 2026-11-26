@@ -65,6 +65,20 @@ class VideoPipelineContractTest {
                     awaitWideDisplay(Color.BLACK)
                     pipeline.setMarginPercent(-5)
                     awaitWideDisplay(Color.MAGENTA)
+
+                    // A subsequent display should show the frame received during detachment.
+                    val texture = inputTexture()
+                    val previousFrame = texture.timestamp
+                    pipeline.setDisplaySurface(null)
+                    val offscreen = input.lockCanvas(null)
+                    try {
+                        offscreen.drawColor(Color.CYAN)
+                    } finally {
+                        input.unlockCanvasAndPost(offscreen)
+                    }
+                    awaitConsumedFrame(texture, previousFrame)
+                    pipeline.setDisplaySurface(first.surface)
+                    awaitPixels(first, Color.CYAN, Color.CYAN)
                 } finally {
                     pipeline.release()
                 }
@@ -255,12 +269,15 @@ class VideoPipelineContractTest {
         }
     }
 
-    private fun awaitFirstConsumedFrame() {
-        val texture = VideoPipeline::class.java.getDeclaredField("surfaceTexture")
-            .apply { isAccessible = true }.get(pipeline) as SurfaceTexture
+    private fun inputTexture() = VideoPipeline::class.java.getDeclaredField("surfaceTexture")
+        .apply { isAccessible = true }.get(pipeline) as SurfaceTexture
+
+    private fun awaitFirstConsumedFrame() = awaitConsumedFrame(inputTexture(), 0L)
+
+    private fun awaitConsumedFrame(texture: SurfaceTexture, previousTimestamp: Long) {
         val deadline = SystemClock.elapsedRealtime() + 10_000L
-        while (texture.timestamp == 0L && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(20)
-        assertTrue("The frame was not consumed before display attachment", texture.timestamp != 0L)
+        while (texture.timestamp == previousTimestamp && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(20)
+        assertTrue("The frame was not consumed before display attachment", texture.timestamp != previousTimestamp)
     }
 
     private fun avcFrames(legacy: Boolean = true): List<ByteArray> {
