@@ -24,6 +24,8 @@ def main():
     parser.add_argument('--public-key',required=True,type=Path)
     parser.add_argument('--adb',required=True)
     parser.add_argument('--adb-server-port',required=True,type=int)
+    parser.add_argument('--adb-timeout', type=int, default=0,
+                        help='Extend the minimum ADB timeout in seconds for slow emulators')
     parser.add_argument('--serial',required=True)
     parser.add_argument('--aapt',required=True)
     parser.add_argument('--apksigner-jar',required=True,type=Path)
@@ -37,8 +39,9 @@ def main():
     if not local or not 5555<=int(local[1])<=5683 or int(local[1])%2!=1:
         parser.error('Use an isolated emulator TCP serial, never a physical Fire Stick.')
     if not 1<=args.adb_server_port<=65535:parser.error('Invalid ADB server port.')
+    if args.adb_timeout < 0:parser.error('ADB timeout cannot be negative.')
     def adb(*command,timeout=60):
-        return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=timeout).decode('utf-8','replace')
+        return subprocess.check_output([args.adb,'-P',str(args.adb_server_port),'-s',args.serial,*map(str,command)],timeout=max(timeout,args.adb_timeout)).decode('utf-8','replace')
     min_sdk = {'legacy': 17, 'compat': 22, 'modern': 25}[args.target]
     expected_sdk = args.device_sdk if args.device_sdk is not None else (None if args.target == 'modern' else min_sdk)
     device_sdk = adb('shell','getprop','ro.build.version.sdk').strip()
