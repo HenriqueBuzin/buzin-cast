@@ -414,12 +414,15 @@ class ToolsScreenStateContractTest {
                 val address = text(R.string.tools_other_tv_ip)
                 val port = text(R.string.tools_port)
                 val code = text(R.string.tools_pairing_code)
-                fun showDialogActions(action: () -> Boolean = { true }) {
+                fun showDialogActions(
+                    message: String = "The relay form actions are not visible",
+                    action: () -> Boolean = { true },
+                ) {
                     // A previous dialog's keyboard can still be reported while the next dialog opens.
                     // Wait for the active app window to contain the form before sending Back to the IME.
                     await("The touch relay form did not open") { withRelayFields { true } }
                     var dismissed = false
-                    await("The relay form actions are not visible") {
+                    await(message) {
                         val windows = automation.windows
                         val keyboardShown = try {
                             windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
@@ -431,6 +434,7 @@ class ToolsScreenStateContractTest {
                             dismissed = true
                             return@await false
                         }
+                        if (!keyboardShown) dismissed = false
                         !keyboardShown && withRelayFields { true } &&
                             buttonEnabled(cancel) == true && buttonEnabled(connect) != null && action()
                     }
@@ -444,8 +448,7 @@ class ToolsScreenStateContractTest {
                 }
                 revealToolsItem(open)
                 click(open)
-                showDialogActions()
-                await("The empty form allowed connecting") { buttonEnabled(connect) == false }
+                showDialogActions("The empty form allowed connecting") { buttonEnabled(connect) == false }
                 clickDialogAction(cancel)
                 await("Cancel did not close the relay form and restore focus") { relayControlFocused(open) }
                 click(open)
@@ -477,16 +480,13 @@ class ToolsScreenStateContractTest {
                         field(label) { it.text?.toString() == expected }
                     }
                 }
-                showDialogActions()
-                await("The reopened empty form allowed connecting") { buttonEnabled(connect) == false }
+                showDialogActions("The reopened empty form allowed connecting") { buttonEnabled(connect) == false }
                 type(address, " 127.0.0.1 ", " 127.0.0.1 ")
                 type(port, "x65536!", "65536")
                 type(code, "ABCD-EFGH-IJKL-X", "ABCD-EFGH-IJKL")
-                showDialogActions()
-                await("An out-of-range port allowed connecting") { buttonEnabled(connect) == false }
+                showDialogActions("An out-of-range port allowed connecting") { buttonEnabled(connect) == false }
                 type(port, "x7123!", "7123")
-                showDialogActions()
-                await("A valid relay target could not connect") { buttonEnabled(connect) == true }
+                showDialogActions("A valid relay target could not connect") { buttonEnabled(connect) == true }
                 clickDialogAction(connect)
                 await("The submitted touch form did not close") { relayControlFocused(open) }
             }
