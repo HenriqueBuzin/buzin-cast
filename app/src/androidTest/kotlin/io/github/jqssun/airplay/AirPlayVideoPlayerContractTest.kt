@@ -27,6 +27,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -368,6 +371,55 @@ class AirPlayVideoPlayerContractTest {
             listener.onPlayerError(offline)
             assertEquals(listOf(next to context.getString(R.string.network_playback_retry, 1)), recoveries)
             assertEquals(listOf(first), ended)
+        }
+    }
+
+    @Test fun pausedVideoReportsBufferingUntilItsHttpBodyArrives() {
+        val owner = token()
+        val headersDelivered = CountDownLatch(1)
+        val releaseBody = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { server ->
+                server.soTimeout = 10_000
+                val response = executor.submit {
+                    server.accept().use { client ->
+                        client.soTimeout = 5_000
+                        val request = client.getInputStream().bufferedReader(Charsets.US_ASCII)
+                        check(request.readLine()?.startsWith("GET /video.mp4 ") == true)
+                        while (request.readLine()?.isNotEmpty() == true) { }
+                        val output = client.getOutputStream()
+                        val headers = "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\n" +
+                            "Content-Length: ${fixture.length()}\r\nConnection: close\r\n\r\n"
+                        output.write(headers.toByteArray(Charsets.US_ASCII))
+                        output.flush()
+                        headersDelivered.countDown()
+                        check(releaseBody.await(15, TimeUnit.SECONDS))
+                        fixture.inputStream().use { it.copyTo(output) }
+                        output.flush()
+                    }
+                }
+                try {
+                    renderer.play("http://127.0.0.1:${server.localPort}/video.mp4", 0f, token = owner)
+                    renderer.setPlaying(false, owner)
+                    assertTrue("The player did not request the video", headersDelivered.await(10, TimeUnit.SECONDS))
+                    await("The paused player did not report buffering while waiting for video data") {
+                        val latest = snapshots.lastOrNull() ?: return@await false
+                        latest.first == owner && latest.second.let { it.buffering && !it.ready && !it.playWhenReady }
+                    }
+                    releaseBody.countDown()
+                    response.get(10, TimeUnit.SECONDS)
+                    await("The paused player did not report readiness after receiving the video") {
+                        val latest = snapshots.lastOrNull() ?: return@await false
+                        latest.first == owner && latest.second.let { !it.buffering && it.ready && !it.playWhenReady }
+                    }
+                    main { assertTrue(failures.isEmpty()) }
+                } finally {
+                    releaseBody.countDown()
+                }
+            }
+        } finally {
+            executor.shutdownNow()
         }
     }
 
