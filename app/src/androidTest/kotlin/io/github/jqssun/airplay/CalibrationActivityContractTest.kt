@@ -8,6 +8,8 @@ import android.graphics.Paint
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -17,6 +19,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.runner.RunWith
 import kotlin.math.roundToInt
 
@@ -43,12 +47,17 @@ class CalibrationActivityContractTest {
                 }
                 assertEquals(4, Prefs.TV_MARGIN.read(preferences))
                 scenario.recreate()
+                val destroyed = CountDownLatch(1)
                 scenario.onActivity { activity ->
                     assertTrue("6%" in drawTextWidths(activity, 960))
                     assertEquals(4, Prefs.TV_MARGIN.read(preferences))
+                    activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
+                        override fun onDestroy(owner: LifecycleOwner) = destroyed.countDown()
+                    })
                     assertTrue(press(activity, KeyEvent.KEYCODE_ENTER))
                     assertTrue(activity.isFinishing)
                 }
+                assertTrue("Saving did not close calibration", destroyed.await(25, TimeUnit.SECONDS))
                 assertEquals(6, Prefs.TV_MARGIN.read(preferences))
             }
         } finally {
