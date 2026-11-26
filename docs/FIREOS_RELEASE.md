@@ -214,6 +214,14 @@ Uma execução adicional com Android 4.2 ARMv7 no emulador clássico
 extraída dos APKs assinados. O arquivo é idêntico nas duas edições, com
 SHA-256 `6cba0573843b141687f65ec43a0c50e8be146e459051be23e979d540473fae8c`.
 O resultado `api17-native-loader-result.txt` confirma as dependências e
-os inicializadores nativos nessa combinação. A instalação do app completo
-segue sem resultado nesse emulador, cujo gerenciador de pacotes foi
-reiniciado pelo watchdog durante a tentativa.
+os inicializadores nativos nessa combinação. O executável de teste usou
+essa mesma biblioteca para iniciar o receptor e confirmou `RTSP/1.0 200`
+em loopback, registrado em `api17-native-receiver-result.txt`. A instalação
+do app completo continua pendente nesse emulador. O watchdog reiniciou seu
+gerenciador de pacotes e uma nova tentativa também excedeu o prazo do ADB.
+
+Os seis APKs reconstruídos passaram no build, no lint de release e na
+verificação de pacote, API mínima, versão e assinatura em `signed-matrix.json`
+no mesmo diretório. Esse relatório verifica os seis artefatos exportados.
+Os testes de abertura da matriz, a licença pela Appstore e a atribuição de
+modelos na loja têm verificações próprias.
