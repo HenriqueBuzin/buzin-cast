@@ -185,6 +185,43 @@ class AirPlayVideoPlayerContractTest {
         }
     }
 
+    @Test fun playbackStartsWhenItsPendingSurfaceWasReleasedBeforeOpeningTheVideo() {
+        val texture = SurfaceTexture(false)
+        val retired = Surface(texture)
+        val replacement = Surface(texture)
+        val owner = token()
+        try {
+            main {
+                renderer.setSurface(retired)
+                assertSame(retired, playerField("pendingSurface"))
+                retired.release()
+                assertFalse(retired.isValid)
+            }
+
+            renderer.play(Uri.fromFile(fixture).toString(), 0.25f, token = owner)
+            renderer.setPlaying(false, owner)
+            await("The player did not become ready without a valid display surface") {
+                player().playbackState == Player.STATE_READY && !player().playWhenReady
+            }
+
+            main {
+                val original = player()
+                assertEquals(250L, original.currentPosition)
+                renderer.setSurface(replacement)
+                renderer.clearSurface(retired)
+                assertSame(replacement, playerField("pendingSurface"))
+                assertSame(original, player())
+                assertTrue(failures.isEmpty())
+            }
+        } finally {
+            renderer.stop(owner)
+            main { renderer.clearSurface(replacement) }
+            replacement.release()
+            retired.release()
+            texture.release()
+        }
+    }
+
     @Test fun commandsAndCallbacksFromAReplacedSessionLeaveItsSuccessorIntact() {
         val first = token()
         val url = Uri.fromFile(fixture).toString()
