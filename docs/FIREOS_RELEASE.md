@@ -244,3 +244,9 @@ instalados e testados separadamente em `armeabi-v7a`. Ambos mostraram
 ficam junto da matriz. Os dois APKs de teste foram removidos e a edição
 geral instalada anteriormente foi reaberta. O APK legado ainda precisa ser
 testado no Stick de 2014 (`AFTM`).
+
+O APK legado DE/AT também reproduziu um MP4 de teste via AirPlay por URL
+no Fire OS 6 físico. O receptor buscou o vídeo pela rede local e reportou
+avanço da posição antes do comando de parada. O relatório local
+`legacy.nodownload-aftmm-lan-playback-retry.json` vincula o teste ao SHA-256
+do candidato assinado. A edição de teste foi removida e a geral reaberta.
