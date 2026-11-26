@@ -223,5 +223,7 @@ gerenciador de pacotes e uma nova tentativa também excedeu o prazo do ADB.
 Os seis APKs reconstruídos passaram no build, no lint de release e na
 verificação de pacote, API mínima, versão e assinatura em `signed-matrix.json`
 no mesmo diretório. Esse relatório verifica os seis artefatos exportados.
-Os testes de abertura da matriz, a licença pela Appstore e a atribuição de
-modelos na loja têm verificações próprias.
+O relatório `verified-refreshed-matrix.json` vincula os mesmos seis APKs
+a 12 testes aprovados de abertura e RTSP nas APIs 17, 22, 25, 28 e 30.
+O teste no Fire TV Stick de 1ª geração, a licença pela Appstore e a atribuição
+de modelos na loja continuam pendentes.
