@@ -3755,3 +3755,15 @@ test APK, classes, native library, sources, and compiled auxiliary inputs.
 It covers 83,729/87,091 JVM instructions, 5,226/5,979 branches (87.41%),
 8,363/8,551 lines, 4,522/5,166 complexity points (87.53%), 2,289/2,374 methods,
 and 311/317 classes. All six native metrics reached 100% in the combined report.
+
+Both DE/AT builds from `4016cbd` passed 450 Android tests, 21 native UBSan
+tests, and all 15 required runtime checks. The normal build on API36 also
+passed the VPN and offline diagnostics. Its sealed report covers 5,153/5,905
+JVM branches (87.27%) and 4,467/5,136 complexity points (86.97%), with 100% on
+all six native metrics. The Compact build on API22 covers 5,058/5,903 JVM
+branches (85.69%) and 4,395/5,135 complexity points (85.59%). Its native
+functions and instantiations reached 100%, with 904/912 branches, 1,748/1,751
+lines, 170/171 MCDC conditions, and 1,496/1,500 regions. The Compact numbers
+are for API22 alone. Compare them with the earlier combined checkpoint after
+the matching API28 replay. Reports are in `build/coverage-4016cbd-deat-api36`
+and `build/coverage-4016cbd-compat-deat-api22`.
